@@ -1,0 +1,105 @@
+﻿# ── Node / Dependencies ─────────────────────────────
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# ── Build outputs ───────────────────────────────────
+dist/
+build/
+.next/
+out/
+bin/
+obj/
+*.js.map
+*.tsbuildinfo
+
+# ── Environment (SECRETS — never commit) ────────────
+.env
+.env.local
+.env.production
+.env.development
+.env.test
+*.env
+!*.env.example
+!.env.example
+
+# ── Keys & Certificates ─────────────────────────────
+*.pem
+*.key
+id_ed25519
+id_ed25519.pub
+
+# ── Databases ───────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Caches ──────────────────────────────────────────
+.prisma/
+.vite/
+.eslintcache
+.parcel-cache
+
+# ── OS ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Logs ────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Debug / Temp files (project-specific) ───────────
+debug-*.ps1
+debug-*.js
+debug-*.cjs
+debug-*.json
+test-*.ps1
+test-*.js
+test-api.ps1
+test-scalping-*.ps1
+test-logs/
+market-summary-debug-*/
+
+# ── Diagnostic / inspection outputs ─────────────────
+analyze-*.json
+diagnose-*.cjs
+inspect-*.js
+inspect-*.json
+check-*.js
+check-*.ps1
+check.sql
+check_*.js
+check_*.sql
+fix-*.js
+fix-*.cjs
+fix-*.ps1
+del.sql
+list_tables.sql
+select-queries.txt
+schema-inspection-results.json
+full-test.js
+add-columns.js
+sync-fonts-to-uiconfig.cjs
+
+# ── Backend compiled artifacts ──────────────────────
+backend/scripts/*.js
+backend/scripts/*.js.map
+backend/daemon/
+
+# ── Sensitive runtime outputs ───────────────────────
+scalping-token.txt
+production.env
+payload.json
+history-response.json
+query
+create_*.sql
+create_settings*.sql
+create_scalping_tables_safe.sql
+database/
+
+# ── Misc ────────────────────────────────────────────
+*.sq1

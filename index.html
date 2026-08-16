@@ -1,0 +1,177 @@
+﻿<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>تحلیلگر هوشمند بورس رونیا</title>
+
+    <script>
+      /* ========================================
+         Anti-FOUC: تم و فونت قبل از رندر
+         ======================================== */
+
+      (function () {
+        try {
+          var savedTheme = localStorage.getItem('theme');
+          var prefersDark =
+            window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+          if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {
+          document.documentElement.classList.remove('dark');
+        }
+      })();
+
+      (function () {
+        try {
+          var root = document.documentElement;
+
+          var globalThemeSettingsKey = 'global_app_theme_settings';
+          var globalFontsKey = 'global_app_fonts';
+          var globalPersianFontKey = 'global_selected_font_persian';
+          var globalLatinFontKey = 'global_selected_font_latin';
+
+          var localThemeSettingsKey = 'app_theme_settings';
+          var localFontsKey = 'app_fonts';
+          var localPersianFontKey = 'selected_font_persian';
+          var localLatinFontKey = 'selected_font_latin';
+
+          var themeSettingsJson =
+            localStorage.getItem(globalThemeSettingsKey) ||
+            localStorage.getItem(localThemeSettingsKey);
+
+          var fontsJson =
+            localStorage.getItem(globalFontsKey) ||
+            localStorage.getItem(localFontsKey);
+
+          var selectedPersian =
+            localStorage.getItem(globalPersianFontKey) ||
+            localStorage.getItem(localPersianFontKey) ||
+            'B Nazanin';
+
+          var selectedLatin =
+            localStorage.getItem(globalLatinFontKey) ||
+            localStorage.getItem(localLatinFontKey) ||
+            'Arial';
+
+          function safeParse(json, fallback) {
+            try {
+              if (!json) return fallback;
+              return JSON.parse(json);
+            } catch (_) {
+              return fallback;
+            }
+          }
+
+          var customTheme = safeParse(themeSettingsJson, {});
+          if (
+            customTheme &&
+            typeof customTheme === 'object' &&
+            !Array.isArray(customTheme)
+          ) {
+            for (var styleId in customTheme) {
+              if (!Object.prototype.hasOwnProperty.call(customTheme, styleId)) continue;
+
+              var styles = customTheme[styleId];
+              if (!styles || typeof styles !== 'object') continue;
+
+              if (styles.backgroundColor) {
+                root.style.setProperty('--' + styleId + '-bg', styles.backgroundColor);
+              }
+              if (styles.color) {
+                root.style.setProperty('--' + styleId + '-color', styles.color);
+              }
+              if (styles.fontFamily) {
+                root.style.setProperty('--' + styleId + '-font-family', styles.fontFamily);
+              }
+              if (
+                styles.fontSize !== undefined &&
+                styles.fontSize !== null &&
+                styles.fontSize !== ''
+              ) {
+                root.style.setProperty(
+                  '--' + styleId + '-font-size',
+                  String(styles.fontSize) + 'px'
+                );
+              }
+              if (styles.borderColor) {
+                root.style.setProperty('--' + styleId + '-border-color', styles.borderColor);
+              }
+              if (
+                styles.borderWidth !== undefined &&
+                styles.borderWidth !== null &&
+                styles.borderWidth !== ''
+              ) {
+                root.style.setProperty(
+                  '--' + styleId + '-border-width',
+                  String(styles.borderWidth) + 'px'
+                );
+              }
+              if (styles.borderStyle) {
+                root.style.setProperty('--' + styleId + '-border-style', styles.borderStyle);
+              }
+              if (
+                styles.size !== undefined &&
+                styles.size !== null &&
+                styles.size !== ''
+              ) {
+                root.style.setProperty(
+                  '--' + styleId + '-size',
+                  String(styles.size) + 'px'
+                );
+              }
+            }
+          }
+
+          var parsedFonts = safeParse(fontsJson, []);
+          var allFonts = Array.isArray(parsedFonts) ? parsedFonts : [];
+
+          if (allFonts.length > 0) {
+            var fontStyle = document.createElement('style');
+            fontStyle.setAttribute('data-dynamic-fonts', 'true');
+
+            var fontFaceRules = '';
+
+            allFonts.forEach(function (font) {
+              if (!font || typeof font !== 'object') return;
+              if (!font.name || !font.url) return;
+
+              var weight = font.weight || 400;
+              var style = font.style || 'normal';
+              var format = font.format || 'woff2';
+
+              fontFaceRules +=
+                "@font-face {" +
+                "font-family: '" + String(font.name).replace(/'/g, "\\'") + "';" +
+                "src: url('" + String(font.url).replace(/'/g, "\\'") + "') format('" + format + "');" +
+                "font-weight: " + weight + ";" +
+                "font-style: " + style + ";" +
+                "font-display: swap;" +
+                "}";
+            });
+
+            if (fontFaceRules) {
+              fontStyle.textContent = fontFaceRules;
+              document.head.appendChild(fontStyle);
+            }
+          }
+
+          root.style.setProperty('--font-sans-fa', selectedPersian);
+          root.style.setProperty('--font-sans-en', selectedLatin);
+        } catch (e) {
+          console.error('Error loading custom theme or fonts:', e);
+        }
+      })();
+    </script>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

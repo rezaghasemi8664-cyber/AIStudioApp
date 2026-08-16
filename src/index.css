@@ -1,0 +1,525 @@
+﻿/* ======================================================
+   src/index.css - TailwindCSS v4 Entry Point + Custom Styles
+   ====================================================== */
+
+/* TailwindCSS v4 Import */
+@import "tailwindcss";
+
+/* ==============================
+   Font Faces
+   ============================== */
+@font-face {
+  font-family: 'B Nazanin';
+  src: url('/fonts/B Nazanin.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Sahel';
+  src: url('/fonts/Sahel.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Sahel';
+  src: url('/fonts/Sahel-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Estedad';
+  src: url('/fonts/Estedad-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Estedad';
+  src: url('/fonts/Estedad-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('/fonts/Vazirmatn-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('/fonts/Vazirmatn-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Arial';
+  src: url('/fonts/Arial.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* اگر Roboto را هم به‌صورت لوکال دارید این بخش را فعال نگه دارید
+@font-face {
+  font-family: 'Roboto';
+  src: url('/fonts/Roboto-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+*/
+
+/* ==============================
+   CSS Variables - Light Theme
+   ============================== */
+:root {
+  /* FONT DEFAULTS */
+  --font-sans-fa: 'B Nazanin';
+  --font-sans-en: 'Arial';
+
+  /* GENERIC DEFAULTS */
+  --app-bg: #f3f4f6;
+  --app-color: #111827;
+  --color-positive: #16a34a;
+  --color-negative: #dc2626;
+  --card-bg: #ffffff;
+  --card-color: #1f2937;
+  --card-border-color: #e5e7eb;
+  --card-border-style: solid;
+  --card-border-width: 1px;
+  --form-card-bg: #f9fafb;
+  --btn-primary-bg: #0891b2;
+  --btn-primary-color: #ffffff;
+  --btn-primary-hover-bg: #06b6d4;
+  --input-bg: #f3f4f6;
+  --input-color: #111827;
+  --input-border: #d1d5db;
+  --input-focus-ring: #0891b2;
+  --table-header-bg: #f9fafb;
+  --table-header-color: #0e7490;
+  --table-row-hover-bg: #f3f4f6;
+  --table-border-color: #e5e7eb;
+  --table-border-style: solid;
+  --table-border-width: 1px;
+
+  /* LOGO DEFAULTS */
+  --ronia-logo-bg-color: #3B596A;
+  --ronia-logo-fg-color: #E8B38A;
+  --ronia-logo-bars-color: #FFFFFF;
+  --ronia-logo-swoosh-color: #3B596A;
+
+  /* ICON DEFAULTS */
+  --icon-magnifying-glass-color: currentColor;
+  --icon-magnifying-glass-size: 20px;
+  --icon-chart-bar-color: currentColor;
+  --icon-chart-bar-size: 20px;
+  --icon-briefcase-color: currentColor;
+  --icon-briefcase-size: 20px;
+  --icon-sparkles-color: #f59e0b;
+  --icon-sparkles-size: 20px;
+  --icon-bell-color: currentColor;
+  --icon-bell-size: 24px;
+  --icon-check-circle-color: var(--color-positive);
+  --icon-check-circle-size: 24px;
+  --icon-x-circle-color: var(--color-negative);
+  --icon-x-circle-size: 24px;
+  --icon-info-color: #f59e0b;
+  --icon-info-size: 24px;
+  --icon-plus-color: currentColor;
+  --icon-plus-size: 20px;
+  --icon-trash-color: var(--color-negative);
+  --icon-trash-size: 20px;
+  --icon-arrow-trending-up-color: var(--color-positive);
+  --icon-arrow-trending-up-size: 16px;
+  --icon-arrow-trending-down-color: var(--color-negative);
+  --icon-arrow-trending-down-size: 16px;
+  --icon-chevron-down-color: currentColor;
+  --icon-chevron-down-size: 24px;
+  --icon-user-group-color: currentColor;
+  --icon-user-group-size: 20px;
+  --icon-cog-6-tooth-color: currentColor;
+  --icon-cog-6-tooth-size: 20px;
+  --icon-arrow-right-on-rectangle-color: currentColor;
+  --icon-arrow-right-on-rectangle-size: 24px;
+  --icon-lock-closed-color: currentColor;
+  --icon-lock-closed-size: 20px;
+  --icon-clock-color: currentColor;
+  --icon-clock-size: 20px;
+  --icon-x-mark-color: currentColor;
+  --icon-x-mark-size: 20px;
+  --icon-key-color: #3b82f6;
+  --icon-key-size: 20px;
+  --icon-arrow-uturn-left-color: currentColor;
+  --icon-arrow-uturn-left-size: 20px;
+  --icon-calendar-days-color: #0891b2;
+  --icon-calendar-days-size: 24px;
+  --icon-presentation-chart-line-color: #38bdf8;
+  --icon-presentation-chart-line-size: 20px;
+  --icon-eye-color: currentColor;
+  --icon-eye-size: 20px;
+  --icon-eye-slash-color: currentColor;
+  --icon-eye-slash-size: 20px;
+  --icon-sun-color: currentColor;
+  --icon-sun-size: 20px;
+  --icon-moon-color: currentColor;
+  --icon-moon-size: 20px;
+  --icon-globe-alt-color: #2563eb;
+  --icon-globe-alt-size: 20px;
+  --icon-wifi-slash-color: currentColor;
+  --icon-wifi-slash-size: 20px;
+  --icon-pencil-color: currentColor;
+  --icon-pencil-size: 16px;
+  --icon-check-color: currentColor;
+  --icon-check-size: 20px;
+  --icon-megaphone-color: currentColor;
+  --icon-megaphone-size: 20px;
+  --icon-user-circle-color: currentColor;
+  --icon-user-circle-size: 20px;
+  --icon-paint-brush-color: currentColor;
+  --icon-paint-brush-size: 24px;
+  --icon-paper-airplane-color: currentColor;
+  --icon-paper-airplane-size: 20px;
+  --icon-envelope-color: currentColor;
+  --icon-envelope-size: 24px;
+  --icon-cloud-arrow-up-color: currentColor;
+  --icon-cloud-arrow-up-size: 20px;
+  --icon-exclamation-triangle-color: #f59e0b;
+  --icon-exclamation-triangle-size: 64px;
+  --icon-user-plus-color: currentColor;
+  --icon-user-plus-size: 20px;
+  --icon-clipboard-document-color: #16a34a;
+  --icon-clipboard-document-size: 20px;
+  --icon-server-color: currentColor;
+  --icon-server-size: 20px;
+  --icon-arrow-down-on-square-color: currentColor;
+  --icon-arrow-down-on-square-size: 20px;
+  --icon-paperclip-color: currentColor;
+  --icon-paperclip-size: 16px;
+  --icon-building-library-color: currentColor;
+  --icon-building-library-size: 20px;
+
+  /* Component Specific Variables */
+  --header-bg: transparent;
+  --header-color: #111827;
+  --header-font-family: inherit;
+  --header-font-size: 24px;
+  --header-border-color: #d1d5db;
+
+  --main-content-bg: var(--card-bg);
+  --main-content-color: var(--card-color);
+  --main-content-font-family: inherit;
+  --main-content-font-size: 16px;
+
+  --tab-active-bg: #f3f4f6;
+  --tab-active-color: #0891b2;
+  --tab-active-font-family: inherit;
+  --tab-active-font-size: 14px;
+  --tab-active-border-color: #0891b2;
+
+  --tab-inactive-bg: transparent;
+  --tab-inactive-color: #6b7280;
+  --tab-inactive-font-family: inherit;
+  --tab-inactive-font-size: 14px;
+  --tab-inactive-hover-bg: #f9fafb;
+
+  --login-card-bg: var(--card-bg);
+  --login-card-color: var(--card-color);
+  --login-card-font-family: inherit;
+  --login-card-font-size: 16px;
+  --login-button-bg: var(--btn-primary-bg);
+  --login-button-color: var(--btn-primary-color);
+  --login-button-font-family: inherit;
+  --login-button-font-size: 14px;
+
+  --market-index-open-bg: var(--card-bg);
+  --market-index-open-color: var(--card-color);
+  --market-index-open-font-family: inherit;
+  --market-index-open-font-size: 16px;
+  --market-index-closed-bg: var(--card-bg);
+  --market-index-closed-color: var(--card-color);
+  --market-index-closed-font-family: inherit;
+  --market-index-closed-font-size: 16px;
+
+  --analysis-form-card-bg: var(--form-card-bg);
+  --analysis-form-card-color: var(--card-color);
+  --analysis-form-card-font-family: inherit;
+  --analysis-form-card-font-size: 14px;
+  --analysis-button-bg: var(--btn-primary-bg);
+  --analysis-button-color: var(--btn-primary-color);
+  --analysis-button-font-family: inherit;
+  --analysis-button-font-size: 14px;
+  --analysis-result-card-bg: var(--card-bg);
+  --analysis-result-card-color: var(--card-color);
+  --analysis-result-card-font-family: inherit;
+  --analysis-result-card-font-size: 16px;
+  --analysis-history-card-bg: var(--card-bg);
+  --analysis-history-card-color: var(--card-color);
+  --analysis-history-card-font-family: inherit;
+  --analysis-history-card-font-size: 16px;
+
+  --most-traded-card-bg: var(--card-bg);
+  --most-traded-card-color: var(--card-color);
+  --most-traded-card-font-family: inherit;
+  --most-traded-card-font-size: 16px;
+  --most-traded-header-bg: var(--table-header-bg);
+  --most-traded-header-color: var(--table-header-color);
+  --most-traded-header-font-family: inherit;
+  --most-traded-header-font-size: 12px;
+  --most-traded-rows-bg: transparent;
+  --most-traded-rows-color: var(--card-color);
+  --most-traded-rows-font-family: inherit;
+  --most-traded-rows-font-size: 14px;
+
+  --scalping-card-bg: var(--card-bg);
+  --scalping-card-color: var(--card-color);
+  --scalping-card-font-family: inherit;
+  --scalping-card-font-size: 16px;
+  --scalping-card-border-color: var(--card-border-color);
+  --scalping-card-border-width: 1px;
+  --scalping-card-border-style: solid;
+
+  --portfolio-item-card-bg: var(--card-bg);
+  --portfolio-item-card-color: var(--card-color);
+  --portfolio-item-card-font-family: inherit;
+  --portfolio-item-card-font-size: 16px;
+  --portfolio-add-form-bg: var(--form-card-bg);
+  --portfolio-add-form-color: var(--card-color);
+  --portfolio-add-form-font-family: inherit;
+  --portfolio-add-form-font-size: 14px;
+
+  --user-management-add-form-bg: var(--form-card-bg);
+  --user-management-add-form-color: var(--card-color);
+  --user-management-add-form-font-family: inherit;
+  --user-management-add-form-font-size: 14px;
+  --user-management-table-header-bg: var(--table-header-bg);
+  --user-management-table-header-color: var(--table-header-color);
+  --user-management-table-header-font-family: inherit;
+  --user-management-table-header-font-size: 12px;
+  --user-management-table-rows-bg: transparent;
+  --user-management-table-rows-color: var(--card-color);
+  --user-management-table-rows-font-family: inherit;
+  --user-management-table-rows-font-size: 14px;
+
+  --user-profile-info-card-bg: var(--card-bg);
+  --user-profile-info-card-color: var(--card-color);
+  --user-profile-info-card-font-family: inherit;
+  --user-profile-info-card-font-size: 16px;
+  --user-profile-password-card-bg: var(--card-bg);
+  --user-profile-password-card-color: var(--card-color);
+  --user-profile-password-card-font-family: inherit;
+  --user-profile-password-card-font-size: 16px;
+  --user-profile-validity-card-bg: var(--card-bg);
+  --user-profile-validity-card-color: var(--card-color);
+  --user-profile-validity-card-font-family: inherit;
+  --user-profile-validity-card-font-size: 16px;
+  --user-profile-message-card-bg: var(--card-bg);
+  --user-profile-message-card-color: var(--card-color);
+  --user-profile-message-card-font-family: inherit;
+  --user-profile-message-card-font-size: 16px;
+  --user-profile-guest-settings-card-bg: var(--card-bg);
+  --user-profile-guest-settings-card-color: var(--card-color);
+  --user-profile-guest-settings-card-font-family: inherit;
+  --user-profile-guest-settings-card-font-size: 16px;
+  --user-profile-guest-management-card-bg: var(--card-bg);
+  --user-profile-guest-management-card-color: var(--card-color);
+  --user-profile-guest-management-card-font-family: inherit;
+  --user-profile-guest-management-card-font-size: 16px;
+
+  --sources-api-card-bg: var(--card-bg);
+  --sources-api-card-color: var(--card-color);
+  --sources-api-card-font-family: inherit;
+  --sources-api-card-font-size: 16px;
+  --sources-api-border-color: var(--card-border-color);
+
+  --notifications-form-card-bg: var(--form-card-bg);
+  --notifications-form-card-color: var(--card-color);
+  --notifications-form-card-font-family: inherit;
+  --notifications-form-card-font-size: 14px;
+
+  --settings-card-bg: var(--card-bg);
+  --settings-card-color: var(--card-color);
+  --settings-card-font-family: var(--font-sans-fa), var(--font-sans-en), 'Vazirmatn', sans-serif;
+  --settings-card-font-size: 16px;
+  --settings-font-section-bg: var(--card-bg);
+  --settings-font-section-color: var(--card-color);
+  --settings-font-section-font-family: inherit;
+  --settings-font-section-font-size: 16px;
+  --settings-add-font-form-bg: var(--form-card-bg);
+  --settings-add-font-form-color: var(--card-color);
+  --settings-add-font-form-font-family: inherit;
+  --settings-add-font-form-font-size: 14px;
+  --settings-market-card-bg: var(--card-bg);
+  --settings-market-card-color: var(--card-color);
+  --settings-market-card-font-family: inherit;
+  --settings-market-card-font-size: 16px;
+  --settings-update-card-bg: var(--card-bg);
+  --settings-update-card-color: var(--card-color);
+  --settings-update-card-font-family: inherit;
+  --settings-update-card-font-size: 16px;
+  --settings-user-access-card-bg: var(--card-bg);
+  --settings-user-access-card-color: var(--card-color);
+  --settings-user-access-card-font-family: inherit;
+  --settings-user-access-card-font-size: 16px;
+  --settings-version-management-card-bg: var(--card-bg);
+  --settings-version-management-card-color: var(--card-color);
+  --settings-version-management-card-font-family: inherit;
+  --settings-version-management-card-font-size: 16px;
+  --settings-version-upload-form-bg: var(--form-card-bg);
+  --settings-version-upload-form-color: var(--card-color);
+  --settings-version-upload-form-font-family: inherit;
+  --settings-version-upload-form-font-size: 14px;
+  --settings-version-item-active-bg: #dcfce7;
+  --settings-version-item-active-color: #166534;
+  --settings-version-item-active-border-color: #86efac;
+  --settings-version-item-inactive-bg: #f3f4f6;
+  --settings-version-item-inactive-color: var(--card-color);
+  --settings-version-item-inactive-border-color: var(--card-border-color);
+}
+
+/* ==============================
+   CSS Variables - Dark Theme
+   ============================== */
+.dark {
+  --app-bg: #111827;
+  --app-color: #f9fafb;
+  --color-positive: #4ade80;
+  --color-negative: #f87171;
+  --card-bg: #1f2937;
+  --card-color: #e5e7eb;
+  --card-border-color: #374151;
+  --form-card-bg: #1f2937;
+  --input-bg: #374151;
+  --input-color: #f9fafb;
+  --input-border: #4b5563;
+  --table-header-bg: #374151;
+  --table-header-color: #67e8f9;
+  --table-row-hover-bg: #374151;
+  --table-border-color: #374151;
+
+  --header-bg: transparent;
+  --header-color: #ffffff;
+  --header-border-color: #374151;
+
+  --tab-active-bg: #111827;
+  --tab-active-color: #67e8f9;
+  --tab-active-border-color: #67e8f9;
+  --tab-inactive-color: #9ca3af;
+  --tab-inactive-hover-bg: #374151;
+
+  --settings-version-item-active-bg: #166534;
+  --settings-version-item-active-color: #dcfce7;
+  --settings-version-item-active-border-color: #22c55e;
+  --settings-version-item-inactive-bg: #374151;
+  --settings-version-item-inactive-border-color: var(--card-border-color);
+}
+
+/* ==============================
+   Body Base Styles
+   ============================== */
+body {
+  font-family: var(--font-sans-fa), var(--font-sans-en), 'Vazirmatn', sans-serif;
+  background-color: var(--app-bg);
+  color: var(--app-color);
+}
+
+/* ==============================
+   Theme Editor Styles
+   ============================== */
+.theme-editor-active [data-style-id]:hover {
+  outline: 2px dotted #0891b2;
+  cursor: pointer;
+}
+
+body.theme-editor-active .theme-editor-panel:hover,
+body.theme-editor-active .paint-brush-button:hover {
+  outline: none;
+  cursor: default;
+}
+
+/* ==============================
+   Animations
+   ============================== */
+@keyframes flash-cyan {
+  0%, 100% { box-shadow: 0 0 0px rgba(34, 211, 238, 0); }
+  50% { box-shadow: 0 0 12px rgba(34, 211, 238, 0.7); }
+}
+
+@keyframes flash-red {
+  0%, 100% { box-shadow: 0 0 0px rgba(248, 113, 113, 0); }
+  50% { box-shadow: 0 0 12px rgba(248, 113, 113, 0.7); }
+}
+
+@keyframes flash-green {
+  0%, 100% { box-shadow: 0 0 0px rgba(74, 222, 128, 0); }
+  50% { box-shadow: 0 0 12px rgba(74, 222, 128, 0.7); }
+}
+
+.animate-flash-cyan { animation: flash-cyan 1.5s ease-in-out infinite; }
+.animate-flash-red { animation: flash-red 1.5s ease-in-out infinite; }
+.animate-flash-green { animation: flash-green 1.5s ease-in-out infinite; }
+
+@keyframes toast-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.animate-toast-in { animation: toast-in-right 0.3s ease-out forwards; }
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in { animation: fade-in 0.5s ease-out forwards; }
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+.animate-fade-out { animation: fade-out 0.5s ease-out forwards; }
+
+@keyframes subtle-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.animate-subtle-bounce { animation: subtle-bounce 0.4s ease-out; }
+
+/* ==============================
+   Pulse Green (Unread Tab Indicator)
+   ============================== */
+@keyframes pulse-green {
+  0% {
+    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(74, 222, 128, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0);
+  }
+}
+
+.animate-pulse-green {
+  animation: pulse-green 1.5s ease-out infinite;
+}
+
+/* استایل مخصوص لوگوی کامل در صفحه ورود */
+.login-brand-logo {
+  display: block;
+  margin: 0 auto 1.5rem auto; /* مرکز کردن و فاصله از پایین */
+  width: 100%;
+  max-width: 260px; /* سایز بهینه‌ برای خوانایی متن ریز لوگو */
+  height: auto;
+  object-fit: contain;
+}

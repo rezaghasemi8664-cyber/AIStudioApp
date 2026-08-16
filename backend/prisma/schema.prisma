@@ -1,0 +1,395 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+  schemas  = ["dbo"]
+}
+
+model User {
+  id                    Int                     @id @default(autoincrement())
+  username              String                  @unique
+  email                 String?                 @unique
+  passwordHash          String
+  name                  String?
+  avatar                String?
+  isActive              Boolean                 @default(true)
+  isDeleted             Boolean                 @default(false)
+  scalping              String?                 @db.NVarChar(Max)
+  marketIndex           String?                 @db.NVarChar(Max)
+  marketSummary         String?                 @db.NVarChar(Max)
+  roleId                Int
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  phone                 String?                 @db.NVarChar(20)
+  subscriptionStart     DateTime?
+  subscriptionMonths    Int?                    @default(0)
+  analysisLimit         Int?                    @default(0)
+  firstName             String?                 @db.NVarChar(100)
+  lastName              String?                 @db.NVarChar(100)
+  mobile                String?                 @db.NVarChar(20)
+  nationalId            String?                 @db.NVarChar(20)
+  bio                   String?                 @db.NVarChar(500)
+  subscriptionEnd       DateTime?
+  subscriptionType      String?                 @default("free") @db.NVarChar(50)
+  analysisLimit24h      Int?                    @default(0)
+  analysisUsed24h       Int?                    @default(0)
+  lastAnalysisReset     DateTime?
+  lastLoginAt           DateTime?
+  loginCount            Int?                    @default(0)
+
+  admin_scheduler_rules admin_scheduler_rules[]
+  analysis              AnalysisHistory[]
+  apiKeys               ApiKey[]
+  ConversationMember    ConversationMember[]
+  messagesRecv          Message[]               @relation("MessageReceiver")
+  messagesSent          Message[]               @relation("MessageSender")
+  notifications         Notification[]
+  sessions              Session[]
+  Role                  Role                    @relation(fields: [roleId], references: [id])
+  preferences           UserPreference[]
+  settings              UserSettings?
+  scalpingConfig        ScalpingConfig?
+  scalpingOpportunities ScalpingOpportunity[]
+  scalpingRuns          ScalpingRun[]
+
+  @@index([isActive])
+  @@index([isDeleted])
+  @@index([mobile])
+  @@index([nationalId])
+  @@map("User")
+  @@schema("dbo")
+}
+
+model ApiKey {
+  id        Int       @id(map: "PK__ApiKey__3213E83F7616B2BA") @default(autoincrement())
+  userId    Int
+  name      String?   @db.NVarChar(100)
+  value     String?   @db.NVarChar(200)
+  createdAt DateTime? @default(dbgenerated("sysdatetime()"), map: "DF__ApiKey__createdA__6EC0713C")
+  isRevoked Boolean   @default(false, map: "DF__ApiKey__isRevoke__4C564A9F")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_ApiKey_User")
+
+  @@map("ApiKey")
+  @@schema("dbo")
+}
+
+model Notification {
+  id        Int       @id(map: "PK__Notifica__3213E83F88C86C85") @default(autoincrement())
+  userId    Int
+  title     String?   @db.NVarChar(200)
+  message   String?   @db.NVarChar(Max)
+  isRead    Boolean?  @default(false, map: "DF__Notificat__isRea__72910220")
+  createdAt DateTime? @default(dbgenerated("sysdatetime()"), map: "DF__Notificat__creat__73852659")
+  type      String    @default("info", map: "DF__Notificati__type__55DFB4D9") @db.NVarChar(50)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_Notification_User")
+
+  @@map("Notification")
+  @@schema("dbo")
+}
+
+model Message {
+  id         Int       @id(map: "PK__Message__3213E83F1C6A9185") @default(autoincrement())
+  senderId   Int?
+  receiverId Int?
+  content    String?   @db.NVarChar(Max)
+  createdAt  DateTime? @default(dbgenerated("sysdatetime()"), map: "DF__Message__created__7755B73D")
+  receiver   User?     @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_Message_Receiver")
+  sender     User?     @relation("MessageSender", fields: [senderId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_Message_Sender")
+
+  @@map("Message")
+  @@schema("dbo")
+}
+
+model AnalysisHistory {
+  id         Int       @id(map: "PK__Analysis__3213E83F7D70F0AA") @default(autoincrement())
+  userId     Int
+  stock      String?   @db.NVarChar(50)
+  resultJson String?   @db.NVarChar(Max)
+  createdAt  DateTime? @default(dbgenerated("sysdatetime()"), map: "DF__AnalysisH__creat__7C1A6C5A")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_AnalysisHistory_User")
+
+  @@map("AnalysisHistory")
+  @@schema("dbo")
+}
+
+model MarketHistory {
+  id        Int       @id(map: "PK__MarketHi__3213E83F9B8AD4C3") @default(autoincrement())
+  jsonData  String?   @db.NVarChar(Max)
+  createdAt DateTime? @default(dbgenerated("sysdatetime()"), map: "DF__MarketHis__creat__7FEAFD3E")
+
+  @@map("MarketHistory")
+  @@schema("dbo")
+}
+
+model MarketDaily {
+  id     Int      @id @default(autoincrement())
+  symbol String
+  date   DateTime
+  open   Float
+  high   Float
+  low    Float
+  close  Float
+  volume BigInt
+  value  BigInt
+  trades Int?
+
+  @@unique([symbol, date], name: "symbol_date")
+  @@index([symbol, date])
+  @@map("MarketDaily")
+  @@schema("dbo")
+}
+
+model MarketSummary {
+  id             Int      @id(map: "PK__MarketSu__3213E83FFABFB5FF") @default(autoincrement())
+  date           DateTime @default(dbgenerated("sysdatetime()"), map: "DF__MarketSumm__date__6CC31A31")
+  summaryDate    DateTime @unique(map: "UQ_MarketSummary_summaryDate") @db.Date
+  overallIndex   Float?
+  overallChange  Float?
+  equalIndex     Float?
+  equalChange    Float?
+  marketStatus   String?  @db.NVarChar(50)
+  totalTrades    BigInt?
+  totalVolume    BigInt?
+  totalValue     BigInt?
+  positiveStocks Int?
+  negativeStocks Int?
+  neutralStocks  Int?
+  topGainers     String?  @db.NVarChar(Max)
+  topLosers      String?  @db.NVarChar(Max)
+  topVolumes     String?  @db.NVarChar(Max)
+  rawJson        String?  @db.NVarChar(Max)
+  createdAt      DateTime @default(dbgenerated("sysdatetime()"), map: "DF__MarketSum__creat__6DB73E6A")
+
+  @@index([date], map: "IX_MarketSummary_date")
+  @@map("MarketSummary")
+  @@schema("dbo")
+}
+
+model ThemeConfig {
+  id        Int       @id(map: "PK__ThemeCon__3213E83FEEABC965") @default(autoincrement())
+  name      String?   @db.NVarChar(100)
+  dataJson  String?   @db.NVarChar(Max)
+  createdAt DateTime? @default(dbgenerated("sysdatetime()"), map: "DF__ThemeConf__creat__02C769E9")
+
+  @@map("ThemeConfig")
+  @@schema("dbo")
+}
+
+model UiConfig {
+  id        Int       @id(map: "PK__UIConfig__3213E83FAC762C85") @default(autoincrement())
+  key       String    @unique(map: "UQ__UIConfig__DFD83CAFBB5156A5") @db.NVarChar(100)
+  valueJson String?   @db.NVarChar(Max)
+  updatedAt DateTime? @default(dbgenerated("sysdatetime()"), map: "DF__UIConfig__update__0697FACD")
+
+  @@map("UIConfig")
+  @@schema("dbo")
+}
+
+model LogEntry {
+  id        Int       @id(map: "PK__LogEntry__3213E83F5869E60D") @default(autoincrement())
+  level     String?   @db.NVarChar(20)
+  message   String?   @db.NVarChar(Max)
+  createdAt DateTime? @default(dbgenerated("sysdatetime()"), map: "DF__LogEntry__create__09746778")
+
+  @@map("LogEntry")
+  @@schema("dbo")
+}
+
+model AppConfig {
+  key       String   @id @db.NVarChar(100)
+  value     String   @db.NVarChar(Max)
+  updatedAt DateTime @default(dbgenerated("sysdatetime()"))
+
+  @@map("AppConfig")
+  @@schema("dbo")
+}
+
+model Conversation {
+  id                 Int                  @id @default(autoincrement())
+  title              String?
+  isGroup            Boolean              @default(false)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  ConversationMember ConversationMember[]
+
+  @@map("Conversation")
+  @@schema("dbo")
+}
+
+model ConversationMember {
+  id             Int          @id @default(autoincrement())
+  conversationId Int
+  userId         Int
+  lastReadAt     DateTime?
+  Conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  User           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@map("ConversationMember")
+  @@schema("dbo")
+}
+
+model Session {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  token     String    @unique
+  createdAt DateTime? @default(dbgenerated("sysdatetime()"))
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("Session")
+  @@schema("dbo")
+}
+
+model UserSettings {
+  id            Int      @id @default(autoincrement())
+  userId        Int      @unique
+  theme         String?
+  language      String?
+  notifications Boolean? @default(true)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("UserSettings")
+  @@schema("dbo")
+}
+
+model GlobalSetting {
+  id        Int      @id @default(autoincrement())
+  category  String   @db.NVarChar(50)
+  key       String   @unique @db.NVarChar(100)
+  value     String   @db.NVarChar(Max)
+  updatedBy String?  @db.NVarChar(50)
+  updatedAt DateTime @default(dbgenerated("sysdatetime()"))
+  version   Int      @default(1)
+  isPublic  Boolean  @default(false)
+
+  @@schema("dbo")
+}
+
+
+model UserPreference {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  key       String   @db.NVarChar(100)
+  value     String   @db.NVarChar(Max)
+  updatedAt DateTime @default(dbgenerated("sysdatetime()"))
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId])
+  @@map("UserPreference")
+  @@schema("dbo")
+}
+
+model ScalpingConfig {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
+  symbols   String   @default("[]") @db.NVarChar(Max)
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("ScalpingConfig")
+  @@schema("dbo")
+}
+
+model ScalpingOpportunity {
+  id         Int      @id @default(autoincrement())
+  symbol     String   @db.NVarChar(50)
+  score      Float?
+  signal     String?  @db.NVarChar(20)
+  entryPrice Decimal? @db.Decimal(18, 2)
+  stopLoss   Decimal? @db.Decimal(18, 2)
+  takeProfit Decimal? @db.Decimal(18, 2)
+  status     String   @db.NVarChar(20)
+  meta       String?  @db.NVarChar(Max)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  // فیلد userId به صورت اختیاری اضافه شد تا با ساختار دیتابیس همخوانی داشته باشد
+  userId     Int?     
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([symbol])
+  @@index([userId]) // ایندکس برای افزایش سرعت جستجو بر اساس کاربر
+  @@map("ScalpingOpportunity")
+  @@schema("dbo")
+}
+model ScalpingRun {
+  id        Int              @id @default(autoincrement())
+  userId    Int
+  status    String           @db.NVarChar(50)
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  results   ScalpingResult[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("ScalpingRun")
+  @@schema("dbo")
+}
+
+model ScalpingResult {
+  id        Int          @id @default(autoincrement())
+  runId     Int
+  symbol    String       @db.NVarChar(50)
+  dataJson  String       @db.NVarChar(Max)
+  run       ScalpingRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([symbol])
+  @@map("ScalpingResult")
+  @@schema("dbo")
+}
+
+model Role {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  title       String?          @db.NVarChar(100)
+  permissions RolePermission[]
+  users       User[]
+
+  @@schema("dbo")
+}
+
+model Permission {
+  id    Int              @id @default(autoincrement())
+  key   String           @unique
+  roles RolePermission[]
+
+  @@schema("dbo")
+}
+
+model RolePermission {
+  id           Int        @id @default(autoincrement())
+  roleId       Int
+  permissionId Int
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  role         Role       @relation(fields: [roleId], references: [id])
+
+  @@unique([roleId, permissionId])
+  @@schema("dbo")
+}
+
+model admin_scheduler_rules {
+  id              Int       @id(map: "PK__admin_sc__3213E83FC6214E82") @default(autoincrement())
+  ruleType        String    @db.NVarChar(50)
+  isEnabled       Boolean   @default(true, map: "DF__admin_sch__isEna__058EC7FB")
+  daysOfWeek      String    @db.NVarChar(50)
+  startTime       DateTime? @db.Time
+  endTime         DateTime? @db.Time
+  intervalMinutes Int?
+  executeAt       DateTime? @db.Time
+  lastRunAt       DateTime?
+  nextRunAt       DateTime?
+  createdBy       Int
+  createdAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sch__creat__0682EC34")
+  updatedAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sch__updat__0777106D")
+  User            User      @relation(fields: [createdBy], references: [id], onUpdate: NoAction, map: "FK_admin_scheduler_rules_user")
+
+  @@schema("dbo")
+}
