@@ -1,6 +1,9 @@
 ﻿'use strict';
 
+const axios = require('axios');
 const prisma = require('../config/prisma.cjs');
+const env = require('../config/env.cjs');
+const brsService = require('./brs.service.cjs');
 
 /* ================================
  * Config
@@ -9,6 +12,94 @@ const TEHRAN_TIMEZONE = 'Asia/Tehran';
 const TRADING_DAYS = new Set([6, 0, 1, 2, 3]); // Sat..Wed
 const MARKET_CLOSE_HOUR = 12;
 const MARKET_CLOSE_MINUTE = 30;
+
+async function generateMarketSummaryText(marketData) {
+  const source = marketData && typeof marketData === 'object' ? normalizeMarketDataInput(marketData) : null;
+
+  if (!source || !isUsableMarketData(source)) {
+    throw new Error('داده بازار برای تحلیل توسط هوش مصنوعی معتبر نیست');
+  }
+
+  const apiKey = (env.GAPGPT_API_KEY || env.AI_API_KEY || '').trim();
+  if (!apiKey || apiKey === 'gapgpt_xxx') {
+    throw new Error('GAPGPT_API_KEY is not configured');
+  }
+
+  const baseUrl = (env.GAPGPT_API_URL || env.GAPGPT_BASE_URL || 'https://api.gapapi.com/v1').trim().replace(/\/+$/, '');
+  const model = env.GAPGPT_MODEL || 'gpt-4o-mini';
+
+  const prompt = `
+شما تحلیلگر بازار بورس ایران هستید. روی داده‌های بازار زیر تحلیل کن و یک خلاصهٔ کوتاه اما دقیق و مفید به زبان فارسی بده.
+فقط متن خلاصه را برگردان، بدون کد بلوک، بدون JSON و بدون توضیح اضافی.
+
+داده بازار:
+${JSON.stringify(source, null, 2)}
+
+الزام‌ها:
+- وضعیت کلی بازار را مشخص کن.
+- شاخص کل و تغییر آن را بررسی کن.
+- اگر وضعیت بازار باز یا بسته است، روی آن تمرکز کن.
+- مهم‌ترین نکته‌ها را در 3 تا 5 جمله کوتاه و کاربردی بیان کن.
+- روی ریسک، روند کلی و جهت بازار تمرکز کن.
+`;
+
+  const response = await axios.post(
+    `${baseUrl}/chat/completions`,
+    {
+      model,
+      temperature: 0.2,
+      max_tokens: 800,
+      messages: [
+        {
+          role: 'system',
+          content: 'شما یک تحلیلگر حرفه‌ای بازار بورس ایران هستید. فقط به زبان فارسی پاسخ بده و نتیجه را کوتاه، دقیق و قابل‌فهم بنویس.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ]
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 45000
+    }
+  );
+
+  const content = response?.data?.choices?.[0]?.message?.content || response?.data?.choices?.[0]?.text;
+  const summaryText = typeof content === 'string' ? content.trim() : '';
+
+  if (!summaryText) {
+    throw new Error('AI response for market summary was empty');
+  }
+
+  return summaryText;
+}
+
+async function enrichSummaryWithAI(summaryRecord, marketData) {
+  if (!summaryRecord || typeof summaryRecord !== 'object') return summaryRecord;
+
+  let aiSummaryText = null;
+  try {
+    const liveMarketData = marketData || (await brsService.getMarketIndex?.())?.data || null;
+    if (liveMarketData) {
+      aiSummaryText = await generateMarketSummaryText(liveMarketData);
+    }
+  } catch (error) {
+    console.warn('[MarketSummaryService] AI market summary generation failed:', error.message || error);
+  }
+
+  if (aiSummaryText) {
+    summaryRecord.content = aiSummaryText;
+    summaryRecord.summary = aiSummaryText;
+    summaryRecord.fallback = Boolean(summaryRecord.fallback || false);
+  }
+
+  return summaryRecord;
+}
 
 /* ================================
  * Public APIs
@@ -30,8 +121,11 @@ exports.findOrGenerateLatest = async () => {
       };
     }
 
+    const normalizedLatestSummary = normalizeSummaryRecord(latestSummary);
+    const enriched = await enrichSummaryWithAI(normalizedLatestSummary, null);
+
     return {
-      data: normalizeSummaryRecord(latestSummary),
+      data: enriched,
       fallback: false,
       generated: false,
       cached: true,
@@ -46,8 +140,11 @@ exports.findOrGenerateLatest = async () => {
   if (latestSummary) {
     const latestSummaryDay = getTehranDayStart(latestSummary.date);
     if (latestSummaryDay.getTime() >= targetSummaryDate.getTime()) {
+      const normalizedLatestSummary = normalizeSummaryRecord(latestSummary);
+      const enriched = await enrichSummaryWithAI(normalizedLatestSummary, latestHistory.marketData);
+
       return {
-        data: normalizeSummaryRecord(latestSummary),
+        data: enriched,
         fallback: false,
         generated: false,
         cached: true,
@@ -59,8 +156,11 @@ exports.findOrGenerateLatest = async () => {
 
   const sameDaySummary = await findSummaryForDay(targetSummaryDate);
   if (sameDaySummary) {
+    const normalizedSameDaySummary = normalizeSummaryRecord(sameDaySummary);
+    const enriched = await enrichSummaryWithAI(normalizedSameDaySummary, latestHistory.marketData);
+
     return {
-      data: normalizeSummaryRecord(sameDaySummary),
+      data: enriched,
       fallback: false,
       generated: false,
       cached: true,
@@ -171,9 +271,11 @@ exports.generateMarketSummary = async ({
 
   const payload = mapMarketDataToSummary(source, summaryDate);
   const record = await saveSummaryRecord(existingSameDay, payload);
+  const normalizedRecord = normalizeSummaryRecord(record);
+  const enrichedRecord = await enrichSummaryWithAI(normalizedRecord, source);
 
   return {
-    data: normalizeSummaryRecord(record),
+    data: enrichedRecord,
     cached: false,
     generated: true,
     sourceType: 'marketSummary'
