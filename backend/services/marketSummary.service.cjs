@@ -84,7 +84,17 @@ async function enrichSummaryWithAI(summaryRecord, marketData) {
 
   let aiSummaryText = null;
   try {
-    const liveMarketData = marketData || (await brsService.getMarketIndex?.())?.data || null;
+    // ✅ Always try to fetch fresh live data from BRS API first
+    let liveMarketData = null;
+    try {
+      const freshData = await brsService.getMarketIndex?.();
+      liveMarketData = freshData?.data || null;
+    } catch (brsError) {
+      console.warn('[MarketSummaryService] BRS live fetch failed:', brsError.message);
+      // Fall back to provided marketData if live fetch fails
+      liveMarketData = marketData || null;
+    }
+
     if (liveMarketData) {
       aiSummaryText = await generateMarketSummaryText(liveMarketData);
     }
@@ -107,9 +117,21 @@ async function enrichSummaryWithAI(summaryRecord, marketData) {
 
 exports.findOrGenerateLatest = async () => {
   const latestSummary = await findLatestSummary();
-  const latestHistory = await findLatestUsableMarketHistoryRow(90);
+  
+  // ✅ Try to fetch fresh live market data from BRS API
+  let liveMarketData = null;
+  try {
+    const freshMarketData = await brsService.getMarketIndex?.();
+    liveMarketData = freshMarketData?.data || null;
+  } catch (brsError) {
+    console.warn('[MarketSummaryService] BRS live fetch failed:', brsError.message);
+  }
 
-  if (!latestHistory) {
+  // Fallback to database history if live API fails
+  const latestHistory = liveMarketData ? null : await findLatestUsableMarketHistoryRow(90);
+  const marketDataToUse = liveMarketData || latestHistory?.marketData || null;
+
+  if (!marketDataToUse) {
     if (!latestSummary) {
       return {
         data: null,
@@ -134,14 +156,14 @@ exports.findOrGenerateLatest = async () => {
     };
   }
 
-  const sourceDate = resolveBestDate(latestHistory.marketData, latestHistory.row.createdAt);
+  const sourceDate = resolveBestDate(marketDataToUse, latestHistory?.row?.createdAt || new Date());
   const targetSummaryDate = getTehranDayStart(sourceDate);
 
   if (latestSummary) {
     const latestSummaryDay = getTehranDayStart(latestSummary.date);
     if (latestSummaryDay.getTime() >= targetSummaryDate.getTime()) {
       const normalizedLatestSummary = normalizeSummaryRecord(latestSummary);
-      const enriched = await enrichSummaryWithAI(normalizedLatestSummary, latestHistory.marketData);
+      const enriched = await enrichSummaryWithAI(normalizedLatestSummary, marketDataToUse);
 
       return {
         data: enriched,
@@ -157,7 +179,7 @@ exports.findOrGenerateLatest = async () => {
   const sameDaySummary = await findSummaryForDay(targetSummaryDate);
   if (sameDaySummary) {
     const normalizedSameDaySummary = normalizeSummaryRecord(sameDaySummary);
-    const enriched = await enrichSummaryWithAI(normalizedSameDaySummary, latestHistory.marketData);
+    const enriched = await enrichSummaryWithAI(normalizedSameDaySummary, marketDataToUse);
 
     return {
       data: enriched,
@@ -171,9 +193,9 @@ exports.findOrGenerateLatest = async () => {
 
   try {
     const generated = await exports.generateMarketSummary({
-      marketData: latestHistory.marketData,
+      marketData: marketDataToUse,
       forceRegenerate: false,
-      fallbackDate: latestHistory.row.createdAt
+      fallbackDate: latestHistory?.row?.createdAt || new Date()
     });
 
     return {
@@ -181,15 +203,15 @@ exports.findOrGenerateLatest = async () => {
       fallback: false,
       generated: true,
       cached: false,
-      sourceType: 'generatedFromMarketHistory',
-      message: 'خلاصه بازار از آخرین دیتای معتبر بازار به‌صورت خودکار تولید شد'
+      sourceType: liveMarketData ? 'generatedFromLiveAPI' : 'generatedFromMarketHistory',
+      message: liveMarketData ? 'خلاصه بازار از داده‌های زنده BRS API تولید شد' : 'خلاصه بازار از آخرین دیتای معتبر بازار به‌صورت خودکار تولید شد'
     };
   } catch (error) {
     console.error('[MarketSummaryService] findOrGenerateLatest generation error:', error);
 
     const snapshotFallback = buildMarketSnapshotFallback(
-      latestHistory.marketData,
-      latestHistory.row.createdAt
+      marketDataToUse,
+      latestHistory?.row?.createdAt || new Date()
     );
 
     if (snapshotFallback) {
@@ -248,9 +270,24 @@ exports.generateMarketSummary = async ({
   forceRegenerate = false,
   fallbackDate = null
 } = {}) => {
-  const source = marketData
-    ? normalizeMarketDataInput(marketData)
-    : await loadLatestMarketHistoryJson();
+  let source = null;
+
+  // ✅ Try to fetch fresh live market data from BRS API first
+  try {
+    const freshMarketData = await brsService.getMarketIndex?.();
+    if (freshMarketData?.data) {
+      source = normalizeMarketDataInput(freshMarketData.data);
+    }
+  } catch (brsError) {
+    console.warn('[MarketSummaryService] BRS live fetch failed:', brsError.message);
+  }
+
+  // Fallback to provided marketData if live API fails
+  if (!source) {
+    source = marketData
+      ? normalizeMarketDataInput(marketData)
+      : await loadLatestMarketHistoryJson();
+  }
 
   if (!isUsableMarketData(source)) {
     throw new Error('داده بازار برای تولید خلاصه معتبر نیست');
