@@ -19,6 +19,43 @@ function pick(...values) {
   return null;
 }
 
+function formatNumberWithFallback(value, fallback = 'نامشخص') {
+  if (value === null || value === undefined || value === '') return fallback;
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Number(num).toLocaleString('fa-IR');
+}
+
+function buildSummaryText(item) {
+  if (!item || typeof item !== 'object') return 'خلاصه بازار در دسترس نیست.';
+
+  const content = typeof item.content === 'string' && item.content.trim()
+    ? item.content.trim()
+    : typeof item.summary === 'string' && item.summary.trim()
+      ? item.summary.trim()
+      : null;
+
+  if (content) return content;
+
+  const overallIndex = pick(toNumber(item.overallIndex), toNumber(item.index), toNumber(item.marketIndex), null);
+  const overallChange = pick(toNumber(item.overallChange), toNumber(item.index_change), toNumber(item.indexChange), null);
+  const equalIndex = pick(toNumber(item.equalIndex), toNumber(item.index_equalWeight), toNumber(item.indexEqualWeight), null);
+  const marketStatus = pick(item.marketStatus, item.state, item.status, 'نامشخص');
+  const totalTrades = pick(item.totalTrades, item.tno, 'نامشخص');
+  const totalVolume = pick(item.totalVolume, item.tvol, 'نامشخص');
+  const totalValue = pick(item.totalValue, item.tval, 'نامشخص');
+  const positiveStocks = pick(toNumber(item.positiveStocks), null);
+  const negativeStocks = pick(toNumber(item.negativeStocks), null);
+
+  const changeText = overallChange === null ? '' : ` (${overallChange >= 0 ? '+' : ''}${overallChange.toLocaleString('fa-IR')}%)`;
+  const equalText = equalIndex === null ? '' : `؛ شاخص هم‌وزن: ${formatNumberWithFallback(equalIndex)}`;
+  const balanceText = positiveStocks === null || negativeStocks === null
+    ? ''
+    : `؛ سهم‌های مثبت/منفی: ${positiveStocks.toLocaleString('fa-IR')}/${negativeStocks.toLocaleString('fa-IR')}`;
+
+  return `شاخص کل: ${formatNumberWithFallback(overallIndex, 'نامشخص')}${changeText}؛ وضعیت بازار: ${String(marketStatus)}؛ تعداد معاملات: ${formatNumberWithFallback(totalTrades, 'نامشخص')}؛ حجم معاملات: ${formatNumberWithFallback(totalVolume, 'نامشخص')}؛ ارزش معاملات: ${formatNumberWithFallback(totalValue, 'نامشخص')}${equalText}${balanceText}.`;
+}
+
 /**
  * نرمال‌سازی رکورد خروجی summary:
  * - ابتدا ستون‌های اصلی DB
@@ -29,6 +66,7 @@ function normalizeSummaryRecord(row) {
 
   const rawJson = row.rawJson && typeof row.rawJson === 'object' ? row.rawJson : null;
   const raw = rawJson && rawJson.data && typeof rawJson.data === 'object' ? rawJson.data : {};
+  const summaryText = buildSummaryText({ ...row, ...raw });
 
   return {
     id: pick(row.id, null),
@@ -57,6 +95,8 @@ function normalizeSummaryRecord(row) {
     rawJson: pick(rawJson, null),
     createdAt: pick(row.createdAt, null),
     updatedAt: pick(row.updatedAt, null),
+    content: summaryText,
+    summary: summaryText,
 
     // قرارداد خروجی قبلی حفظ شود
     fallback: Boolean(row.fallback)

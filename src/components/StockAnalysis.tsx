@@ -885,11 +885,23 @@ export default function StockAnalysis() {
       return undefined;
     }
 
+    const fallbackText =
+      typeof payload.content === 'string' && payload.content.trim()
+        ? payload.content
+        : typeof payload.summary === 'string' && payload.summary.trim()
+          ? payload.summary
+          : (() => {
+              const overallIndex = Number(payload.overallIndex ?? payload.index ?? 0);
+              const overallChange = Number(payload.overallChange ?? payload.index_change ?? 0);
+              const marketStatus = payload.marketStatus ?? payload.state ?? 'نامشخص';
+              const totalTrades = payload.totalTrades ?? payload.tno ?? 'نامشخص';
+              const totalVolume = payload.totalVolume ?? payload.tvol ?? 'نامشخص';
+              const totalValue = payload.totalValue ?? payload.tval ?? 'نامشخص';
+              return `شاخص کل: ${Number.isFinite(overallIndex) ? overallIndex.toLocaleString('fa-IR') : 'نامشخص'}${Number.isFinite(overallChange) ? ` (${overallChange >= 0 ? '+' : ''}${overallChange.toLocaleString('fa-IR')}%)` : ''}؛ وضعیت بازار: ${marketStatus}؛ تعداد معاملات: ${totalTrades}؛ حجم معاملات: ${totalVolume}؛ ارزش معاملات: ${totalValue}.`;
+            })();
+
     return {
-      content:
-        payload.content ??
-        payload.summary ??
-        'خلاصه بازار در دسترس نیست.',
+      content: fallbackText,
       createdAt: payload.createdAt ?? new Date().toISOString(),
     };
   } catch (error) {

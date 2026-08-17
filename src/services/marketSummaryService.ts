@@ -135,6 +135,8 @@ export interface MarketSummaryData {
   topVolumes: unknown[] | null;
   rawJson: unknown;
   createdAt: string;
+  content?: string | null;
+  summary?: string | null;
   fallback?: boolean;
 }
 
@@ -176,6 +178,27 @@ const isLikelySummary = (candidate: JsonObject | null): boolean => {
     !!rawData;
 
   return hasDate && hasSomeSummarySignal;
+};
+
+const buildSummaryText = (candidate: JsonObject): string => {
+  const rawData = extractRawData(candidate.rawJson) ?? candidate;
+  const content = coalesceStringValue(candidate.content, candidate.summary, rawData?.content, rawData?.summary);
+  if (content) return content;
+
+  const overallIndex = coalesceNumber(candidate.overallIndex, rawData?.index, rawData?.marketIndex);
+  const overallChange = coalesceNumber(candidate.overallChange, rawData?.index_change, rawData?.indexChange);
+  const equalIndex = coalesceNumber(candidate.equalIndex, rawData?.index_equalWeight, rawData?.indexEqualWeight);
+  const marketStatus = normalizeMarketStatus(candidate.marketStatus, rawData?.state) ?? 'نامشخص';
+  const totalTrades = coalesceStringValue(candidate.totalTrades, rawData?.tno, rawData?.totalTrades, rawData?.tradeCount) ?? 'نامشخص';
+  const totalVolume = coalesceStringValue(candidate.totalVolume, rawData?.tvol, rawData?.totalVolume, rawData?.tradeVolume) ?? 'نامشخص';
+  const totalValue = coalesceStringValue(candidate.totalValue, rawData?.tval, rawData?.totalValue, rawData?.tradeValue) ?? 'نامشخص';
+  const positiveStocks = coalesceNumber(candidate.positiveStocks, rawData?.positiveStocks) ?? 0;
+  const negativeStocks = coalesceNumber(candidate.negativeStocks, rawData?.negativeStocks) ?? 0;
+
+  const changePart = overallChange === null ? '' : ` (${overallChange >= 0 ? '+' : ''}${overallChange.toLocaleString('fa-IR')}%)`;
+  const equalPart = equalIndex === null ? '' : `؛ شاخص هم‌وزن: ${equalIndex.toLocaleString('fa-IR')}`;
+
+  return `شاخص کل: ${overallIndex === null ? 'نامشخص' : overallIndex.toLocaleString('fa-IR')}${changePart}؛ وضعیت بازار: ${marketStatus}؛ تعداد معاملات: ${totalTrades}؛ حجم معاملات: ${totalVolume}؛ ارزش معاملات: ${totalValue}${equalPart}؛ سهم‌های مثبت/منفی: ${positiveStocks.toLocaleString('fa-IR')}/${negativeStocks.toLocaleString('fa-IR')}.`;
 };
 
 const normalizeSummary = (candidate: JsonObject): MarketSummaryData | null => {
@@ -223,6 +246,8 @@ const normalizeSummary = (candidate: JsonObject): MarketSummaryData | null => {
     toNullableString(rawTopLevel?.cachedAt) ??
     toNullableString(candidate.date);
 
+  const content = coalesceStringValue(candidate.content, candidate.summary, rawData?.content, rawData?.summary) ?? buildSummaryText(candidate);
+
   if (!dateValue || !createdAtValue) return null;
 
   return {
@@ -244,6 +269,8 @@ const normalizeSummary = (candidate: JsonObject): MarketSummaryData | null => {
     topVolumes,
     rawJson: candidate.rawJson ?? null,
     createdAt: createdAtValue,
+    content,
+    summary: content,
     fallback: typeof candidate.fallback === 'boolean' ? candidate.fallback : undefined
   };
 };
