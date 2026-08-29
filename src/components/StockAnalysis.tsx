@@ -2090,103 +2090,68 @@ const clearCurrentAnalysis = () => {
           </div>
         </div>
       )}
-
-     {activeTab === 'marketSummary' && (
-  <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-    {isLoadingMarketSummary ? (
-      <div className="text-[13px] font-medium text-slate-500">
-        در حال دریافت خلاصه بازار...
-      </div>
-    ```tsx
-) : marketSummary ? (
-  <>
-    {marketSummary.createdAt && (
-      <div
-        dir="rtl"
-        className="text-[12px] font-semibold text-slate-500"
-      >
-        {new Date(marketSummary.createdAt).toLocaleString('fa-IR')}
-      </div>
-    )}
-
-    <div
-      dir="rtl"
-      className="whitespace-pre-wrap text-right text-[14px] font-medium leading-8 text-slate-900"
-    >
-      {typeof marketSummary.content === 'string' &&
-      marketSummary.content.trim()
-        ? marketSummary.content
-        : typeof marketSummary.summary === 'string' &&
-            marketSummary.summary.trim()
-          ? marketSummary.summary
-          : 'محتوای خلاصه بازار در حال حاضر در دسترس نیست.'}
-    </div>
-  </>
-) : (
-  <div
-    dir="rtl"
-    className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-right text-[13px] font-medium leading-7 text-amber-700"
-  >
-    خلاصه بازار برای نمایش دریافت نشد.
-  </div>
-)}
-```
-
-      {activeTab === 'history' && (
+{activeTab === 'history' && (
         <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           {analysisHistory.length === 0 ? (
-            <div className="text-[13px] font-medium text-slate-500">تحلیلی ذخیره نشده است</div>
-          ) : null}
+            <div className="text-[13px] font-medium text-slate-500">
+              تحلیلی ذخیره نشده است
+            </div>
+          ) : (
+            analysisHistory.map((item) => {
+              const date = new Date(item.createdAt);
 
-          {analysisHistory.map((item) => {
-            const date = new Date(item.createdAt);
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => fetchAnalysisDetail(item.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      fetchAnalysisDetail(item.id);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  className="flex cursor-pointer justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-blue-300 hover:bg-blue-50/40"
+                >
+                  <div className="min-w-0">
+                    <div className="text-[15px] font-extrabold text-blue-700">
+                      {item.symbol}
+                    </div>
 
-            return (
-              <div
-  key={item.id}
-  onClick={() => fetchAnalysisDetail(item.id)}
-  onKeyDown={(e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      fetchAnalysisDetail(item.id);
-    }
-  }}
-  role="button"
-  tabIndex={0}
-  className="flex justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 cursor-pointer transition hover:border-blue-300 hover:bg-blue-50/40"
->
+                    <div className="mt-1 text-[11px] font-medium text-slate-500">
+                      {date.toLocaleDateString('fa-IR')} -{' '}
+                      {date.toLocaleTimeString('fa-IR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </div>
 
-                <div className="min-w-0">
-  <div className="text-[15px] font-extrabold text-blue-700">{item.symbol}</div>
-  <div className="mt-1 text-[11px] font-medium text-slate-500">
-    {date.toLocaleDateString('fa-IR')} -{' '}
-    {date.toLocaleTimeString('fa-IR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    })}
-  </div>
-  <div className="mt-2 line-clamp-2 text-[13px] font-medium leading-7 text-slate-800">
-    {item.result?.summary ?? item.summary ?? 'تحلیل ذخیره شده'}
-  </div>
-</div>
+                    <div className="mt-2 line-clamp-2 text-[13px] font-medium leading-7 text-slate-800">
+                      {item.result?.summary ??
+                        item.summary ??
+                        'تحلیل ذخیره شده'}
+                    </div>
+                  </div>
 
-<button
-  onClick={(e) => {
-    e.stopPropagation();
-    removeHistoryItem(item.id);
-  }}
-  className="shrink-0 rounded p-1 text-rose-600 transition-colors hover:bg-rose-50"
-  aria-label="حذف"
->
-  <TrashIcon className="h-4 w-4" />
-</button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeHistoryItem(item.id);
+                    }}
+                    className="shrink-0 rounded p-1 text-rose-600 transition-colors hover:bg-rose-50"
+                    aria-label="حذف"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
 
-      </div>
-    );
-  })}
-
-  </div>
- )}
     </div>
   );
 }
