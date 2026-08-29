@@ -6,7 +6,6 @@ import { exportElementToPdf } from '../utils/exportToPdf';
 import toast from 'react-hot-toast';
 import * as analysisHistoryService from '../services/analysisHistoryService';
 import {
-  addAnalysisToHistory,
   getAnalysisHistory,
   getAnalysisHistoryItem,
   deleteAnalysisFromHistory,
@@ -931,23 +930,85 @@ useEffect(() => {
 
    // تابع فراخوانی جزئیات از سرور
   const fetchAnalysisDetail = async (id: string) => {
-    setLoadingDetail(true);
-    setDetailError(null);
-    setSelectedAnalysisId(id);
-    try {
-      const detail = await analysisHistoryService.getAnalysisDetail(id);
-      if (detail) {
-        setSelectedAnalysisDetail(detail);
-      } else {
-        setDetailError('داده‌ای برای جزئیات این تحلیل یافت نشد.');
-      }
-    } catch (error) {
-      console.error('Error fetching analysis detail:', error);
-      setDetailError('خطا در برقراری ارتباط با سرور جهت دریافت جزئیات تحلیل.');
-    } finally {
-      setLoadingDetail(false);
+  if (!id) return;
+
+  setLoadingDetail(true);
+  setDetailError(null);
+  setSelectedAnalysisId(id);
+
+  try {
+    const item = await getAnalysisHistoryItem('', id);
+
+    const fullResult =
+      item.parsedResult ??
+      item.result ??
+      (
+        typeof item.resultJson === 'string'
+          ? parseJsonSafely(item.resultJson)
+          : item.resultJson
+      );
+
+    if (!fullResult || typeof fullResult !== 'object') {
+      throw new Error(
+        'نسخه کامل تحلیل در تاریخچه موجود نیست.'
+      );
     }
-  };
+
+    const normalized =
+      normalizeAnalysisShape(fullResult);
+
+    if (!normalized) {
+      throw new Error(
+        'ساختار تحلیل ذخیره‌شده قابل پردازش نیست.'
+      );
+    }
+
+    setSelectedSymbol(
+      item.symbol ||
+      item.stock ||
+      (normalized as any).symbol ||
+      ''
+    );
+
+    setAnalysisData(normalized);
+
+    setAnalysisResult(
+      typeof fullResult === 'string'
+        ? fullResult
+        : JSON.stringify(fullResult, null, 2)
+    );
+
+    setSelectedAnalysisDetail({
+      ...item,
+      parsedResult: fullResult,
+    });
+
+    setAnalysisError(null);
+
+    // بعد از کلیک، مستقیماً صفحه کامل تحلیل نمایش داده شود
+    setActiveTab('analysis');
+
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
+  } catch (error) {
+    console.error(
+      '[StockAnalysis] failed to open history detail:',
+      error
+    );
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'دریافت تحلیل کامل ناموفق بود.';
+
+    setDetailError(message);
+    toast.error(message);
+  } finally {
+    setLoadingDetail(false);
+  }
+};
 
   const analyzeStock = async (symbol: string) => {
     const trimmedSymbol = symbol.trim();
@@ -1111,44 +1172,32 @@ useEffect(() => {
 
       setAnalysisResult(response.rawText);
       setAnalysisData(response.data);
+try {
+  const latestHistory = await getAnalysisHistory('', 3, 0);
 
-      if (response.data) {
-  try {
-    const saved = await addAnalysisToHistory('', {
-      symbol: trimmedSymbol,
-      recommendation: response.data.recommendation,
-      riskLevel: response.data.riskLevel,
-      summary: response.data.summary,
-      result: response.data,
-    });
-
-    if (saved.id) {
-      setAnalysisHistory((prev) => [
-        {
-          id: String(saved.id),
-          symbol: saved.symbol || trimmedSymbol,
-          result:
-            saved.parsedResult ??
-            saved.result ??
-            response.data,
-          createdAt:
-            saved.createdAt ??
-            new Date(saved.timestamp).toISOString(),
-        },
-        ...prev,
-      ]);
-    }
-  } catch (historyError) {
-    console.error(
-      '[StockAnalysis] failed to save history:',
-      historyError
-    );
-
-    toast.error(
-      'تحلیل انجام شد اما ذخیره تاریخچه ناموفق بود.'
-    );
-  }
+  setAnalysisHistory(
+    latestHistory
+      .filter((item) => item.id)
+      .map((item) => ({
+        id: String(item.id),
+        symbol: item.symbol || item.stock || '',
+        result:
+          item.parsedResult ??
+          item.result ??
+          null,
+        createdAt:
+          item.createdAt ??
+          item.created_at ??
+          new Date(item.timestamp).toISOString(),
+      }))
+  );
+} catch (historyError) {
+  console.error(
+    '[StockAnalysis] failed to refresh history:',
+    historyError
+  );
 }
+           
     } catch (e: any) {
       setAnalysisResult(null);
       setAnalysisData(null);
