@@ -1,4 +1,4 @@
-"use strict";
+﻿"use strict";
 
 const path = require("path");
 require("dotenv").config({
@@ -112,6 +112,8 @@ async function saveRawFetch() {
 
 module.exports = {
   prisma,
+  userPreference: prisma.userPreference,
   saveAnalysis,
   saveRawFetch,
 };
+

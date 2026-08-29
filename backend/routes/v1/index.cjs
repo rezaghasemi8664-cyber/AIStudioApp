@@ -27,20 +27,34 @@ function tryMount(path, moduleFile, label) {
     var mountable = normalizeRouterExport(mod);
 
     if (!mountable) {
-      throw new Error('Route module export is not mountable (expected router/function)');
+      throw new Error(
+        'Route module export is not mountable (expected router/function)'
+      );
     }
 
+    // مهم: واقعاً route را روی v1 router mount کن
     router.use(path, mountable);
+
     loadedCount++;
+
     console.log('[v1/index] Mounted: ' + label + ' -> ' + path);
+
     return true;
   } catch (err) {
     failedCount++;
-    console.warn('[v1/index] FAILED to mount ' + label + ' (' + path + '): ' + err.message);
+
+    console.warn(
+      '[v1/index] FAILED to mount ' +
+      label +
+      ' (' +
+      path +
+      '): ' +
+      err.message
+    );
+
     return false;
   }
 }
-
 tryMount('/auth', '../auth.routes.cjs', 'Auth');
 tryMount('/analyze', '../analyze.routes.cjs', 'Analyze');
 tryMount('/analysis', '../analysis.routes.cjs', 'Analysis');

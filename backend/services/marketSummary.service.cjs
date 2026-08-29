@@ -595,9 +595,23 @@ function scheduleEnrichment(record, marketData) {
       const MarketSummary = getMarketSummaryModel();
       const current = await MarketSummary.findUnique({ where: { id: record.id } });
       const currentRaw = parseJsonSafe(current?.rawJson || record.rawJson) || {};
-      const existingText = firstString(currentRaw.aiAnalysis, currentRaw.analysis, currentRaw.content, currentRaw.summary);
-      if (existingText && !isWeakAiText(existingText)) return;
+      const existingText = firstString(
+  currentRaw.aiAnalysis,
+  currentRaw.analysis,
+  currentRaw.content,
+  currentRaw.summary
+);
 
+const currentAiDate = currentRaw?.meta?.aiAnalysisDate;
+const targetAiDate = toDateOnlyISO(record.summaryDate);
+
+if (
+  existingText &&
+  !isWeakAiText(existingText) &&
+  currentAiDate === targetAiDate
+) {
+  return;
+}
       await MarketSummary.update({
         where: { id: record.id },
         data: { rawJson: jsonStringifySafe({ ...currentRaw, aiAnalysis: text }) }
@@ -656,7 +670,13 @@ function buildSummaryPayload(marketData, fallbackDate = new Date(), existingReco
   }
   equalChange = applyEqualChangeGuard({ equalIndex, equalChange, marketData, existingRecord });
 
-  const aiTextToKeep = existingAi && !isPendingAiText(existingAi) ? existingAi : AI_PENDING_TEXT;
+  const targetDateIso = toDateOnlyISO(targetDay);
+  const existingAiDate = existingRaw?.meta?.aiAnalysisDate;
+  const canKeepExistingAi =
+    existingAi &&
+    !isPendingAiText(existingAi) &&
+    existingAiDate === targetDateIso;
+  const aiTextToKeep = canKeepExistingAi ? existingAi : AI_PENDING_TEXT;
 
   return {
     sourceDate,
@@ -682,10 +702,11 @@ function buildSummaryPayload(marketData, fallbackDate = new Date(), existingReco
         data: marketData,
         aiAnalysis: aiTextToKeep,
         meta: {
-          ...(existingRaw?.meta || {}),
-          symbolsCoverage: breadthAndTop.symbolsCoverage || 'unknown',
-          generatedAt: new Date().toISOString()
-        }
+  ...(existingRaw?.meta || {}),
+  symbolsCoverage: breadthAndTop.symbolsCoverage || 'unknown',
+  generatedAt: new Date().toISOString(),
+  aiAnalysisDate: canKeepExistingAi ? existingAiDate : null
+}
       })
     }
   };
@@ -1282,3 +1303,4 @@ async function inspectLatestMarketRows(opts) {
   return inspectLatestMarketHistoryRows(opts);
 }
 exports.inspectLatestMarketRows = inspectLatestMarketRows;
+

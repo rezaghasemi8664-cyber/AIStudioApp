@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const db = require('../services/db.service.cjs');
 
@@ -20,7 +20,7 @@ exports.getUserPreferences = async (req, res) => {
       });
     }
 
-    const preferences = await db.userPreference.findMany({
+    const preferences = await db.prisma.userPreference.findMany({
       where: { userId },
       orderBy: { key: 'asc' },
     });
@@ -60,7 +60,7 @@ exports.getUserPreference = async (req, res) => {
       });
     }
 
-    const preference = await db.userPreference.findFirst({
+    const preference = await db.prisma.userPreference.findFirst({
       where: { userId, key },
     });
 
@@ -100,7 +100,7 @@ exports.upsertUserPreference = async (req, res) => {
       });
     }
 
-    const preference = await db.userPreference.upsert({
+    const preference = await db.prisma.userPreference.upsert({
       where: {
         userId_key: {
           userId,
@@ -165,7 +165,7 @@ exports.bulkUpsertUserPreferences = async (req, res) => {
     const results = [];
 
     for (const item of validItems) {
-      const preference = await db.userPreference.upsert({
+      const preference = await db.prisma.userPreference.upsert({
         where: {
           userId_key: {
             userId,
@@ -221,7 +221,7 @@ exports.deleteUserPreference = async (req, res) => {
       });
     }
 
-    const existing = await db.userPreference.findFirst({
+    const existing = await db.prisma.userPreference.findFirst({
       where: { userId, key },
     });
 
@@ -232,7 +232,7 @@ exports.deleteUserPreference = async (req, res) => {
       });
     }
 
-    await db.userPreference.delete({
+    await db.prisma.userPreference.delete({
       where: {
         userId_key: {
           userId,
@@ -296,3 +296,4 @@ exports.getFeatureEndpoints = async (req, res) => {
     });
   }
 };
+

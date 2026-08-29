@@ -438,11 +438,7 @@ const pickDates = (payload: unknown): string[] => {
   return Array.from(result);
 };
 
-const LATEST_ENDPOINTS = [
-  '/market-summary/latest',
-  '/market/summary',
-  '/market-summary'
-];
+const LATEST_ENDPOINTS = ['/market-summary/latest'];
 
 const HISTORY_ENDPOINTS = [
   '/market-summary/history',
@@ -727,3 +723,4 @@ export const generateSummary = async (
   );
   return null;
 };
+

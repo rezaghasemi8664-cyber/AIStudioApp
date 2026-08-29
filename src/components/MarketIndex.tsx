@@ -284,11 +284,7 @@ async function fetchMarketIndexFromAPI(): Promise<MarketIndexData | null> {
         console.warn('[MarketIndex] marketSummaryService failed, fallback to legacy endpoints:', err);
     }
 
-    const endpoints = [
-        `${API_BASE_URL}/market/index`,
-        `${API_BASE_URL}/market/summary`,
-        `${API_BASE_URL}/market-summary/latest`
-    ];
+    const endpoints = [`${API_BASE_URL}/market-summary/latest`];
 
     for (const url of endpoints) {
         try {
@@ -571,3 +567,5 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
 };
 
 export default MarketIndex;
+
+
