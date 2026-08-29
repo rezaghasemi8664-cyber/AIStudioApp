@@ -1,0 +1,49 @@
+﻿[
+    {
+        "filePath":  "C:\\projects\\AIStudioApp\\src\\components\\MarketIndex.tsx",
+        "exists":  true,
+        "size":  16451,
+        "lastWrite":  "\/Date(1786963665856)\/",
+        "hints":  [
+                      "uses /market/index",
+                      "uses /market-summary/latest"
+                  ]
+    },
+    {
+        "filePath":  "C:\\projects\\AIStudioApp\\src\\api\\config.ts",
+        "exists":  true,
+        "size":  588,
+        "lastWrite":  "\/Date(1780134937182)\/",
+        "hints":  [
+                      "dev API base has /api/v1",
+                      "prod API base has /api/v1"
+                  ]
+    },
+    {
+        "filePath":  "C:\\projects\\AIStudioApp\\routes\\v1\\index.cjs",
+        "exists":  false,
+        "size":  null,
+        "lastWrite":  null,
+        "hints":  [
+
+                  ]
+    },
+    {
+        "filePath":  "C:\\projects\\AIStudioApp\\routes\\market.routes.cjs",
+        "exists":  false,
+        "size":  null,
+        "lastWrite":  null,
+        "hints":  [
+
+                  ]
+    },
+    {
+        "filePath":  "C:\\projects\\AIStudioApp\\routes\\marketSummary.routes.cjs",
+        "exists":  false,
+        "size":  null,
+        "lastWrite":  null,
+        "hints":  [
+
+                  ]
+    }
+]

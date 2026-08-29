@@ -52,7 +52,7 @@ const pickArray = (v: unknown): unknown[] | null => {
   const obj = asObject(v);
   if (!obj) return null;
 
-  const keys = ['items', 'rows', 'result', 'records', 'list', 'symbols', 'history', 'data'];
+  const keys = ['items', 'rows', 'result', 'records', 'list', 'symbols', 'history', 'data', 'dates', 'availableDates'];
   for (const k of keys) {
     const arr = asArray(obj[k]);
     if (arr) return arr;
@@ -116,6 +116,22 @@ const coalesceStringValue = (...values: unknown[]): string | null => {
   return null;
 };
 
+const nowTs = () => Date.now();
+
+/** به endpoint مقدار timestamp اضافه می‌کند تا کش مرورگر/پروکسی کمتر اثر بگذارد */
+const withNoCacheQuery = (endpoint: string): string => {
+  const separator = endpoint.includes('?') ? '&' : '?';
+  return `${endpoint}${separator}t=${nowTs()}`;
+};
+
+export interface SummaryMeta {
+  generatedAt: string | null;
+  ageMinutes: number | null;
+  freshnessThresholdMinutes: number | null;
+  isStale: boolean;
+  source?: string | null;
+}
+
 export interface MarketSummaryData {
   id: number;
   date: string;
@@ -135,9 +151,12 @@ export interface MarketSummaryData {
   topVolumes: unknown[] | null;
   rawJson: unknown;
   createdAt: string;
+  updatedAt?: string | null;
   content?: string | null;
   summary?: string | null;
   fallback?: boolean;
+  sourceType?: string | null;
+  _meta?: SummaryMeta;
 }
 
 export interface MarketSummaryHistoryResponse {
@@ -153,11 +172,30 @@ export interface MarketSummaryHistoryResponse {
   message?: string;
 }
 
+export interface MarketSummaryDatesResponse {
+  success: boolean;
+  data: string[];
+  cached?: boolean;
+  message?: string;
+}
+
 export interface MarketSummarySingleResponse {
   success: boolean;
   data?: MarketSummaryData | { marketSummary?: MarketSummaryData } | null;
   marketSummary?: MarketSummaryData;
   cached?: boolean;
+  message?: string;
+  sourceType?: string | null;
+  isStale?: boolean;
+  generatedAt?: string | null;
+}
+
+export interface LatestSummaryEnvelope {
+  summary: MarketSummaryData | null;
+  cached?: boolean;
+  sourceType?: string | null;
+  isStale?: boolean;
+  generatedAt?: string | null;
   message?: string;
 }
 
@@ -192,13 +230,43 @@ const buildSummaryText = (candidate: JsonObject): string => {
   const totalTrades = coalesceStringValue(candidate.totalTrades, rawData?.tno, rawData?.totalTrades, rawData?.tradeCount) ?? 'نامشخص';
   const totalVolume = coalesceStringValue(candidate.totalVolume, rawData?.tvol, rawData?.totalVolume, rawData?.tradeVolume) ?? 'نامشخص';
   const totalValue = coalesceStringValue(candidate.totalValue, rawData?.tval, rawData?.totalValue, rawData?.tradeValue) ?? 'نامشخص';
-  const positiveStocks = coalesceNumber(candidate.positiveStocks, rawData?.positiveStocks) ?? 0;
-  const negativeStocks = coalesceNumber(candidate.negativeStocks, rawData?.negativeStocks) ?? 0;
+  const positiveStocks = coalesceNumber(candidate.positiveStocks, rawData?.positiveStocks);
+  const negativeStocks = coalesceNumber(candidate.negativeStocks, rawData?.negativeStocks);
+
+  if (overallIndex === null && totalTrades === 'نامشخص' && totalValue === 'نامشخص') {
+    return 'خلاصه بازار هنوز تولید نشده یا داده‌ی معتبر در دسترس نیست.';
+  }
 
   const changePart = overallChange === null ? '' : ` (${overallChange >= 0 ? '+' : ''}${overallChange.toLocaleString('fa-IR')}%)`;
   const equalPart = equalIndex === null ? '' : `؛ شاخص هم‌وزن: ${equalIndex.toLocaleString('fa-IR')}`;
+  const balancePart =
+    positiveStocks === null || negativeStocks === null
+      ? ''
+      : `؛ سهم‌های مثبت/منفی: ${positiveStocks.toLocaleString('fa-IR')}/${negativeStocks.toLocaleString('fa-IR')}`;
 
-  return `شاخص کل: ${overallIndex === null ? 'نامشخص' : overallIndex.toLocaleString('fa-IR')}${changePart}؛ وضعیت بازار: ${marketStatus}؛ تعداد معاملات: ${totalTrades}؛ حجم معاملات: ${totalVolume}؛ ارزش معاملات: ${totalValue}${equalPart}؛ سهم‌های مثبت/منفی: ${positiveStocks.toLocaleString('fa-IR')}/${negativeStocks.toLocaleString('fa-IR')}.`;
+  return `شاخص کل: ${overallIndex === null ? 'نامشخص' : overallIndex.toLocaleString('fa-IR')}${changePart}؛ وضعیت بازار: ${marketStatus}؛ تعداد معاملات: ${totalTrades}؛ حجم معاملات: ${totalVolume}؛ ارزش معاملات: ${totalValue}${equalPart}${balancePart}.`;
+};
+
+const normalizeMeta = (candidate: JsonObject, rawData: JsonObject | null): SummaryMeta | undefined => {
+  const metaObj = asObject(candidate._meta) ?? asObject(rawData?._meta);
+  if (metaObj) {
+    return {
+      generatedAt: toNullableString(metaObj.generatedAt),
+      ageMinutes: toNullableNumber(metaObj.ageMinutes),
+      freshnessThresholdMinutes: toNullableNumber(metaObj.freshnessThresholdMinutes),
+      isStale: Boolean(metaObj.isStale),
+      source: toNullableString(metaObj.source)
+    };
+  }
+
+  const generatedAt = toNullableString(candidate.updatedAt) ?? toNullableString(candidate.createdAt);
+  return {
+    generatedAt,
+    ageMinutes: null,
+    freshnessThresholdMinutes: null,
+    isStale: false,
+    source: toNullableString(candidate.sourceType)
+  };
 };
 
 const normalizeSummary = (candidate: JsonObject): MarketSummaryData | null => {
@@ -269,9 +337,12 @@ const normalizeSummary = (candidate: JsonObject): MarketSummaryData | null => {
     topVolumes,
     rawJson: candidate.rawJson ?? null,
     createdAt: createdAtValue,
+    updatedAt: toNullableString(candidate.updatedAt),
     content,
     summary: content,
-    fallback: typeof candidate.fallback === 'boolean' ? candidate.fallback : undefined
+    fallback: typeof candidate.fallback === 'boolean' ? candidate.fallback : undefined,
+    sourceType: toNullableString(candidate.sourceType),
+    _meta: normalizeMeta(candidate, rawData)
   };
 };
 
@@ -300,6 +371,73 @@ const pickMarketSummary = (payload: unknown): MarketSummaryData | null => {
   return null;
 };
 
+const pickDates = (payload: unknown): string[] => {
+  const obj = asObject(payload);
+  if (!obj) return [];
+
+  const candidates: unknown[] = [
+    obj.data,
+    obj.dates,
+    obj.availableDates,
+    obj.items,
+    obj.rows,
+    obj.records,
+    obj.list
+  ];
+
+  const result = new Set<string>();
+
+  for (const c of candidates) {
+    if (Array.isArray(c)) {
+      for (const item of c) {
+        if (typeof item === 'string') {
+          const s = item.trim();
+          if (s) result.add(s);
+          continue;
+        }
+
+        const itemObj = asObject(item);
+        if (!itemObj) continue;
+
+        const d =
+          toNullableString(itemObj.summaryDate) ??
+          toNullableString(itemObj.date) ??
+          toNullableString(itemObj.createdAt) ??
+          toNullableString(itemObj.snapshotCreatedAt) ??
+          toNullableString(itemObj.value);
+
+        if (d) result.add(d);
+      }
+      continue;
+    }
+
+    const arr = pickArray(c);
+    if (arr) {
+      for (const item of arr) {
+        if (typeof item === 'string') {
+          const s = item.trim();
+          if (s) result.add(s);
+          continue;
+        }
+
+        const itemObj = asObject(item);
+        if (!itemObj) continue;
+
+        const d =
+          toNullableString(itemObj.summaryDate) ??
+          toNullableString(itemObj.date) ??
+          toNullableString(itemObj.createdAt) ??
+          toNullableString(itemObj.snapshotCreatedAt) ??
+          toNullableString(itemObj.value);
+
+        if (d) result.add(d);
+      }
+    }
+  }
+
+  return Array.from(result);
+};
+
 const LATEST_ENDPOINTS = [
   '/market-summary/latest',
   '/market/summary',
@@ -316,12 +454,29 @@ const GENERATE_ENDPOINTS = [
   '/market/summary/generate'
 ];
 
-export const getLatestSummary = async (): Promise<MarketSummaryData | null> => {
+const DATES_ENDPOINTS = [
+  '/market-summary/dates',
+  '/market/summary/dates'
+];
+
+const BY_DATE_ENDPOINTS = [
+  '/market-summary/by-date',
+  '/market/summary/by-date'
+];
+
+/** نسخه جدید: علاوه بر summary، متای پاسخ latest را هم برمی‌گرداند */
+export const getLatestSummaryEnvelope = async (): Promise<LatestSummaryEnvelope> => {
   let lastError: unknown = null;
 
   for (const endpoint of LATEST_ENDPOINTS) {
     try {
-      const result = await appApiFetch<MarketSummarySingleResponse>(endpoint, { method: 'GET' });
+      const result = await appApiFetch<MarketSummarySingleResponse>(withNoCacheQuery(endpoint), {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache'
+        }
+      });
 
       if (result?.success === false) {
         lastError = result;
@@ -329,7 +484,16 @@ export const getLatestSummary = async (): Promise<MarketSummaryData | null> => {
       }
 
       const summary = pickMarketSummary(result);
-      if (summary) return summary;
+      if (summary) {
+        return {
+          summary,
+          cached: result?.cached,
+          sourceType: result?.sourceType ?? summary.sourceType ?? null,
+          isStale: typeof result?.isStale === 'boolean' ? result.isStale : summary?._meta?.isStale,
+          generatedAt: result?.generatedAt ?? summary?._meta?.generatedAt ?? null,
+          message: result?.message
+        };
+      }
 
       lastError = new Error(`Invalid summary shape from ${endpoint}`);
     } catch (error) {
@@ -342,7 +506,17 @@ export const getLatestSummary = async (): Promise<MarketSummaryData | null> => {
     '[MarketSummaryService] Get latest error:',
     getMessage(lastError, 'no valid endpoint/response')
   );
-  return null;
+
+  return {
+    summary: null,
+    message: getMessage(lastError, 'no valid endpoint/response')
+  };
+};
+
+// backward compatible
+export const getLatestSummary = async (): Promise<MarketSummaryData | null> => {
+  const env = await getLatestSummaryEnvelope();
+  return env.summary;
 };
 
 export const getSummaryHistory = async (
@@ -351,7 +525,8 @@ export const getSummaryHistory = async (
 ): Promise<MarketSummaryHistoryResponse | null> => {
   const query = new URLSearchParams({
     page: String(page),
-    limit: String(limit)
+    limit: String(limit),
+    t: String(nowTs())
   });
 
   let lastError: unknown = null;
@@ -360,7 +535,13 @@ export const getSummaryHistory = async (
     const endpoint = `${base}?${query.toString()}`;
 
     try {
-      const result = await appApiFetch<unknown>(endpoint, { method: 'GET' });
+      const result = await appApiFetch<unknown>(endpoint, {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache'
+        }
+      });
       const obj = asObject(result);
 
       if (!obj) {
@@ -418,6 +599,95 @@ export const getSummaryHistory = async (
   return null;
 };
 
+export const getAvailableDates = async (): Promise<MarketSummaryDatesResponse | null> => {
+  let lastError: unknown = null;
+
+  for (const endpoint of DATES_ENDPOINTS) {
+    try {
+      const result = await appApiFetch<unknown>(withNoCacheQuery(endpoint), {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache'
+        }
+      });
+
+      const obj = asObject(result);
+      if (!obj) {
+        lastError = new Error(`Non-object response from ${endpoint}`);
+        continue;
+      }
+
+      if ('success' in obj && obj.success === false) {
+        lastError = obj;
+        continue;
+      }
+
+      const dates = pickDates(obj);
+      if (dates.length === 0) {
+        lastError = new Error(`Cannot find dates array in ${endpoint}`);
+        continue;
+      }
+
+      return {
+        success: true,
+        data: dates,
+        cached: typeof obj.cached === 'boolean' ? obj.cached : undefined,
+        message: typeof obj.message === 'string' ? obj.message : undefined
+      };
+    } catch (error) {
+      lastError = error;
+      console.warn(`[MarketSummaryService] Dates endpoint failed: ${endpoint}`, error);
+    }
+  }
+
+  console.error(
+    '[MarketSummaryService] Get dates error:',
+    getMessage(lastError, 'no valid endpoint/response')
+  );
+  return null;
+};
+
+export const getMarketSummaryByDate = async (date: string): Promise<MarketSummaryData | null> => {
+  const safeDate = date.trim();
+  if (!safeDate) return null;
+
+  let lastError: unknown = null;
+
+  for (const base of BY_DATE_ENDPOINTS) {
+    const endpoint = withNoCacheQuery(`${base}/${encodeURIComponent(safeDate)}`);
+
+    try {
+      const result = await appApiFetch<MarketSummarySingleResponse>(endpoint, {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache'
+        }
+      });
+
+      if (result?.success === false) {
+        lastError = result;
+        continue;
+      }
+
+      const summary = pickMarketSummary(result);
+      if (summary) return summary;
+
+      lastError = new Error(`Invalid by-date summary shape from ${endpoint}`);
+    } catch (error) {
+      lastError = error;
+      console.warn(`[MarketSummaryService] By-date endpoint failed: ${endpoint}`, error);
+    }
+  }
+
+  console.error(
+    '[MarketSummaryService] Get by-date error:',
+    getMessage(lastError, 'no valid endpoint/response')
+  );
+  return null;
+};
+
 export const generateSummary = async (
   marketData: unknown,
   forceRegenerate: boolean = false
@@ -428,7 +698,12 @@ export const generateSummary = async (
     try {
       const result = await appApiFetch<MarketSummarySingleResponse>(endpoint, {
         method: 'POST',
-        body: JSON.stringify({ marketData, forceRegenerate })
+        body: JSON.stringify({ marketData, forceRegenerate }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache'
+        }
       });
 
       if (result?.success === false) {

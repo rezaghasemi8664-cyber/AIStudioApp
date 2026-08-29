@@ -47,7 +47,6 @@ tryMount('/analysis', '../analysis.routes.cjs', 'Analysis');
 tryMount('/analysis-history', '../analysisHistory.routes.cjs', 'Analysis History');
 tryMount('/portfolio', '../portfolio.routes.cjs', 'Portfolio');
 tryMount('/market-history', '../marketHistory.routes.cjs', 'Market History');
-tryMount('/market-summary', '../marketSummary.routes.cjs', 'Market Summary');
 tryMount('/conversations', '../conversation.routes.cjs', 'Conversations');
 tryMount('/messages', '../message.routes.cjs', 'Messages');
 tryMount('/notifications', '../notification.routes.cjs', 'Notifications');
@@ -61,6 +60,7 @@ tryMount('/api-keys', '../apiKey.routes.cjs', 'API Keys');
 tryMount('/admin', '../admin.routes.cjs', 'Admin');
 tryMount('/user-preference', '../userPreference.routes.cjs', 'User Preference');
 tryMount('/market', '../market.routes.cjs', 'Market'); // only once
+tryMount('/market-summary', '../marketSummary.routes.cjs', 'Market Summary');
 
 router.get('/', function (_req, res) {
   res.json({

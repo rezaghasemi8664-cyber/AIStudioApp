@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
@@ -146,27 +147,39 @@ model MarketSummary {
   id             Int      @id(map: "PK__MarketSu__3213E83FFABFB5FF") @default(autoincrement())
   date           DateTime @default(dbgenerated("sysdatetime()"), map: "DF__MarketSumm__date__6CC31A31")
   summaryDate    DateTime @unique(map: "UQ_MarketSummary_summaryDate") @db.Date
+
   overallIndex   Float?
   overallChange  Float?
   equalIndex     Float?
   equalChange    Float?
   marketStatus   String?  @db.NVarChar(50)
+
   totalTrades    BigInt?
   totalVolume    BigInt?
   totalValue     BigInt?
+
   positiveStocks Int?
   negativeStocks Int?
   neutralStocks  Int?
+
   topGainers     String?  @db.NVarChar(Max)
   topLosers      String?  @db.NVarChar(Max)
   topVolumes     String?  @db.NVarChar(Max)
+
+  // ✅ فیلدهای اصولی برای خروجی AI
+  content        String?  @db.NVarChar(Max)
+  summary        String?  @db.NVarChar(Max)
+
+  // نگهداری داده خام/ساختاریافته
   rawJson        String?  @db.NVarChar(Max)
+
   createdAt      DateTime @default(dbgenerated("sysdatetime()"), map: "DF__MarketSum__creat__6DB73E6A")
 
   @@index([date], map: "IX_MarketSummary_date")
   @@map("MarketSummary")
   @@schema("dbo")
 }
+
 
 model ThemeConfig {
   id        Int       @id(map: "PK__ThemeCon__3213E83FEEABC965") @default(autoincrement())

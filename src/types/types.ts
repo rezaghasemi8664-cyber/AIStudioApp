@@ -1,6 +1,4 @@
-﻿// src/types/types.ts
-
-export type { ApiEndpoint } from '../constants/apiEndpoints';
+﻿export type { ApiEndpoint } from '../constants/apiEndpoints';
 
 export interface User {
   id: string;
@@ -36,6 +34,8 @@ export interface User {
 export interface StoredUser extends User {
   lastLogin?: string;
   expiryDate?: string;
+  passwordHash?: string;
+  password?: string;
 }
 
 export interface AppNotification {

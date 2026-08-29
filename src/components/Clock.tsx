@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { CalendarDaysIcon } from './Icons';
 
 const Clock: React.FC = () => {

@@ -1,4 +1,4 @@
-// backend/controllers/auth.controller.cjs - Production v11.5 (lastLoginAt fixed + hardening)
+﻿// backend/controllers/auth.controller.cjs - Production v11.5 (lastLoginAt fixed + hardening)
 // =====================================================================
 // FIXES (v11.5):
 //   1) login/register/refresh now update lastLoginAt (not just updatedAt)
@@ -409,7 +409,7 @@ async function login(req, res) {
     // FIX: update lastLoginAt (and updatedAt for audit consistency)
     prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date(), updatedAt: new Date() },
+      data: { updatedAt: new Date() }
     }).catch(e => console.warn('[AUTH] Failed to update lastLoginAt:', e.message));
 
     // keep response coherent even before async update completes
@@ -556,7 +556,8 @@ async function register(req, res) {
           isDeleted: false,
           isActive: true,
           roleId: defaultRoleId,
-          lastLoginAt: new Date(), // FIX
+          data: { updatedAt: new Date() } 
+, // FIX
           updatedAt: new Date(),
         },
         select: USER_SELECT,
@@ -590,7 +591,8 @@ async function register(req, res) {
         mobile: null,
         roleId: defaultRoleId,
         isActive: true,
-        lastLoginAt: new Date(), // FIX: first successful auth timestamp
+        data: { updatedAt: new Date() }
+        , // FIX: first successful auth timestamp
       },
       select: USER_SELECT,
     });
@@ -740,10 +742,11 @@ async function refreshToken(req, res) {
     // FIX: refresh is a successful auth event => update lastLoginAt
     prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date(), updatedAt: new Date() },
+      data: { updatedAt: new Date() }
     }).catch(e => console.warn('[AUTH] Failed to update lastLoginAt on refresh:', e.message));
 
-    const responseUser = { ...user, lastLoginAt: new Date() };
+    const responseUser = { ...user, data: { updatedAt: new Date() }
+ };
 
     return res.json({
       success: true,

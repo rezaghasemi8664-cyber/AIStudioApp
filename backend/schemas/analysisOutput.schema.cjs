@@ -1,6 +1,7 @@
 "use strict";
 
 module.exports = {
+  $schema: "https://json-schema.org/draft/2020-12/schema",
   type: "object",
   additionalProperties: false,
 
@@ -55,20 +56,22 @@ module.exports = {
     },
 
     /* =========================
-       RISK (Canonical – Engine)
+       RISK (Canonical Engine)
+       NOTE: aligned with prompt/output contract
     ========================= */
     risk_level: {
       type: "string",
-      enum: ["LOW", "MEDIUM", "HIGH"],
+      enum: ["low", "medium", "high"],
     },
 
     /* =========================
        CONFIDENCE
+       NOTE: aligned with prompt/output contract (0..100)
     ========================= */
     confidence: {
       type: "number",
       minimum: 0,
-      maximum: 1,
+      maximum: 100,
     },
 
     /* =========================
@@ -82,16 +85,19 @@ module.exports = {
         overrides: {
           type: "array",
           default: [],
+          minItems: 0,
           items: { type: "string", minLength: 1 },
         },
         confirmations: {
           type: "array",
           default: [],
+          minItems: 0,
           items: { type: "string", minLength: 1 },
         },
         penalties: {
           type: "array",
           default: [],
+          minItems: 0,
           items: {
             type: "object",
             additionalProperties: false,
@@ -111,7 +117,7 @@ module.exports = {
        (for downstream compatibility)
     ========================= */
     marketMetrics: {
-      type: "object",
+      type: ["object", "null"],
       additionalProperties: true,
       properties: {
         pe: { type: ["number", "null"] },

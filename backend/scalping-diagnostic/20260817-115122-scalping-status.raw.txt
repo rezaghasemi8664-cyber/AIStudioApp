@@ -1,0 +1,2 @@
+﻿{"success":true,"data":{"isRunning":false,"lastRunId":null,"lastStatus":null,"lastUpdate":"2026-08-17T07:21:26.580Z","lastUpdated":"2026-08-17T07:21:26.580Z","statusCheckedAt":"2026-08-17T07:21:26.580Z","todayTrades":0,"activePositions":0,"todayPnL":0,"marketStatus":{"isOpen":true,"source":"api","reason":"OPEN","available":true,"checkedAt":"2026-08-17T07:21:26.428Z"},"bestSignal":null,"totalSignals":0,"activeSignals":0,"marketOpen":true}}
+

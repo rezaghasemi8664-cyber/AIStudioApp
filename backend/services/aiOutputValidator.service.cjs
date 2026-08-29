@@ -8,81 +8,127 @@ const logger = require('./logger.service.cjs');
 const ajv = new Ajv({
   allErrors: true,
   strict: false,
-  allowUnionTypes: true
+  allowUnionTypes: true,
+  removeAdditional: false,
+  useDefaults: true,
+  coerceTypes: false
 });
 
 addFormats(ajv);
 
 const validate = ajv.compile(schema);
 
+/* ================================
+ * Helpers
+ * ================================ */
+
+function createTypedError(message, code, details) {
+  const err = new Error(message);
+  err.code = code || 'AI_VALIDATION_ERROR';
+  if (details && typeof details === 'object') {
+    Object.assign(err, details);
+  }
+  return err;
+}
+
 function clampConfidence(value) {
   const num = Number(value);
 
-  if (!Number.isFinite(num)) {
-    return 0;
-  }
-
-  if (num < 0) {
-    return 0;
-  }
-
-  if (num > 100) {
-    return 100;
-  }
+  if (!Number.isFinite(num)) return 0;
+  if (num < 0) return 0;
+  if (num > 100) return 100;
 
   return Math.round(num);
 }
 
+function normalizeText(value, fallback) {
+  if (typeof value !== 'string') return fallback;
+  return value.trim();
+}
+
+function normalizeRiskLevel(value) {
+  if (typeof value !== 'string') return value;
+
+  const v = value.trim().toLowerCase();
+
+  // نگاشت رایج برای جلوگیری از fail بی‌مورد
+  if (v === 'low' || v === 'کم' || v === 'پایین') return 'low';
+  if (v === 'medium' || v === 'med' || v === 'متوسط') return 'medium';
+  if (v === 'high' || v === 'زیاد' || v === 'بالا') return 'high';
+
+  return v;
+}
+
+function normalizeRecommendation(value) {
+  if (typeof value !== 'string') return value;
+
+  const v = value.trim().toUpperCase();
+
+  // نگاشت رایج
+  if (v === 'BUY' || v === 'LONG') return 'BUY';
+  if (v === 'SELL' || v === 'SHORT') return 'SELL';
+  if (v === 'HOLD' || v === 'NEUTRAL' || v === 'WAIT') return 'HOLD';
+
+  return v;
+}
+
+function isPlainObject(item) {
+  return !!item && typeof item === 'object' && !Array.isArray(item);
+}
+
 function normalizeSignals(signals) {
-  if (!Array.isArray(signals)) {
-    return [];
+  if (!Array.isArray(signals)) return [];
+
+  return signals
+    .filter(isPlainObject)
+    .filter((item) => Object.keys(item).length > 0);
+}
+
+function safeOutputForLog(output) {
+  // خروجی سنگین/حساس را خلاصه می‌کنیم
+  if (!isPlainObject(output)) return output;
+
+  const cloned = { ...output };
+
+  if (Array.isArray(cloned.signals)) {
+    cloned.signalsCount = cloned.signals.length;
+    delete cloned.signals;
   }
 
-  return signals.filter(function isUsableSignal(item) {
-    return item && typeof item === 'object' && !Array.isArray(item);
-  });
+  return cloned;
 }
 
 function normalizeOutput(output) {
-  if (!output || typeof output !== 'object' || Array.isArray(output)) {
-    throw new Error('AI_OUTPUT_INVALID_TYPE');
+  if (!isPlainObject(output)) {
+    throw createTypedError(
+      'AI output must be a plain object',
+      'AI_OUTPUT_INVALID_TYPE',
+      { outputType: Array.isArray(output) ? 'array' : typeof output }
+    );
   }
 
-  const normalized = {
-    ...output
-  };
+  const normalized = { ...output };
 
-  if ('confidence' in normalized) {
-    normalized.confidence = clampConfidence(normalized.confidence);
-  } else {
-    normalized.confidence = 0;
+  // confidence
+  normalized.confidence = clampConfidence(normalized.confidence);
+
+  // signals
+  normalized.signals = normalizeSignals(normalized.signals);
+
+  // summary
+  normalized.summary = normalizeText(normalized.summary, '');
+
+  // optional standard fields
+  if ('risk_level' in normalized) {
+    normalized.risk_level = normalizeRiskLevel(normalized.risk_level);
   }
 
-  if ('signals' in normalized) {
-    normalized.signals = normalizeSignals(normalized.signals);
-  } else {
-    normalized.signals = [];
+  if ('recommendation' in normalized) {
+    normalized.recommendation = normalizeRecommendation(normalized.recommendation);
   }
 
-  if (typeof normalized.summary !== 'string') {
-    normalized.summary = '';
-  } else {
-    normalized.summary = normalized.summary.trim();
-  }
-
-  if (typeof normalized.risk_level === 'string') {
-    normalized.risk_level = normalized.risk_level.trim().toLowerCase();
-  }
-
-  if (typeof normalized.recommendation === 'string') {
-    normalized.recommendation = normalized.recommendation.trim().toUpperCase();
-  }
-
-  if (
-    !normalized.meta ||
-    typeof normalized.meta !== 'object' ||
-    Array.isArray(normalized.meta)
-  ) {
+  // meta
+  if (!isPlainObject(normalized.meta)) {
     normalized.meta = {};
   }
 
@@ -90,20 +136,20 @@ function normalizeOutput(output) {
 }
 
 function formatAjvErrors(errors) {
-  if (!Array.isArray(errors)) {
-    return [];
-  }
+  if (!Array.isArray(errors)) return [];
 
-  return errors.map(function mapError(err) {
-    return {
-      instancePath: err.instancePath || '',
-      schemaPath: err.schemaPath || '',
-      keyword: err.keyword || '',
-      message: err.message || 'Schema validation error',
-      params: err.params || {}
-    };
-  });
+  return errors.map((err) => ({
+    instancePath: err.instancePath || '',
+    schemaPath: err.schemaPath || '',
+    keyword: err.keyword || '',
+    message: err.message || 'Schema validation error',
+    params: err.params || {}
+  }));
 }
+
+/* ================================
+ * Public API
+ * ================================ */
 
 function validateAIOutput(output) {
   const normalized = normalizeOutput(output);
@@ -113,16 +159,19 @@ function validateAIOutput(output) {
     const formattedErrors = formatAjvErrors(validate.errors);
 
     logger.warn('[AI VALIDATION FAILED]', {
+      code: 'AI_OUTPUT_SCHEMA_VALIDATION_FAILED',
       errors: formattedErrors,
-      output: normalized
+      output: safeOutputForLog(normalized)
     });
 
-    const error = new Error('AI_OUTPUT_SCHEMA_VALIDATION_FAILED');
-    error.code = 'AI_OUTPUT_SCHEMA_VALIDATION_FAILED';
-    error.validationErrors = formattedErrors;
-    error.output = normalized;
-
-    throw error;
+    throw createTypedError(
+      'AI output failed schema validation',
+      'AI_OUTPUT_SCHEMA_VALIDATION_FAILED',
+      {
+        validationErrors: formattedErrors,
+        output: normalized
+      }
+    );
   }
 
   return normalized;
@@ -132,7 +181,7 @@ function isValidAIOutput(output) {
   try {
     validateAIOutput(output);
     return true;
-  } catch (_) {
+  } catch (error) {
     return false;
   }
 }

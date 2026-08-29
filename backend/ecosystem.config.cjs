@@ -9,12 +9,14 @@
 
       env: {
         NODE_ENV: "development",
-        BRS_API_KEY: "BBd8wTnmLTQpSHcz5kqxFegudgym5Tnd" // کلید را اینجا اضافه کنید
+        BRS_API_KEY: "BBd8wTnmLTQpSHcz5kqxFegudgym5Tnd",
+        COOKIE_SECURE: "false",
       },
 
       env_production: {
         NODE_ENV: "production",
-        BRS_API_KEY: "BBd8wTnmLTQpSHcz5kqxFegudgym5Tnd" // در صورت استفاده از پروداکشن
+        BRS_API_KEY: "BBd8wTnmLTQpSHcz5kqxFegudgym5Tnd",
+        COOKIE_SECURE: "true",
       },
 
       max_memory_restart: "400M",

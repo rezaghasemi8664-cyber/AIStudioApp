@@ -1,13 +1,10 @@
-﻿// frontend/src/services/apiConfigService.ts
+﻿const env = (import.meta as any)?.env || {};
 
-const envBaseUrl =
-  (import.meta as any)?.env?.VITE_API_BASE_URL ||
-  (import.meta as any)?.env?.VITE_API_URL;
+const envBaseUrl = env.VITE_API_BASE_URL || env.VITE_API_URL;
 
-const defaultBaseUrl =
-  (import.meta as any)?.env?.DEV
-    ? 'http://localhost:3001/api/v1'
-    : 'https://roniya-analyzer.ir/api/v1';
+const defaultBaseUrl = env.DEV
+  ? 'http://localhost:3001/api/v1'
+  : 'https://roniya-analyzer.ir/api/v1';
 
 const API_BASE_URL = String(envBaseUrl || defaultBaseUrl).replace(/\/+$/, '');
 
@@ -25,16 +22,13 @@ export interface MarketIndexSchedule {
 function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
 
-  const keys = [
-    'token',
-    'accessToken',
-    'authToken',
-    'jwt',
-    'userToken',
-  ];
+  const keys = ['token', 'accessToken', 'authToken', 'jwt', 'userToken'];
 
   for (const key of keys) {
-    const value = localStorage.getItem(key) || sessionStorage.getItem(key);
+    const localValue = localStorage.getItem(key);
+    const sessionValue = sessionStorage.getItem(key);
+
+    const value = localValue || sessionValue;
     if (value && typeof value === 'string' && value.trim()) {
       return value.trim();
     }
@@ -56,20 +50,15 @@ export async function apiFetch<T = any>(
   endpoint: string,
   options: ApiFetchOptions = {}
 ): Promise<T> {
-  const {
-    requireAuth = true,
-    headers: customHeaders,
-    ...rest
-  } = options;
+  const { requireAuth = true, headers: customHeaders, ...rest } = options;
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    Accept: 'application/json',
     ...(customHeaders as Record<string, string>),
   };
 
   if (requireAuth) {
     const token = getStoredToken();
-
     if (token && !headers.Authorization) {
       headers.Authorization = `Bearer ${token}`;
     }
@@ -79,9 +68,9 @@ export async function apiFetch<T = any>(
     ? endpoint
     : `/${endpoint}`;
 
-  const url = endpoint.startsWith('http')
-    ? endpoint
-    : `${API_BASE_URL}${normalizedEndpoint}`;
+  const isAbsoluteUrl = /^https?:\/\//i.test(endpoint);
+
+  const url = isAbsoluteUrl ? endpoint : `${API_BASE_URL}${normalizedEndpoint}`;
 
   const response = await fetch(url, {
     credentials: 'include',

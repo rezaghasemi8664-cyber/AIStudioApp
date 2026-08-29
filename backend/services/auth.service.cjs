@@ -110,7 +110,7 @@ function buildSafeUser(user) {
     isDeleted: user.isDeleted === true,
     createdAt: user.createdAt || null,
     updatedAt: user.updatedAt || null,
-    lastLogin: user.lastLogin || null,
+    lastLogin: null,
     isSubscriptionActive,
     subscriptionEnd,
     subscriptionMonths: isAdmin ? 9999 : (user.subscriptionMonths || 0),
@@ -194,7 +194,7 @@ async function loginUser(identifier, password) {
   try {
     updatedUser = await prisma.user.update({
       where: { id: user.id },
-      data: { lastLogin: new Date() },
+      data: { updatedAt: new Date() },
       include: { role: true },
     });
   } catch (e) {

@@ -1,0 +1,48 @@
+﻿{
+    "ok":  true,
+    "method":  "POST",
+    "url":  "http://127.0.0.1:3001/api/v1/auth/login",
+    "statusCode":  200,
+    "statusDesc":  "OK",
+    "error":  null,
+    "bodyText":  "{\"success\":true,\"message\":\"ورود موفق\",\"data\":{\"user\":{\"id\":2,\"username\":\"r.ghasemi\",\"email\":\"reza.ghasemi8664@gmail.com\",\"name\":\"رضا قاسمی\",\"firstName\":\"رضا\",\"lastName\":\"قاسمی\",\"phone\":\"09139027059\",\"mobile\":\"09139027059\",\"nationalId\":\"\",\"bio\":\"\",\"avatar\":\"\",\"isActive\":true,\"role\":\"ADMIN\",\"roleName\":\"ADMIN\",\"roleTitle\":\"ADMIN\",\"roleId\":2,\"isAdmin\":true,\"subscriptionStart\":\"2026-07-09T05:48:29.009Z\",\"subscriptionEnd\":null,\"subscriptionMonths\":999,\"subscriptionType\":\"free\",\"analysisLimit\":100,\"analysisLimit24h\":100,\"remainingDays\":30368,\"isSubscriptionActive\":true,\"lastLoginAt\":\"2026-08-17T10:54:15.028Z\",\"createdAt\":\"2025-12-31T09:46:34.177Z\",\"updatedAt\":\"2026-08-17T10:51:07.957Z\"},\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInN1YiI6MiwidXNlcm5hbWUiOiJyLmdoYXNlbWkiLCJlbWFpbCI6InJlemEuZ2hhc2VtaTg2NjRAZ21haWwuY29tIiwicm9sZSI6IkFETUlOIiwiaXNBZG1pbiI6dHJ1ZSwiaWF0IjoxNzg2OTY0MDU1LCJleHAiOjE3ODcwNTA0NTV9.aaFSdimd4l4R1hUThLDNKxG1R1soDrnmd6ZbBp2NrKk\",\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInN1YiI6MiwidXNlcm5hbWUiOiJyLmdoYXNlbWkiLCJlbWFpbCI6InJlemEuZ2hhc2VtaTg2NjRAZ21haWwuY29tIiwicm9sZSI6IkFETUlOIiwiaXNBZG1pbiI6dHJ1ZSwiaWF0IjoxNzg2OTY0MDU1LCJleHAiOjE3ODcwNTA0NTV9.aaFSdimd4l4R1hUThLDNKxG1R1soDrnmd6ZbBp2NrKk\",\"refreshToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInN1YiI6MiwidHlwZSI6InJlZnJlc2giLCJpYXQiOjE3ODY5NjQwNTUsImV4cCI6MTc4NzU2ODg1NX0.3NtTm87h9aGSqdAJeHOQELsqCydJtKtHsFSFmKwDR70\"}}",
+    "json":  {
+                 "success":  true,
+                 "message":  "ورود موفق",
+                 "data":  {
+                              "user":  {
+                                           "id":  2,
+                                           "username":  "r.ghasemi",
+                                           "email":  "reza.ghasemi8664@gmail.com",
+                                           "name":  "رضا قاسمی",
+                                           "firstName":  "رضا",
+                                           "lastName":  "قاسمی",
+                                           "phone":  "09139027059",
+                                           "mobile":  "09139027059",
+                                           "nationalId":  "",
+                                           "bio":  "",
+                                           "avatar":  "",
+                                           "isActive":  true,
+                                           "role":  "ADMIN",
+                                           "roleName":  "ADMIN",
+                                           "roleTitle":  "ADMIN",
+                                           "roleId":  2,
+                                           "isAdmin":  true,
+                                           "subscriptionStart":  "2026-07-09T05:48:29.009Z",
+                                           "subscriptionEnd":  null,
+                                           "subscriptionMonths":  999,
+                                           "subscriptionType":  "free",
+                                           "analysisLimit":  100,
+                                           "analysisLimit24h":  100,
+                                           "remainingDays":  30368,
+                                           "isSubscriptionActive":  true,
+                                           "lastLoginAt":  "2026-08-17T10:54:15.028Z",
+                                           "createdAt":  "2025-12-31T09:46:34.177Z",
+                                           "updatedAt":  "2026-08-17T10:51:07.957Z"
+                                       },
+                              "token":  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInN1YiI6MiwidXNlcm5hbWUiOiJyLmdoYXNlbWkiLCJlbWFpbCI6InJlemEuZ2hhc2VtaTg2NjRAZ21haWwuY29tIiwicm9sZSI6IkFETUlOIiwiaXNBZG1pbiI6dHJ1ZSwiaWF0IjoxNzg2OTY0MDU1LCJleHAiOjE3ODcwNTA0NTV9.aaFSdimd4l4R1hUThLDNKxG1R1soDrnmd6ZbBp2NrKk",
+                              "accessToken":  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInN1YiI6MiwidXNlcm5hbWUiOiJyLmdoYXNlbWkiLCJlbWFpbCI6InJlemEuZ2hhc2VtaTg2NjRAZ21haWwuY29tIiwicm9sZSI6IkFETUlOIiwiaXNBZG1pbiI6dHJ1ZSwiaWF0IjoxNzg2OTY0MDU1LCJleHAiOjE3ODcwNTA0NTV9.aaFSdimd4l4R1hUThLDNKxG1R1soDrnmd6ZbBp2NrKk",
+                              "refreshToken":  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInN1YiI6MiwidHlwZSI6InJlZnJlc2giLCJpYXQiOjE3ODY5NjQwNTUsImV4cCI6MTc4NzU2ODg1NX0.3NtTm87h9aGSqdAJeHOQELsqCydJtKtHsFSFmKwDR70"
+                          }
+             }
+}

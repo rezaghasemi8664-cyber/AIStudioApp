@@ -35,11 +35,17 @@ if (
   throw new Error('analysisHistory.routes: one or more controller handlers are missing');
 }
 
+/**
+ * نکته مهم: مسیرهای ثابت باید قبل از مسیرهای داینامیک تعریف شوند.
+ * تا /clear یا /usage اشتباهاً به عنوان :id تفسیر نشوند.
+ */
 router.get('/usage', authenticate, getHistoryStats);
-router.get('/', authenticate, getAnalysisHistory);
-router.get('/:id', authenticate, getAnalysisById);
-router.post('/', authenticate, createAnalysisHistory);
 router.delete('/clear', authenticate, clearHistory);
+
+router.get('/', authenticate, getAnalysisHistory);
+router.post('/', authenticate, createAnalysisHistory);
+
+router.get('/:id', authenticate, getAnalysisById);
 router.delete('/:id', authenticate, deleteAnalysis);
 
 module.exports = router;

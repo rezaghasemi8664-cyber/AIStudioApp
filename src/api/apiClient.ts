@@ -3,11 +3,11 @@ import { API_BASE_URL } from './config';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  withCredentials: true, // برای ارسال HttpOnly Cookie
+  withCredentials: true, // ارسال خودکار HttpOnly Cookie
   timeout: 30000,
   headers: {
-    'Content-Type': 'application/json',
     Accept: 'application/json',
+    // Content-Type را global نگذارید تا برای FormData هم درست کار کند
   },
 });
 
@@ -16,9 +16,9 @@ const api = axios.create({
 /* ---------------------------------- */
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Backend-Only / Cookie-Auth:
-    // هیچ توکنی از localStorage/sessionStorage خوانده نمی‌شود.
-    // مرورگر کوکی HttpOnly را خودکار (با withCredentials) ارسال می‌کند.
+    // Cookie-Auth:
+    // هیچ توکنی از storage خوانده نمی‌شود.
+    // مرورگر خودش Cookie را با withCredentials ارسال می‌کند.
     return config;
   },
   (error) => Promise.reject(error)
@@ -33,17 +33,18 @@ api.interceptors.response.use(
     const status = error.response?.status;
 
     if (status === 401) {
-      // Unauthorized:
-      // در صورت نیاز می‌توانید event سراسری dispatch کنید
-      // تا اپ کاربر را به login هدایت کند.
-      // نمونه:
-      // window.dispatchEvent(new CustomEvent('auth:unauthorized'));
-    }
-
-    if (status === 403) {
-      // Forbidden: دسترسی غیرمجاز
-      // نمونه:
-      // window.dispatchEvent(new CustomEvent('auth:forbidden'));
+      // نشست نامعتبر/منقضی
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+    } else if (status === 403) {
+      // عدم دسترسی
+      window.dispatchEvent(new CustomEvent('auth:forbidden'));
+    } else if (!error.response) {
+      // Network / Timeout / CORS fail
+      window.dispatchEvent(
+        new CustomEvent('network:error', {
+          detail: { message: error.message || 'Network error' },
+        })
+      );
     }
 
     return Promise.reject(error);

@@ -1,11 +1,10 @@
-﻿// backend/server.cjs - Complete Production Server v5.2.1 FIXED + Socket.IO
+﻿// backend/server.cjs - Complete Production Server v5.2.1 FIXED + Socket.IO (PATCH-ONLY)
 // ══════════════════════════════════════════════════════════════════
-// v5.2.1 Changes (over v5.2):
-//   - Added scalping routes mount (fixes 404 on /api/scalping/*, /api/v1/scalping/*)
-//   - Added duplicate mount guard (mountedRouteKeys Set)
-//   - Removed duplicate portfolio mounts
-//   - Improved mount error details (NOT_FOUND / INVALID_EXPORT)
-//   - Version bump to 5.2.1
+// v5.2.1 Patch-only changes:
+//   - Harden API path guard (strict /api and /api/* only) in SPA fallback and API 404
+//   - Fix fonts static path to use frontendPath (not hardcoded __dirname/build)
+//   - Improve router export detection: routerModule.router.use check
+//   - Keep all existing features/logs/error handling intact
 // ══════════════════════════════════════════════════════════════════
 'use strict';
 
@@ -16,6 +15,9 @@ const fs = require('fs');
 const http = require('http');
 const { Server } = require('socket.io');
 const bootstrapSockets = require('./socket/index.cjs');
+const { startMarketSummaryCron, stopMarketSummaryCron } = require('./cron/marketSummaryCron.cjs');
+const { startCronJobs } = require('./cron/index.cjs');
+
 
 // ═══════════════════════════════════════════════════════════════════
 // 1. LOAD ENVIRONMENT
@@ -53,6 +55,11 @@ try {
 const PORT = env.PORT || 3001;
 const IS_DEV = env.IS_DEV || process.env.NODE_ENV !== 'production';
 const NODE_ENV = env.NODE_ENV || process.env.NODE_ENV || 'production';
+
+// strict API path helper (PATCH)
+function isApiPath(p) {
+  return p === '/api' || p.startsWith('/api/');
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // 2. CREATE EXPRESS APP
@@ -504,7 +511,7 @@ function mountRoute(apiPath, filePath, label) {
       routerInstance = routerModule;
     } else if (routerModule && typeof routerModule.use === 'function') {
       routerInstance = routerModule;
-    } else if (routerModule && routerModule.router && typeof routerModule.router === 'function') {
+    } else if (routerModule && routerModule.router && typeof routerModule.router.use === 'function') { // PATCH
       routerInstance = routerModule.router;
     } else if (routerModule && routerModule.default && typeof routerModule.default === 'function') {
       routerInstance = routerModule.default;
@@ -584,7 +591,6 @@ mountRoute('/api/v1/maintenance', './routes/maintenance.routes.cjs',   'Maintena
 mountRoute('/api/market-summary',      './routes/marketSummary.routes.cjs',   'Market Summary (AI)');
 mountRoute('/api/v1/market-summary',   './routes/marketSummary.routes.cjs',   'Market Summary v1 alias');
 
-// ✅ Added scalping mounts (fix 404)
 mountRoute('/api/scalping',      './routes/scalping.routes.cjs',       'Scalping');
 mountRoute('/api/v1/scalping',   './routes/scalping.routes.cjs',       'Scalping v1 alias');
 
@@ -597,7 +603,6 @@ mountRoute('/api/v1/analysis',           './routes/analysis.routes.cjs',        
 mountRoute('/api/analyze',               './routes/analyze.routes.cjs',          'Analyze (alias)');
 mountRoute('/api/v1/analyze',            './routes/analyze.routes.cjs',          'Analyze v1 alias');
 
-// ✅ kept single mount only (duplicate removed)
 mountRoute('/api/portfolio',    './routes/portfolio.routes.cjs',       'Portfolio');
 mountRoute('/api/v1/portfolio', './routes/portfolio.routes.cjs',       'Portfolio v1 alias');
 
@@ -728,7 +733,8 @@ if (fs.existsSync(frontendPath)) {
     immutable: true,
   }));
 
-  app.use('/fonts', express.static(path.join(__dirname, 'build', 'fonts'), {
+  // PATCH: use frontendPath (not hardcoded __dirname/build)
+  app.use('/fonts', express.static(path.join(frontendPath, 'fonts'), {
     maxAge: env.STATIC_MAX_AGE ? env.STATIC_MAX_AGE * 1000 : 31536000000,
     etag: true,
     lastModified: true,
@@ -743,7 +749,8 @@ if (fs.existsSync(frontendPath)) {
   }));
 
   app.get('*', function spaFallback(req, res, next) {
-    if (req.path.startsWith('/api')) {
+    // PATCH: strict API guard
+    if (isApiPath(req.path)) {
       return next();
     }
 
@@ -781,7 +788,8 @@ if (fs.existsSync(frontendPath)) {
 // 16. ERROR HANDLERS
 // ═══════════════════════════════════════════════════════════════════
 app.use(function apiNotFoundHandler(req, res, next) {
-  if (!req.path.startsWith('/api/') && !req.path.startsWith('/api')) {
+  // PATCH: strict API guard
+  if (!isApiPath(req.path)) {
     return next();
   }
 
@@ -900,6 +908,33 @@ const server = httpServer.listen(PORT, function () {
   console.log('');
 });
 
+let marketSummaryCronStarted = false;
+try {
+  const cronEnabled = String(process.env.MARKET_SUMMARY_CRON_ENABLED || 'true').toLowerCase() !== 'false';
+
+  // اگر PM2 cluster داری: فقط یک اینستنس کرون اجرا کند
+  // مثال: فقط روی instance 0
+  const pm2Instance = process.env.NODE_APP_INSTANCE;
+  const isCronLeader = (pm2Instance === undefined || pm2Instance === '0');
+
+  if (cronEnabled && isCronLeader) {
+    startMarketSummaryCron();
+    marketSummaryCronStarted = true;
+    console.log('[SERVER] ✅ MarketSummary cron started');
+
+    // ⚠️ FIX: این بخش قبلاً هرگز صدا زده نمی‌شد!
+    // بدون این خط، registerMarketCron (ذخیره اسنپ‌شات هر ۲ دقیقه در MarketHistory)
+    // و کرون‌های scalping/usage هیچ‌وقت اجرا نمی‌شدند، پس جدول MarketHistory
+    // هیچ داده‌ی تازه‌ای نداشت و تحلیل بازار ساعت ۱۲:۳۵ همیشه داده‌ی خالی/قدیمی می‌دید.
+    startCronJobs();
+    console.log('[SERVER] ✅ Market/Scalping/Usage cron jobs started (via cron/index.cjs)');
+  } else {
+    console.log('[SERVER] ℹ️ MarketSummary cron not started (cronEnabled=' + cronEnabled + ', NODE_APP_INSTANCE=' + String(pm2Instance) + ')');
+  }
+} catch (cronErr) {
+  console.error('[SERVER] ❌ Failed to start MarketSummary cron:', cronErr.message);
+}
+
 server.keepAliveTimeout = 65000;
 server.headersTimeout = 66000;
 
@@ -936,6 +971,15 @@ function gracefulShutdown(signal) {
 
   server.close(function () {
     console.log('[SERVER] HTTP server closed. No more connections.');
+    if (marketSummaryCronStarted && typeof stopMarketSummaryCron === 'function') {
+  try {
+    stopMarketSummaryCron();
+    console.log('[SERVER] MarketSummary cron stopped.');
+  } catch (cronStopErr) {
+    console.warn('[SERVER] Failed to stop MarketSummary cron:', cronStopErr.message);
+  }
+}
+
 
     if (io && typeof io.close === 'function') {
       io.close(function () {

@@ -1,175 +1,162 @@
+﻿/**
+ * Market Summary Cron Job
+ * Path: cron/marketSummaryCron.cjs
+ * Updated: 2026-08-19 (final aligned)
+ *
+ * Goal:
+ * - Automate market summary generation (Sat-Wed, Tehran TZ)
+ * - Use findOrGenerateLatest as canonical path (with service fallback logic)
+ * - No morning cleanup job (retention handled inside service: keep last N)
+ * - Support manual run
+ */
 'use strict';
 
 const cron = require('node-cron');
 const marketSummaryService = require('../services/marketSummary.service.cjs');
 
-let openCleanupTask = null;
 let eodSummaryTask = null;
-
-let cleanupRunning = false;
 let eodRunning = false;
 
-/**
- * Job 1) پاکسازی ابتدای روز معاملاتی:
- * - هدف: حذف فیزیکی خلاصه‌های روزهای قبل برای کاهش حجم دیتابیس
- * - schedule: 09:00 تهران | شنبه تا چهارشنبه
- */
-async function runOpenCleanupJob() {
-  if (cleanupRunning) {
-    console.log('[Cron][MarketSummary][OPEN_CLEANUP] Previous cleanup is still running. Skipping this tick.');
-    return;
-  }
+/** ---------- Utils ---------- */
+function nowTehranString() {
+  return new Date().toLocaleString('en-CA', {
+    timeZone: 'Asia/Tehran',
+    hour12: false
+  });
+}
 
-  cleanupRunning = true;
-  const startedAt = new Date();
-
-  try {
-    console.log(
-      `[Cron][MarketSummary][OPEN_CLEANUP] Triggered at ${startedAt.toISOString()} (Asia/Tehran schedule)`
-    );
-
-    // این متد باید در marketSummary.service.cjs پیاده‌سازی و export شده باشد:
-    // deletePreviousDaysSummaries({ tx = null } = {})
-    const result = await marketSummaryService.deletePreviousDaysSummaries();
-
-    if (!result || result.success !== true) {
-      console.log(
-        `[Cron][MarketSummary][OPEN_CLEANUP] Skipped/Failed: ${result?.message || 'Unknown reason'}`
-      );
-      return;
-    }
-
-    console.log(
-      `[Cron][MarketSummary][OPEN_CLEANUP] Success: deleted=${result?.deletedCount ?? 0} | today=${result?.date ?? 'N/A'}`
-    );
-  } catch (error) {
-    console.error('[Cron][MarketSummary][OPEN_CLEANUP] Unhandled error:', error);
-  } finally {
-    cleanupRunning = false;
-  }
+function isMarketDayTehran(date = new Date()) {
+  const d = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    timeZone: 'Asia/Tehran'
+  }).format(date);
+  return ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'].includes(d);
 }
 
 /**
- * Job 2) تولید خلاصه پایان روز:
- * - schedule: 12:35 تهران | شنبه تا چهارشنبه
+ * Canonical generator:
+ * سرویس خودش تصمیم می‌گیرد از cache بخواند یا تولید کند یا fallback بدهد.
  */
 async function runEndOfDaySummaryJob() {
   if (eodRunning) {
-    console.log('[Cron][MarketSummary][EOD] Previous run is still in progress. Skipping this tick.');
-    return;
+    console.log('[Cron][MarketSummary] EOD skipped: already running.');
+    return { success: false, skipped: true, reason: 'ALREADY_RUNNING' };
   }
 
   eodRunning = true;
-  const startedAt = new Date();
 
   try {
-    console.log(
-      `[Cron][MarketSummary][EOD] Triggered at ${startedAt.toISOString()} (Asia/Tehran schedule)`
-    );
+    console.log(`[Cron][MarketSummary] 📊 EOD started | Tehran: ${nowTehranString()}`);
 
-    // سرویس باید خودش trading-day / market-close و one-per-day را validate کند
-    const result = await marketSummaryService.generateEndOfDaySummary({
-      force: false,
-      generatedBy: null
-    });
+    if (!isMarketDayTehran()) {
+      // ⚠️ به‌جای رد شدن کامل: چک کن ببین آخرین روز معاملاتیِ اخیر
+      // (مثلاً دیروز) تحلیل نهایی دارد یا نه. اگر نداشت (مثلاً چون
+      // کرون آن روز به هر دلیلی اجرا/موفق نشده بود)، همین الان با
+      // داده و تاریخ همان روز بسازش تا در تب نمایش داده شود.
+      console.log('[Cron][MarketSummary] ℹ️ Not a market day in Tehran — running catch-up check instead.');
 
-    if (!result || result.success !== true) {
-      console.log(
-        `[Cron][MarketSummary][EOD] Skipped/Failed: ${result?.message || 'Unknown reason'}`
-      );
-      return;
+      if (typeof marketSummaryService.runCatchUpForMissingSummary !== 'function') {
+        console.log('[Cron][MarketSummary] ℹ️ Catch-up not available, skipping.');
+        return { success: false, skipped: true, reason: 'NOT_MARKET_DAY' };
+      }
+
+      const catchUpResult = await marketSummaryService.runCatchUpForMissingSummary();
+      if (catchUpResult?.data) {
+        console.log(
+          `[Cron][MarketSummary] ✅ Catch-up generated for a previously missing trading day | reason=${catchUpResult.reason}`
+        );
+      } else {
+        console.log(
+          `[Cron][MarketSummary] ℹ️ Catch-up found nothing to backfill | reason=${catchUpResult?.reason || 'NONE'}`
+        );
+      }
+      return catchUpResult;
     }
 
-    const id = result?.data?.id ?? 'N/A';
-    const summaryDate = result?.data?.summaryDate ?? result?.data?.date ?? 'N/A';
-    const cached = result?.cached ? ' (cached)' : '';
+    if (typeof marketSummaryService.findOrGenerateLatest !== 'function') {
+      throw new TypeError(
+        '[Cron][MarketSummary] findOrGenerateLatest is not implemented in marketSummary.service.cjs'
+      );
+    }
+
+    const result = await marketSummaryService.findOrGenerateLatest();
+
+    const data = result?.data || null;
+    const generated = Boolean(result?.generated);
+    const cached = Boolean(result?.cached);
+    const sourceType = result?.sourceType || 'unknown';
+    const reason = result?.reason || null;
+    const id = data?.id || result?.id || null;
+
+    const status = generated ? '🆕 Generated' : cached ? '📦 Cached' : '✅ OK';
 
     console.log(
-      `[Cron][MarketSummary][EOD] Success: #${id} | summaryDate=${summaryDate}${cached}`
+      `[Cron][MarketSummary] ✅ Success [${status}] source=${sourceType} id=${id ?? 'N/A'} reason=${reason ?? '-'}`
     );
+
+    return {
+      success: true,
+      data,
+      meta: {
+        generated,
+        cached,
+        sourceType,
+        reason,
+        diagnostics: result?.diagnostics || null
+      }
+    };
   } catch (error) {
-    console.error('[Cron][MarketSummary][EOD] Unhandled error:', error);
+    console.error('[Cron][MarketSummary] ❌ EOD Job Error:', error?.message || error);
+    return {
+      success: false,
+      error: error?.message || String(error)
+    };
   } finally {
     eodRunning = false;
   }
 }
 
-/**
- * شروع Cron ها:
- * - OPEN CLEANUP: 09:00 شنبه تا چهارشنبه
- * - EOD SUMMARY : 12:35 شنبه تا چهارشنبه
- */
+/** ---------- Scheduler ---------- */
 function startMarketSummaryCron() {
-  // 09:00 - پاکسازی ابتدای روز
-  if (!openCleanupTask) {
-    openCleanupTask = cron.schedule(
-      '0 9 * * 6,0,1,2,3',
-      runOpenCleanupJob,
-      { timezone: 'Asia/Tehran' }
-    );
-    console.log('[Cron][MarketSummary] ✅ OPEN_CLEANUP Started (09:00, Sat-Wed, Asia/Tehran)');
-  } else {
-    console.log('[Cron][MarketSummary] OPEN_CLEANUP already started. Skipping re-initialization.');
-  }
+  const tehranOptions = { timezone: 'Asia/Tehran' };
 
-  // 12:35 - تولید خلاصه پایان روز
+  // هر روز ساعت ۱۲:۳۵: شنبه تا چهارشنبه تحلیل امروز را می‌سازد؛
+  // پنجشنبه/جمعه (یا هر روز غیرمعاملاتی) به‌جای بیکاری، چک catch-up
+  // را اجرا می‌کند تا اگر روز معاملاتیِ قبلی تحلیل نداشت، همان‌جا پر شود.
   if (!eodSummaryTask) {
-    eodSummaryTask = cron.schedule(
-      '35 12 * * 6,0,1,2,3',
-      runEndOfDaySummaryJob,
-      { timezone: 'Asia/Tehran' }
-    );
-    console.log('[Cron][MarketSummary] ✅ EOD_SUMMARY Started (12:35, Sat-Wed, Asia/Tehran)');
+    eodSummaryTask = cron.schedule('35 12 * * *', runEndOfDaySummaryJob, tehranOptions);
+    console.log('[Cron] ✅ Market Summary scheduled: هر روز ۱۲:۳۵ (تولید در روز باز، catch-up در روز بسته) TZ=Asia/Tehran');
   } else {
-    console.log('[Cron][MarketSummary] EOD_SUMMARY already started. Skipping re-initialization.');
+    console.log('[Cron] ℹ️ Market Summary cron already started. Skipping duplicate start.');
   }
 
-  return {
-    openCleanupTask,
-    eodSummaryTask
-  };
+  return { eodSummaryTask };
 }
 
-/**
- * توقف Cron ها (برای shutdown graceful)
- */
 function stopMarketSummaryCron() {
-  if (openCleanupTask) {
-    openCleanupTask.stop();
-    openCleanupTask.destroy();
-    openCleanupTask = null;
-    console.log('[Cron][MarketSummary] 🛑 OPEN_CLEANUP Stopped.');
-  } else {
-    console.log('[Cron][MarketSummary] No active OPEN_CLEANUP task to stop.');
-  }
-
   if (eodSummaryTask) {
     eodSummaryTask.stop();
-    eodSummaryTask.destroy();
     eodSummaryTask = null;
-    console.log('[Cron][MarketSummary] 🛑 EOD_SUMMARY Stopped.');
-  } else {
-    console.log('[Cron][MarketSummary] No active EOD_SUMMARY task to stop.');
   }
+  console.log('[Cron] 🛑 Market Summary task stopped.');
 }
 
-/**
- * اجرای دستی برای تست
- */
-async function runMarketSummaryNow() {
-  await runEndOfDaySummaryJob();
-}
+/** ---------- Manual mode ---------- */
+if (require.main === module) {
+  console.log('[Cron][MarketSummary] 🛠 Manual mode detected.');
+  startMarketSummaryCron();
 
-/**
- * اجرای دستی پاکسازی برای تست
- */
-async function runOpenCleanupNow() {
-  await runOpenCleanupJob();
+  runEndOfDaySummaryJob()
+    .then(() => {
+      console.log('[Cron][MarketSummary] Manual EOD run finished.');
+    })
+    .catch((err) => {
+      console.error('[Cron][MarketSummary] Manual run fatal error:', err?.message || err);
+    });
 }
 
 module.exports = {
   startMarketSummaryCron,
   stopMarketSummaryCron,
-  runMarketSummaryNow,
-  runOpenCleanupNow
+  runMarketSummaryNow: runEndOfDaySummaryJob
 };

@@ -10,7 +10,8 @@ var CACHE_TTL = {
   symbol: 60 * 1000,
   history: 5 * 60 * 1000,
   candlestick: 5 * 60 * 1000,
-  allSymbols: 10 * 60 * 1000
+  allSymbols: 10 * 60 * 1000,
+  marketSummary: 5 * 60 * 1000
 };
 
 var HTTP_TIMEOUT_MS = parseInt(process.env.BRS_TIMEOUT_MS, 10) || 15000;
@@ -125,45 +126,76 @@ function resolveEndpointRawUrl(endpointDef, symbolClean) {
 
 function ensureQueryParam(parsed, key, value) {
   if (value === undefined || value === null || value === '') return;
-  if (!parsed.searchParams.get(key)) {
-    parsed.searchParams.set(key, String(value));
+  parsed.searchParams.set(key, String(value));
+}
+
+function removeQueryParams(parsed, keys) {
+  if (!parsed || !parsed.searchParams || !Array.isArray(keys)) return;
+
+  for (var i = 0; i < keys.length; i += 1) {
+    var key = keys[i];
+    if (key) parsed.searchParams.delete(key);
   }
 }
 
-function buildSymbolEndpointUrl(endpointDef, symbolClean, opts) {
+function replaceKnownPlaceholders(rawUrl, values) {
+  var result = String(rawUrl || '');
+
+  var keys = Object.keys(values || {});
+  for (var i = 0; i < keys.length; i += 1) {
+    var key = keys[i];
+    var value = values[key];
+    var encoded = value == null ? '' : encodeURIComponent(String(value));
+
+    result = result
+      .replace(new RegExp('\\{' + key + '\\}', 'gi'), encoded)
+      .replace(new RegExp('\\{\\{' + key + '\\}\\}', 'gi'), encoded)
+      .replace(new RegExp(':' + key + '\\b', 'gi'), encoded);
+  }
+
+  return result;
+}
+
+function validateNoUnresolvedPlaceholders(finalUrl) {
+  if (
+    finalUrl.indexOf('{symbol}') !== -1 ||
+    finalUrl.indexOf('{apiKey}') !== -1 ||
+    finalUrl.indexOf('{count}') !== -1 ||
+    finalUrl.indexOf('{type}') !== -1 ||
+    finalUrl.indexOf('{date}') !== -1 ||
+    /:symbol\b/i.test(finalUrl) ||
+    /:apiKey\b/i.test(finalUrl) ||
+    /:count\b/i.test(finalUrl) ||
+    /:type\b/i.test(finalUrl) ||
+    /:date\b/i.test(finalUrl) ||
+    /%7Bsymbol%7D/i.test(finalUrl) ||
+    /%7Bdate%7D/i.test(finalUrl)
+  ) {
+    throw new Error('Unresolved placeholder in endpoint URL');
+  }
+}
+
+function buildEndpointUrl(endpointDef, options) {
   if (!endpointDef) {
     throw new Error('BRS endpoint is not configured');
   }
 
+  var opts = options || {};
   var apiKey = ensureApiKey();
-  var encodedSymbol = encodeURIComponent(symbolClean || '');
-  var count = opts && opts.count != null ? opts.count : null;
-  var type = opts && opts.type != null ? opts.type : null;
+  var symbol = opts.symbol != null ? String(opts.symbol).trim() : '';
+  var count = opts.count != null ? opts.count : null;
+  var type = opts.type != null ? opts.type : null;
+  var date = opts.date != null ? String(opts.date).trim() : '';
 
-  var rawUrl = resolveEndpointRawUrl(endpointDef, symbolClean || '');
+  var rawUrl = resolveEndpointRawUrl(endpointDef, symbol);
 
-  var replaced = rawUrl
-    .replace(/\{apiKey\}/gi, encodeURIComponent(apiKey))
-    .replace(/\{\{apiKey\}\}/gi, encodeURIComponent(apiKey))
-    .replace(/:apiKey\b/gi, encodeURIComponent(apiKey))
-    .replace(/\{symbol\}/gi, encodedSymbol)
-    .replace(/\{\{symbol\}\}/gi, encodedSymbol)
-    .replace(/:symbol\b/gi, encodedSymbol)
-    .replace(/%7Bsymbol%7D/gi, encodedSymbol);
-
-  if (count != null) {
-    replaced = replaced
-      .replace(/\{count\}/gi, encodeURIComponent(String(count)))
-      .replace(/\{\{count\}\}/gi, encodeURIComponent(String(count)))
-      .replace(/:count\b/gi, encodeURIComponent(String(count)));
-  }
-
-  if (type != null) {
-    replaced = replaced
-      .replace(/\{type\}/gi, encodeURIComponent(String(type)))
-      .replace(/\{\{type\}\}/gi, encodeURIComponent(String(type)))
-      .replace(/:type\b/gi, encodeURIComponent(String(type)));
-  }
+  var replaced = replaceKnownPlaceholders(rawUrl, {
+    apiKey: apiKey,
+    symbol: symbol,
+    count: count != null ? String(count) : '',
+    type: type != null ? String(type) : '',
+    date: date
+  });
 
   var parsed;
   try {
@@ -172,29 +204,68 @@ function buildSymbolEndpointUrl(endpointDef, symbolClean, opts) {
     throw new Error('Invalid BRS endpoint url: ' + replaced);
   }
 
-  ensureQueryParam(parsed, 'key', apiKey);
-
-  if (symbolClean) ensureQueryParam(parsed, 'l18', symbolClean);
-  if (count != null) ensureQueryParam(parsed, 'count', count);
-  if (type != null) ensureQueryParam(parsed, 'type', type);
-
-  var finalUrl = parsed.toString();
-
-  if (
-    finalUrl.indexOf('{symbol}') !== -1 ||
-    finalUrl.indexOf('{apiKey}') !== -1 ||
-    finalUrl.indexOf('{count}') !== -1 ||
-    finalUrl.indexOf('{type}') !== -1 ||
-    /:symbol\b/i.test(finalUrl) ||
-    /:apiKey\b/i.test(finalUrl) ||
-    /:count\b/i.test(finalUrl) ||
-    /:type\b/i.test(finalUrl) ||
-    /%7Bsymbol%7D/i.test(finalUrl)
-  ) {
-    throw new Error('Unresolved placeholder in endpoint URL');
+  if (Array.isArray(opts.removeParams) && opts.removeParams.length > 0) {
+    removeQueryParams(parsed, opts.removeParams);
   }
 
+  ensureQueryParam(parsed, 'key', apiKey);
+
+  if (opts.includeSymbolParam === true && symbol) {
+    ensureQueryParam(parsed, 'l18', symbol);
+  }
+
+  if (count != null && opts.includeCountParam !== false) {
+    ensureQueryParam(parsed, 'count', count);
+  }
+
+  if (type != null && opts.includeTypeParam !== false) {
+    ensureQueryParam(parsed, 'type', type);
+  }
+
+  if (date) {
+    ensureQueryParam(parsed, 'date', date);
+  }
+
+  if (opts.extraQuery && typeof opts.extraQuery === 'object') {
+    var queryKeys = Object.keys(opts.extraQuery);
+    for (var i = 0; i < queryKeys.length; i += 1) {
+      var qKey = queryKeys[i];
+      ensureQueryParam(parsed, qKey, opts.extraQuery[qKey]);
+    }
+  }
+
+  var finalUrl = parsed.toString();
+  validateNoUnresolvedPlaceholders(finalUrl);
+
   return finalUrl;
+}
+
+function buildSymbolEndpointUrl(endpointDef, symbolClean, opts) {
+  return buildEndpointUrl(endpointDef, {
+    symbol: symbolClean || '',
+    count: opts && opts.count != null ? opts.count : null,
+    type: opts && opts.type != null ? opts.type : null,
+    date: opts && opts.date != null ? opts.date : null,
+    includeSymbolParam: true,
+    includeCountParam: true,
+    includeTypeParam: true,
+    removeParams: opts && Array.isArray(opts.removeParams) ? opts.removeParams : [],
+    extraQuery: opts && opts.extraQuery ? opts.extraQuery : null
+  });
+}
+
+function buildPublicEndpointUrl(endpointDef, opts) {
+  return buildEndpointUrl(endpointDef, {
+    symbol: '',
+    count: opts && opts.count != null ? opts.count : null,
+    type: opts && opts.type != null ? opts.type : null,
+    date: opts && opts.date != null ? opts.date : null,
+    includeSymbolParam: false,
+    includeCountParam: opts && opts.includeCountParam !== false,
+    includeTypeParam: opts && opts.includeTypeParam !== false,
+    removeParams: (opts && Array.isArray(opts.removeParams) ? opts.removeParams : []).concat(['l18', 'symbol']),
+    extraQuery: opts && opts.extraQuery ? opts.extraQuery : null
+  });
 }
 
 function getPayloadBody(payload) {
@@ -233,6 +304,8 @@ function isRetryableError(error) {
     message.indexOf('ENOTFOUND') !== -1 ||
     message.indexOf('SOCKET HANG UP') !== -1 ||
     message.indexOf('BRS TIMEOUT') !== -1 ||
+    message.indexOf('HTTP 429') !== -1 ||
+    message.indexOf('HTTP 500') !== -1 ||
     message.indexOf('HTTP 502') !== -1 ||
     message.indexOf('HTTP 503') !== -1 ||
     message.indexOf('HTTP 504') !== -1
@@ -304,10 +377,26 @@ function getCacheStats() {
   return stats;
 }
 
-function fetchBRSOnce(url, label) {
+function fetchBRSOnce(url, label, requestOptions) {
   var startTime = Date.now();
   var safeUrl = maskUrl(url);
-  console.log('[BRS SERVICE] ' + (label || 'Request') + ': ' + safeUrl);
+  var opts = requestOptions || {};
+  var method = (opts.method || 'GET').toUpperCase();
+  var headers = Object.assign({}, opts.headers || {});
+  var body = opts.body != null ? opts.body : null;
+  var serializedBody = '';
+
+  if (body != null) {
+    if (typeof body === 'string') {
+      serializedBody = body;
+    } else {
+      serializedBody = JSON.stringify(body);
+    }
+    if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
+    headers['Content-Length'] = Buffer.byteLength(serializedBody);
+  }
+
+  console.log('[BRS SERVICE] ' + (label || 'Request') + ': ' + method + ' ' + safeUrl);
 
   return new Promise(function (resolve, reject) {
     var isHttps = url.indexOf('https') === 0;
@@ -324,20 +413,23 @@ function fetchBRSOnce(url, label) {
       hostname: parsedUrl.hostname,
       port: parsedUrl.port || (isHttps ? 443 : 80),
       path: parsedUrl.pathname + parsedUrl.search,
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'AIStudioApp/5.0',
-        Connection: 'close'
-      },
+      method: method,
+      headers: Object.assign(
+        {
+          Accept: 'application/json',
+          'User-Agent': 'AIStudioApp/5.0',
+          Connection: 'close'
+        },
+        headers
+      ),
       timeout: HTTP_TIMEOUT_MS
     };
 
     var req = lib.request(options, function (res) {
-      var body = '';
+      var bodyText = '';
 
       res.on('data', function (chunk) {
-        body += chunk;
+        bodyText += chunk;
       });
 
       res.on('end', function () {
@@ -345,18 +437,19 @@ function fetchBRSOnce(url, label) {
 
         if (res.statusCode < 200 || res.statusCode >= 300) {
           console.error('[BRS SERVICE] ' + label + ': HTTP ' + res.statusCode + ' (' + elapsed + 'ms)');
-          return reject(new Error('BRS HTTP ' + res.statusCode + ': ' + body.substring(0, 300)));
+          return reject(new Error('BRS HTTP ' + res.statusCode + ': ' + bodyText.substring(0, 500)));
         }
 
         try {
-          var json = JSON.parse(body);
+          var json = JSON.parse(bodyText);
           console.log('[BRS SERVICE] ' + label + ': OK (' + elapsed + 'ms)');
           resolve({
             payload: json,
             transportMeta: {
               elapsedMs: elapsed,
               fetchedAt: new Date().toISOString(),
-              endpoint: safeUrl
+              endpoint: safeUrl,
+              method: method
             }
           });
         } catch (error) {
@@ -373,16 +466,20 @@ function fetchBRSOnce(url, label) {
       req.destroy(new Error('BRS timeout after ' + HTTP_TIMEOUT_MS + 'ms'));
     });
 
+    if (serializedBody) {
+      req.write(serializedBody);
+    }
+
     req.end();
   });
 }
 
-async function fetchBRS(url, label) {
+async function fetchBRS(url, label, requestOptions) {
   var lastError = null;
 
   for (var attempt = 0; attempt <= HTTP_RETRY_COUNT; attempt += 1) {
     try {
-      return await fetchBRSOnce(url, label);
+      return await fetchBRSOnce(url, label, requestOptions);
     } catch (error) {
       lastError = error;
       var retryable = isRetryableError(error);
@@ -426,6 +523,11 @@ function hasMeaningfulIndexPayload(raw) {
   return false;
 }
 
+function hasMeaningfulSymbolPayload(raw) {
+  if (!raw || typeof raw !== 'object') return false;
+  return !!(raw.l18 || raw.symbol || raw.pl || raw.pc || raw.tvol || raw.tval || raw.tno);
+}
+
 function isMeaningfulOHLC(item) {
   if (!item || typeof item !== 'object') return false;
   var values = [item.open, item.high, item.low, item.close, item.last, item.volume, item.value];
@@ -436,41 +538,62 @@ function isMeaningfulOHLC(item) {
 }
 
 function getTehranDateParts(date) {
-  var formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: TEHRAN_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    weekday: 'short',
-    hour12: false
-  });
+  var targetDate = date || new Date();
 
-  var parts = formatter.formatToParts(date);
-  var map = {};
+  try {
+    var formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: TEHRAN_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      weekday: 'short',
+      hour12: false
+    });
 
-  for (var i = 0; i < parts.length; i += 1) {
-    if (parts[i].type !== 'literal') map[parts[i].type] = parts[i].value;
+    var parts = formatter.formatToParts(targetDate);
+    var map = {};
+
+    for (var i = 0; i < parts.length; i += 1) {
+      if (parts[i].type !== 'literal') map[parts[i].type] = parts[i].value;
+    }
+
+    var weekdayMap = { Sat: 6, Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5 };
+    var dayOfWeek = weekdayMap[map.weekday];
+    var hour = parseInt(map.hour, 10) || 0;
+    var minute = parseInt(map.minute, 10) || 0;
+
+    return {
+      year: parseInt(map.year, 10) || 0,
+      month: parseInt(map.month, 10) || 0,
+      day: parseInt(map.day, 10) || 0,
+      hour: hour,
+      minute: minute,
+      second: parseInt(map.second, 10) || 0,
+      weekday: map.weekday || '',
+      dayOfWeek: typeof dayOfWeek === 'number' ? dayOfWeek : -1,
+      minutesOfDay: hour * 60 + minute
+    };
+  } catch (error) {
+    var utc = targetDate.getTime() + targetDate.getTimezoneOffset() * 60000;
+    var tehranDate = new Date(utc + 3.5 * 60 * 60 * 1000);
+    var d = tehranDate.getDay(); // 0=Sun ... 6=Sat
+    var mappedDay = d === 6 ? 6 : d; // Sat=6, Sun=0, Mon=1 ...
+
+    return {
+      year: tehranDate.getFullYear(),
+      month: tehranDate.getMonth() + 1,
+      day: tehranDate.getDate(),
+      hour: tehranDate.getHours(),
+      minute: tehranDate.getMinutes(),
+      second: tehranDate.getSeconds(),
+      weekday: '',
+      dayOfWeek: mappedDay,
+      minutesOfDay: tehranDate.getHours() * 60 + tehranDate.getMinutes()
+    };
   }
-
-  var weekdayMap = { Sat: 6, Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5 };
-  var dayOfWeek = weekdayMap[map.weekday];
-  var hour = parseInt(map.hour, 10) || 0;
-  var minute = parseInt(map.minute, 10) || 0;
-
-  return {
-    year: parseInt(map.year, 10) || 0,
-    month: parseInt(map.month, 10) || 0,
-    day: parseInt(map.day, 10) || 0,
-    hour: hour,
-    minute: minute,
-    second: parseInt(map.second, 10) || 0,
-    weekday: map.weekday || '',
-    dayOfWeek: typeof dayOfWeek === 'number' ? dayOfWeek : -1,
-    minutesOfDay: hour * 60 + minute
-  };
 }
 
 function isTradingWorkday(dayOfWeek) {
@@ -574,6 +697,8 @@ function buildMeta(kind, options) {
 }
 
 function mapMarketIndexResponse(raw, localWindow) {
+  raw = raw || {};
+
   var index = nz(toNumber(raw.index), 0);
   var indexChange = nz(toNumber(raw.index_change), 0);
   var indexEqualWeight = nz(toNumber(raw.index_equalWeight), 0);
@@ -621,7 +746,7 @@ function mapMarketIndexResponse(raw, localWindow) {
   result.index_equalWeight = result.indexEqualWeight;
   result.index_equalWeight_change = result.indexEqualWeightChange;
   result.lastUpdate = ((result.date || '') + ' ' + (result.time || '')).trim();
-  result.source = 'brs-v6';
+  result.source = 'brs-v7';
 
   return result;
 }
@@ -901,19 +1026,175 @@ function mapAllSymbolsItem(item) {
   return result;
 }
 
-function ensureBRSConfig() {
+function ensureEndpointConfig(name, endpointDef, options) {
   ensureApiKey();
-  if (!endpoints || !endpoints.BRS_INDEX || !endpoints.BRS_INDEX.url) {
-    throw new Error('BRS_INDEX endpoint is not configured');
+
+  if (!endpointDef || !endpointDef.url) {
+    throw new Error(name + ' endpoint is not configured');
   }
 
   try {
-    var resolved = buildSymbolEndpointUrl(endpoints.BRS_INDEX, 'شاخص');
-    var parsed = new URL(resolved);
-    if (!parsed.searchParams.get('key')) throw new Error('BRS_API_KEY is missing in resolved URL');
+    buildEndpointUrl(endpointDef, options || {});
   } catch (error) {
-    throw new Error('Invalid BRS endpoint configuration: ' + error.message);
+    throw new Error('Invalid ' + name + ' endpoint configuration: ' + error.message);
   }
+}
+
+function ensureBRSConfig() {
+  ensureEndpointConfig('BRS_INDEX', endpoints && endpoints.BRS_INDEX, {
+    includeSymbolParam: false,
+    includeCountParam: false,
+    includeTypeParam: true,
+    removeParams: ['l18', 'symbol', 'count']
+  });
+}
+
+function getMarketSummaryEndpoint() {
+  var candidates = [
+    { key: 'BRS_MARKET_SUMMARY', endpoint: endpoints && endpoints.BRS_MARKET_SUMMARY },
+    { key: 'MARKET_SUMMARY', endpoint: endpoints && endpoints.MARKET_SUMMARY },
+    { key: 'BRS_MARKET_STATUS', endpoint: endpoints && endpoints.BRS_MARKET_STATUS }
+  ];
+
+  for (var i = 0; i < candidates.length; i += 1) {
+    if (candidates[i].endpoint && candidates[i].endpoint.url) {
+      return candidates[i];
+    }
+  }
+
+  throw new Error(
+    'BRS market summary endpoint is not configured. Expected one of: BRS_MARKET_SUMMARY, MARKET_SUMMARY, BRS_MARKET_STATUS'
+  );
+}
+
+function ensureMarketSummaryEndpointConfig(options) {
+  var resolved = getMarketSummaryEndpoint();
+  ensureEndpointConfig(resolved.key, resolved.endpoint, {
+    date: options && options.date ? options.date : null,
+    includeSymbolParam: false,
+    includeCountParam: false,
+    includeTypeParam: true,
+    removeParams: ['l18', 'symbol', 'count']
+  });
+  return resolved;
+}
+
+function normalizeMarketSummaryArray(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      var parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      return [];
+    }
+  }
+  return [];
+}
+
+function normalizeMarketSummaryPayload(raw) {
+  raw = raw || {};
+
+  var overallIndex = toNumber(
+    raw.overallIndex != null ? raw.overallIndex :
+    raw.index != null ? raw.index :
+    raw.marketIndex != null ? raw.marketIndex :
+    raw.totalIndex
+  );
+
+  var overallChange = toNumber(
+    raw.overallChange != null ? raw.overallChange :
+    raw.indexChange != null ? raw.indexChange :
+    raw.index_change != null ? raw.index_change :
+    raw.marketIndexChange
+  );
+
+  var equalIndex = toNumber(
+    raw.equalIndex != null ? raw.equalIndex :
+    raw.equalWeightedIndex != null ? raw.equalWeightedIndex :
+    raw.indexEqualWeight != null ? raw.indexEqualWeight :
+    raw.index_equalWeight
+  );
+
+  var equalChange = toNumber(
+    raw.equalChange != null ? raw.equalChange :
+    raw.equalWeightedChange != null ? raw.equalWeightedChange :
+    raw.indexEqualWeightChange != null ? raw.indexEqualWeightChange :
+    raw.index_equalWeight_change
+  );
+
+  var totalTrades = toInt(
+    raw.totalTrades != null ? raw.totalTrades :
+    raw.tradeCount != null ? raw.tradeCount :
+    raw.tno
+  );
+
+  var totalVolume = toInt(
+    raw.totalVolume != null ? raw.totalVolume :
+    raw.tradeVolume != null ? raw.tradeVolume :
+    raw.tvol
+  );
+
+  var totalValue = toInt(
+    raw.totalValue != null ? raw.totalValue :
+    raw.tradeValue != null ? raw.tradeValue :
+    raw.tval
+  );
+
+  var topGainers = normalizeMarketSummaryArray(
+    raw.topGainers != null ? raw.topGainers :
+    raw.gainers != null ? raw.gainers :
+    raw.bestPositive
+  );
+
+  var topLosers = normalizeMarketSummaryArray(
+    raw.topLosers != null ? raw.topLosers :
+    raw.losers != null ? raw.losers :
+    raw.bestNegative
+  );
+
+  var topVolumes = normalizeMarketSummaryArray(
+    raw.topVolumes != null ? raw.topVolumes :
+    raw.mostTraded != null ? raw.mostTraded :
+    raw.topVolumeSymbols
+  );
+
+  var summaryText =
+    raw.summaryText != null ? String(raw.summaryText) :
+    raw.summary != null ? String(raw.summary) :
+    raw.content != null ? String(raw.content) :
+    raw.text != null ? String(raw.text) :
+    '';
+
+  return {
+    overallIndex: overallIndex,
+    overallChange: overallChange,
+    equalIndex: equalIndex,
+    equalChange: equalChange,
+    totalTrades: totalTrades,
+    totalVolume: totalVolume,
+    totalValue: totalValue,
+    topGainers: topGainers,
+    topLosers: topLosers,
+    topVolumes: topVolumes,
+    summaryText: summaryText,
+    date: raw.date || '',
+    time: raw.time || '',
+    state: raw.state || '',
+    _raw: raw
+  };
+}
+
+function validateMarketSummaryPayload(summaryData) {
+  if (!summaryData || typeof summaryData !== 'object') {
+    throw new Error('BRS Service error: market summary payload is empty.');
+  }
+
+  if (!Number.isFinite(summaryData.overallIndex)) {
+    throw new Error('BRS Service error: overallIndex is missing or invalid.');
+  }
+
+  return true;
 }
 
 async function getMarketIndex() {
@@ -938,7 +1219,11 @@ async function getMarketIndex() {
 
   ensureBRSConfig();
 
-  var indexUrl = buildSymbolEndpointUrl(endpoints.BRS_INDEX, 'شاخص');
+  var indexUrl = buildPublicEndpointUrl(endpoints.BRS_INDEX, {
+    includeCountParam: false,
+    includeTypeParam: true,
+    removeParams: ['l18', 'symbol', 'count']
+  });
 
   try {
     var response = await fetchBRS(indexUrl, 'Market Index');
@@ -994,10 +1279,77 @@ async function getMarketIndex() {
   }
 }
 
+async function getMarketSummary(options) {
+  var opts = options || {};
+  var requestedDate = opts.date ? String(opts.date).trim() : '';
+  var cacheKey = 'market_summary_' + (requestedDate || 'today');
+  var cacheEntry = getCacheEntry(cacheKey);
+
+  if (cacheEntry) {
+    return {
+      success: true,
+      data: clone(cacheEntry.data),
+      source: 'cache',
+      cached: true,
+      fetchedAt: cacheEntry.fetchedAt
+    };
+  }
+
+  var resolved = ensureMarketSummaryEndpointConfig(opts);
+  var endpointDef = resolved.endpoint;
+  var method = (endpointDef && endpointDef.method ? String(endpointDef.method) : 'POST').toUpperCase();
+
+  var url = buildPublicEndpointUrl(endpointDef, {
+    date: requestedDate || null,
+    includeCountParam: false,
+    includeTypeParam: true,
+    removeParams: ['l18', 'symbol', 'count']
+  });
+
+  var body = {};
+  if (requestedDate) body.date = requestedDate;
+
+  try {
+    var response = await fetchBRS(url, 'Market Summary', {
+      method: method,
+      body: method === 'GET' ? null : body
+    });
+
+    var raw = getPayloadBody(response.payload);
+    var summaryData = normalizeMarketSummaryPayload(raw);
+
+    validateMarketSummaryPayload(summaryData);
+
+    setCache(cacheKey, clone(summaryData), CACHE_TTL.marketSummary, {
+      fetchedAt: response.transportMeta.fetchedAt
+    });
+
+    return {
+      success: true,
+      data: summaryData,
+      source: 'brs',
+      cached: false,
+      fetchedAt: response.transportMeta.fetchedAt,
+      meta: {
+        endpoint: response.transportMeta.endpoint,
+        method: response.transportMeta.method,
+        elapsedMs: response.transportMeta.elapsedMs
+      }
+    };
+  } catch (error) {
+    throw new Error('BRS Service error: ' + error.message);
+  }
+}
+
 function getSymbolData(symbol) {
   var symbolClean;
   try {
-    ensureApiKey();
+    ensureEndpointConfig('BRS_SYMBOL', endpoints && endpoints.BRS_SYMBOL, {
+      symbol: normalizeSymbolInput(symbol),
+      includeSymbolParam: true,
+      includeCountParam: false,
+      includeTypeParam: false
+    });
     symbolClean = normalizeSymbolInput(symbol);
   } catch (error) {
     return Promise.reject(error);
@@ -1023,13 +1375,20 @@ function getSymbolData(symbol) {
 
   var url;
   try {
-    url = buildSymbolEndpointUrl(endpoints.BRS_SYMBOL, symbolClean);
+    url = buildSymbolEndpointUrl(endpoints.BRS_SYMBOL, symbolClean, {
+      removeParams: []
+    });
   } catch (error) {
     return Promise.reject(error);
   }
 
   return fetchBRS(url, 'Symbol: ' + symbolClean).then(function (response) {
     var raw = getPayloadBody(response.payload);
+
+    if (!hasMeaningfulSymbolPayload(raw)) {
+      throw new Error('BRS Symbol returned empty payload for ' + symbolClean);
+    }
+
     var result = mapSymbolData(raw);
 
     setCache(cacheKey, result, CACHE_TTL.symbol, { fetchedAt: response.transportMeta.fetchedAt });
@@ -1049,11 +1408,37 @@ function getSymbolData(symbol) {
   });
 }
 
+async function getMoneyFlow(symbol) {
+  var symbolClean = normalizeSymbolInput(symbol);
+  var result = await getSymbolData(symbolClean);
+  var data = result && result.data ? result.data : {};
+  var flow = data.moneyFlow || {
+    real: { buyVolume: 0, sellVolume: 0, buyCount: 0, sellCount: 0, netVolume: 0, netCount: 0, net: 0 },
+    institutional: { buyVolume: 0, sellVolume: 0, buyCount: 0, sellCount: 0, netVolume: 0, netCount: 0, net: 0 },
+    legal: { buyVolume: 0, sellVolume: 0, buyCount: 0, sellCount: 0, netVolume: 0, netCount: 0, net: 0 }
+  };
+
+  return {
+    symbol: symbolClean,
+    moneyFlow: flow,
+    realMoneyFlow: data.realMoneyFlow != null ? data.realMoneyFlow : (flow.real ? flow.real.net : 0),
+    legalMoneyFlow: data.legalMoneyFlow != null ? data.legalMoneyFlow : (flow.legal ? flow.legal.net : 0),
+    instMoneyFlow: data.instMoneyFlow != null ? data.instMoneyFlow : (flow.institutional ? flow.institutional.net : 0),
+    fetchedAt: result && result._meta ? result._meta.fetchedAt : isoNow(),
+    _meta: result && result._meta ? result._meta : null
+  };
+}
+
 function getSymbolHistory(symbol, limit) {
   var symbolClean;
   try {
-    ensureApiKey();
     symbolClean = normalizeSymbolInput(symbol);
+    ensureEndpointConfig('BRS_HISTORY', endpoints && endpoints.BRS_HISTORY, {
+      symbol: symbolClean,
+      includeSymbolParam: true,
+      includeCountParam: true,
+      includeTypeParam: false
+    });
   } catch (error) {
     return Promise.reject(error);
   }
@@ -1085,7 +1470,8 @@ function getSymbolHistory(symbol, limit) {
   var url;
   try {
     url = buildSymbolEndpointUrl(endpoints.BRS_HISTORY, symbolClean, {
-      count: requestedLimit > 0 ? requestedLimit : undefined
+      count: requestedLimit > 0 ? requestedLimit : undefined,
+      removeParams: []
     });
   } catch (error) {
     return Promise.reject(error);
@@ -1124,8 +1510,8 @@ function getSymbolHistory(symbol, limit) {
 async function getAdjustedDailyCandlestick(symbol, limit) {
   var symbolClean;
   try {
-    ensureApiKey();
     symbolClean = normalizeSymbolInput(symbol);
+    ensureApiKey();
   } catch (error) {
     return Promise.reject(error);
   }
@@ -1158,9 +1544,19 @@ async function getAdjustedDailyCandlestick(symbol, limit) {
 
   if (canUseCandlestick) {
     try {
+      ensureEndpointConfig('BRS_CANDLESTICK', endpoints.BRS_CANDLESTICK, {
+        symbol: symbolClean,
+        count: requestedLimit > 0 ? requestedLimit : undefined,
+        type: 3,
+        includeSymbolParam: true,
+        includeCountParam: true,
+        includeTypeParam: true
+      });
+
       var candlestickUrl = buildSymbolEndpointUrl(endpoints.BRS_CANDLESTICK, symbolClean, {
         count: requestedLimit > 0 ? requestedLimit : undefined,
-        type: 3
+        type: 3,
+        removeParams: []
       });
 
       var response = await fetchBRS(candlestickUrl, 'Candlestick AdjDaily: ' + symbolClean);
@@ -1243,9 +1639,24 @@ function getAllSymbols() {
     return Promise.reject(new Error('BRS_ALL_SYMBOLS endpoint is not configured'));
   }
 
+  try {
+    ensureEndpointConfig('BRS_ALL_SYMBOLS', endpoints && endpoints.BRS_ALL_SYMBOLS, {
+      includeSymbolParam: false,
+      includeCountParam: false,
+      includeTypeParam: true,
+      removeParams: ['l18', 'symbol', 'count']
+    });
+  } catch (error) {
+    return Promise.reject(error);
+  }
+
   var allSymbolsUrl;
   try {
-    allSymbolsUrl = buildSymbolEndpointUrl(endpoints.BRS_ALL_SYMBOLS, '');
+    allSymbolsUrl = buildPublicEndpointUrl(endpoints.BRS_ALL_SYMBOLS, {
+      includeCountParam: false,
+      includeTypeParam: true,
+      removeParams: ['l18', 'symbol', 'count']
+    });
   } catch (error) {
     return Promise.reject(error);
   }
@@ -1256,7 +1667,10 @@ function getAllSymbols() {
       throw new Error('BRS AllSymbols did not return an array');
     }
 
-    var mapped = rawArray.map(mapAllSymbolsItem);
+    var mapped = rawArray.map(mapAllSymbolsItem).filter(function (item) {
+      return !!item.symbol;
+    });
+
     setCache(cacheKey, mapped, CACHE_TTL.allSymbols, { fetchedAt: response.transportMeta.fetchedAt });
 
     var liveMeta = buildMeta('all-symbols', {
@@ -1275,12 +1689,12 @@ function getAllSymbols() {
 }
 
 function searchSymbols(query) {
-  if (!query || query.length < 1) {
+  if (!query || String(query).trim().length < 1) {
     return Promise.reject(new Error('Search query is required'));
   }
 
   return getAllSymbols().then(function (result) {
-    var q = query.trim().toLowerCase();
+    var q = String(query).trim().toLowerCase();
 
     var filtered = result.data.filter(function (item) {
       var symbol = item.symbol ? String(item.symbol).toLowerCase() : '';
@@ -1308,11 +1722,23 @@ async function getMarketStatus(now) {
   var localWindow = getLocalMarketWindowStatus(now || new Date());
 
   if (!localWindow.isWorkday) {
-    return { isOpen: false, reason: 'NON_TRADING_DAY', source: 'schedule', schedule: localWindow, _meta: { source: 'schedule', servedAt: isoNow(), marketWindow: localWindow } };
+    return {
+      isOpen: false,
+      reason: 'NON_TRADING_DAY',
+      source: 'schedule',
+      schedule: localWindow,
+      _meta: { source: 'schedule', servedAt: isoNow(), marketWindow: localWindow }
+    };
   }
 
   if (!localWindow.isWithinHours) {
-    return { isOpen: false, reason: 'OUTSIDE_TRADING_HOURS', source: 'schedule', schedule: localWindow, _meta: { source: 'schedule', servedAt: isoNow(), marketWindow: localWindow } };
+    return {
+      isOpen: false,
+      reason: 'OUTSIDE_TRADING_HOURS',
+      source: 'schedule',
+      schedule: localWindow,
+      _meta: { source: 'schedule', servedAt: isoNow(), marketWindow: localWindow }
+    };
   }
 
   try {
@@ -1322,24 +1748,69 @@ async function getMarketStatus(now) {
     var freshnessMeta = indexResult && indexResult._meta ? indexResult._meta : null;
 
     if (!payload) {
-      return { isOpen: false, reason: 'MARKET_INDEX_UNAVAILABLE', source: 'api', schedule: localWindow, _meta: { source: 'api', servedAt: isoNow(), marketWindow: localWindow } };
+      return {
+        isOpen: false,
+        reason: 'MARKET_INDEX_UNAVAILABLE',
+        source: 'api',
+        schedule: localWindow,
+        _meta: { source: 'api', servedAt: isoNow(), marketWindow: localWindow }
+      };
     }
 
     if (state && isClosedState(state)) {
-      return { isOpen: false, reason: 'API_STATE_CLOSED', source: 'api', state: state, schedule: localWindow, dataFreshness: freshnessMeta, _meta: { source: 'api', servedAt: isoNow(), marketWindow: localWindow, dataFreshness: freshnessMeta } };
+      return {
+        isOpen: false,
+        reason: 'API_STATE_CLOSED',
+        source: 'api',
+        state: state,
+        schedule: localWindow,
+        dataFreshness: freshnessMeta,
+        _meta: { source: 'api', servedAt: isoNow(), marketWindow: localWindow, dataFreshness: freshnessMeta }
+      };
     }
 
     if (freshnessMeta && freshnessMeta.fallback && freshnessMeta.fallback.used && freshnessMeta.isStale) {
-      return { isOpen: false, reason: 'STALE_FALLBACK_INDEX', source: 'api', state: state, schedule: localWindow, dataFreshness: freshnessMeta, _meta: { source: 'api', servedAt: isoNow(), marketWindow: localWindow, dataFreshness: freshnessMeta } };
+      return {
+        isOpen: false,
+        reason: 'STALE_FALLBACK_INDEX',
+        source: 'api',
+        state: state,
+        schedule: localWindow,
+        dataFreshness: freshnessMeta,
+        _meta: { source: 'api', servedAt: isoNow(), marketWindow: localWindow, dataFreshness: freshnessMeta }
+      };
     }
 
     if (payload.isMarketOpen) {
-      return { isOpen: true, reason: state ? 'OPEN' : 'OPEN_BY_SCHEDULE_AND_PAYLOAD', source: 'api', state: state, schedule: localWindow, dataFreshness: freshnessMeta, _meta: { source: 'api', servedAt: isoNow(), marketWindow: localWindow, dataFreshness: freshnessMeta } };
+      return {
+        isOpen: true,
+        reason: state ? 'OPEN' : 'OPEN_BY_SCHEDULE_AND_PAYLOAD',
+        source: 'api',
+        state: state,
+        schedule: localWindow,
+        dataFreshness: freshnessMeta,
+        _meta: { source: 'api', servedAt: isoNow(), marketWindow: localWindow, dataFreshness: freshnessMeta }
+      };
     }
 
-    return { isOpen: false, reason: state ? 'API_STATE_NOT_OPEN' : 'MARKET_STATE_UNAVAILABLE', source: 'api', state: state, schedule: localWindow, dataFreshness: freshnessMeta, _meta: { source: 'api', servedAt: isoNow(), marketWindow: localWindow, dataFreshness: freshnessMeta } };
+    return {
+      isOpen: false,
+      reason: state ? 'API_STATE_NOT_OPEN' : 'MARKET_STATE_UNAVAILABLE',
+      source: 'api',
+      state: state,
+      schedule: localWindow,
+      dataFreshness: freshnessMeta,
+      _meta: { source: 'api', servedAt: isoNow(), marketWindow: localWindow, dataFreshness: freshnessMeta }
+    };
   } catch (error) {
-    return { isOpen: false, reason: 'API_VALIDATION_FAILED', source: 'api', error: error.message, schedule: localWindow, _meta: { source: 'api', servedAt: isoNow(), marketWindow: localWindow, error: error.message } };
+    return {
+      isOpen: false,
+      reason: 'API_VALIDATION_FAILED',
+      source: 'api',
+      error: error.message,
+      schedule: localWindow,
+      _meta: { source: 'api', servedAt: isoNow(), marketWindow: localWindow, error: error.message }
+    };
   }
 }
 
@@ -1350,7 +1821,9 @@ async function isMarketOpen() {
 
 module.exports = {
   getMarketIndex: getMarketIndex,
+  getMarketSummary: getMarketSummary,
   getSymbolData: getSymbolData,
+  getMoneyFlow: getMoneyFlow,
   getSymbolHistory: getSymbolHistory,
   getAdjustedDailyCandlestick: getAdjustedDailyCandlestick,
   getAllSymbols: getAllSymbols,

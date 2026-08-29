@@ -1,35 +1,23 @@
-'use strict';
+﻿'use strict';
 
 module.exports = {
   $schema: 'http://json-schema.org/draft-07/schema#',
   title: 'BRS Market Analysis Output',
   type: 'object',
   additionalProperties: false,
-  required: [
-    'summary',
-    'signals',
-    'risk_level',
-    'confidence',
-    'ontology_version',
-    'recommendation',
-    'closingPrice',
-    'realMoneyFlow',
-    'legalMoneyFlow',
-    'tradedVolume',
-    'fundamentalScore',
-    'technicalScore',
-    'entryPoints',
-    'exitPoints',
-    'detailedFundamentalExplanation',
-    'detailedTechnicalExplanation'
-  ],
+
+  // فیلدهای واقعاً ضروری برای خروجی AI
+  required: ['summary', 'signals', 'risk_level', 'confidence', 'ontology_version'],
+
   properties: {
     summary: {
       type: 'string',
       minLength: 10
     },
+
     signals: {
       type: 'array',
+      default: [],
       items: {
         type: 'object',
         additionalProperties: false,
@@ -51,86 +39,121 @@ module.exports = {
         }
       }
     },
+
     risk_level: {
       type: 'string',
       enum: ['low', 'medium', 'high']
     },
+
     confidence: {
       type: 'number',
       minimum: 0,
       maximum: 100
     },
+
+    // هم نسخه قدیمی را بپذیر، هم نسخه جدید سیستم
     ontology_version: {
       type: 'string',
-      enum: ['1.0.0']
+      enum: ['1.0.0', 'IRAN_V1', 'IRAN_V1.1']
     },
+
+    // -------- اختیاری‌ها (برای سازگاری با خروجی‌های متنوع مدل) --------
     recommendation: {
       type: 'string',
       enum: ['BUY', 'SELL', 'HOLD']
     },
+
     fallback: {
       type: 'boolean'
     },
+
     fallback_reason: {
-      type: ['string', 'null'],
-      minLength: 3
+      anyOf: [
+        { type: 'string', minLength: 3 },
+        { type: 'null' }
+      ]
     },
+
     closingPrice: {
       type: 'number'
     },
+
     realMoneyFlow: {
       type: 'number'
     },
+
     legalMoneyFlow: {
       type: 'number'
     },
+
     tradedVolume: {
       type: 'number'
     },
-    // اضافه شده برای پشتیبانی از متریک‌های جدید
+
     marketMetrics: {
       type: 'object',
       additionalProperties: true,
       properties: {
-        pe: { type: ['number', 'null'] },
-        eps: { type: ['number', 'null'] },
-        marketCap: { type: ['number', 'null'] },
-        priceChangePercent: { type: ['number', 'null'] },
-        tradedValue: { type: ['number', 'null'] }
+        pe: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+        eps: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+        marketCap: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+        priceChangePercent: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+        tradedValue: { anyOf: [{ type: 'number' }, { type: 'null' }] }
       }
     },
+
     fundamentalScore: {
       type: 'number',
       minimum: 0,
       maximum: 100
     },
+
     technicalScore: {
       type: 'number',
       minimum: 0,
       maximum: 100
     },
+
     entryPoints: {
       type: 'array',
       minItems: 1,
-      items: {
-        type: 'number'
-      }
+      items: { type: 'number' }
     },
+
     exitPoints: {
       type: 'array',
       minItems: 1,
-      items: {
-        type: 'number'
-      }
+      items: { type: 'number' }
     },
+
     detailedFundamentalExplanation: {
       type: 'string',
       minLength: 10
     },
+
     detailedTechnicalExplanation: {
       type: 'string',
       minLength: 10
     },
+
+    // برای سازگاری با marketSummary/service‌هایی که scores می‌خواهند
+    scores: {
+      type: 'object',
+      additionalProperties: true,
+      properties: {
+        fundamentalScore: {
+          type: 'number',
+          minimum: 0,
+          maximum: 100
+        },
+        technicalScore: {
+          type: 'number',
+          minimum: 0,
+          maximum: 100
+        }
+      }
+    },
+
     meta: {
       type: 'object',
       additionalProperties: true

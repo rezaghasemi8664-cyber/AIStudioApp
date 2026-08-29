@@ -1,93 +1,278 @@
-﻿// backend/routes/analyze.routes.cjs
-// Analyze Routes - connects to analyze.controller.cjs
-'use strict';
+﻿'use strict';
 
-var express = require('express');
-var router = express.Router();
+const express = require('express');
+const router = express.Router();
 
-// Load auth middleware
-var authMiddleware;
-try { authMiddleware = require('../middlewares/auth.middleware.cjs'); }
-catch (e1) {
-  try { authMiddleware = require('../middleware/auth.middleware.cjs'); }
-  catch (e2) {
-    try { authMiddleware = require('../middleware/auth.cjs'); }
-    catch (e3) { authMiddleware = function(req, res, next) { next(); }; }
-  }
-}
+let authMiddleware = (req, res, next) => next();
 
-// Load controller
-var ctrl;
 try {
-  ctrl = require('../controllers/analyze.controller.cjs');
-} catch (e) {
-  console.warn('[ANALYZE-ROUTES] Controller not found:', e.message);
-  ctrl = {};
+  const authModule =
+    require('../middlewares/auth.middleware.cjs');
+
+  authMiddleware =
+    authModule.authenticate ||
+    authModule.authMiddleware ||
+    authModule.verifyToken ||
+    authMiddleware;
+} catch (error) {
+  console.warn(
+    '[ANALYZE-ROUTES] Auth middleware load warning:',
+    error.message
+  );
 }
 
-// POST /api/analyze - Main analyze endpoint
-router.post('/', authMiddleware, function(req, res) {
-  if (ctrl.analyze) return ctrl.analyze(req, res);
-  if (ctrl.analyzeStock) return ctrl.analyzeStock(req, res);
-  res.status(503).json({ success: false, message: 'Analyze service not available' });
-});
+let ctrl = {};
 
-// POST /api/analyze/stock - Analyze specific stock
-router.post('/stock', authMiddleware, function(req, res) {
-  if (ctrl.analyzeStock) return ctrl.analyzeStock(req, res);
-  if (ctrl.analyze) return ctrl.analyze(req, res);
-  res.status(503).json({ success: false, message: 'Stock analysis not available' });
-});
+try {
+  ctrl =
+    require('../controllers/analyze.controller.cjs');
+} catch (error) {
+  console.error(
+    '[ANALYZE-ROUTES] Controller load failed:',
+    error.message
+  );
+}
 
-// POST /api/analyze/compare - Compare stocks
-router.post('/compare', authMiddleware, function(req, res) {
-  if (ctrl.compareStocks) return ctrl.compareStocks(req, res);
-  res.status(503).json({ success: false, message: 'Compare service not available' });
-});
-
-// POST /api/analyze/chat - AI Chat
-router.post('/chat', authMiddleware, function(req, res) {
-  if (ctrl.chat) return ctrl.chat(req, res);
-  res.status(503).json({ success: false, message: 'Chat service not available' });
-});
-
-// POST /api/analyze/ask - AI Ask (alias for chat)
-router.post('/ask', authMiddleware, function(req, res) {
-  if (ctrl.ask) return ctrl.ask(req, res);
-  if (ctrl.chat) return ctrl.chat(req, res);
-  res.status(503).json({ success: false, message: 'Ask service not available' });
-});
-
-// GET /api/analyze/models - Available AI models
-router.get('/models', function(req, res) {
-  if (ctrl.getModels) return ctrl.getModels(req, res);
-  res.json({
-    success: true,
-    data: [
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-      { id: 'gpt-4o', name: 'GPT-4o' }
-    ]
-  });
-});
-
-// GET /api/analyze/history - Analysis history
-router.get('/history', authMiddleware, function(req, res) {
-  if (ctrl.getAnalysisHistory) return ctrl.getAnalysisHistory(req, res);
-  res.json({ success: true, data: [] });
-});
-
-// GET /api/analyze/status - Service status
-router.get('/status', function(req, res) {
-  var hasKey = !!(process.env.GAPGPT_API_KEY || process.env.AI_API_KEY || process.env.OPENAI_API_KEY);
-  res.json({
-    success: true,
-    data: {
-      available: hasKey,
-      provider: hasKey ? 'GapGPT' : 'none',
-      timestamp: new Date().toISOString()
+/**
+ * POST /api/analyze
+ * POST /api/v1/analyze
+ */
+router.post(
+  '/',
+  authMiddleware,
+  function (req, res) {
+    if (typeof ctrl.analyze === 'function') {
+      return ctrl.analyze(req, res);
     }
-  });
-});
+
+    if (
+      typeof ctrl.analyzeStock === 'function'
+    ) {
+      return ctrl.analyzeStock(req, res);
+    }
+
+    return res.status(503).json({
+      success: false,
+      message:
+        'سرویس تحلیل در دسترس نیست.',
+      messageEn:
+        'Analyze service is not available.',
+      code:
+        'ANALYZE_SERVICE_UNAVAILABLE',
+      requestId:
+        req.requestId,
+    });
+  }
+);
+
+/**
+ * POST /api/analyze/stock
+ * POST /api/v1/analyze/stock
+ */
+router.post(
+  '/stock',
+  authMiddleware,
+  function (req, res) {
+    if (
+      typeof ctrl.analyzeStock === 'function'
+    ) {
+      return ctrl.analyzeStock(
+        req,
+        res
+      );
+    }
+
+    if (
+      typeof ctrl.analyze === 'function'
+    ) {
+      return ctrl.analyze(
+        req,
+        res
+      );
+    }
+
+    return res.status(503).json({
+      success: false,
+      message:
+        'سرویس تحلیل سهم در دسترس نیست.',
+      messageEn:
+        'Stock analysis service is not available.',
+      code:
+        'STOCK_ANALYSIS_UNAVAILABLE',
+      requestId:
+        req.requestId,
+    });
+  }
+);
+
+/**
+ * POST /api/analyze/compare
+ * POST /api/v1/analyze/compare
+ */
+router.post(
+  '/compare',
+  authMiddleware,
+  function (req, res) {
+    if (
+      typeof ctrl.compareStocks ===
+      'function'
+    ) {
+      return ctrl.compareStocks(
+        req,
+        res
+      );
+    }
+
+    return res.status(503).json({
+      success: false,
+      message:
+        'سرویس مقایسه در دسترس نیست.',
+      messageEn:
+        'Compare service is not available.',
+      code:
+        'COMPARE_SERVICE_UNAVAILABLE',
+      requestId:
+        req.requestId,
+    });
+  }
+);
+
+/**
+ * POST /api/analyze/chat
+ */
+router.post(
+  '/chat',
+  authMiddleware,
+  function (req, res) {
+    if (
+      typeof ctrl.chat === 'function'
+    ) {
+      return ctrl.chat(req, res);
+    }
+
+    return res.status(503).json({
+      success: false,
+      message:
+        'سرویس چت در دسترس نیست.',
+      code:
+        'CHAT_SERVICE_UNAVAILABLE',
+    });
+  }
+);
+
+/**
+ * POST /api/analyze/ask
+ */
+router.post(
+  '/ask',
+  authMiddleware,
+  function (req, res) {
+    if (
+      typeof ctrl.ask === 'function'
+    ) {
+      return ctrl.ask(req, res);
+    }
+
+    if (
+      typeof ctrl.chat === 'function'
+    ) {
+      return ctrl.chat(req, res);
+    }
+
+    return res.status(503).json({
+      success: false,
+      message:
+        'سرویس پرسش در دسترس نیست.',
+      code:
+        'ASK_SERVICE_UNAVAILABLE',
+    });
+  }
+);
+
+/**
+ * GET /api/analyze/models
+ */
+router.get(
+  '/models',
+  function (_req, res) {
+    if (
+      typeof ctrl.getModels ===
+      'function'
+    ) {
+      return ctrl.getModels(
+        _req,
+        res
+      );
+    }
+
+    return res.json({
+      success: true,
+      data: [
+        {
+          id: 'gpt-4o-mini',
+          name: 'GPT-4o Mini',
+        },
+        {
+          id: 'gpt-4o',
+          name: 'GPT-4o',
+        },
+      ],
+    });
+  }
+);
+
+/**
+ * GET /api/analyze/history
+ */
+router.get(
+  '/history',
+  authMiddleware,
+  function (req, res) {
+    if (
+      typeof ctrl.getAnalysisHistory ===
+      'function'
+    ) {
+      return ctrl.getAnalysisHistory(
+        req,
+        res
+      );
+    }
+
+    return res.json({
+      success: true,
+      data: [],
+    });
+  }
+);
+
+/**
+ * GET /api/analyze/status
+ */
+router.get(
+  '/status',
+  function (_req, res) {
+    const hasKey = !!(
+      process.env.GAPGPT_API_KEY ||
+      process.env.AI_API_KEY ||
+      process.env.OPENAI_API_KEY
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        available: hasKey,
+        provider: hasKey
+          ? 'GapGPT'
+          : 'none',
+        timestamp:
+          new Date().toISOString(),
+      },
+    });
+  }
+);
 
 module.exports = router;
-console.log('[ANALYZE-ROUTES] Loaded successfully');
+
+console.log(
+  '[ANALYZE-ROUTES] Loaded successfully'
+);

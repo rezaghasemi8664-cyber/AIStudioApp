@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { scalpingService, type ScalpingStatus } from '../services/scalpingService';
 import {
   ChartBarIcon,
@@ -13,11 +13,7 @@ interface ScalpingProps {
   isOnline: boolean;
 }
 
-type MarketResolution = {
-  known: boolean;
-  open: boolean;
-};
-
+// ایجاد وضعیت پیش‌فرض برای جلوگیری از خطاهای undefined در اولین رندر
 const createDefaultStatus = (): ScalpingStatus => ({
   isRunning: false,
   lastRunId: null,
@@ -32,468 +28,201 @@ const createDefaultStatus = (): ScalpingStatus => ({
   }
 });
 
+// فرمت‌دهی زمان به صورت محلی و خوانا
 const formatRelativeTime = (value?: string | number | null) => {
-  if (!value) {
-    return 'نامشخص';
-  }
+  if (!value) return 'نامشخص';
+  const timestamp = typeof value === 'number' ? value : new Date(value).getTime();
+  if (isNaN(timestamp) || timestamp <= 0) return 'نامشخص';
 
-  const timestamp =
-    typeof value === 'number' ? value : new Date(value).getTime();
-
-  if (!timestamp || Number.isNaN(timestamp)) {
-    return 'نامشخص';
-  }
-
-  const now = Date.now();
-  const diffInSeconds = Math.floor((now - timestamp) / 1000);
+  const diffInSeconds = Math.floor((Date.now() - timestamp) / 1000);
   const rtf = new Intl.RelativeTimeFormat('fa-IR', { numeric: 'auto' });
 
-  if (diffInSeconds < 60) {
-    return rtf.format(-diffInSeconds, 'second');
-  }
-
-  const diffInMinutes = Math.floor(diffInSeconds / 60);
-  if (diffInMinutes < 60) {
-    return rtf.format(-diffInMinutes, 'minute');
-  }
-
-  const diffInHours = Math.floor(diffInMinutes / 60);
-  if (diffInHours < 24) {
-    return rtf.format(-diffInHours, 'hour');
-  }
-
-  const diffInDays = Math.floor(diffInHours / 24);
-  return rtf.format(-diffInDays, 'day');
+  if (diffInSeconds < 60) return 'لحظاتی پیش';
+  if (diffInSeconds < 3600) return rtf.format(-Math.floor(diffInSeconds / 60), 'minute');
+  if (diffInSeconds < 86400) return rtf.format(-Math.floor(diffInSeconds / 3600), 'hour');
+  return rtf.format(-Math.floor(diffInSeconds / 86400), 'day');
 };
 
-const formatPrice = (value?: number | null) => {
-  const price = Number(value || 0);
-  if (!Number.isFinite(price) || price <= 0) {
-    return 'نامشخص';
-  }
+const formatPrice = (value?: number | null) => 
+  (value && value > 0) ? new Intl.NumberFormat('fa-IR').format(value) : '---';
 
-  return new Intl.NumberFormat('fa-IR').format(price);
-};
+const formatScore = (value?: number | null) => 
+  typeof value === 'number' ? value.toFixed(1) : '0.0';
 
-const formatScore = (value?: number | null) => {
-  const score = Number(value || 0);
-  if (!Number.isFinite(score)) {
-    return '0';
-  }
-
-  return score.toFixed(1);
-};
-
-const getObjectValue = <T,>(value: unknown): T | undefined => {
-  if (value && typeof value === 'object') {
-    return value as T;
-  }
-
-  return undefined;
-};
-
-const resolveLastUpdated = (
-  statusResult: ScalpingStatus | null | undefined,
-  signalsResult: unknown
-): string | null => {
-  const rawSignals = getObjectValue<Record<string, unknown>>(signalsResult);
-  const signalLastUpdate = rawSignals?.lastUpdate;
-  const signalLastUpdated = rawSignals?.lastUpdated;
-
-  if (typeof signalLastUpdate === 'string' && signalLastUpdate.trim()) {
-    return signalLastUpdate;
-  }
-
-  if (typeof signalLastUpdated === 'string' && signalLastUpdated.trim()) {
-    return signalLastUpdated;
-  }
-
-  if (typeof statusResult?.lastUpdate === 'string' && statusResult.lastUpdate.trim()) {
-    return statusResult.lastUpdate;
-  }
-
-  const rawStatus = getObjectValue<Record<string, unknown>>(statusResult);
-  const statusLastUpdated = rawStatus?.lastUpdated;
-  if (typeof statusLastUpdated === 'string' && statusLastUpdated.trim()) {
-    return statusLastUpdated;
-  }
-
-  const statusCheckedAt = rawStatus?.statusCheckedAt;
-  if (typeof statusCheckedAt === 'string' && statusCheckedAt.trim()) {
-    return statusCheckedAt;
-  }
-
-  const marketStatus = getObjectValue<Record<string, unknown>>(rawStatus?.marketStatus);
-  const marketCheckedAt = marketStatus?.checkedAt;
-  if (typeof marketCheckedAt === 'string' && marketCheckedAt.trim()) {
-    return marketCheckedAt;
-  }
-
-  return null;
-};
-
-const resolveMarketState = (status: ScalpingStatus): MarketResolution => {
-  const marketStatus = getObjectValue<Record<string, unknown>>(status.marketStatus);
-
-  if (!marketStatus) {
-    return { known: false, open: false };
-  }
-
-  if (typeof marketStatus.available === 'boolean' && typeof marketStatus.isOpen === 'boolean') {
-    return {
-      known: marketStatus.available,
-      open: marketStatus.isOpen
-    };
-  }
-
-  if (typeof marketStatus.known === 'boolean' && typeof marketStatus.open === 'boolean') {
-    return {
-      known: marketStatus.known,
-      open: marketStatus.open
-    };
-  }
-
-  if (typeof marketStatus.open === 'boolean') {
-    return {
-      known: true,
-      open: marketStatus.open
-    };
-  }
-
-  if (typeof marketStatus.isOpen === 'boolean') {
-    return {
-      known: true,
-      open: marketStatus.isOpen
-    };
-  }
-
-  if (typeof marketStatus.status === 'string') {
-    const normalizedStatus = marketStatus.status.trim().toLowerCase();
-
-    if (['open', 'opened', 'running', 'active'].includes(normalizedStatus)) {
-      return { known: true, open: true };
-    }
-
-    if (['closed', 'close', 'inactive', 'halted'].includes(normalizedStatus)) {
-      return { known: true, open: false };
-    }
-
-    if (['unknown', 'unavailable', 'undefined'].includes(normalizedStatus)) {
-      return { known: false, open: false };
-    }
-  }
-
-  return { known: false, open: false };
-};
-
+/**
+ * کامپوننت نمایش کارت یک فرصت نوسان‌گیری
+ */
 const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ opportunity }) => (
-  <div
-    data-style-id="scalping-card"
-    data-style-name="کارت نوسان‌گیری"
-    className="rounded-lg shadow-md p-4 flex flex-col gap-3"
-    style={{
-      backgroundColor: 'var(--scalping-card-bg)',
-      color: 'var(--scalping-card-color)',
-      fontFamily: 'var(--scalping-card-font-family)',
-      fontSize: 'var(--scalping-card-font-size)',
-      borderWidth: 'var(--scalping-card-border-width)',
-      borderStyle: 'var(--scalping-card-border-style)',
-      borderColor: 'var(--scalping-card-border-color)'
-    }}
-  >
-    <div className="flex items-center justify-between gap-3">
-      <h3 className="text-xl font-bold text-cyan-600 dark:text-cyan-400">
-        {opportunity.symbol}
-      </h3>
-      <span className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
-        <ArrowTrendingUpIcon />
+  <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+    <div className="flex items-center justify-between mb-3">
+      <h3 className="text-lg font-bold text-[var(--color-accent)]">{opportunity.symbol}</h3>
+      <div className="flex items-center gap-1 text-xs font-medium text-green-500 bg-green-500/10 px-2 py-1 rounded-full">
+        <ArrowTrendingUpIcon className="w-3 h-3" />
         <span>فرصت فعال</span>
-      </span>
+      </div>
     </div>
 
-    <p className="text-sm text-gray-600 dark:text-gray-400 leading-6">
-      <strong className="font-semibold">دلیل:</strong> {opportunity.reason || 'بدون توضیح'}
+    <p className="text-sm text-[var(--color-text-secondary)] mb-4 line-clamp-2 min-h-[40px]">
+      <span className="font-bold ml-1">دلیل:</span>
+      {opportunity.reason || 'تأیید بر اساس فاکتورهای هفت‌گانه'}
     </p>
 
-    <div className="grid grid-cols-2 gap-3 text-xs pt-2 border-t border-gray-100 dark:border-gray-700">
-      <div>
-        <p className="text-gray-500 dark:text-gray-400">قیمت</p>
-        <p className="font-semibold text-blue-600 dark:text-blue-400" dir="ltr">
-          {formatPrice(opportunity.price)}
-        </p>
+    <div className="grid grid-cols-2 gap-2 pt-3 border-t border-[var(--color-border)]">
+      <div className="flex flex-col">
+        <span className="text-[10px] text-gray-400">آخرین قیمت</span>
+        <span className="text-sm font-mono font-bold">{formatPrice(opportunity.price)}</span>
       </div>
-      <div>
-        <p className="text-gray-500 dark:text-gray-400">امتیاز</p>
-        <p className="font-semibold text-amber-600 dark:text-amber-400" dir="ltr">
-          {formatScore(opportunity.score)}
-        </p>
+      <div className="flex flex-col items-end">
+        <span className="text-[10px] text-gray-400">امتیاز تحلیل</span>
+        <span className="text-sm font-mono font-bold text-amber-500">{formatScore(opportunity.score)}</span>
       </div>
     </div>
-  </div>
-);
-
-const ScalpingTable: React.FC<{ opportunities: ScalpingOpportunity[] }> = ({ opportunities }) => (
-  <div
-    className="overflow-x-auto rounded-lg shadow-md border border-[var(--card-border-color)]"
-    style={{ backgroundColor: 'var(--card-bg)' }}
-  >
-    <table className="min-w-full text-sm text-right">
-      <thead
-        className="uppercase text-xs"
-        style={{
-          backgroundColor: 'var(--table-header-bg)',
-          color: 'var(--table-header-color)'
-        }}
-      >
-        <tr>
-          <th scope="col" className="px-6 py-3">نماد</th>
-          <th scope="col" className="px-6 py-3">دلیل</th>
-          <th scope="col" className="px-6 py-3">قیمت</th>
-          <th scope="col" className="px-6 py-3">امتیاز</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-[var(--table-border-color)]">
-        {opportunities.map((op) => (
-          <tr
-            key={op.id ?? `${op.symbol}-${op.createdAt ?? op.updatedAt ?? 'row'}`}
-            className="hover:bg-[var(--table-row-hover-bg)] transition-colors"
-          >
-            <td className="px-6 py-4 font-bold text-cyan-600 dark:text-cyan-400">
-              {op.symbol}
-            </td>
-            <td className="px-6 py-4 text-[var(--card-color)]">{op.reason}</td>
-            <td className="px-6 py-4 text-green-600 dark:text-green-400 font-mono" dir="ltr">
-              {formatPrice(op.price)}
-            </td>
-            <td className="px-6 py-4 text-amber-600 dark:text-amber-400 font-mono" dir="ltr">
-              {formatScore(op.score)}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
   </div>
 );
 
 const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
   const [opportunities, setOpportunities] = useState<ScalpingOpportunity[]>([]);
-  const [status, setStatus] = useState<ScalpingStatus>(() => createDefaultStatus());
-  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [status, setStatus] = useState<ScalpingStatus>(createDefaultStatus());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isLoading, setIsLoading] = useState(true);
+  const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now());
 
-  const loadScalpingData = useCallback(async () => {
+  const requestIdRef = useRef(0);
+
+  const loadData = useCallback(async () => {
+    const currentId = ++requestIdRef.current;
     if (!isOnline) {
-      setOpportunities([]);
-      setStatus(createDefaultStatus());
-      setLastUpdated(null);
       setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
-
     try {
-      const [statusResult, signalsResult] = await Promise.all([
+      // دریافت همزمان وضعیت و سیگنال‌ها برای سرعت بیشتر
+      const [statusRes, signalsRes] = await Promise.all([
         scalpingService.getScalpingStatus(),
         scalpingService.getScalpingSignals()
       ]);
 
-      const nextSignals =
-        signalsResult && Array.isArray(signalsResult.signals)
-          ? signalsResult.signals
-          : [];
+      if (currentId !== requestIdRef.current) return;
 
-      const nextStatus = statusResult ?? createDefaultStatus();
-
-      setStatus(nextStatus);
-      setOpportunities(nextSignals);
-      setLastUpdated(resolveLastUpdated(nextStatus, signalsResult));
+      // توجه: scalpingService خود دارای لایه نرمال‌سازی است
+      if (statusRes) setStatus(statusRes);
+      
+      // استخراج لیست سیگنال‌ها با اولویت فیلد signals طبق اینترفیس سرویس
+      const rawSignals = (signalsRes as any)?.signals || (signalsRes as any)?.data || [];
+      setOpportunities(Array.isArray(rawSignals) ? rawSignals : []);
+      
+      setLastRefreshed(Date.now());
     } catch (error) {
-      console.error('Error loading scalping data:', error);
-      setOpportunities([]);
-      setStatus(createDefaultStatus());
-      setLastUpdated(null);
+      console.error('[Scalping] Error fetching data:', error);
     } finally {
-      setIsLoading(false);
+      if (currentId === requestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [isOnline]);
 
   useEffect(() => {
-    loadScalpingData();
+    loadData();
+    const timer = setInterval(loadData, 60000); // به‌روزرسانی خودکار هر یک دقیقه
+    return () => clearInterval(timer);
+  }, [loadData]);
 
-    const intervalId = window.setInterval(() => {
-      loadScalpingData();
-    }, 60 * 1000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [loadScalpingData]);
-
-  const { known: marketKnown, open: marketOpen } = resolveMarketState(status);
+  // تعیین وضعیت بازار: اولویت با فیلد صریح isOpen است
+  const isMarketOpen = status.marketStatus?.isOpen || status.isRunning;
 
   const renderContent = () => {
     if (!isOnline) {
       return (
-        <div
-          data-style-id="scalping-placeholder"
-          data-style-name="کادر پیام نوسان‌گیری"
-          className="text-center py-10 bg-gray-100 dark:bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600"
-        >
-          <p className="text-gray-500 dark:text-gray-500">برای مشاهده فرصت‌ها باید آنلاین باشید.</p>
+        <div className="flex flex-col items-center justify-center py-12 text-gray-400 opacity-60">
+          <p>شما در حالت آفلاین هستید. برای دریافت سیگنال‌ها متصل شوید.</p>
         </div>
       );
     }
 
-    if (isLoading) {
+    if (isLoading && opportunities.length === 0) {
       return (
-        <div
-          data-style-id="scalping-placeholder"
-          data-style-name="کادر پیام نوسان‌گیری"
-          className="text-center py-10 bg-gray-100 dark:bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600"
-        >
-          <p className="text-gray-500 dark:text-gray-500">در حال دریافت آخرین وضعیت نوسان‌گیری...</p>
-        </div>
-      );
-    }
-
-    if (marketKnown && !marketOpen) {
-      return (
-        <div
-          data-style-id="scalping-placeholder"
-          data-style-name="کادر پیام نوسان‌گیری"
-          className="text-center py-10 bg-gray-100 dark:bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex flex-col items-center justify-center gap-4"
-        >
-          <ClockIcon />
-          <p className="text-gray-500 dark:text-gray-500 font-semibold">
-            بازار بسته است و امکان نوسان‌گیری وجود ندارد
-          </p>
-          <p className="text-xs text-gray-400 dark:text-gray-500">
-            {lastUpdated
-              ? `آخرین بررسی: ${formatRelativeTime(lastUpdated)}`
-              : 'وضعیت بازار مستقیماً از سرویس بک‌اند دریافت می‌شود.'}
-          </p>
-        </div>
-      );
-    }
-
-    if (!marketKnown) {
-      return (
-        <div
-          data-style-id="scalping-placeholder"
-          data-style-name="کادر پیام نوسان‌گیری"
-          className="text-center py-10 bg-gray-100 dark:bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex flex-col items-center justify-center gap-2"
-        >
-          <p className="text-gray-500 dark:text-gray-500">
-            وضعیت بازار فعلاً قابل تأیید نیست.
-          </p>
-          <p className="text-xs text-gray-400 dark:text-gray-500">
-            {lastUpdated
-              ? `آخرین بررسی سیستم: ${formatRelativeTime(lastUpdated)}`
-              : 'زمان آخرین بررسی هنوز ثبت نشده است.'}
-          </p>
-        </div>
-      );
-    }
-
-    if (opportunities.length > 0) {
-      return viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
-          {opportunities.map((op) => (
-            <OpportunityCard
-              key={op.id ?? `${op.symbol}-${op.createdAt ?? op.updatedAt ?? 'card'}`}
-              opportunity={op}
-            />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-pulse">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-40 bg-gray-200 dark:bg-gray-800 rounded-xl" />
           ))}
         </div>
-      ) : (
-        <div className="animate-fade-in">
-          <ScalpingTable opportunities={opportunities} />
+      );
+    }
+
+    if (!isMarketOpen && opportunities.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-16 bg-[var(--color-surface)] border border-dashed border-[var(--color-border)] rounded-2xl">
+          <ClockIcon className="w-12 h-12 text-gray-300 mb-4" />
+          <h3 className="text-lg font-bold text-[var(--color-text-primary)]">بازار بسته است</h3>
+          <p className="text-sm text-[var(--color-text-secondary)] mt-2">سیگنال‌های نوسان‌گیری فقط در زمان فعالیت بازار ارائه می‌شوند.</p>
+        </div>
+      );
+    }
+
+    if (opportunities.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <p className="text-[var(--color-text-secondary)]">در حال حاضر فرصت نوسان‌گیری فعالی یافت نشد.</p>
         </div>
       );
     }
 
     return (
-      <div
-        data-style-id="scalping-placeholder"
-        data-style-name="کادر پیام نوسان‌گیری"
-        className="text-center py-10 bg-gray-100 dark:bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600"
-      >
-        <p className="text-gray-500 dark:text-gray-500">
-          {lastUpdated
-            ? 'در آخرین اسکن، فرصت مناسبی برای نوسان‌گیری یافت نشد.'
-            : 'هنوز داده‌ای از آخرین اسکن ثبت نشده است.'}
-        </p>
+      <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'flex flex-col gap-2'}>
+        {opportunities.map((op) => (
+          <OpportunityCard key={op.id || op.symbol} opportunity={op} />
+        ))}
       </div>
     );
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div
-        className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4"
-        data-style-id="scalping-header"
-        data-style-name="هدر نوسان‌گیری"
-      >
-        <div>
-          <h2 className="text-2xl font-bold text-cyan-600 dark:text-cyan-400 flex items-center gap-2">
-            <ChartBarIcon />
-            فرصت‌های نوسان‌گیری
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            این بخش بر اساس وضعیت بازار و خروجی canonical بک‌اند به‌روزرسانی می‌شود.
-          </p>
+    <div className="w-full space-y-6">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-cyan-500/10 rounded-lg">
+            <ChartBarIcon className="w-6 h-6 text-cyan-500" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-[var(--color-text-primary)]">فرصت‌های نوسان‌گیری</h2>
+            <div className="flex items-center gap-2 mt-1 text-xs text-[var(--color-text-secondary)]">
+              <span>بروزرسانی: {formatRelativeTime(lastRefreshed)}</span>
+              <span className="w-1 h-1 bg-gray-400 rounded-full" />
+              <span className={isMarketOpen ? 'text-green-500' : 'text-amber-500'}>
+                {isMarketOpen ? 'بازار باز' : 'بازار بسته'}
+              </span>
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
-          <div className="flex items-center bg-gray-200 dark:bg-gray-700 rounded-lg p-1">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-md transition-colors ${
-                viewMode === 'grid'
-                  ? 'bg-white dark:bg-gray-600 shadow text-cyan-600 dark:text-cyan-400'
-                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600'
-              }`}
-              title="نمای کارتی"
-              type="button"
-            >
-              <Squares2X2Icon className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-md transition-colors ${
-                viewMode === 'list'
-                  ? 'bg-white dark:bg-gray-600 shadow text-cyan-600 dark:text-cyan-400'
-                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600'
-              }`}
-              title="نمای جدولی"
-              type="button"
-            >
-              <ListBulletIcon className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div
-            data-style-id="scalping-last-updated"
-            data-style-name="متن آخرین بروزرسانی"
-            className="text-sm text-gray-500 dark:text-gray-400 text-left sm:text-right"
+        <div className="flex items-center gap-2 bg-[var(--color-surface)] p-1 rounded-lg border border-[var(--color-border)]">
+          <button
+            onClick={() => setViewMode('grid')}
+            className={`p-2 rounded-md transition-all ${viewMode === 'grid' ? 'bg-cyan-500 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
           >
-            {lastUpdated ? (
-              <>
-                <span>آخرین به‌روزرسانی:</span>
-                <span className="font-semibold font-mono mx-1">
-                  {formatRelativeTime(lastUpdated)}
-                </span>
-              </>
-            ) : (
-              <span>هنوز زمان به‌روزرسانی ثبت نشده است</span>
-            )}
-          </div>
+            <Squares2X2Icon className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className={`p-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-cyan-500 text-white shadow-sm' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+          >
+            <ListBulletIcon className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
-      {renderContent()}
+      {/* Main Content */}
+      <div className="relative min-h-[300px]">
+        {renderContent()}
+      </div>
+
+      {/* Footer Info */}
+      <div className="text-[10px] text-gray-400 text-center pt-4">
+        * تحلیل‌ها بر اساس الگوریتم اختصاصی و فاکتورهای هفت‌گانه رونیـا انجام می‌شود.
+      </div>
     </div>
   );
 };

@@ -151,7 +151,7 @@ class LazyErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
 }
 
 const OfflineBanner: React.FC = () => (
-  <div className="bg-red-600 text-white text-center py-2 px-4 fixed top-0 left-0 right-0 z-50 flex items-center justify-center gap-2">
+  <div className="bg-red-600 text-white text-center py-2 px-4 fixed top-0 left-0 right-0 z-50 flex items-center justify-center gap-2 flex-row-reverse">
     <WifiSlashIcon />
     <span>شما آفلاین هستید. برخی از امکانات غیرفعال شده‌اند.</span>
   </div>
@@ -389,6 +389,53 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const handleLogout = useCallback(() => {
+    try {
+      const user =
+        typeof authService.getCurrentUser === 'function' ? authService.getCurrentUser() : null;
+
+      if (user && typeof authService.removeUserPresence === 'function') {
+        authService.removeUserPresence(user.id);
+      }
+
+      if (typeof socketService.disconnectSocket === 'function') {
+        socketService.disconnectSocket();
+      }
+
+      if (typeof authService.logout === 'function') {
+        authService.logout();
+      }
+    } catch (error) {
+      console.error('[handleLogout] Error during logout:', error);
+    }
+
+    setCurrentUser(null);
+    setNotifications([]);
+    setUnreadCount(0);
+    setIsExpired(false);
+    setShowWelcomeBanner(false);
+    setIsNotificationsOpen(false);
+    setViewingNotification(null);
+    setIsTseMenuOpen(false);
+    setInitialSettingsTab(undefined);
+    setActiveTab('analysis');
+    setPortfolioAlert('none');
+    setScalpingAlert(false);
+  }, []);
+
+  // گوش دادن به رویداد سراسری خروج اجباری (Unauthorized) صادر شده از apiClient
+  useEffect(() => {
+    const handleGlobalUnauthorized = () => {
+      handleLogout();
+      addNotification('نشست شما خاتمه یافته است. لطفا دوباره وارد شوید.', 'error');
+    };
+
+    window.addEventListener('auth:unauthorized', handleGlobalUnauthorized);
+    return () => {
+      window.removeEventListener('auth:unauthorized', handleGlobalUnauthorized);
+    };
+  }, [handleLogout, addNotification]);
+
   useEffect(() => {
     let mounted = true;
 
@@ -442,15 +489,6 @@ const App: React.FC = () => {
     };
 
     const reconcileSessionUserInBackground = async () => {
-      const sessionUser = getCurrentSessionUser();
-
-      if (!sessionUser) {
-        if (mounted) {
-          setUserState(null);
-        }
-        return;
-      }
-
       try {
         if (typeof authService.getMe !== 'function') {
           return;
@@ -473,11 +511,8 @@ const App: React.FC = () => {
           }
         }
 
-        if (typeof authService.logout === 'function') {
-          authService.logout();
-        }
-
-        setUserState(null);
+        // اگر نشست در سرور نامعتبر بود، خروج کامل رخ دهد
+        handleLogout();
       } catch (error) {
         logAsyncError('reconcileSessionUserInBackground getMe failed', error);
       }
@@ -651,7 +686,7 @@ const App: React.FC = () => {
         clearInterval(notificationRefreshIntervalRef.current);
       }
     };
-  }, [loadTseLinks, refreshUnreadCount]);
+  }, [loadTseLinks, refreshUnreadCount, handleLogout]);
 
   useEffect(() => {
     let mounted = true;
@@ -701,13 +736,9 @@ const App: React.FC = () => {
     }
 
     try {
-      const token =
-        typeof apiConfigService.getStoredToken === 'function'
-          ? apiConfigService.getStoredToken()
-          : null;
-
-      if (token && typeof socketService.initializeSocket === 'function') {
-        socketService.initializeSocket(token);
+      // در معماری جدید مبتنی بر کوکی، سوکت بدون ارسال دستی توکن متصل می‌شود
+      if (typeof socketService.initializeSocket === 'function') {
+        socketService.initializeSocket();
       }
 
       if (typeof socketService.onGlobalSettingsUpdated === 'function') {
@@ -943,40 +974,6 @@ const App: React.FC = () => {
     [buildSafeUser, persistUser, refreshUnreadCount],
   );
 
-  const handleLogout = useCallback(() => {
-    try {
-      const user =
-        typeof authService.getCurrentUser === 'function' ? authService.getCurrentUser() : null;
-
-      if (user && typeof authService.removeUserPresence === 'function') {
-        authService.removeUserPresence(user.id);
-      }
-
-      if (typeof socketService.disconnectSocket === 'function') {
-        socketService.disconnectSocket();
-      }
-
-      if (typeof authService.logout === 'function') {
-        authService.logout();
-      }
-    } catch (error) {
-      console.error('[handleLogout] Error during logout:', error);
-    }
-
-    setCurrentUser(null);
-    setNotifications([]);
-    setUnreadCount(0);
-    setIsExpired(false);
-    setShowWelcomeBanner(false);
-    setIsNotificationsOpen(false);
-    setViewingNotification(null);
-    setIsTseMenuOpen(false);
-    setInitialSettingsTab(undefined);
-    setActiveTab('analysis');
-    setPortfolioAlert('none');
-    setScalpingAlert(false);
-  }, []);
-
   const handleTabClick = useCallback(
     (tab: Tab) => {
       if (activeTab === 'settings' && tab !== 'settings') {
@@ -1186,7 +1183,7 @@ const App: React.FC = () => {
       {showWelcomeBanner && <WelcomeBanner onClose={handleCloseWelcomeBanner} />}
 
       <div
-        className={`min-h-screen text-[var(--app-color)] flex flex-col p-4 sm:p-6 lg:p-8 transition-colors duration-300 ${
+        className={`app-shell min-h-screen text-[var(--app-color)] flex flex-col p-3 sm:p-4 lg:p-6 transition-colors duration-300 ${
           !isOnline && !currentUser.isAdmin ? 'pt-12' : ''
         }`}
       >
@@ -1195,17 +1192,22 @@ const App: React.FC = () => {
         <header
           data-style-id="header"
           data-style-name="هدر اصلی"
-          className="flex items-center justify-between px-4 py-3 border-b"
+          className="app-header flex items-center justify-between px-3 sm:px-5 py-3 border-b"
           style={{
             backgroundColor: 'var(--header-bg)',
             borderColor: 'var(--header-border-color)',
           }}
         >
           <div className="flex items-center gap-4 min-w-0">
-            <img src="/2.png" alt="لوگوی رونیا" className="h-20 w-20 object-contain shrink-0" />
-            <h1 className="whitespace-nowrap text-lg lg:text-xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-              تحلیلگر هوشمند بورس <span className="text-emerald-600">رونیا</span>
-            </h1>
+            <div className="brand-lockup">
+              <img src="/2.png" alt="لوگوی رونیا" className="brand-logo h-14 w-14 sm:h-16 sm:w-16 object-contain shrink-0" />
+              <div className="brand-copy min-w-0">
+                <h1 className="brand-title whitespace-nowrap text-base sm:text-lg lg:text-xl font-extrabold tracking-tight">
+                  تحلیلگر هوشمند بورس <span>رونیا</span>
+                </h1>
+                <p className="brand-subtitle hidden sm:block">هوشمندی داده‌محور برای تصمیم‌گیری بهتر در بازار سرمایه</p>
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -1262,8 +1264,8 @@ const App: React.FC = () => {
                           !n.read ? 'font-bold bg-blue-50/50 dark:bg-blue-900/10' : ''
                         }`}
                       >
-                        <p className="text-sm line-clamp-2">{n.message}</p>
-                        <p className="text-xs text-gray-500 mt-1">{formatRelativeTime(n.timestamp)}</p>
+                        <p className="text-sm line-clamp-2 text-right">{n.message}</p>
+                        <p className="text-xs text-gray-500 mt-1 text-right">{formatRelativeTime(n.timestamp)}</p>
                       </li>
                     ))}
                   </ul>
@@ -1292,8 +1294,8 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        <nav className="mb-6">
-          <div className="flex flex-wrap items-center border-b border-gray-200 dark:border-gray-700">
+        <nav className="app-nav mb-4 sm:mb-6" aria-label="ناوبری اصلی">
+          <div className="app-nav-scroll flex flex-wrap items-center border-b border-gray-200 dark:border-gray-700">
             <TabButton
               tab="analysis"
               label="تحلیل سهام"
@@ -1380,7 +1382,7 @@ const App: React.FC = () => {
                         href={link.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors text-right"
                       >
                         {staticTseIcons[link.label] || <GlobeAltIcon className="w-4 h-4" />}
                         {link.label}
@@ -1410,7 +1412,7 @@ const App: React.FC = () => {
           </div>
         </nav>
 
-        <main className="flex-grow">
+        <main className="app-main flex-grow" data-page={activeTab}>
           <LazyErrorBoundary>
             <Suspense fallback={<LoadingSpinner />}>{renderContent()}</Suspense>
           </LazyErrorBoundary>
@@ -1437,21 +1439,21 @@ const App: React.FC = () => {
             </div>
 
             <div className="p-6">
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 text-right">
                 {new Date(viewingNotification.timestamp).toLocaleString('fa-IR')}
               </p>
 
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
+              <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap text-right">
                 {viewingNotification.message}
               </p>
 
               {viewingNotification.attachment && (
-                <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 text-right">
                   <p className="text-sm font-semibold mb-2">پیوست:</p>
                   <a
                     href={viewingNotification.attachment.data}
                     download={viewingNotification.attachment.name}
-                    className="flex items-center gap-2 p-3 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-cyan-600 dark:text-cyan-400"
+                    className="flex items-center gap-2 p-3 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-cyan-600 dark:text-cyan-400 flex-row-reverse"
                   >
                     <PaperclipIcon className="h-5 w-5" />
                     <span className="text-sm underline">{viewingNotification.attachment.name}</span>

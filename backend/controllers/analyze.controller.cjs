@@ -1,4 +1,4 @@
-// controllers/analyze.controller.cjs
+﻿// controllers/analyze.controller.cjs
 // Controller for AI-powered stock analysis
 'use strict';
 
@@ -608,6 +608,44 @@ function getFallbackDailySeries(fallbackData, dailyLimit) {
   return [];
 }
 
+function normalizeMoneyFlowPayload(payload) {
+  if (!payload) return { real: null, legal: null };
+
+  const root = isObject(payload.data)
+    ? payload.data
+    : isObject(payload.result)
+      ? payload.result
+      : isObject(payload.moneyFlow)
+        ? payload.moneyFlow
+        : payload;
+
+  if (!isObject(root)) return { real: null, legal: null };
+
+  const realRaw = firstDefined(
+    root.real,
+    root.realMoneyFlow,
+    root.haghighi,
+    root.individual
+  );
+
+  const legalRaw = firstDefined(
+    root.legal,
+    root.legalMoneyFlow,
+    root.hoghoghi,
+    root.corporate
+  );
+
+  const real = normalizeMoneyFlowBreakdown(realRaw) || (normalizeMoneyFlowValue(realRaw) !== null
+    ? { inflow: null, outflow: null, net: normalizeMoneyFlowValue(realRaw) }
+    : null);
+
+  const legal = normalizeMoneyFlowBreakdown(legalRaw) || (normalizeMoneyFlowValue(legalRaw) !== null
+    ? { inflow: null, outflow: null, net: normalizeMoneyFlowValue(legalRaw) }
+    : null);
+
+  return { real, legal };
+}
+
 function hasMinimumAnalysisData(data) {
   if (!isObject(data)) return false;
 
@@ -631,6 +669,7 @@ function createQualityMeta(overrides) {
       hasDailyHistory: false,
       hasRichDailyHistory: false,
       hasAdjustedDailyHistory: false,
+      hasMoneyFlow: false,
       isFallbackUsed: false,
       isTradableDataset: false,
       sources: {
@@ -640,13 +679,15 @@ function createQualityMeta(overrides) {
         historySucceeded: false,
         adjustedDailyRequested: false,
         adjustedDailySucceeded: false,
+        moneyFlowRequested: false,
+        moneyFlowSucceeded: false,
       },
     },
     overrides || {}
   );
 }
 
-function buildMarketDataQuality(snapshot, daily, fallbackData, dailyLimit) {
+function buildMarketDataQuality(snapshot, daily, fallbackData, dailyLimit, moneyFlow) {
   const fallbackDaily = getFallbackDailySeries(fallbackData, dailyLimit);
   const resolvedDaily = Array.isArray(daily) && daily.length > 0 ? daily : fallbackDaily;
 
@@ -657,9 +698,15 @@ function buildMarketDataQuality(snapshot, daily, fallbackData, dailyLimit) {
   const hasFallbackSnapshot = fallbackPrice > 0;
   const hasDailyHistory = Array.isArray(resolvedDaily) && resolvedDaily.length >= 1;
   const hasRichDailyHistory = Array.isArray(resolvedDaily) && resolvedDaily.length >= 5;
+  const hasMoneyFlow = Boolean(
+    moneyFlow &&
+    ((moneyFlow.real && toFiniteOrNull(moneyFlow.real.net) !== null) ||
+      (moneyFlow.legal && toFiniteOrNull(moneyFlow.legal.net) !== null))
+  );
 
   let quality = 'invalid';
-  if (hasLiveSnapshot && hasRichDailyHistory) quality = 'live';
+  if (hasLiveSnapshot && hasRichDailyHistory && hasMoneyFlow) quality = 'live-rich';
+  else if (hasLiveSnapshot && hasRichDailyHistory) quality = 'live';
   else if (hasLiveSnapshot && hasDailyHistory) quality = 'live-limited-history';
   else if (hasLiveSnapshot) quality = 'snapshot-only';
   else if (hasFallbackSnapshot && hasRichDailyHistory) quality = 'fallback-with-history';
@@ -673,6 +720,7 @@ function buildMarketDataQuality(snapshot, daily, fallbackData, dailyLimit) {
     hasDailyHistory,
     hasRichDailyHistory,
     hasAdjustedDailyHistory: hasDailyHistory,
+    hasMoneyFlow,
     isFallbackUsed: !hasLiveSnapshot && (hasFallbackSnapshot || hasDailyHistory),
     isTradableDataset: hasLiveSnapshot || hasFallbackSnapshot || hasDailyHistory,
   };
@@ -690,6 +738,7 @@ function buildQualityWarnings(qualityMeta) {
   if (qualityMeta.quality === 'fallback-with-history') warnings.push('fallback-snapshot');
   if (qualityMeta.quality === 'history-only') warnings.push('missing-live-snapshot');
   if (!qualityMeta.hasRichDailyHistory) warnings.push('short-daily-history');
+  if (!qualityMeta.hasMoneyFlow) warnings.push('missing-money-flow');
 
   if (qualityMeta.sources && qualityMeta.sources.liveSnapshotRequested && !qualityMeta.sources.liveSnapshotSucceeded) {
     warnings.push('live-snapshot-fetch-failed');
@@ -701,6 +750,10 @@ function buildQualityWarnings(qualityMeta) {
     !(qualityMeta.sources.adjustedDailySucceeded || qualityMeta.sources.historySucceeded)
   ) {
     warnings.push('history-fetch-failed');
+  }
+
+  if (qualityMeta.sources && qualityMeta.sources.moneyFlowRequested && !qualityMeta.sources.moneyFlowSucceeded) {
+    warnings.push('money-flow-fetch-failed');
   }
 
   return Array.from(new Set(warnings));
@@ -730,7 +783,7 @@ function buildDailySummary(merged, dailySeries) {
   };
 }
 
-function buildResolvedMarketData(snapshot, daily, fallbackData, qualityMeta, dailyLimit) {
+function buildResolvedMarketData(snapshot, daily, fallbackData, qualityMeta, dailyLimit, moneyFlow) {
   const merged = Object.assign({}, fallbackData || {}, snapshot || {});
   const fallbackDaily = getFallbackDailySeries(fallbackData, dailyLimit);
   const resolvedDaily = Array.isArray(daily) && daily.length > 0 ? daily : fallbackDaily;
@@ -759,6 +812,28 @@ function buildResolvedMarketData(snapshot, daily, fallbackData, qualityMeta, dai
     mergePreferSnapshot(fallbackMetrics, pickFirstObject(merged.marketMetrics)),
     snapshotMetrics
   );
+
+  // money-flow injection (new)
+  if (moneyFlow && isObject(moneyFlow)) {
+    merged.moneyFlow = moneyFlow;
+    if (moneyFlow.real && toFiniteOrNull(moneyFlow.real.net) !== null) merged.realMoneyFlow = moneyFlow.real.net;
+    if (moneyFlow.legal && toFiniteOrNull(moneyFlow.legal.net) !== null) merged.legalMoneyFlow = moneyFlow.legal.net;
+
+    mergedMetrics.realMoneyFlow = firstDefined(
+      toFiniteOrNull(mergedMetrics.realMoneyFlow),
+      toFiniteOrNull(merged.realMoneyFlow),
+      moneyFlow.real ? toFiniteOrNull(moneyFlow.real.net) : null
+    );
+
+    mergedMetrics.legalMoneyFlow = firstDefined(
+      toFiniteOrNull(mergedMetrics.legalMoneyFlow),
+      toFiniteOrNull(merged.legalMoneyFlow),
+      moneyFlow.legal ? toFiniteOrNull(moneyFlow.legal.net) : null
+    );
+
+    mergedMetrics.realMoneyFlowBreakdown = mergedMetrics.realMoneyFlowBreakdown || (moneyFlow.real || null);
+    mergedMetrics.legalMoneyFlowBreakdown = mergedMetrics.legalMoneyFlowBreakdown || (moneyFlow.legal || null);
+  }
 
   merged.marketMetrics = mergedMetrics;
 
@@ -797,6 +872,7 @@ function buildResolvedMarketData(snapshot, daily, fallbackData, qualityMeta, dai
     hasDailyHistory: safeQualityMeta.hasDailyHistory,
     hasRichDailyHistory: safeQualityMeta.hasRichDailyHistory,
     hasAdjustedDailyHistory: safeQualityMeta.hasAdjustedDailyHistory,
+    hasMoneyFlow: safeQualityMeta.hasMoneyFlow,
     isFallbackUsed: safeQualityMeta.isFallbackUsed,
     isTradableDataset: safeQualityMeta.isTradableDataset,
     hasMinimumAnalysisData: hasMinimumAnalysisData(merged),
@@ -849,6 +925,7 @@ function buildMarketClosedFallbackPayload(basePayload) {
     hasDailyHistory: Array.isArray(payload.dailyCandles) && payload.dailyCandles.length > 0,
     hasRichDailyHistory: Array.isArray(payload.dailyCandles) && payload.dailyCandles.length >= 5,
     hasAdjustedDailyHistory: Array.isArray(payload.adjustedDailyCandles) && payload.adjustedDailyCandles.length > 0,
+    hasMoneyFlow: Boolean(toFiniteOrNull(payload.realMoneyFlow) !== null || toFiniteOrNull(payload.legalMoneyFlow) !== null),
     isFallbackUsed: true,
     isTradableDataset: hasAnyMinimumData,
     hasMinimumAnalysisData: hasAnyMinimumData,
@@ -1027,6 +1104,8 @@ function buildResponseMarketData(analysisPayload, responseMarketMetrics, respons
       ? responseMarketMetrics.legalMoneyFlowBreakdown
       : null,
 
+    moneyFlow: analysisPayload && analysisPayload.moneyFlow ? analysisPayload.moneyFlow : null,
+
     dailyCandles,
     adjustedDailyCandles,
     priceHistory: {
@@ -1038,13 +1117,51 @@ function buildResponseMarketData(analysisPayload, responseMarketMetrics, respons
   };
 }
 
+function computeLowQualityMeta(quality, analysisPayload, aiResultData) {
+  const warnings = (analysisPayload && analysisPayload._meta && Array.isArray(analysisPayload._meta.warnings))
+    ? analysisPayload._meta.warnings
+    : [];
+
+  const aiMeta = isObject(aiResultData && aiResultData.meta) ? aiResultData.meta : {};
+
+  const lowFromAI = Boolean(
+    aiResultData && (
+      aiResultData.lowQuality === true ||
+      aiMeta.lowQuality === true ||
+      aiResultData.dataInsufficient === true ||
+      aiMeta.dataInsufficient === true
+    )
+  );
+
+  const lowFromQuality = !quality || ['invalid', 'snapshot-only', 'history-only', 'fallback-only'].includes(quality.quality);
+  const lowFromWarnings = warnings.some((w) =>
+    ['insufficient-market-data', 'limited-history', 'missing-money-flow', 'history-fetch-failed'].includes(w)
+  );
+
+  const lowQuality = lowFromAI || lowFromQuality || lowFromWarnings;
+
+  const lowQualityReason = firstDefined(
+    aiResultData && aiResultData.lowQualityReason,
+    aiMeta.lowQualityReason,
+    lowFromQuality ? 'input-market-data-low-quality' : null,
+    lowFromWarnings ? ('warnings:' + warnings.join(',')) : null,
+    null
+  );
+
+  return {
+    lowQuality,
+    lowQualityReason,
+    dataQualityScore: quality && quality.quality ? quality.quality : 'unknown',
+  };
+}
+
 async function resolveAnalysisContext(symbol, fallbackData, dailyCount, weeklyCount) {
   const normalizedDailyCount = Math.max(5, toNumber(dailyCount, 30));
   const invalidQuality = createQualityMeta();
 
   if (!symbol) {
     return {
-      marketData: buildResolvedMarketData(null, [], fallbackData, invalidQuality, normalizedDailyCount),
+      marketData: buildResolvedMarketData(null, [], fallbackData, invalidQuality, normalizedDailyCount, null),
       quality: invalidQuality,
     };
   }
@@ -1052,13 +1169,16 @@ async function resolveAnalysisContext(symbol, fallbackData, dailyCount, weeklyCo
   const context = {
     snapshot: null,
     daily: [],
+    moneyFlow: null,
     snapshotError: null,
     historyError: null,
+    moneyFlowError: null,
   };
 
   const historyLimit = Math.max(normalizedDailyCount, 30);
   const canFetchAdjusted = brsService && typeof brsService.getAdjustedDailyCandlestick === 'function';
   const canFetchHistory = brsService && typeof brsService.getSymbolHistory === 'function';
+  const canFetchMoneyFlow = brsService && typeof brsService.getMoneyFlow === 'function';
 
   const qualitySources = {
     liveSnapshotRequested: Boolean(brsService && typeof brsService.getSymbolData === 'function'),
@@ -1067,6 +1187,8 @@ async function resolveAnalysisContext(symbol, fallbackData, dailyCount, weeklyCo
     historySucceeded: false,
     adjustedDailyRequested: Boolean(canFetchAdjusted),
     adjustedDailySucceeded: false,
+    moneyFlowRequested: Boolean(canFetchMoneyFlow),
+    moneyFlowSucceeded: false,
   };
 
   const tasks = [];
@@ -1114,11 +1236,29 @@ async function resolveAnalysisContext(symbol, fallbackData, dailyCount, weeklyCo
     );
   }
 
+  if (canFetchMoneyFlow) {
+    tasks.push(
+      brsService.getMoneyFlow(symbol)
+        .then((mfResponse) => {
+          const normalized = normalizeMoneyFlowPayload(mfResponse);
+          context.moneyFlow = normalized;
+          qualitySources.moneyFlowSucceeded = Boolean(
+            (normalized.real && toFiniteOrNull(normalized.real.net) !== null) ||
+            (normalized.legal && toFiniteOrNull(normalized.legal.net) !== null)
+          );
+        })
+        .catch((err) => {
+          context.moneyFlowError = err;
+          console.warn('[Analyze] Money flow fetch failed for ' + symbol + ':', err.message);
+        })
+    );
+  }
+
   if (tasks.length > 0) await Promise.allSettled(tasks);
 
   const quality = createQualityMeta(
     Object.assign(
-      buildMarketDataQuality(context.snapshot, context.daily, fallbackData, normalizedDailyCount),
+      buildMarketDataQuality(context.snapshot, context.daily, fallbackData, normalizedDailyCount, context.moneyFlow),
       { sources: qualitySources }
     )
   );
@@ -1128,7 +1268,8 @@ async function resolveAnalysisContext(symbol, fallbackData, dailyCount, weeklyCo
     context.daily,
     fallbackData,
     quality,
-    normalizedDailyCount
+    normalizedDailyCount,
+    context.moneyFlow
   );
 
   return {
@@ -1137,6 +1278,7 @@ async function resolveAnalysisContext(symbol, fallbackData, dailyCount, weeklyCo
     errors: {
       snapshot: context.snapshotError,
       history: context.historyError,
+      moneyFlow: context.moneyFlowError,
     },
   };
 }
@@ -1208,7 +1350,8 @@ const analyzeStockHandler = async (req, res) => {
           [],
           fallbackMarketData,
           createQualityMeta(resolvedContext.quality),
-          options.dailyCount
+          options.dailyCount,
+          null
         );
 
     const hasHistory =
@@ -1249,6 +1392,17 @@ const analyzeStockHandler = async (req, res) => {
       console.warn('[Analyze] Market closed; proceeding with minimal fallback for ' + normalizedSymbol);
     }
 
+    if (shouldRejectAnalysisQuality(resolvedContext.quality)) {
+      return res.status(422).json({
+        success: false,
+        message: 'کیفیت داده برای تحلیل کافی نیست.',
+        code: 'LOW_QUALITY_INPUT',
+        dataQuality: resolvedContext.quality ? resolvedContext.quality.quality : 'unknown',
+        warnings: analysisPayload && analysisPayload._meta ? analysisPayload._meta.warnings : [],
+        requestId: generateRequestId(),
+      });
+    }
+
     const result = await aiService.analyzeStock({
       symbol: normalizedSymbol,
       data: analysisPayload,
@@ -1260,24 +1414,70 @@ const analyzeStockHandler = async (req, res) => {
       temperature: options.temperature,
     });
 
-    const userId = extractUserId(req);
+    const qualityMeta = computeLowQualityMeta(resolvedContext.quality, analysisPayload, result && result.data);
+
+        const userId = extractUserId(req);
+
     if (prisma && userId !== null && result && result.data) {
       try {
-        await prisma.analysisHistory.create({
-          data: {
-            userId,
-            symbol: normalizedSymbol,
-            recommendation: result.data.recommendation || 'نامشخص',
-            riskLevel: result.data.riskLevel || 'متوسط',
-            summary: result.data.summary || '',
-            resultJson: JSON.stringify(result.data),
-          },
-        });
-      } catch (histErr) {
-        console.warn('[Analyze] History save failed:', histErr.message);
+        const historyResult = result.data;
+
+        const historySymbol =
+          historyResult?.symbol ||
+          normalizedSymbol;
+
+        if (historyResult && historySymbol) {
+          const normalizedResultJson =
+            typeof historyResult === 'string'
+              ? historyResult
+              : JSON.stringify(historyResult);
+
+          await prisma.analysisHistory.create({
+            data: {
+              userId,
+              stock: String(historySymbol).trim(),
+              resultJson: normalizedResultJson,
+            },
+          });
+
+          /*
+           * فقط 3 تحلیل آخر کاربر باقی بماند.
+           */
+          const historyIds =
+            await prisma.analysisHistory.findMany({
+              where: { userId },
+              select: { id: true },
+              orderBy: {
+                createdAt: 'desc',
+              },
+            });
+
+          if (historyIds.length > 3) {
+            await prisma.analysisHistory.deleteMany({
+              where: {
+                id: {
+                  in: historyIds
+                    .slice(3)
+                    .map((item) => item.id),
+                },
+              },
+            });
+          }
+
+          console.log(
+            `[Analyze] History saved: user=${userId}, stock=${historySymbol}`
+          );
+        }
+      } catch (historyError) {
+        /*
+         * خطای History نباید باعث شکست خود تحلیل شود.
+         */
+        console.error(
+          '[Analyze] History save failed:',
+          historyError
+        );
       }
     }
-
     const responseMarketMetrics = isObject(analysisPayload && analysisPayload.marketMetrics)
       ? analysisPayload.marketMetrics
       : enrichMarketMetrics(analysisPayload || {});
@@ -1289,7 +1489,6 @@ const analyzeStockHandler = async (req, res) => {
       responsePriceHistory
     );
 
-    // ✅ FIX: put market payload inside data as well (frontend compatibility)
     const responseData = Object.assign({}, result && isObject(result.data) ? result.data : {}, {
       symbol: normalizedSymbol,
       marketData: responseMarketData,
@@ -1297,13 +1496,16 @@ const analyzeStockHandler = async (req, res) => {
       dailySummary: analysisPayload && analysisPayload.dailySummary ? analysisPayload.dailySummary : null,
       priceHistory: responsePriceHistory,
       marketDataMeta: analysisPayload && analysisPayload._meta ? analysisPayload._meta : null,
+
+      lowQuality: qualityMeta.lowQuality,
+      lowQualityReason: qualityMeta.lowQualityReason,
+      dataQualityScore: qualityMeta.dataQualityScore,
     });
 
     return res.json({
       success: true,
       symbol: normalizedSymbol,
 
-      // backward + frontend compatible
       data: responseData,
       content: result && result.content ? result.content : '',
       model: result && result.model ? result.model : undefined,
@@ -1315,6 +1517,10 @@ const analyzeStockHandler = async (req, res) => {
         analysisPayload && analysisPayload._meta && analysisPayload._meta.analysisDataQuality
           ? analysisPayload._meta.analysisDataQuality
           : (resolvedContext.quality ? resolvedContext.quality.quality : 'unknown'),
+
+      dataQualityScore: qualityMeta.dataQualityScore,
+      lowQuality: qualityMeta.lowQuality,
+      lowQualityReason: qualityMeta.lowQualityReason,
 
       warnings:
         analysisPayload && analysisPayload._meta && Array.isArray(analysisPayload._meta.warnings)
@@ -1528,7 +1734,10 @@ async function shutdownPrisma() {
     try {
       await prisma.$disconnect();
     } catch (err) {
-      console.warn('[Analyze] Prisma disconnect failed:', err.message);
+      console.warn(
+        '[Analyze] Prisma disconnect failed:',
+        err.message
+      );
     }
   }
 }

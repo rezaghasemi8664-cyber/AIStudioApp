@@ -4,6 +4,14 @@ import api from '../api/apiClient';
 import { getLatestSummary } from '../services/marketSummaryService';
 import { exportElementToPdf } from '../utils/exportToPdf';
 import toast from 'react-hot-toast';
+import * as analysisHistoryService from '../services/analysisHistoryService';
+import {
+  addAnalysisToHistory,
+  getAnalysisHistory,
+  getAnalysisHistoryItem,
+  deleteAnalysisFromHistory,
+} from '../services/analysisHistoryService';
+
 
 import type {
   AnalysisPoint,
@@ -19,7 +27,7 @@ import type {
 type AnalysisHistoryItem = {
   id: string;
   symbol: string;
-  result: string;
+  result: AnalysisResult | null;
   createdAt: string;
 };
 
@@ -69,6 +77,14 @@ type UnifiedAnalysisResult = AnalysisResult & {
 type NormalizedAnalysis = {
   rawText: string;
   data: UnifiedAnalysisResult | null;
+};
+
+type AnalysisDetailState = {
+  id?: string;
+  symbol?: string;
+  fullText?: string;
+  parsedResult?: unknown;
+  createdAt?: string;
 };
 
 const recommendationMap: Record<string, string> = {
@@ -189,9 +205,14 @@ function parseJsonSafely(raw: string) {
   }
 }
 
-function getNestedValue(obj: any, path: string): any {
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   if (!obj || typeof obj !== 'object') return undefined;
-  return path.split('.').reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
+  return path.split('.').reduce<unknown>((acc, key) => {
+    if (acc && typeof acc === 'object' && key in (acc as Record<string, unknown>)) {
+      return (acc as Record<string, unknown>)[key];
+    }
+    return undefined;
+  }, obj);
 }
 
 function getPropByAliases<T>(obj: any, aliases: string[], defaultValue: T | null = null): T | null {
@@ -847,9 +868,11 @@ function CandleChart({
   );
 }
 
+
 export default function StockAnalysis() {
   const reportRef = useRef<HTMLDivElement | null>(null);
 
+  const [analysisUsage, setAnalysisUsage] = useState<AnalysisUsage | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('analysis');
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
@@ -861,6 +884,70 @@ export default function StockAnalysis() {
   const [marketSummary, setMarketSummary] = useState<MarketSummary | null>(null);
   const [isLoadingMarketSummary, setIsLoadingMarketSummary] = useState(false);
   const [hasUnreadMarketSummary, setHasUnreadMarketSummary] = useState(false);
+  const [selectedAnalysisId, setSelectedAnalysisId] = useState<string | null>(null);
+  const [selectedAnalysisDetail, setSelectedAnalysisDetail] = useState<any | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  
+useEffect(() => {
+  let cancelled = false;
+
+  const loadHistory = async () => {
+    try {
+      const items = await getAnalysisHistory('');
+
+      if (cancelled) return;
+
+      setAnalysisHistory(
+        items
+          .filter((item) => item.id)
+          .map((item) => ({
+            id: String(item.id),
+            symbol: item.symbol || item.stock || '',
+            result:
+              item.parsedResult ??
+              item.result ??
+              null,
+            createdAt:
+              item.createdAt ??
+              item.created_at ??
+              new Date(item.timestamp).toISOString(),
+          }))
+      );
+    } catch (error) {
+      console.error(
+        '[StockAnalysis] failed to load history:',
+        error
+      );
+    }
+  };
+
+  loadHistory();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
+
+   // تابع فراخوانی جزئیات از سرور
+  const fetchAnalysisDetail = async (id: string) => {
+    setLoadingDetail(true);
+    setDetailError(null);
+    setSelectedAnalysisId(id);
+    try {
+      const detail = await analysisHistoryService.getAnalysisDetail(id);
+      if (detail) {
+        setSelectedAnalysisDetail(detail);
+      } else {
+        setDetailError('داده‌ای برای جزئیات این تحلیل یافت نشد.');
+      }
+    } catch (error) {
+      console.error('Error fetching analysis detail:', error);
+      setDetailError('خطا در برقراری ارتباط با سرور جهت دریافت جزئیات تحلیل.');
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
 
   const analyzeStock = async (symbol: string) => {
     const trimmedSymbol = symbol.trim();
@@ -909,9 +996,54 @@ export default function StockAnalysis() {
     return undefined;
   }
 };
+    
+      const renderAnalysisHistory = () => {
+  if (historyLoading) {
+    return (
+      <div className="flex justify-center items-center py-8">
+        <LoadingSpinner size="md" />
+      </div>
+    );
+  }
 
+  if (analysisHistory.length === 0) {
+    return (
+      <div className="text-center py-8 text-gray-400">
+        تاریخچه تحلیلی یافت نشد.
+      </div>
+    );
+  }
 
+  return (
+    <div className="space-y-4">
+      {analysisHistory.map((item) => (
+  <div
+    key={item.id}
+    onClick={() => openHistoryItem(item.id)}
+    role="button"
+    tabIndex={0}
+    onKeyDown={(event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openHistoryItem(item.id);
+      }
+    }}
+    className="bg-gray-800 p-4 rounded-lg border border-gray-700 relative group cursor-pointer hover:border-blue-500 hover:bg-gray-750 transition-all duration-200"
+  >
+    <div className="flex justify-between items-start mb-2">
+      <div>
+        <span className="text-lg font-bold text-white ml-2">
+          {item.symbol}
+        </span>
+      </div>
+    </div>
+  </div>
+))}
+    </div>
+  );
+};
 
+               
   const handleExportPdf = async () => {
   const reportEl = reportRef.current;
 
@@ -980,22 +1112,43 @@ export default function StockAnalysis() {
       setAnalysisResult(response.rawText);
       setAnalysisData(response.data);
 
-      setAnalysisHistory((prev) => {
-        if (prev.length >= 3) {
-          setShowHistoryLimitWarning(true);
-          return prev;
-        }
+      if (response.data) {
+  try {
+    const saved = await addAnalysisToHistory('', {
+      symbol: trimmedSymbol,
+      recommendation: response.data.recommendation,
+      riskLevel: response.data.riskLevel,
+      summary: response.data.summary,
+      result: response.data,
+    });
 
-        return [
-          {
-            id: crypto.randomUUID(),
-            symbol: trimmedSymbol,
-            result: response.data?.summary ?? response.rawText,
-            createdAt: response.data?.analysisDate ?? new Date().toISOString(),
-          },
-          ...prev,
-        ];
-      });
+    if (saved.id) {
+      setAnalysisHistory((prev) => [
+        {
+          id: String(saved.id),
+          symbol: saved.symbol || trimmedSymbol,
+          result:
+            saved.parsedResult ??
+            saved.result ??
+            response.data,
+          createdAt:
+            saved.createdAt ??
+            new Date(saved.timestamp).toISOString(),
+        },
+        ...prev,
+      ]);
+    }
+  } catch (historyError) {
+    console.error(
+      '[StockAnalysis] failed to save history:',
+      historyError
+    );
+
+    toast.error(
+      'تحلیل انجام شد اما ذخیره تاریخچه ناموفق بود.'
+    );
+  }
+}
     } catch (e: any) {
       setAnalysisResult(null);
       setAnalysisData(null);
@@ -1005,49 +1158,115 @@ export default function StockAnalysis() {
     }
   };
 
+const clearCurrentAnalysis = () => {
+  setAnalysisResult(null);
+  setAnalysisData(null);
+  setAnalysisMeta(null);
+  setAnalysisError(null);
+};
+
   useEffect(() => {
     if (activeTab !== 'marketSummary') return;
 
-    if (!marketSummary) {
-      setIsLoadingMarketSummary(true);
-fetchMarketSummary()
-  .then((res) => {
-    if (!res) {
-      setMarketSummary(undefined);
-      return;
-    }
-
-    setMarketSummary({
-      content: res.content ?? 'خلاصه بازار در دسترس نیست.',
-      createdAt: res.createdAt ?? new Date().toISOString(),
-    });
-    setHasUnreadMarketSummary(false);
-  })
-
-        .catch((e: any) => {
+    let isMounted = true;
+    const run = async () => {
+      if (!marketSummary) {
+        setIsLoadingMarketSummary(true);
+        try {
+          const res = await fetchMarketSummary();
+          if (!isMounted) return;
+          if (!res) {
+            setMarketSummary(null);
+            return;
+          }
+ setMarketSummary({
+            content: res.content ?? 'خلاصه بازار در دسترس نیست.',
+            createdAt: res.createdAt ?? new Date().toISOString(),
+          });
+          setHasUnreadMarketSummary(false);
+        } catch (e) {
           console.error(e);
-        })
-        .finally(() => {
-          setIsLoadingMarketSummary(false);
-        });
-    } else {
-      setHasUnreadMarketSummary(false);
-    }
+        } finally {
+          if (isMounted) setIsLoadingMarketSummary(false);
+        }
+      } else {
+        setHasUnreadMarketSummary(false);
+      }
+    };
+
+    void run();
+    return () => {
+      isMounted = false;
+    };
   }, [activeTab, marketSummary]);
 
-  const clearCurrentAnalysis = () => {
-    if (analysisResult && window.confirm('تحلیل فعلی حذف شود؟')) {
-      setAnalysisResult(null);
-      setAnalysisData(null);
-      setAnalysisError(null);
-    }
-  };
+  const removeHistoryItem = async (id: string) => {
+  if (!window.confirm('این تحلیل حذف شود؟')) {
+    return;
+  }
 
-  const removeHistoryItem = (id: string) => {
-    if (window.confirm('این تحلیل حذف شود؟')) {
-      setAnalysisHistory((prev) => prev.filter((item) => item.id !== id));
+  try {
+    await deleteAnalysisFromHistory('', id);
+
+    setAnalysisHistory((prev) =>
+      prev.filter((item) => item.id !== id)
+    );
+
+    toast.success('تحلیل از تاریخچه حذف شد.');
+  } catch (error) {
+    console.error(
+      '[StockAnalysis] failed to delete history item:',
+      error
+    );
+
+    toast.error(
+      error instanceof Error
+        ? error.message
+        : 'حذف تحلیل ناموفق بود.'
+    );
+  }
+};
+
+  const openHistoryItem = async (id: string) => {
+  try {
+    const item = await getAnalysisHistoryItem('', id);
+
+    const fullResult =
+      item.parsedResult ??
+      item.result;
+
+    if (!fullResult) {
+      throw new Error(
+        'نسخه کامل تحلیل در تاریخچه موجود نیست.'
+      );
     }
-  };
+
+    const normalized = normalizeAnalysisShape(fullResult);
+
+    setSelectedSymbol(
+      item.symbol || normalized?.symbol || ''
+    );
+
+    setAnalysisData(normalized);
+    setAnalysisResult(
+      JSON.stringify(fullResult, null, 2)
+    );
+
+    setAnalysisError(null);
+    setActiveTab('analysis');
+  } catch (error) {
+    console.error(
+      '[StockAnalysis] failed to open history item:',
+      error
+    );
+
+    toast.error(
+      error instanceof Error
+        ? error.message
+        : 'دریافت تحلیل کامل ناموفق بود.'
+    );
+  }
+};
 
   const analysisMeta = useMemo(() => {
     if (!analysisData) return null;
@@ -1797,35 +2016,50 @@ fetchMarketSummary()
 
             return (
               <div
-                key={item.id}
-                className="flex justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"
-              >
-                <div className="min-w-0">
-                  <div className="text-[15px] font-extrabold text-blue-700">{item.symbol}</div>
-                  <div className="mt-1 text-[11px] font-medium text-slate-500">
-                    {date.toLocaleDateString('fa-IR')} -{' '}
-                    {date.toLocaleTimeString('fa-IR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </div>
-                  <div className="mt-2 line-clamp-2 text-[13px] font-medium leading-7 text-slate-800">
-                    {item.result}
-                  </div>
-                </div>
+  key={item.id}
+  onClick={() => fetchAnalysisDetail(item.id)}
+  onKeyDown={(e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      fetchAnalysisDetail(item.id);
+    }
+  }}
+  role="button"
+  tabIndex={0}
+  className="flex justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 cursor-pointer transition hover:border-blue-300 hover:bg-blue-50/40"
+>
 
-                <button
-                  onClick={() => removeHistoryItem(item.id)}
-                  className="shrink-0 rounded p-1 text-rose-600 transition-colors hover:bg-rose-50"
-                  aria-label="حذف"
-                ><TrashIcon className="h-4 w-4" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
+                <div className="min-w-0">
+  <div className="text-[15px] font-extrabold text-blue-700">{item.symbol}</div>
+  <div className="mt-1 text-[11px] font-medium text-slate-500">
+    {date.toLocaleDateString('fa-IR')} -{' '}
+    {date.toLocaleTimeString('fa-IR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })}
+  </div>
+  <div className="mt-2 line-clamp-2 text-[13px] font-medium leading-7 text-slate-800">
+    {item.result?.summary ?? item.summary ?? 'تحلیل ذخیره شده'}
+  </div>
+</div>
+
+<button
+  onClick={(e) => {
+    e.stopPropagation();
+    removeHistoryItem(item.id);
+  }}
+  className="shrink-0 rounded p-1 text-rose-600 transition-colors hover:bg-rose-50"
+  aria-label="حذف"
+>
+  <TrashIcon className="h-4 w-4" />
+</button>
+
+      </div>
+    );
+  })}
+
+  </div>
+ )}
     </div>
   );
 }
-

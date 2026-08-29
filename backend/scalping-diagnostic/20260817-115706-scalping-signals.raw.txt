@@ -1,0 +1,2 @@
+﻿{"success":true,"data":{"signals":[],"totalSignals":0,"activeSignals":0,"bestSignal":null,"lastUpdate":null,"lastUpdated":null}}
+

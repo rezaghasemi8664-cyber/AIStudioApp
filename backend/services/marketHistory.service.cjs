@@ -9,6 +9,8 @@ const BRS_API_KEY = env.BRS_API_KEY || "";
 const BRS_TIMEOUT_MS = parseInt(env.BRS_TIMEOUT_MS, 10) || 15000;
 const BRS_RETRY_COUNT = parseInt(env.BRS_RETRY_COUNT, 10) || 2;
 const BRS_RETRY_DELAY_MS = parseInt(env.BRS_RETRY_DELAY_MS, 10) || 1200;
+const MARKET_FRESHNESS_MINUTES =
+  parseInt(env.MARKET_FRESHNESS_MINUTES, 10) || 15;
 
 const BRS_ENDPOINTS = {
   allSymbols:
@@ -163,6 +165,37 @@ function safeParseJson(value) {
   }
 }
 
+function toDateSafe(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function diffMinutes(fromDate, toDate = new Date()) {
+  if (!(fromDate instanceof Date) || Number.isNaN(fromDate.getTime())) return null;
+  return Math.floor((toDate.getTime() - fromDate.getTime()) / 60000);
+}
+
+function enrichFreshnessMeta(base = {}, createdAtLike = null, source = "db") {
+  const now = new Date();
+  const generatedAt = toDateSafe(createdAtLike) || null;
+  const ageMinutes = generatedAt ? diffMinutes(generatedAt, now) : null;
+  const isStale =
+    ageMinutes == null ? true : ageMinutes > MARKET_FRESHNESS_MINUTES;
+
+  return {
+    ...base,
+    _meta: {
+      generatedAt: generatedAt ? generatedAt.toISOString() : null,
+      ageMinutes,
+      freshnessThresholdMinutes: MARKET_FRESHNESS_MINUTES,
+      isStale,
+      source,
+      now: now.toISOString(),
+    },
+  };
+}
+
 function extractStoredMarketSnapshot(record) {
   if (!record) return null;
 
@@ -175,25 +208,37 @@ function extractStoredMarketSnapshot(record) {
   };
 
   if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-    return {
-      ...parsed,
-      ...metadata,
-    };
+    return enrichFreshnessMeta(
+      {
+        ...parsed,
+        ...metadata,
+      },
+      record.createdAt || record.updatedAt || null,
+      "db"
+    );
   }
 
   if (parsed !== null) {
-    return {
-      data: parsed,
-      ...metadata,
-    };
+    return enrichFreshnessMeta(
+      {
+        data: parsed,
+        ...metadata,
+      },
+      record.createdAt || record.updatedAt || null,
+      "db"
+    );
   }
 
-  return {
-    id: record.id ?? null,
-    jsonData: record.jsonData ?? null,
-    createdAt: record.createdAt ?? null,
-    ...metadata,
-  };
+  return enrichFreshnessMeta(
+    {
+      id: record.id ?? null,
+      jsonData: record.jsonData ?? null,
+      createdAt: record.createdAt ?? null,
+      ...metadata,
+    },
+    record.createdAt || record.updatedAt || null,
+    "db"
+  );
 }
 
 async function fetchAllSymbols() {
@@ -230,17 +275,29 @@ async function fetchIndex() {
   const url = buildUrl(BRS_ENDPOINTS.index, { type: 1 });
 
   try {
-    return await brsRequest(url);
+    const live = await brsRequest(url);
+    return enrichFreshnessMeta(
+      {
+        ...live,
+        _fallback: false,
+      },
+      new Date(),
+      "live"
+    );
   } catch (error) {
     console.error("[MARKET][INDEX] Live fetch failed:", error.message);
 
     const fallback = await getLatestMarketHistory();
     if (fallback) {
-      return {
-        ...fallback,
-        _fallback: true,
-        _fallbackReason: error.message,
-      };
+      return enrichFreshnessMeta(
+        {
+          ...fallback,
+          _fallback: true,
+          _fallbackReason: error.message,
+        },
+        fallback?._createdAt || fallback?._updatedAt || null,
+        "history-fallback"
+      );
     }
 
     throw error;
@@ -387,7 +444,6 @@ function toFiniteNumber(value, fallback = 0) {
 function normalizeMarketSnapshot(input) {
   if (!isPlainObject(input)) return null;
 
-  // envelope احتمالی: { data: {...}, _cached, _fallback }
   const raw =
     isPlainObject(input.data) &&
     input.index == null &&
@@ -451,7 +507,6 @@ function normalizeMarketSnapshot(input) {
   const state = raw.state || raw.marketState || raw.status || "";
 
   return {
-    // فیلدهای BRS-like (برای mapDbSnapshotToMarketIndex)
     date,
     time,
     state,
@@ -472,7 +527,6 @@ function normalizeMarketSnapshot(input) {
     tradeVolume,
     volume: tradeVolume,
 
-    // فیلدهای camelCase هم‌تراز brs mapMarketIndexResponse
     value: index,
     changeValue: indexChange,
     equalWeightedValue: indexEqualWeight,
@@ -500,7 +554,7 @@ async function saveMarketSnapshot(data) {
     return null;
   }
 
-  if (data._fallback === true) {
+  if (data._fallback === true || data?._meta?.source === "history-fallback") {
     console.warn(
       "[MARKET][SNAPSHOT] Skip: fallback payload must not be re-persisted"
     );
@@ -527,7 +581,6 @@ async function saveMarketSnapshot(data) {
 
   return extractStoredMarketSnapshot(record);
 }
-
 
 module.exports = {
   fetchAllSymbols,
