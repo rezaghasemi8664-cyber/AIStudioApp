@@ -1024,36 +1024,93 @@ useEffect(() => {
   const fetchMarketSummary = async () => {
   try {
     const response = await getLatestSummary();
+
+    if (!response || typeof response !== 'object') {
+      return undefined;
+    }
+
+    // getLatestSummary در نسخه فعلی سرویس، داده نرمال‌شده
+    // را مستقیماً برمی‌گرداند.
     const payload =
-      response && typeof response === 'object'
-        ? (response as any).data ?? response
-        : undefined;
+      (response as any).data &&
+      typeof (response as any).data === 'object'
+        ? (response as any).data
+        : response;
 
     if (!payload || typeof payload !== 'object') {
       return undefined;
     }
 
-    const fallbackText =
-      typeof payload.content === 'string' && payload.content.trim()
-        ? payload.content
-        : typeof payload.summary === 'string' && payload.summary.trim()
-          ? payload.summary
-          : (() => {
-              const overallIndex = Number(payload.overallIndex ?? payload.index ?? 0);
-              const overallChange = Number(payload.overallChange ?? payload.index_change ?? 0);
-              const marketStatus = payload.marketStatus ?? payload.state ?? 'نامشخص';
-              const totalTrades = payload.totalTrades ?? payload.tno ?? 'نامشخص';
-              const totalVolume = payload.totalVolume ?? payload.tvol ?? 'نامشخص';
-              const totalValue = payload.totalValue ?? payload.tval ?? 'نامشخص';
-              return `شاخص کل: ${Number.isFinite(overallIndex) ? overallIndex.toLocaleString('fa-IR') : 'نامشخص'}${Number.isFinite(overallChange) ? ` (${overallChange >= 0 ? '+' : ''}${overallChange.toLocaleString('fa-IR')}%)` : ''}؛ وضعیت بازار: ${marketStatus}؛ تعداد معاملات: ${totalTrades}؛ حجم معاملات: ${totalVolume}؛ ارزش معاملات: ${totalValue}.`;
-            })();
+    const content =
+      typeof (payload as any).content === 'string' &&
+      (payload as any).content.trim()
+        ? (payload as any).content
+        : typeof (payload as any).summary === 'string' &&
+            (payload as any).summary.trim()
+          ? (payload as any).summary
+          : '';
+
+    const overallIndex = Number(
+      (payload as any).overallIndex ??
+        (payload as any).index ??
+        0,
+    );
+
+    const overallChange = Number(
+      (payload as any).overallChange ??
+        (payload as any).index_change ??
+        0,
+    );
+
+    const marketStatus =
+      (payload as any).marketStatus ??
+      (payload as any).state ??
+      'نامشخص';
+
+    const totalTrades =
+      (payload as any).totalTrades ??
+      (payload as any).tno ??
+      'نامشخص';
+
+    const totalVolume =
+      (payload as any).totalVolume ??
+      (payload as any).tvol ??
+      'نامشخص';
+
+    const totalValue =
+      (payload as any).totalValue ??
+      (payload as any).tval ??
+      'نامشخص';
+
+    const fallbackText = content || (() => {
+      if (
+        !Number.isFinite(overallIndex) &&
+        totalTrades === 'نامشخص' &&
+        totalValue === 'نامشخص'
+      ) {
+        return 'خلاصه بازار در حال حاضر در دسترس نیست.';
+      }
+
+      return `شاخص کل: ${
+        Number.isFinite(overallIndex)
+          ? overallIndex.toLocaleString('fa-IR')
+          : 'نامشخص'
+      }${
+        Number.isFinite(overallChange)
+          ? ` (${overallChange >= 0 ? '+' : ''}${overallChange.toLocaleString('fa-IR')})`
+          : ''
+      }؛ وضعیت بازار: ${marketStatus}؛ تعداد معاملات: ${totalTrades}؛ حجم معاملات: ${totalVolume}؛ ارزش معاملات: ${totalValue}.`;
+    })();
 
     return {
       content: fallbackText,
-      createdAt: payload.createdAt ?? new Date().toISOString(),
+      createdAt:
+        (payload as any).createdAt ??
+        (payload as any).updatedAt ??
+        new Date().toISOString(),
     };
   } catch (error) {
-    console.error('Error fetching market summary:', error);
+    console.error('[MarketSummary] Error fetching market summary:', error);
     return undefined;
   }
 };
@@ -2034,25 +2091,46 @@ const clearCurrentAnalysis = () => {
         </div>
       )}
 
-      {activeTab === 'marketSummary' && (
-        <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          {isLoadingMarketSummary ? (
-            <div className="text-[13px] font-medium text-slate-500">در حال دریافت خلاصه بازار...</div>
-          ) : null}
+     {activeTab === 'marketSummary' && (
+  <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    {isLoadingMarketSummary ? (
+      <div className="text-[13px] font-medium text-slate-500">
+        در حال دریافت خلاصه بازار...
+      </div>
+    ```tsx
+) : marketSummary ? (
+  <>
+    {marketSummary.createdAt && (
+      <div
+        dir="rtl"
+        className="text-[12px] font-semibold text-slate-500"
+      >
+        {new Date(marketSummary.createdAt).toLocaleString('fa-IR')}
+      </div>
+    )}
 
-          {marketSummary ? (
-            <>
-              <div className="text-[12px] font-semibold text-slate-500">
-                {new Date(marketSummary.createdAt).toLocaleString('fa-IR')}
-              </div>
-              <div className="whitespace-pre-wrap text-[14px] font-medium leading-8 text-slate-900">
-                {marketSummary?.content ?? 'محتوای خلاصه بازار در حال حاضر در دسترس نیست.'}
-
-              </div>
-            </>
-          ) : null}
-        </div>
-      )}
+    <div
+      dir="rtl"
+      className="whitespace-pre-wrap text-right text-[14px] font-medium leading-8 text-slate-900"
+    >
+      {typeof marketSummary.content === 'string' &&
+      marketSummary.content.trim()
+        ? marketSummary.content
+        : typeof marketSummary.summary === 'string' &&
+            marketSummary.summary.trim()
+          ? marketSummary.summary
+          : 'محتوای خلاصه بازار در حال حاضر در دسترس نیست.'}
+    </div>
+  </>
+) : (
+  <div
+    dir="rtl"
+    className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-right text-[13px] font-medium leading-7 text-amber-700"
+  >
+    خلاصه بازار برای نمایش دریافت نشد.
+  </div>
+)}
+```
 
       {activeTab === 'history' && (
         <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
