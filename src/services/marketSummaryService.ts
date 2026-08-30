@@ -206,14 +206,30 @@ const isLikelySummary = (candidate: JsonObject | null): boolean => {
 
   const hasDate =
     (typeof candidate.date === 'string' && candidate.date.trim().length > 0) ||
-    (typeof candidate.createdAt === 'string' && candidate.createdAt.trim().length > 0);
+    (typeof candidate.summaryDate === 'string' && candidate.summaryDate.trim().length > 0) ||
+    (typeof candidate.createdAt === 'string' && candidate.createdAt.trim().length > 0) ||
+    (typeof candidate.updatedAt === 'string' && candidate.updatedAt.trim().length > 0);
+
+  const hasContent =
+    (typeof candidate.content === 'string' && candidate.content.trim().length > 0) ||
+    (typeof candidate.summary === 'string' && candidate.summary.trim().length > 0) ||
+    (typeof rawData?.content === 'string' && rawData.content.trim().length > 0) ||
+    (typeof rawData?.summary === 'string' && rawData.summary.trim().length > 0);
 
   const hasSomeSummarySignal =
     'marketStatus' in candidate ||
     'overallIndex' in candidate ||
+    'overallChange' in candidate ||
     'totalValue' in candidate ||
+    'totalTrades' in candidate ||
+    'totalVolume' in candidate ||
     'rawJson' in candidate ||
     !!rawData;
+
+  // اگر متن واقعی خلاصه وجود دارد، پاسخ را معتبر در نظر بگیر.
+  if (hasContent) {
+    return true;
+  }
 
   return hasDate && hasSomeSummarySignal;
 };
@@ -303,16 +319,23 @@ const normalizeSummary = (candidate: JsonObject): MarketSummaryData | null => {
     null;
 
   const dateValue =
-    toNullableString(candidate.date) ??
-    toNullableString(rawData?.date) ??
-    toNullableString(rawTopLevel?.snapshotCreatedAt) ??
-    toNullableString(candidate.createdAt);
+  toNullableString(candidate.date) ??
+  toNullableString(candidate.summaryDate) ??
+  toNullableString(rawData?.date) ??
+  toNullableString(rawData?.summaryDate) ??
+  toNullableString(rawTopLevel?.snapshotCreatedAt) ??
+  toNullableString(candidate.createdAt) ??
+  toNullableString(candidate.updatedAt) ??
+  new Date().toISOString();
 
-  const createdAtValue =
-    toNullableString(candidate.createdAt) ??
-    toNullableString(rawTopLevel?.snapshotCreatedAt) ??
-    toNullableString(rawTopLevel?.cachedAt) ??
-    toNullableString(candidate.date);
+const createdAtValue =
+  toNullableString(candidate.createdAt) ??
+  toNullableString(candidate.updatedAt) ??
+  toNullableString(rawTopLevel?.snapshotCreatedAt) ??
+  toNullableString(rawTopLevel?.cachedAt) ??
+  toNullableString(candidate.date) ??
+  toNullableString(candidate.summaryDate) ??
+  new Date().toISOString();
 
   const content = coalesceStringValue(candidate.content, candidate.summary, rawData?.content, rawData?.summary) ?? buildSummaryText(candidate);
 
