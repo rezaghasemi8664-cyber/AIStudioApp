@@ -374,26 +374,109 @@ const pickMarketSummary = (payload: unknown): MarketSummaryData | null => {
   if (!obj) return null;
 
   const data = asObject(obj.data);
-  const marketSummaryInData = data ? asObject(data.marketSummary) : null;
-  const marketSummaryDirect = asObject(obj.marketSummary);
 
   const candidates: Array<JsonObject | null> = [
-    marketSummaryInData,
-    marketSummaryDirect,
     data,
-    obj
+    data ? asObject(data.marketSummary) : null,
+    asObject(obj.marketSummary),
+    obj,
   ];
 
   for (const candidate of candidates) {
     if (!candidate) continue;
 
+    // اگر پاسخ مستقیماً content/summary دارد،
+    // آن را بدون وابستگی به سایر فیلدهای market-data معتبر بدانیم.
+    const hasText =
+      (typeof candidate.content === 'string' &&
+        candidate.content.trim().length > 0) ||
+      (typeof candidate.summary === 'string' &&
+        candidate.summary.trim().length > 0);
+
+    if (hasText) {
+      const now = new Date().toISOString();
+
+      return {
+        id: toNumber(candidate.id, 0),
+        date:
+          toNullableString(candidate.date) ??
+          toNullableString(candidate.summaryDate) ??
+          toNullableString(candidate.createdAt) ??
+          now,
+        overallIndex: coalesceNumber(
+          candidate.overallIndex,
+          candidate.index
+        ),
+        overallChange: coalesceNumber(
+          candidate.overallChange,
+          candidate.index_change,
+          candidate.indexChange
+        ),
+        equalIndex: coalesceNumber(
+          candidate.equalIndex,
+          candidate.index_equalWeight,
+          candidate.indexEqualWeight
+        ),
+        equalChange: coalesceNumber(
+          candidate.equalChange,
+          candidate.index_equalWeight_change,
+          candidate.indexEqualWeightChange
+        ),
+        marketStatus: normalizeMarketStatus(
+          candidate.marketStatus,
+          candidate.state
+        ),
+        totalTrades: coalesceStringValue(
+          candidate.totalTrades,
+          candidate.tno,
+          candidate.tradeCount
+        ),
+        totalVolume: coalesceStringValue(
+          candidate.totalVolume,
+          candidate.tvol,
+          candidate.tradeVolume
+        ),
+        totalValue: coalesceStringValue(
+          candidate.totalValue,
+          candidate.tval,
+          candidate.tradeValue
+        ),
+        positiveStocks: coalesceNumber(candidate.positiveStocks),
+        negativeStocks: coalesceNumber(candidate.negativeStocks),
+        neutralStocks: coalesceNumber(candidate.neutralStocks),
+        topGainers: asArray(candidate.topGainers),
+        topLosers: asArray(candidate.topLosers),
+        topVolumes: asArray(candidate.topVolumes),
+        rawJson: candidate.rawJson ?? null,
+        createdAt:
+          toNullableString(candidate.createdAt) ??
+          toNullableString(candidate.updatedAt) ??
+          now,
+        updatedAt: toNullableString(candidate.updatedAt),
+        content:
+          toNullableString(candidate.content) ??
+          toNullableString(candidate.summary),
+        summary:
+          toNullableString(candidate.summary) ??
+          toNullableString(candidate.content),
+        fallback:
+          typeof candidate.fallback === 'boolean'
+            ? candidate.fallback
+            : undefined,
+        sourceType: toNullableString(candidate.sourceType),
+        _meta: normalizeMeta(candidate, extractRawData(candidate.rawJson)),
+      };
+    }
+
     const normalized = normalizeSummary(candidate);
-    if (normalized) return normalized;
+
+    if (normalized) {
+      return normalized;
+    }
   }
 
   return null;
 };
-
 const pickDates = (payload: unknown): string[] => {
   const obj = asObject(payload);
   if (!obj) return [];
