@@ -1021,101 +1021,112 @@ useEffect(() => {
     return normalizeAnalysisResponse(response.data);
   };
 
-  const fetchMarketSummary = async () => {
+ 
+const fetchMarketSummary = async () => {
   try {
     const response = await getLatestSummary();
 
     if (!response || typeof response !== 'object') {
+      console.warn('[MarketSummary] Empty response');
       return undefined;
     }
 
-    // getLatestSummary در نسخه فعلی سرویس، داده نرمال‌شده
-    // را مستقیماً برمی‌گرداند.
+    const raw = response as any;
+
     const payload =
-      (response as any).data &&
-      typeof (response as any).data === 'object'
-        ? (response as any).data
-        : response;
+      raw?.data && typeof raw.data === 'object'
+        ? raw.data
+        : raw;
 
-    if (!payload || typeof payload !== 'object') {
-      return undefined;
+    let content = '';
+
+    if (
+      typeof payload?.content === 'string' &&
+      payload.content.trim()
+    ) {
+      content = payload.content.trim();
+    } else if (
+      typeof payload?.summary === 'string' &&
+      payload.summary.trim()
+    ) {
+      content = payload.summary.trim();
     }
 
-    const content =
-      typeof (payload as any).content === 'string' &&
-      (payload as any).content.trim()
-        ? (payload as any).content
-        : typeof (payload as any).summary === 'string' &&
-            (payload as any).summary.trim()
-          ? (payload as any).summary
-          : '';
+    if (!content) {
+      const overallIndex = Number(
+        payload?.overallIndex ?? payload?.index ?? 0
+      );
 
-    const overallIndex = Number(
-      (payload as any).overallIndex ??
-        (payload as any).index ??
-        0,
-    );
+      const overallChange = Number(
+        payload?.overallChange ??
+          payload?.index_change ??
+          0
+      );
 
-    const overallChange = Number(
-      (payload as any).overallChange ??
-        (payload as any).index_change ??
-        0,
-    );
+      const marketStatus =
+        payload?.marketStatus ??
+        payload?.state ??
+        'نامشخص';
 
-    const marketStatus =
-      (payload as any).marketStatus ??
-      (payload as any).state ??
-      'نامشخص';
+      const totalTrades =
+        payload?.totalTrades ??
+        payload?.tno ??
+        'نامشخص';
 
-    const totalTrades =
-      (payload as any).totalTrades ??
-      (payload as any).tno ??
-      'نامشخص';
+      const totalVolume =
+        payload?.totalVolume ??
+        payload?.tvol ??
+        'نامشخص';
 
-    const totalVolume =
-      (payload as any).totalVolume ??
-      (payload as any).tvol ??
-      'نامشخص';
+      const totalValue =
+        payload?.totalValue ??
+        payload?.tval ??
+        'نامشخص';
 
-    const totalValue =
-      (payload as any).totalValue ??
-      (payload as any).tval ??
-      'نامشخص';
+      const indexText = Number.isFinite(overallIndex)
+        ? overallIndex.toLocaleString('fa-IR')
+        : 'نامشخص';
 
-    const fallbackText = content || (() => {
-      if (
-        !Number.isFinite(overallIndex) &&
-        totalTrades === 'نامشخص' &&
-        totalValue === 'نامشخص'
-      ) {
-        return 'خلاصه بازار در حال حاضر در دسترس نیست.';
-      }
+      const changeText = Number.isFinite(overallChange)
+        ? overallChange.toLocaleString('fa-IR')
+        : 'نامشخص';
 
-      return `شاخص کل: ${
-        Number.isFinite(overallIndex)
-          ? overallIndex.toLocaleString('fa-IR')
-          : 'نامشخص'
-      }${
-        Number.isFinite(overallChange)
-          ? ` (${overallChange >= 0 ? '+' : ''}${overallChange.toLocaleString('fa-IR')})`
-          : ''
-      }؛ وضعیت بازار: ${marketStatus}؛ تعداد معاملات: ${totalTrades}؛ حجم معاملات: ${totalVolume}؛ ارزش معاملات: ${totalValue}.`;
-    })();
+      content =
+        'شاخص کل: ' +
+        indexText +
+        '؛ تغییر: ' +
+        changeText +
+        '؛ وضعیت بازار: ' +
+        String(marketStatus) +
+        '؛ تعداد معاملات: ' +
+        String(totalTrades) +
+        '؛ حجم معاملات: ' +
+        String(totalVolume) +
+        '؛ ارزش معاملات: ' +
+        String(totalValue);
+    }
 
     return {
-      content: fallbackText,
+      content,
       createdAt:
-        (payload as any).createdAt ??
-        (payload as any).updatedAt ??
-        new Date().toISOString(),
+        typeof payload?.createdAt === 'string'
+          ? payload.createdAt
+          : typeof payload?.updatedAt === 'string'
+            ? payload.updatedAt
+            : new Date().toISOString(),
     };
   } catch (error) {
-    console.error('[MarketSummary] Error fetching market summary:', error);
+    console.error(
+      '[MarketSummary] Error fetching market summary:',
+      error
+    );
+
     return undefined;
   }
 };
+
     
-      const renderAnalysisHistory = () => {
+  const renderAnalysisHistory = () => {
   if (historyLoading) {
     return (
       <div className="flex justify-center items-center py-8">
@@ -1654,55 +1665,93 @@ const clearCurrentAnalysis = () => {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => setActiveTab('analysis')}
-          className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-[13px] font-bold transition-colors ${
-            activeTab === 'analysis'
-              ? 'border-blue-500 bg-blue-50 text-blue-800'
-              : 'border-slate-300 text-slate-700 hover:bg-slate-50'
-          }`}
-        >
-          <ChartBarIcon className="h-4 w-4" />
-          تحلیل
-        </button>
+     <div className="flex flex-wrap gap-2">
+  <button
+    type="button"
+    onClick={() => setActiveTab('analysis')}
+    className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-[13px] font-bold transition-colors ${
+      activeTab === 'analysis'
+        ? 'border-blue-500 bg-blue-50 text-blue-800'
+        : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+    }`}
+  >
+    <ChartBarIcon className="h-4 w-4" />
+    تحلیل
+  </button>
 
-        <button
-          onClick={() => setActiveTab('marketSummary')}
-          className={`relative flex items-center gap-2 rounded-lg border px-4 py-2 text-[13px] font-bold transition-colors ${
-            activeTab === 'marketSummary'
-              ? 'border-blue-500 bg-blue-50 text-blue-800'
-              : 'border-slate-300 text-slate-700 hover:bg-slate-50'
-          } ${hasUnreadMarketSummary ? 'animate-pulse' : ''}`}
-        >
-          <MarketIcon className="h-4 w-4" />
-          خلاصه بازار
-          {hasUnreadMarketSummary ? (
-            <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-emerald-500" />
-          ) : null}
-        </button>
+  <button
+    type="button"
+    onClick={() => setActiveTab('marketSummary')}
+    className={`relative flex items-center gap-2 rounded-lg border px-4 py-2 text-[13px] font-bold transition-colors ${
+      activeTab === 'marketSummary'
+        ? 'border-blue-500 bg-blue-50 text-blue-800'
+        : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+    } ${hasUnreadMarketSummary ? 'animate-pulse' : ''}`}
+  >
+    <MarketIcon className="h-4 w-4" />
+    خلاصه بازار
 
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-[13px] font-bold transition-colors ${
-            activeTab === 'history'
-              ? 'border-blue-500 bg-blue-50 text-blue-800'
-              : 'border-slate-300 text-slate-700 hover:bg-slate-50'
-          }`}
-        >
-          <ClockIcon className="h-4 w-4" />
-          تاریخچه
-          <span
-            className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${
-              analysisHistory.length >= 3
-                ? 'bg-rose-100 text-rose-700'
-                : 'bg-emerald-100 text-emerald-700'
-            }`}
-          >
-            {faNumber(analysisHistory.length)} / {faNumber(3)}
-          </span>
-        </button>
+    {hasUnreadMarketSummary ? (
+      <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-emerald-500" />
+    ) : null}
+  </button>
+
+  <button
+    type="button"
+    onClick={() => setActiveTab('history')}
+    className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-[13px] font-bold transition-colors ${
+      activeTab === 'history'
+        ? 'border-blue-500 bg-blue-50 text-blue-800'
+        : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+    }`}
+  >
+    <ClockIcon className="h-4 w-4" />
+    تاریخچه
+
+    <span
+      className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${
+        analysisHistory.length >= 3
+          ? 'bg-rose-100 text-rose-700'
+          : 'bg-emerald-100 text-emerald-700'
+      }`}
+    >
+      {faNumber(analysisHistory.length)} / {faNumber(3)}
+    </span>
+  </button>
+</div>
+
+      {activeTab === 'marketSummary' && (
+  <div
+    dir="rtl"
+    className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+  >
+    {isLoadingMarketSummary ? (
+      <div className="py-6 text-center text-[13px] font-medium text-slate-500">
+        در حال دریافت خلاصه بازار...
       </div>
+    ) : marketSummary ? (
+      <>
+        {marketSummary.createdAt ? (
+          <div className="text-[12px] font-semibold text-slate-500">
+            {new Date(marketSummary.createdAt).toLocaleString('fa-IR')}
+          </div>
+        ) : null}
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className="whitespace-pre-wrap text-right text-[14px] font-medium leading-8 text-slate-900">
+            {marketSummary.content?.trim()
+              ? marketSummary.content
+              : 'محتوای خلاصه بازار در حال حاضر در دسترس نیست.'}
+          </div>
+        </div>
+      </>
+    ) : (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-right text-[13px] font-medium leading-7 text-amber-700">
+        خلاصه بازار برای نمایش دریافت نشد.
+      </div>
+    )}
+  </div>
+)}
 
       {activeTab === 'analysis' && (
         <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -2090,8 +2139,11 @@ const clearCurrentAnalysis = () => {
           </div>
         </div>
       )}
-{activeTab === 'history' && (
-        <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      {activeTab === 'history' && (
+        <div
+          dir="rtl"
+          className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+        >
           {analysisHistory.length === 0 ? (
             <div className="text-[13px] font-medium text-slate-500">
               تحلیلی ذخیره نشده است
@@ -2103,6 +2155,8 @@ const clearCurrentAnalysis = () => {
               return (
                 <div
                   key={item.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => fetchAnalysisDetail(item.id)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
@@ -2110,8 +2164,6 @@ const clearCurrentAnalysis = () => {
                       fetchAnalysisDetail(item.id);
                     }
                   }}
-                  role="button"
-                  tabIndex={0}
                   className="flex cursor-pointer justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-blue-300 hover:bg-blue-50/40"
                 >
                   <div className="min-w-0">
@@ -2151,7 +2203,6 @@ const clearCurrentAnalysis = () => {
           )}
         </div>
       )}
-
     </div>
   );
 }
