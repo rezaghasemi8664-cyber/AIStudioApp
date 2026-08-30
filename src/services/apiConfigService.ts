@@ -4,7 +4,7 @@ const envBaseUrl = env.VITE_API_BASE_URL || env.VITE_API_URL;
 
 const defaultBaseUrl = env.DEV
   ? 'http://localhost:3001/api/v1'
-  : 'https://roniya-analyzer.ir/api/v1';
+  : '/api/v1';
 
 const API_BASE_URL = String(envBaseUrl || defaultBaseUrl).replace(/\/+$/, '');
 
@@ -70,7 +70,9 @@ export async function apiFetch<T = any>(
 
   const isAbsoluteUrl = /^https?:\/\//i.test(endpoint);
 
-  const url = isAbsoluteUrl ? endpoint : `${API_BASE_URL}${normalizedEndpoint}`;
+  const url = isAbsoluteUrl
+  ? endpoint
+  : `${API_BASE_URL}${normalizedEndpoint}`;
 
   const response = await fetch(url, {
     credentials: 'include',
