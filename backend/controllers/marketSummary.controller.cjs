@@ -2,6 +2,7 @@
 
 const marketSummaryService = require('../services/marketSummary.service.cjs');
 const marketIntelligenceService = require('../services/marketIntelligence.service.cjs');
+const marketBreadthService = require('../services/marketBreadth.service.cjs');
 
 function sanitizeBigIntDeep(input) {
   if (input === null || input === undefined) return input;
@@ -50,6 +51,24 @@ async function enrich(item) {
   try {
     const intelligence=await marketIntelligenceService.buildMarketIntelligence(item.id,{historyLimit:20});
     if (!intelligence) return item;
+    try {
+      const breadth = await marketBreadthService.getMarketBreadth();
+      if (breadth?.available) {
+        intelligence.breadth = { ...intelligence.breadth, ...breadth };
+        intelligence.dataQuality = {
+          ...(intelligence.dataQuality || {}),
+          breadthAvailable: true,
+          breadthClassifiedSymbols: breadth.classifiedTotal,
+          breadthTotalSymbols: breadth.total
+        };
+      } else {
+        intelligence.breadth = { ...(intelligence.breadth || {}), available: false, reason: breadth?.reason || 'BREADTH_UNAVAILABLE' };
+        intelligence.dataQuality = { ...(intelligence.dataQuality || {}), breadthAvailable: false };
+      }
+    } catch (breadthError) {
+      console.error('[MarketSummaryController][Breadth]', breadthError);
+      intelligence.breadth = { ...(intelligence.breadth || {}), available: false, reason: 'BREADTH_ERROR' };
+    }
     const text=intelligenceText(intelligence);
     return {...item,content:text,summary:text,marketIntelligence:intelligence};
   } catch(error) { console.error('[MarketSummaryController][Intelligence]',error); return item; }
