@@ -1,6 +1,7 @@
 'use strict';
 
 const prismaModule = require('../config/prisma.cjs');
+const { getMarketBreadth } = require('./marketBreadth.service.cjs');
 const resolvePrismaClient = (mod) => [mod?.prisma, mod?.db, mod?.client, mod?.default, mod].find((x) => x && typeof x === 'object') || null;
 const prisma = resolvePrismaClient(prismaModule);
 if (!prisma) throw new Error('[MarketIntelligence] Prisma client unavailable');
@@ -35,20 +36,6 @@ const dateOnly = (d) => {
 function rawData(summary) { const raw = obj(summary?.rawJson) || {}; return { raw, data: obj(raw.data) || raw }; }
 function indexPct(summary, data) { return num(first(data, ['changePercent','overallChangePercent','indexChangePercent','index_change_percent','percentChange','pcp','change_index_percent'])) ?? num(summary?.overallChangePercent); }
 function equalPct(summary, data) { return num(first(data, ['equalWeightedChangePercent','equalChangePercent','indexEqualWeightChangePercent','index_equalWeight_change_percent','index_equal_weight_change_percent'])) ?? num(summary?.equalChangePercent); }
-function breadth(summary, data) {
-  const symbols = arr(first(data, ['symbols','allSymbols','rows','items','list']));
-  let positive = num(summary?.positiveStocks), negative = num(summary?.negativeStocks), neutral = num(summary?.neutralStocks);
-  if (symbols.length) {
-    positive = negative = neutral = 0;
-    for (const s of symbols) {
-      const c = num(first(s, ['pcp','percent_close','closeChangePercent','plp','percent_last','lastChangePercent','changePercent','percentChange']));
-      if (c === null || c === 0) neutral++; else if (c > 0) positive++; else negative++;
-    }
-  }
-  const total = (positive ?? 0) + (negative ?? 0) + (neutral ?? 0);
-  const ratio = total ? (positive - negative) / total : null;
-  return { positive, negative, neutral, total, breadthRatio: ratio, positiveShare: total ? positive / total * 100 : null, advDecline: negative > 0 ? positive / negative : null, coverage: symbols.length ? 'full' : 'summary', interpretation: ratio === null ? 'داده کافی نیست' : ratio > 0.2 ? 'مثبت و گسترده' : ratio < -0.2 ? 'منفی و گسترده' : 'متوسط/نسبتاً متوازن' };
-}
 function liquidity(s, p) {
   const value = num(s?.totalValue), volume = num(s?.totalVolume), trades = num(s?.totalTrades), prev = num(p?.totalValue), prevVolume = num(p?.totalVolume);
   const valueVsPreviousPct = value !== null && prev ? (value / prev - 1) * 100 : null;
@@ -123,10 +110,11 @@ async function buildMarketIntelligence(summaryId, { historyLimit = 20 } = {}) {
   const summaries = await MarketSummary.findMany({ orderBy: [{ summaryDate:'desc' }, { id:'desc' }], take: historyLimit });
   const previous = summaries.find(x => x.id !== current.id) || null;
   const { raw, data } = rawData(current);
-  const b = breadth(current, data), liq = liquidity(current, previous), flow = money(data), sec = sectors(data), mom = momentum(summaries), vol = volatility(summaries);
+  const b = await getMarketBreadth();
+  const liq = liquidity(current, previous), flow = money(data), sec = sectors(data), mom = momentum(summaries), vol = volatility(summaries);
   const ip = indexPct(current, data), ep = equalPct(current, data), sc = score({ indexPctValue:ip, equalPctValue:ep, b, liq, flow, mom, vol });
   const riskState = vol.state === 'high' || sc.score < 35 ? 'high' : vol.state === 'medium' ? 'medium' : 'low';
-  const available = [current.overallIndex, current.equalIndex, current.totalValue, b.total, ip, liq.valueVsPreviousPct, mom.fiveDayChangePct].filter(x => x !== null && x !== undefined).length;
+  const available = [current.overallIndex, current.equalIndex, current.totalValue, b.available ? b.total : null, ip, liq.valueVsPreviousPct, mom.fiveDayChangePct].filter(x => x !== null && x !== undefined).length;
   return {
     version:'2.0', generatedAt:new Date().toISOString(), date:dateOnly(current.summaryDate),
     headline:`بازار ${regimeFa(sc.regime)} با امتیاز ${sc.score} از 100 ارزیابی می‌شود؛ ریسک ${riskFa(riskState)} است.`,
@@ -137,7 +125,7 @@ async function buildMarketIntelligence(summaryId, { historyLimit = 20 } = {}) {
     divergences:divergences(current,b,liq,mom),
     leaders:{ gainers:arr(current.topGainers).slice(0,5), losers:arr(current.topLosers).slice(0,5), volumes:arr(current.topVolumes).slice(0,5) },
     scenarios:scenarios(sc.score), action:action(sc.score,b,liq,riskState),
-    dataQuality:{ level:available >= 6 ? 'high' : available >= 4 ? 'medium' : 'low', availableFields:available, expectedFields:7, symbolsCoverage:raw?.meta?.symbolsCoverage || (b.coverage === 'full' ? 'full' : 'partial') }
+    dataQuality:{ level:available >= 6 ? 'high' : available >= 4 ? 'medium' : 'low', availableFields:available, expectedFields:7, symbolsCoverage:b.available ? Number(b.coveragePercent.toFixed(1)) : 0, breadthAvailable:b.available, breadthReason:b.reason || null }
   };
 }
 
