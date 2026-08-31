@@ -23,19 +23,14 @@ jobs:
 
           p = Path('src/services/gapgptService.ts')
           s = p.read_text(encoding='utf-8')
+          old = s
 
-          replacements = {
-              'میانگین قیمت خرید: ${formatMoney(item.averageEntryPrice)} تومان': 'میانگین قیمت خرید: ${formatMoney(item.averageEntryPrice)} ریال',
-              'قیمت فعلی: ${formatMoney(item.currentPrice)} تومان | ارزش فعلی: ${formatMoney(item.currentValue)} تومان': 'قیمت فعلی: ${formatMoney(item.currentPrice)} ریال | ارزش فعلی: ${formatMoney(item.currentValue)} ریال',
-              'مبلغ سود/زیان: ${item.pnl >= 0 ? \' + \' : \'\'}${formatMoney(item.pnl)} تومان | درصد سود/زیان: ${formatPercent(item.pnlPercent)}': 'مبلغ سود/زیان: ${item.pnl >= 0 ? \' + \' : \'\'}${formatMoney(item.pnl)} ریال | درصد سود/زیان: ${formatPercent(item.pnlPercent)}',
-          }
+          # The portfolio accounting values are calculated from entry/current
+          # prices already stored in Rial. Only the unit label was incorrect.
+          s = s.replace(' تومان', ' ریال')
 
-          original = s
-          for old, new in replacements.items():
-              s = s.replace(old, new)
-
-          if s == original:
-              raise SystemExit('Expected portfolio aggregate تومان labels were not found; refusing to create a no-op commit.')
+          if s == old:
+              raise SystemExit('No تومان unit label found in gapgptService.ts; refusing a no-op commit.')
 
           p.write_text(s, encoding='utf-8')
           PY
@@ -45,6 +40,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/services/gapgptService.ts .github/workflows/fix-portfolio-aggregate-riyal.yml
+          git add src/services/gapgptService.ts
           git commit -m "Fix portfolio aggregate accounting units to Rial" || exit 0
           git push
