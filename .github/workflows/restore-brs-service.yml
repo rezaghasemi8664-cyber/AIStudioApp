@@ -12,12 +12,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Restore known-good BRS service
+      - name: Restore and remove one-time workflow
         run: |
           git checkout fb1690f82bc7681385986df1c6b5546747fbf6d8 -- backend/services/brs.service.cjs
+          git rm .github/workflows/restore-brs-service.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add backend/services/brs.service.cjs
-          git diff --cached --quiet && exit 0
           git commit -m "fix: restore full BRS market service"
           git push
