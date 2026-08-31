@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+﻿
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import * as apiConfigService from '../services/apiConfigService';
 import { API_BASE_URL } from '../api/config';
 import { getLatestSummaryEnvelope } from '../services/marketSummaryService';
@@ -17,44 +18,159 @@ interface CacheEntry {
 
 const CACHE_KEY_LIVE = 'ronia_market_index_cache';
 const CACHE_KEY_FINAL = 'ronia_market_index_final_daily';
+
 const CACHE_TTL_LIVE = 2 * 60 * 1000;
 const CACHE_TTL_FINAL = 10 * 60 * 1000;
 
-const formatNumberEn = (num: number, options?: Intl.NumberFormatOptions) =>
-    new Intl.NumberFormat('en-US', options).format(num);
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
 
-const toSafeNumber = (value: unknown, fallback = 0): number => {
-    const num = typeof value === 'number' ? value : Number(value);
-    return Number.isFinite(num) ? num : fallback;
+const numberFormatter = new Intl.NumberFormat('fa-IR', {
+    maximumFractionDigits: 2,
+});
+
+const integerFormatter = new Intl.NumberFormat('fa-IR', {
+    maximumFractionDigits: 0,
+});
+
+const toFiniteNumber = (
+    value: unknown,
+    fallback: number | null = null
+): number | null => {
+    if (value === null || value === undefined || value === '') {
+        return fallback;
+    }
+
+    const normalized =
+        typeof value === 'string'
+            ? value.replace(/,/g, '').replace(/٬/g, '').trim()
+            : value;
+
+    const number = Number(normalized);
+
+    return Number.isFinite(number) ? number : fallback;
 };
 
 const isFiniteNumber = (value: unknown): value is number =>
     typeof value === 'number' && Number.isFinite(value);
 
+const formatNumber = (
+    value: unknown,
+    fractionDigits = 2
+): string => {
+    const number = toFiniteNumber(value);
+
+    if (number === null) {
+        return 'داده در دسترس نیست';
+    }
+
+    return new Intl.NumberFormat('fa-IR', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: fractionDigits,
+    }).format(number);
+};
+
+const formatIndexValue = (value: unknown): string => {
+    const number = toFiniteNumber(value);
+
+    if (number === null || number <= 0) {
+        return 'داده در دسترس نیست';
+    }
+
+    return new Intl.NumberFormat('fa-IR', {
+        maximumFractionDigits: 2,
+    }).format(number);
+};
+
+const formatSignedNumber = (value: unknown): string => {
+    const number = toFiniteNumber(value);
+
+    if (number === null) {
+        return 'داده در دسترس نیست';
+    }
+
+    const absolute = new Intl.NumberFormat('fa-IR', {
+        maximumFractionDigits: 2,
+    }).format(Math.abs(number));
+
+    if (number > 0) return `+${absolute}`;
+    if (number < 0) return `−${absolute}`;
+
+    return '۰';
+};
+
+const formatPercent = (value: unknown): string => {
+    const number = toFiniteNumber(value);
+
+    if (number === null) {
+        return 'داده در دسترس نیست';
+    }
+
+    const formatted = new Intl.NumberFormat('fa-IR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(Math.abs(number));
+
+    if (number > 0) return `+${formatted}٪`;
+    if (number < 0) return `−${formatted}٪`;
+
+    return '۰٫۰۰٪';
+};
+
 const pickFirstNumber = (
     obj: Record<string, unknown> | null | undefined,
     keys: string[],
-    fallback = 0
-): number => {
-    if (!obj || typeof obj !== 'object') return fallback;
+    fallback: number | null = null
+): number | null => {
+    if (!obj || typeof obj !== 'object') {
+        return fallback;
+    }
 
     for (const key of keys) {
-        const val = obj[key];
-        const num = typeof val === 'number' ? val : Number(val);
-        if (Number.isFinite(num)) return num;
+        const value = toFiniteNumber(obj[key]);
+
+        if (value !== null) {
+            return value;
+        }
     }
 
     return fallback;
 };
 
-const toRecord = (value: unknown): Record<string, unknown> | null => {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+const toRecord = (
+    value: unknown
+): Record<string, unknown> | null => {
+    if (
+        !value ||
+        typeof value !== 'object' ||
+        Array.isArray(value)
+    ) {
+        return null;
+    }
+
     return value as Record<string, unknown>;
 };
 
-function isValidMarketIndexData(data: unknown): data is MarketIndexData {
-    if (!data || typeof data !== 'object') return false;
+/* -------------------------------------------------------------------------- */
+/* Validation                                                                  */
+/* -------------------------------------------------------------------------- */
+
+function isValidMarketIndexData(
+    data: unknown
+): data is MarketIndexData {
+    if (!data || typeof data !== 'object') {
+        return false;
+    }
+
     const d = data as Partial<MarketIndexData>;
+
+    /*
+     * نکته مهم:
+     * مقدار شاخص هم‌وزن نباید صفر تلقی شود.
+     * اگر داده آن موجود نباشد، validation باید اجازه دهد
+     * لود از API/summary ادامه پیدا کند.
+     */
 
     return (
         isFiniteNumber(d.value) &&
@@ -67,27 +183,44 @@ function isValidMarketIndexData(data: unknown): data is MarketIndexData {
     );
 }
 
-function normalizeLegacyOrModernMarketData(payload: unknown): MarketIndexData | null {
-    if (!payload || typeof payload !== 'object') return null;
+/* -------------------------------------------------------------------------- */
+/* Normalizers                                                                 */
+/* -------------------------------------------------------------------------- */
+
+function normalizeLegacyOrModernMarketData(
+    payload: unknown
+): MarketIndexData | null {
+    if (!payload || typeof payload !== 'object') {
+        return null;
+    }
 
     const root = payload as Record<string, unknown>;
+
     const rawData =
         toRecord(root.data) ||
         toRecord(root.result) ||
         root;
 
-    if (!rawData || typeof rawData !== 'object') return null;
+    if (!rawData) {
+        return null;
+    }
 
     const value = pickFirstNumber(rawData, [
         'index',
         'overallIndex',
         'value',
         'marketIndex',
-        'totalIndex'
-    ], NaN);
+        'totalIndex',
+        'indexValue',
+        'index_value',
+    ]);
 
-    if (!Number.isFinite(value)) {
-        console.error('[MarketIndex] Missing/invalid index value in payload:', rawData);
+    if (value === null || value <= 0) {
+        console.error(
+            '[MarketIndex] Missing/invalid index value:',
+            rawData
+        );
+
         return null;
     }
 
@@ -99,8 +232,8 @@ function normalizeLegacyOrModernMarketData(payload: unknown): MarketIndexData | 
         'indexChange',
         'index_change',
         'delta',
-        'index_change_value'
-    ], NaN);
+        'index_change_value',
+    ], 0);
 
     const changePercent = pickFirstNumber(rawData, [
         'changePercent',
@@ -108,216 +241,387 @@ function normalizeLegacyOrModernMarketData(payload: unknown): MarketIndexData | 
         'indexChangePercent',
         'index_change_percent',
         'percent',
-        'percentChange'
-    ], NaN);
+        'percentChange',
+    ], 0);
 
+    /*
+     * همه کلیدهای متداول شاخص هم‌وزن را بررسی می‌کنیم.
+     */
     const equalWeightedValue = pickFirstNumber(rawData, [
         'equalWeightedValue',
+        'equalWeightValue',
         'equalIndex',
+        'equalWeightedIndex',
+        'equalWeightIndex',
         'indexEqualWeight',
         'index_equalWeight',
         'index_equal_weight',
-        'equal_weighted_value'
-    ], NaN);
+        'equal_weighted_value',
+        'equal_weighted_index',
+        'equal_index',
+        'index2',
+        'valueEqualWeight',
+    ]);
 
     const equalWeightedChangeValue = pickFirstNumber(rawData, [
         'equalWeightedChangeValue',
+        'equalWeightChangeValue',
         'equalWeightedChange',
         'equalChange',
+        'equalWeightedIndexChange',
         'indexEqualWeightChange',
         'index_equalWeight_change',
         'index_equal_weight_change',
-        'equal_weighted_change'
-    ], NaN);
+        'equal_weighted_change',
+        'equal_weighted_change_value',
+    ], 0);
 
     const equalWeightedChangePercent = pickFirstNumber(rawData, [
         'equalWeightedChangePercent',
+        'equalWeightChangePercent',
         'equalChangePercent',
+        'equalWeightedIndexChangePercent',
         'indexEqualWeightChangePercent',
         'index_equalWeight_change_percent',
         'index_equal_weight_change_percent',
-        'equal_weighted_change_percent'
-    ], NaN);
+        'equal_weighted_change_percent',
+        'equal_weighted_percent',
+    ], 0);
 
     const isMarketOpen =
         typeof rawData.isMarketOpen === 'boolean'
             ? rawData.isMarketOpen
             : typeof rawData.marketOpen === 'boolean'
-            ? rawData.marketOpen
-            : true;
+                ? rawData.marketOpen
+                : true;
 
+    /*
+     * اگر شاخص هم‌وزن واقعاً در payload وجود ندارد،
+     * صفر قرار نمی‌دهیم.
+     *
+     * با این حال چون MarketIndexData فعلی احتمالاً عدد اجباری
+     * دارد، برای سازگاری با type فعلی مقدار null-safe را
+     * در لایه نمایش کنترل می‌کنیم.
+     */
     return {
-        value: toSafeNumber(value),
-        changeValue: toSafeNumber(changeValue),
-        changePercent: toSafeNumber(changePercent),
-        equalWeightedValue: toSafeNumber(equalWeightedValue),
-        equalWeightedChangeValue: toSafeNumber(equalWeightedChangeValue),
-        equalWeightedChangePercent: toSafeNumber(equalWeightedChangePercent),
-        isMarketOpen
+        value,
+        changeValue: changeValue ?? 0,
+        changePercent: changePercent ?? 0,
+
+        equalWeightedValue:
+            equalWeightedValue ?? 0,
+
+        equalWeightedChangeValue:
+            equalWeightedChangeValue ?? 0,
+
+        equalWeightedChangePercent:
+            equalWeightedChangePercent ?? 0,
+
+        isMarketOpen,
     };
 }
 
-function normalizeMarketIndexFromSummary(summary: MarketSummaryData): MarketIndexData | null {
+/* -------------------------------------------------------------------------- */
+/* Summary normalizer                                                          */
+/* -------------------------------------------------------------------------- */
+
+function normalizeMarketIndexFromSummary(
+    summary: MarketSummaryData
+): MarketIndexData | null {
     const rawData = toRecord(summary.rawJson);
-    const marketStatus = (summary.marketStatus ?? '').toString().trim().toLowerCase();
 
-    const value = toSafeNumber(summary.overallIndex);
-    if (!Number.isFinite(value)) return null;
+    const value = toFiniteNumber(summary.overallIndex);
 
-    const changeValue = pickFirstNumber(rawData, [
+    if (value === null || value <= 0) {
+        return null;
+    }
+
+    /*
+     * تغییرات ممکن است داخل rawJson یا ساختارهای تو در تو قرار داشته باشند.
+     */
+    const containers: Record<string, unknown>[] = [];
+
+    if (rawData) {
+        containers.push(rawData);
+
+        const indexes = toRecord(rawData.indexes);
+        const indexData = toRecord(rawData.indexData);
+        const market = toRecord(rawData.market);
+        const data = toRecord(rawData.data);
+
+        if (indexes) containers.push(indexes);
+        if (indexData) containers.push(indexData);
+        if (market) containers.push(market);
+        if (data) containers.push(data);
+    }
+
+    const pickFromContainers = (
+        keys: string[],
+        fallback: number | null = null
+    ) => {
+        for (const container of containers) {
+            const value = pickFirstNumber(
+                container,
+                keys,
+                null
+            );
+
+            if (value !== null) {
+                return value;
+            }
+        }
+
+        return fallback;
+    };
+
+    const changeValue = pickFromContainers([
         'changeValue',
         'change',
         'overallChangeValue',
+        'overallChange',
         'indexChangeValue',
+        'indexChange',
         'index_change_value',
-        'deltaValue'
-    ], Number.NaN);
+        'deltaValue',
+        'delta',
+    ], 0);
 
-    const changePercent = pickFirstNumber(rawData, [
+    const changePercent = pickFromContainers([
         'changePercent',
         'overallChangePercent',
         'indexChangePercent',
         'index_change_percent',
         'percent',
-        'percentChange'
-    ], Number.NaN);
+        'percentChange',
+    ], 0);
 
-    const equalWeightedValue =
-        rawData
-            ? pickFirstNumber(rawData, [
-                  'equalWeightedValue',
-                  'equalIndex',
-                  'indexEqualWeight',
-                  'index_equalWeight',
-                  'index_equal_weight'
-              ], Number.NaN)
-            : Number.NaN;
+    /*
+     * شاخص هم‌وزن:
+     * مهم‌ترین اصلاح این قسمت است.
+     *
+     * اگر مقدار واقعی پیدا نشود، دیگر به عنوان «صفر» تفسیر نمی‌شود.
+     */
+    const equalWeightedValue = pickFromContainers([
+        'equalWeightedValue',
+        'equalWeightValue',
+        'equalIndex',
+        'equalWeightedIndex',
+        'equalWeightIndex',
+        'indexEqualWeight',
+        'index_equalWeight',
+        'index_equal_weight',
+        'equal_weighted_value',
+        'equal_weighted_index',
+        'equal_index',
+        'equalIndexValue',
+        'valueEqualWeight',
+    ]);
 
     const equalWeightedChangeValue =
-        rawData
-            ? pickFirstNumber(rawData, [
-                  'equalWeightedChangeValue',
-                  'equalWeightedChange',
-                  'equalChange',
-                  'indexEqualWeightChange',
-                  'index_equalWeight_change',
-                  'index_equal_weight_change'
-              ], Number.NaN)
-            : Number.NaN;
+        pickFromContainers([
+            'equalWeightedChangeValue',
+            'equalWeightChangeValue',
+            'equalWeightedChange',
+            'equalWeightChange',
+            'equalChange',
+            'equalWeightedIndexChange',
+            'indexEqualWeightChange',
+            'index_equalWeight_change',
+            'index_equal_weight_change',
+            'equal_weighted_change',
+            'equal_weighted_change_value',
+        ], 0);
 
     const equalWeightedChangePercent =
-        rawData
-            ? pickFirstNumber(rawData, [
-                  'equalWeightedChangePercent',
-                  'equalChangePercent',
-                  'indexEqualWeightChangePercent',
-                  'index_equalWeight_change_percent',
-                  'index_equal_weight_change_percent'
-              ], Number.NaN)
-            : Number.NaN;
+        pickFromContainers([
+            'equalWeightedChangePercent',
+            'equalWeightChangePercent',
+            'equalChangePercent',
+            'equalWeightedIndexChangePercent',
+            'indexEqualWeightChangePercent',
+            'index_equalWeight_change_percent',
+            'index_equal_weight_change_percent',
+            'equal_weighted_change_percent',
+            'equal_weighted_percent',
+        ], 0);
+
+    const marketStatus =
+        String(summary.marketStatus ?? '')
+            .trim()
+            .toLowerCase();
 
     const isMarketOpen =
         marketStatus.includes('open') ||
         marketStatus.includes('باز') ||
-        (rawData?.isMarketOpen === true) || 
-          (rawData?.marketOpen === true) || 
-          false; // اگر هیچکدام نبود پیش‌فرض false
+        rawData?.isMarketOpen === true ||
+        rawData?.marketOpen === true;
+
     return {
-        value: toSafeNumber(value),
-        changeValue: toSafeNumber(changeValue, 0),
-        changePercent: toSafeNumber(changePercent, 0),
-        equalWeightedValue: toSafeNumber(equalWeightedValue, 0),
-        equalWeightedChangeValue: toSafeNumber(equalWeightedChangeValue, 0),
-        equalWeightedChangePercent: toSafeNumber(equalWeightedChangePercent, 0),
-        isMarketOpen
+        value,
+        changeValue: changeValue ?? 0,
+        changePercent: changePercent ?? 0,
+
+        /*
+         * برای جلوگیری از نمایش صفر جعلی:
+         * اگر مقدار موجود نباشد، NaN قرار می‌دهیم.
+         * تابع نمایش آن را «داده در دسترس نیست» نشان می‌دهد.
+         */
+        equalWeightedValue:
+            equalWeightedValue ?? Number.NaN,
+
+        equalWeightedChangeValue:
+            equalWeightedChangeValue ?? 0,
+
+        equalWeightedChangePercent:
+            equalWeightedChangePercent ?? 0,
+
+        isMarketOpen,
     };
 }
 
-function getCachedByKey(key: string): CacheEntry | null {
+/* -------------------------------------------------------------------------- */
+/* Cache                                                                       */
+/* -------------------------------------------------------------------------- */
+
+function getCachedByKey(
+    key: string
+): CacheEntry | null {
     try {
         const raw = localStorage.getItem(key);
+
         if (!raw) return null;
 
-        const parsed = JSON.parse(raw) as Partial<CacheEntry> | unknown;
+        const parsed = JSON.parse(raw);
 
-        if (!parsed || typeof parsed !== 'object') return null;
+        if (!parsed || typeof parsed !== 'object') {
+            return null;
+        }
 
-        const obj = parsed as Partial<CacheEntry>;
-        if (!isFiniteNumber(obj.timestamp)) return null;
+        const timestamp = toFiniteNumber(parsed.timestamp);
 
-        const data = isValidMarketIndexData(obj.data)
-            ? obj.data
-            : normalizeLegacyOrModernMarketData((obj as Record<string, unknown>).data);
+        if (timestamp === null) {
+            return null;
+        }
 
-        if (!data || !isValidMarketIndexData(data)) return null;
+        const data = normalizeLegacyOrModernMarketData(
+            parsed.data
+        );
+
+        if (!data) {
+            return null;
+        }
 
         return {
             data,
-            timestamp: obj.timestamp
+            timestamp,
         };
     } catch {
         return null;
     }
 }
 
-function isCacheValid(cache: CacheEntry, ttl: number): boolean {
+function isCacheValid(
+    cache: CacheEntry,
+    ttl: number
+): boolean {
     return Date.now() - cache.timestamp < ttl;
 }
 
-function setCachedData(data: MarketIndexData, key: string): void {
+function setCachedData(
+    data: MarketIndexData,
+    key: string
+): void {
     try {
-        localStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
-        localStorage.setItem(`${key}_updated`, String(Date.now()));
+        localStorage.setItem(
+            key,
+            JSON.stringify({
+                data,
+                timestamp: Date.now(),
+            })
+        );
+
+        localStorage.setItem(
+            `${key}_updated`,
+            String(Date.now())
+        );
     } catch {
-        // ignore
+        // localStorage ممکن است در حالت خصوصی یا محدود غیرفعال باشد.
     }
 }
 
+/* -------------------------------------------------------------------------- */
+/* API                                                                         */
+/* -------------------------------------------------------------------------- */
+
 async function fetchMarketIndexFromAPI(): Promise<MarketIndexData | null> {
     try {
-        const envelope = await getLatestSummaryEnvelope();
+        const envelope =
+            await getLatestSummaryEnvelope();
+
         if (envelope?.summary) {
-            const fromSummary = normalizeMarketIndexFromSummary(envelope.summary);
-            if (fromSummary) return fromSummary;
+            const fromSummary =
+                normalizeMarketIndexFromSummary(
+                    envelope.summary
+                );
+
+            if (fromSummary) {
+                return fromSummary;
+            }
         }
     } catch (err) {
-        console.warn('[MarketIndex] marketSummaryService failed, fallback to legacy endpoints:', err);
+        console.warn(
+            '[MarketIndex] Summary service failed:',
+            err
+        );
     }
 
-    const endpoints = [`${API_BASE_URL}/market-summary/latest`];
+    const endpoints = [
+        `${API_BASE_URL}/market-summary/latest`,
+    ];
 
     for (const url of endpoints) {
         try {
             const response = await fetch(url, {
                 method: 'GET',
-                headers: { Accept: 'application/json' },
-                credentials: 'include'
+                headers: {
+                    Accept: 'application/json',
+                },
+                credentials: 'include',
             });
 
             if (!response.ok) {
-                let errBody = '';
-                try {
-                    errBody = await response.text();
-                } catch {
-                    // ignore
-                }
-                console.error(`[MarketIndex] HTTP ${response.status} on ${url}`, errBody);
+                console.error(
+                    `[MarketIndex] HTTP ${response.status} on ${url}`
+                );
+
                 continue;
             }
 
-            const result = await response.json();
-            const normalized = normalizeLegacyOrModernMarketData(result);
+            const result =
+                await response.json();
 
-            if (normalized) return normalized;
+            const normalized =
+                normalizeLegacyOrModernMarketData(
+                    result
+                );
 
-            console.error('[MarketIndex] Invalid payload shape from', url, result);
+            if (normalized) {
+                return normalized;
+            }
         } catch (err) {
-            console.error('[MarketIndex] Fetch failed on', url, err);
+            console.error(
+                '[MarketIndex] Fetch failed:',
+                err
+            );
         }
     }
 
     return null;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Index display                                                               */
+/* -------------------------------------------------------------------------- */
 
 interface IndexDisplayProps {
     name: string;
@@ -332,145 +636,380 @@ const IndexDisplay: React.FC<IndexDisplayProps> = ({
     value,
     changeValue,
     changePercent,
-    showIcon = true
+    showIcon = true,
 }) => {
-    const safeValue = toSafeNumber(value);
-    const safeChangeValue = toSafeNumber(changeValue);
-    const safeChangePercent = toSafeNumber(changePercent);
+    const hasValue =
+        isFiniteNumber(value) &&
+        value > 0;
 
-    const isPositive = safeChangeValue >= 0;
-    const colorClass = isPositive ? 'text-[var(--color-positive)]' : 'text-[var(--color-negative)]';
-    const Icon = isPositive ? ArrowTrendingUpIcon : ArrowTrendingDownIcon;
+    const safeChangeValue =
+        toFiniteNumber(changeValue, 0) ?? 0;
+
+    const safeChangePercent =
+        toFiniteNumber(changePercent, 0) ?? 0;
+
+    const isPositive =
+        safeChangeValue > 0;
+
+    const isNegative =
+        safeChangeValue < 0;
+
+    const valueColor =
+        hasValue
+            ? 'text-[var(--color-text-primary)]'
+            : 'text-slate-500';
+
+    const changeColor =
+        isPositive
+            ? 'text-[var(--color-positive)]'
+            : isNegative
+                ? 'text-[var(--color-negative)]'
+                : 'text-slate-400';
+
+    const Icon =
+        isPositive
+            ? ArrowTrendingUpIcon
+            : ArrowTrendingDownIcon;
 
     return (
-        <div className="flex-1 min-w-0">
-            <h4 className="text-xs text-gray-500 dark:text-gray-400 font-semibold mb-1 truncate">
+        <div
+            className="
+                min-w-0
+                flex-1
+                px-2
+                sm:px-3
+            "
+        >
+            {/* عنوان */}
+            <div
+                className="
+                    mb-2
+                    text-[13px]
+                    font-bold
+                    leading-6
+                    text-slate-300
+                    whitespace-nowrap
+                "
+            >
                 {name}
-            </h4>
-            <div className={`flex items-center gap-2 font-mono ${colorClass}`}>
-                {showIcon && <Icon className="h-5 w-5 flex-shrink-0" />}
-                <div className="flex flex-col items-start min-w-0">
-                    <span className="font-bold text-base text-[var(--color-text-primary)] truncate">
-                        {safeValue.toLocaleString('en-US')}
-                    </span>
-                    <div className="flex items-center gap-2 text-xs">
-                        <span className="whitespace-nowrap">
-                            {formatNumberEn(safeChangeValue, {
-                                signDisplay: 'always',
-                                maximumFractionDigits: 2
-                            })}
-                        </span>
-                        <span className="whitespace-nowrap">
-                            {formatNumberEn(safeChangePercent / 100, {
-                                style: 'percent',
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                                signDisplay: 'always'
-                            })}
-                        </span>
-                    </div>
+            </div>
+
+            {/* مقدار شاخص */}
+            {hasValue ? (
+                <div
+                    className={`
+                        ${valueColor}
+                        whitespace-nowrap
+                        text-[20px]
+                        sm:text-[22px]
+                        lg:text-[24px]
+                        font-black
+                        leading-tight
+                        tracking-tight
+                        tabular-nums
+                    `}
+                    dir="ltr"
+                >
+                    {formatIndexValue(value)}
                 </div>
+            ) : (
+                <div
+                    className="
+                        text-[12px]
+                        sm:text-[13px]
+                        font-semibold
+                        leading-5
+                        text-slate-500
+                        whitespace-nowrap
+                    "
+                >
+                    داده در دسترس نیست
+                </div>
+            )}
+
+            {/* تغییرات */}
+            <div
+                className={`
+                    mt-2
+                    flex
+                    items-center
+                    gap-1.5
+                    ${changeColor}
+                    text-[12px]
+                    sm:text-[13px]
+                    font-bold
+                    whitespace-nowrap
+                    tabular-nums
+                `}
+                dir="rtl"
+            >
+                {showIcon && (
+                    <Icon
+                        className="
+                            h-4
+                            w-4
+                            shrink-0
+                        "
+                    />
+                )}
+
+                <span>
+                    {formatSignedNumber(
+                        safeChangeValue
+                    )}
+                </span>
+
+                <span className="opacity-80">
+                    ({formatPercent(
+                        safeChangePercent
+                    )})
+                </span>
             </div>
         </div>
     );
 };
 
-const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
-    const [data, setData] = useState<MarketIndexData | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [isMarketInScheduledTime, setIsMarketInScheduledTime] = useState(false);
+/* -------------------------------------------------------------------------- */
+/* Main component                                                              */
+/* -------------------------------------------------------------------------- */
 
-    const isFetchingRef = useRef(false);
+const MarketIndex: React.FC<MarketIndexProps> = ({
+    isOnline,
+}) => {
+    const [data, setData] =
+        useState<MarketIndexData | null>(null);
 
-    const checkMarketTime = useCallback(() => {
-        const schedule = apiConfigService.getMarketIndexSchedule();
+    const [isLoading, setIsLoading] =
+        useState(true);
 
-        // اگر زمان‌بندی غیرفعال باشد، نباید بازار را بسته فرض کنیم
-        if (!schedule.isEnabled) return true;
+    const [error, setError] =
+        useState<string | null>(null);
 
-        const now = new Date();
-        const currentDay = now.getDay();
-        if (!schedule.days.includes(currentDay)) return false;
+    const [
+        isMarketInScheduledTime,
+        setIsMarketInScheduledTime,
+    ] = useState(false);
 
-        const currentTime = now.toTimeString().slice(0, 5);
-        return !(currentTime < schedule.startTime || currentTime > schedule.endTime);
-    }, []);
+    const isFetchingRef =
+        useRef(false);
 
-    const loadData = useCallback(async () => {
-        const isLiveTime = checkMarketTime();
-        setIsMarketInScheduledTime(isLiveTime);
-        setError(null);
+    /* ---------------------------------------------------------------------- */
+    /* Market schedule                                                        */
+    /* ---------------------------------------------------------------------- */
 
-        const cacheKey = isLiveTime ? CACHE_KEY_LIVE : CACHE_KEY_FINAL;
-        const cacheTTL = isLiveTime ? CACHE_TTL_LIVE : CACHE_TTL_FINAL;
-        const cache = getCachedByKey(cacheKey);
+    const checkMarketTime =
+        useCallback(() => {
+            const schedule =
+                apiConfigService
+                    .getMarketIndexSchedule();
 
-        if (cache && isCacheValid(cache, cacheTTL)) {
-            setData(cache.data);
-            setIsLoading(false);
-            return;
-        }
-
-        if (!isOnline) {
-            if (cache) setData(cache.data);
-            else setError('عدم دسترسی به اینترنت');
-            setIsLoading(false);
-            return;
-        }
-
-        if (isFetchingRef.current) return;
-        isFetchingRef.current = true;
-        setIsLoading(true);
-
-        try {
-            const freshData = await fetchMarketIndexFromAPI();
-
-            if (freshData) {
-                const normalized = { ...freshData, isMarketOpen: isLiveTime };
-                setData(normalized);
-                setCachedData(normalized, cacheKey);
-            } else if (cache) {
-                setData(cache.data);
-            } else {
-                setError('خطا در دریافت داده‌های بازار');
+            if (!schedule.isEnabled) {
+                return true;
             }
-        } catch (err) {
-            console.error('[MarketIndex] loadData failed:', err);
-            if (cache) setData(cache.data);
-            else setError('خطا در دریافت داده‌های بازار');
-        } finally {
-            isFetchingRef.current = false;
-            setIsLoading(false);
-        }
-    }, [isOnline, checkMarketTime]);
+
+            const now = new Date();
+
+            const currentDay =
+                now.getDay();
+
+            if (
+                !schedule.days.includes(
+                    currentDay
+                )
+            ) {
+                return false;
+            }
+
+            const currentTime =
+                now.toTimeString()
+                    .slice(0, 5);
+
+            return !(
+                currentTime <
+                    schedule.startTime ||
+                currentTime >
+                    schedule.endTime
+            );
+        }, []);
+
+    /* ---------------------------------------------------------------------- */
+    /* Load data                                                               */
+    /* ---------------------------------------------------------------------- */
+
+    const loadData =
+        useCallback(async () => {
+            const isLiveTime =
+                checkMarketTime();
+
+            setIsMarketInScheduledTime(
+                isLiveTime
+            );
+
+            setError(null);
+
+            const cacheKey =
+                isLiveTime
+                    ? CACHE_KEY_LIVE
+                    : CACHE_KEY_FINAL;
+
+            const cacheTTL =
+                isLiveTime
+                    ? CACHE_TTL_LIVE
+                    : CACHE_TTL_FINAL;
+
+            const cache =
+                getCachedByKey(cacheKey);
+
+            if (
+                cache &&
+                isCacheValid(
+                    cache,
+                    cacheTTL
+                )
+            ) {
+                setData(cache.data);
+                setIsLoading(false);
+                return;
+            }
+
+            if (!isOnline) {
+                if (cache) {
+                    setData(cache.data);
+                } else {
+                    setError(
+                        'عدم دسترسی به اینترنت'
+                    );
+                }
+
+                setIsLoading(false);
+                return;
+            }
+
+            if (isFetchingRef.current) {
+                return;
+            }
+
+            isFetchingRef.current = true;
+            setIsLoading(true);
+
+            try {
+                const freshData =
+                    await fetchMarketIndexFromAPI();
+
+                if (freshData) {
+                    const normalized = {
+                        ...freshData,
+
+                        /*
+                         * وضعیت کارت از زمان‌بندی بازار
+                         * تعیین می‌شود تا داده قدیمی باعث
+                         * نمایش اشتباه وضعیت بازار نشود.
+                         */
+                        isMarketOpen:
+                            isLiveTime,
+                    };
+
+                    setData(normalized);
+
+                    setCachedData(
+                        normalized,
+                        cacheKey
+                    );
+                } else if (cache) {
+                    setData(cache.data);
+                } else {
+                    setError(
+                        'خطا در دریافت داده‌های بازار'
+                    );
+                }
+            } catch (err) {
+                console.error(
+                    '[MarketIndex] loadData failed:',
+                    err
+                );
+
+                if (cache) {
+                    setData(cache.data);
+                } else {
+                    setError(
+                        'خطا در دریافت داده‌های بازار'
+                    );
+                }
+            } finally {
+                isFetchingRef.current = false;
+                setIsLoading(false);
+            }
+        }, [
+            isOnline,
+            checkMarketTime,
+        ]);
+
+    /* ---------------------------------------------------------------------- */
+    /* Effects                                                                 */
+    /* ---------------------------------------------------------------------- */
 
     useEffect(() => {
         loadData();
 
-        const handleStorageChange = (event: StorageEvent) => {
+        const handleStorageChange = (
+            event: StorageEvent
+        ) => {
             if (
-                event.key === CACHE_KEY_LIVE ||
-                event.key === `${CACHE_KEY_LIVE}_updated` ||
-                event.key === CACHE_KEY_FINAL ||
-                event.key === `${CACHE_KEY_FINAL}_updated`
+                event.key ===
+                    CACHE_KEY_LIVE ||
+                event.key ===
+                    `${CACHE_KEY_LIVE}_updated` ||
+                event.key ===
+                    CACHE_KEY_FINAL ||
+                event.key ===
+                    `${CACHE_KEY_FINAL}_updated`
             ) {
                 loadData();
             }
         };
 
-        window.addEventListener('storage', handleStorageChange);
-        const intervalId = window.setInterval(() => loadData(), CACHE_TTL_LIVE);
+        window.addEventListener(
+            'storage',
+            handleStorageChange
+        );
+
+        const intervalId =
+            window.setInterval(
+                () => loadData(),
+                CACHE_TTL_LIVE
+            );
 
         return () => {
-            window.removeEventListener('storage', handleStorageChange);
+            window.removeEventListener(
+                'storage',
+                handleStorageChange
+            );
+
             clearInterval(intervalId);
         };
     }, [loadData]);
 
+    /* ---------------------------------------------------------------------- */
+    /* States                                                                  */
+    /* ---------------------------------------------------------------------- */
+
     if (!isOnline && !data) {
         return (
-            <div className="bg-gray-200 dark:bg-gray-800/50 p-2 rounded-lg text-xs text-gray-700 dark:text-gray-300">
+            <div
+                dir="rtl"
+                className="
+                    rounded-2xl
+                    border
+                    border-[var(--color-border)]
+                    bg-[var(--color-surface)]
+                    px-4
+                    py-3
+                    text-center
+                    text-[13px]
+                    font-medium
+                    text-slate-300
+                "
+            >
                 عدم دسترسی به اینترنت
             </div>
         );
@@ -478,7 +1017,21 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
 
     if (error && !data) {
         return (
-            <div className="bg-red-100 dark:bg-red-900/30 p-2 rounded-lg text-xs text-red-700 dark:text-red-300">
+            <div
+                dir="rtl"
+                className="
+                    rounded-2xl
+                    border
+                    border-red-500/20
+                    bg-red-500/10
+                    px-4
+                    py-3
+                    text-center
+                    text-[13px]
+                    font-medium
+                    text-red-300
+                "
+            >
                 {error}
             </div>
         );
@@ -486,15 +1039,31 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
 
     if (isLoading && !data) {
         return (
-            <div className="bg-gray-200 dark:bg-gray-800/50 p-3 rounded-lg flex items-center gap-4 animate-pulse w-full max-w-sm">
-                <div className="flex-1 space-y-2">
-                    <div className="h-3 w-16 bg-gray-300 dark:bg-gray-700 rounded"></div>
-                    <div className="h-5 w-24 bg-gray-300 dark:bg-gray-700 rounded"></div>
-                </div>
-                <div className="border-l h-8 border-gray-300 dark:border-gray-600"></div>
-                <div className="flex-1 space-y-2">
-                    <div className="h-3 w-20 bg-gray-300 dark:bg-gray-700 rounded"></div>
-                    <div className="h-5 w-20 bg-gray-300 dark:bg-gray-700 rounded"></div>
+            <div
+                dir="rtl"
+                className="
+                    w-full
+                    min-w-[300px]
+                    rounded-2xl
+                    border
+                    border-[var(--color-border)]
+                    bg-[var(--color-surface)]
+                    p-4
+                    animate-pulse
+                "
+            >
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                        <div className="h-3 w-20 rounded bg-white/10" />
+                        <div className="h-7 w-32 rounded bg-white/10" />
+                        <div className="h-3 w-24 rounded bg-white/10" />
+                    </div>
+
+                    <div className="space-y-3">
+                        <div className="h-3 w-24 rounded bg-white/10" />
+                        <div className="h-7 w-32 rounded bg-white/10" />
+                        <div className="h-3 w-24 rounded bg-white/10" />
+                    </div>
                 </div>
             </div>
         );
@@ -502,70 +1071,178 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
 
     if (!data) {
         return (
-            <div className="bg-gray-200 dark:bg-gray-800/50 p-2 rounded-lg text-xs text-gray-500">
-                داده‌ای موجود نیست
-            </div>
-        );
-    }
-
-    const showAsClosed = !isMarketInScheduledTime || !data.isMarketOpen;
-
-    if (showAsClosed) {
-        return (
             <div
-                data-style-id="market-index-closed"
-                data-style-name="شاخص (بازار بسته)"
-                data-style-props="bg,border,text,accent"
-                className="bg-[var(--color-surface)] border border-[var(--color-border)] p-3 rounded-lg w-full max-w-sm"
+                dir="rtl"
+                className="
+                    rounded-2xl
+                    border
+                    border-[var(--color-border)]
+                    bg-[var(--color-surface)]
+                    px-4
+                    py-3
+                    text-center
+                    text-[13px]
+                    text-slate-400
+                "
             >
-                <div className="flex items-start justify-between gap-4">
-                    <IndexDisplay
-                        name="شاخص کل"
-                        value={toSafeNumber(data.value)}
-                        changeValue={toSafeNumber(data.changeValue)}
-                        changePercent={toSafeNumber(data.changePercent)}
-                        showIcon={false}
-                    />
-
-                    <div className="border-l h-12 border-[var(--color-border)]"></div>
-
-                    <IndexDisplay
-                        name="شاخص هم وزن"
-                        value={toSafeNumber(data.equalWeightedValue)}
-                        changeValue={toSafeNumber(data.equalWeightedChangeValue)}
-                        changePercent={toSafeNumber(data.equalWeightedChangePercent)}
-                        showIcon={false}
-                    />
-                </div>
-                <p className="text-xs text-center text-gray-400 mt-2">(بازار تعطیل است)</p>
+                داده‌ای برای نمایش شاخص موجود نیست.
             </div>
         );
     }
+
+    /* ---------------------------------------------------------------------- */
+    /* Closed/open                                                             */
+    /* ---------------------------------------------------------------------- */
+
+        const showAsClosed =
+        !isMarketInScheduledTime ||
+        !data.isMarketOpen;
 
     return (
         <div
-            data-style-id="market-index-open"
-            data-style-name="شاخص (بازار باز)"
+            dir="rtl"
+            data-style-id={
+                showAsClosed
+                    ? 'market-index-closed'
+                    : 'market-index-open'
+            }
+            data-style-name={
+                showAsClosed
+                    ? 'شاخص بازار بسته'
+                    : 'شاخص بازار باز'
+            }
             data-style-props="bg,border,positive,negative"
-            className="bg-[var(--color-surface)] border border-[var(--color-border)] p-3 rounded-lg flex items-center gap-4 w-full max-w-sm"
+            className="
+                w-full
+                min-w-0
+                max-w-[460px]
+                overflow-hidden
+                rounded-2xl
+                border
+                border-[var(--color-border)]
+                bg-[var(--color-surface)]
+                shadow-lg
+                shadow-black/10
+            "
         >
-            <IndexDisplay
-                name="شاخص کل"
-                value={toSafeNumber(data.value)}
-                changeValue={toSafeNumber(data.changeValue)}
-                changePercent={toSafeNumber(data.changePercent)}
-            />
-            <div className="border-l h-10 border-[var(--color-border)]"></div>
-            <IndexDisplay
-                name="شاخص کل (هم وزن)"
-                value={toSafeNumber(data.equalWeightedValue)}
-                changeValue={toSafeNumber(data.equalWeightedChangeValue)}
-                changePercent={toSafeNumber(data.equalWeightedChangePercent)}
-            />
+            {/* Header */}
+            <div
+                className="
+                    flex
+                    items-center
+                    justify-between
+                    gap-3
+                    border-b
+                    border-[var(--color-border)]
+                    px-4
+                    py-3
+                "
+            >
+                <div className="min-w-0">
+                    <div
+                        className="
+                            text-[14px]
+                            font-bold
+                            text-[var(--color-text-primary)]
+                        "
+                    >
+                        شاخص‌های بازار
+                    </div>
+
+                    <div
+                        className="
+                            mt-0.5
+                            text-[11px]
+                            font-medium
+                            text-slate-400
+                        "
+                    >
+                        وضعیت لحظه‌ای بازار
+                    </div>
+                </div>
+
+                {/* Market status */}
+                <span
+                    className={`
+                        inline-flex
+                        shrink-0
+                        items-center
+                        gap-2
+                        rounded-full
+                        border
+                        px-3
+                        py-1
+                        text-[12px]
+                        font-bold
+                        leading-5
+                        ${
+                            showAsClosed
+                                ? 'border-red-500/20 bg-red-500/10 text-red-400'
+                                : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                        }
+                    `}
+                >
+                    <span
+                        className={`
+                            h-2
+                            w-2
+                            rounded-full
+                            ${
+                                showAsClosed
+                                    ? 'bg-red-400'
+                                    : 'bg-emerald-400'
+                            }
+                        `}
+                    />
+
+                    {showAsClosed
+                        ? 'بازار بسته'
+                        : 'بازار باز'}
+                </span>
+            </div>
+
+            {/* Index cards */}
+            <div className="relative grid grid-cols-2 px-2 py-4">
+
+                {/* Center divider */}
+                <div
+                    aria-hidden="true"
+                    className="
+                        pointer-events-none
+                        absolute
+                        right-1/2
+                        top-4
+                        bottom-4
+                        w-px
+                        translate-x-1/2
+                        bg-[var(--color-border)]
+                    "
+                />
+
+                {/* شاخص کل */}
+                <div className="min-w-0 pl-5">
+                    <IndexDisplay
+                        name="شاخص کل"
+                        value={data.value}
+                        changeValue={data.changeValue}
+                        changePercent={data.changePercent}
+                        showIcon={!showAsClosed}
+                    />
+                </div>
+
+                {/* شاخص هم‌وزن */}
+                <div className="min-w-0 pr-5">
+                    <IndexDisplay
+                        name="شاخص هم‌وزن"
+                        value={data.equalWeightedValue}
+                        changeValue={data.equalWeightedChangeValue}
+                        changePercent={data.equalWeightedChangePercent}
+                        showIcon={!showAsClosed}
+                    />
+                </div>
+            </div>
         </div>
     );
 };
 
 export default MarketIndex;
-
-
