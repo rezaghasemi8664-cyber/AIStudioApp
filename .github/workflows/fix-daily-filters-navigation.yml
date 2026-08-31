@@ -1,41 +1,76 @@
-name: Finalize Daily Filters Navigation
+name: Normalize Daily Filters Navigation
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
 permissions:
   contents: write
+
 jobs:
-  fix-navigation:
+  normalize-navigation:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Move daily filters tab to main navigation
+
+      - name: Keep exactly one daily filters tab
         shell: python
         run: |
           from pathlib import Path
+          import re
+
           p = Path('src/App.tsx')
           s = p.read_text(encoding='utf-8-sig')
-          old = '''            {currentUser.isAdmin && (\n              <>\n                <TabButton\n                  tab="users"'''
-          new = '''            <TabButton\n              tab="dailyFilters"\n              label="فیلترهای روزانه"\n              icon={<PresentationChartLineIcon />}\n              alertType="none"\n              locked={isExpired}\n              activeTab={activeTab}\n              onTabClick={handleTabClick}\n            />\n\n            {currentUser.isAdmin && (\n              <>\n                <TabButton\n                  tab="users"'''
-          if old in s:
-              s = s.replace(old, new, 1)
-          old2 = '''\n\n            <TabButton\n              tab="dailyFilters"\n              label="فیلترهای روزانه"\n              icon={<PresentationChartLineIcon />}\n              alertType="none"\n              locked={isExpired}\n              activeTab={activeTab}\n              onTabClick={handleTabClick}\n            />                <TabButton\n                  tab="notifications"'''
-          new2 = '''\n                <TabButton\n                  tab="notifications"'''
-          if old2 in s:
-              s = s.replace(old2, new2, 1)
+
+          pattern = re.compile(
+              r'\n\s*<TabButton\s*\n'
+              r'\s*tab="dailyFilters"\s*\n'
+              r'\s*label="فیلترهای روزانه"\s*\n'
+              r'\s*icon=\{<PresentationChartLineIcon />\}\s*\n'
+              r'\s*alertType="none"\s*\n'
+              r'\s*locked=\{isExpired\}\s*\n'
+              r'\s*activeTab=\{activeTab\}\s*\n'
+              r'\s*onTabClick=\{handleTabClick\}\s*\n'
+              r'\s*/>',
+              re.MULTILINE,
+          )
+
+          matches = list(pattern.finditer(s))
+          print(f'Found dailyFilters TabButton occurrences: {len(matches)}')
+          if not matches:
+              raise SystemExit('No dailyFilters TabButton found')
+
+          # Preserve the first occurrence and remove all subsequent occurrences.
+          first_end = matches[0].end()
+          prefix = s[:first_end]
+          suffix = s[first_end:]
+          suffix = pattern.sub('', suffix)
+          s = prefix + suffix
+
+          remaining = len(list(pattern.finditer(s)))
+          print(f'Remaining dailyFilters TabButton occurrences: {remaining}')
+          if remaining != 1:
+              raise SystemExit('Expected exactly one dailyFilters TabButton')
+
           p.write_text(s, encoding='utf-8')
-      - name: Verify TypeScript build
+
+      - name: Build verification
         run: |
           npm ci
           npm run build
-      - name: Commit navigation change
+
+      - name: Commit only if source changed
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/App.tsx
-          git diff --cached --quiet && exit 0
-          git commit -m "fix: expose daily filters in main navigation"
+          if git diff --cached --quiet; then
+            echo "No navigation change required."
+            exit 0
+          fi
+          git commit -m "fix: keep exactly one daily filters navigation tab"
           git push
