@@ -1351,6 +1351,16 @@ const App: React.FC = () => {
               onTabClick={handleTabClick}
             />
 
+            <TabButton
+              tab="dailyFilters"
+              label="فیلترهای روزانه"
+              icon={<PresentationChartLineIcon />}
+              alertType="none"
+              locked={isExpired}
+              activeTab={activeTab}
+              onTabClick={handleTabClick}
+            />
+
             {currentUser.isAdmin && (
               <>
                 <TabButton
