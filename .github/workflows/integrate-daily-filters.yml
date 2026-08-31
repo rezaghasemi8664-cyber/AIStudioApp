@@ -1,0 +1,39 @@
+name: Integrate daily filters tab
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Integrate component
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('src/App.tsx')
+          s=p.read_text(encoding='utf-8-sig')
+          s=s.replace("const StockComparison = lazy(() => import('./components/StockComparison'));", "const StockComparison = lazy(() => import('./components/StockComparison'));\nconst DailyFilters = lazy(() => import('./components/DailyFilters'));", 1)
+          s=s.replace("  | 'comparison'\n", "  | 'comparison'\n  | 'dailyFilters'\n", 1)
+          s=s.replace("      case 'comparison':\n        return <StockComparison currentUser={currentUser} isOnline={isOnline} />;", "      case 'comparison':\n        return <StockComparison currentUser={currentUser} isOnline={isOnline} />;\n\n      case 'dailyFilters':\n        return <DailyFilters />;", 1)
+          marker='            <TabButton\n              tab="comparison"'
+          idx=s.find(marker)
+          if idx!=-1:
+            end=s.find('            />\n', idx)
+            end=s.find('            />\n', end+1)
+            insert='\n\n            <TabButton\n              tab="dailyFilters"\n              label="فیلترهای روزانه"\n              icon={<PresentationChartLineIcon />}\n              alertType="none"\n              locked={isExpired}\n              activeTab={activeTab}\n              onTabClick={handleTabClick}\n            />'
+            s=s[:end+len('            />\n')]+insert+s[end+len('            />\n'):]
+          p.write_text(s,encoding='utf-8')
+      - name: Commit and remove one-time workflow
+        run: |
+          git rm .github/workflows/integrate-daily-filters.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.tsx
+          git commit -m "feat: add daily filters tab"
+          git push
