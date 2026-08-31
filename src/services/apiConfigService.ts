@@ -57,6 +57,18 @@ export async function apiFetch<T = any>(
     ...(customHeaders as Record<string, string>),
   };
 
+  // Express/body-parser only parses the request as JSON when the content type
+  // is explicitly declared. All application JSON calls use JSON.stringify(),
+  // so add the header automatically unless the caller supplied another type.
+  const bodyIsString = typeof rest.body === 'string';
+  const hasContentType = Object.keys(headers).some(
+    (key) => key.toLowerCase() === 'content-type'
+  );
+
+  if (bodyIsString && !hasContentType) {
+    headers['Content-Type'] = 'application/json; charset=utf-8';
+  }
+
   if (requireAuth) {
     const token = getStoredToken();
     if (token && !headers.Authorization) {
@@ -71,8 +83,8 @@ export async function apiFetch<T = any>(
   const isAbsoluteUrl = /^https?:\/\//i.test(endpoint);
 
   const url = isAbsoluteUrl
-  ? endpoint
-  : `${API_BASE_URL}${normalizedEndpoint}`;
+    ? endpoint
+    : `${API_BASE_URL}${normalizedEndpoint}`;
 
   const response = await fetch(url, {
     credentials: 'include',
