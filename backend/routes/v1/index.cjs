@@ -55,10 +55,12 @@ function tryMount(path, moduleFile, label) {
     return false;
   }
 }
+
 tryMount('/auth', '../auth.routes.cjs', 'Auth');
 tryMount('/analyze', '../analyze.routes.cjs', 'Analyze');
 tryMount('/analysis', '../analysis.routes.cjs', 'Analysis');
 tryMount('/analysis-history', '../analysisHistory.routes.cjs', 'Analysis History');
+tryMount('/analysis-claim', '../analysisClaim.routes.cjs', 'Analysis Claim');
 tryMount('/portfolio', '../portfolio.routes.cjs', 'Portfolio');
 tryMount('/market-history', '../marketHistory.routes.cjs', 'Market History');
 tryMount('/conversations', '../conversation.routes.cjs', 'Conversations');
@@ -75,6 +77,21 @@ tryMount('/admin', '../admin.routes.cjs', 'Admin');
 tryMount('/user-preference', '../userPreference.routes.cjs', 'User Preference');
 tryMount('/market', '../market.routes.cjs', 'Market'); // only once
 tryMount('/market-summary', '../marketSummary.routes.cjs', 'Market Summary');
+
+// Compatibility endpoint used by the frontend market-index service.
+// Keep the canonical market controller as the single source of market-index data.
+try {
+  var marketHistoryController = require('../controllers/marketHistory.controller.cjs');
+  if (marketHistoryController && typeof marketHistoryController.getMarketIndex === 'function') {
+    router.get('/data/market-index/latest', marketHistoryController.getMarketIndex);
+    console.log('[v1/index] Mounted: Market Index compatibility -> /data/market-index/latest');
+  } else {
+    throw new Error('getMarketIndex controller method is not available');
+  }
+} catch (err) {
+  failedCount++;
+  console.warn('[v1/index] FAILED to mount Market Index compatibility: ' + err.message);
+}
 
 router.get('/', function (_req, res) {
   res.json({
