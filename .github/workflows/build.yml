@@ -11,7 +11,7 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   frontend-build:
@@ -30,89 +30,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Patch AI features to use backend
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          gap = Path('src/services/gapgptService.ts')
-          text = gap.read_text(encoding='utf-8-sig')
-
-          analyze = '''export const analyzeStock = async (
-            symbol: string,
-            dailyCount = 30,
-            weeklyCount = 24,
-            featureKey: FeatureKey = 'analysis'
-          ): Promise<AnalysisResult> => {
-            const response = await appApiFetch<any>('/analyze/stock', {
-              method: 'POST',
-              body: JSON.stringify({ symbol, dailyCount, weeklyCount, analysisType: featureKey, featureKey }),
-            });
-            const payload = response?.data ?? response;
-            const analysis = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
-            if (!analysis || typeof analysis !== 'object') throw new Error('پاسخ معتبر از سرویس تحلیل سهم دریافت نشد.');
-            return { ...analysis, symbol, currentPrice: Number(analysis.currentPrice ?? analysis.closingPrice ?? analysis.marketData?.lastClosePrice ?? 0), analysisDate: analysis.analysisDate || new Date().toISOString() } as AnalysisResult;
-          };'''
-
-          p = re.compile(r"export const analyzeStock = async \([\s\S]*?\n\};\n\n/\* ==============================\n   .*?Scalping", re.M)
-          m = p.search(text)
-          if not m: raise SystemExit('analyzeStock block not found')
-          text = text[:m.start()] + analyze + "\n\n/* ==============================\n   ?? Scalping" + text[m.end():]
-
-          portfolio = '''export const getPortfolioOptimization = async (
-            portfolio: PortfolioItem[],
-            analyses: (AnalysisResult | undefined)[]
-          ): Promise<PortfolioOptimizationResult> => {
-            if (!Array.isArray(portfolio) || portfolio.length === 0) throw new Error('سبد سرمایه‌گذاری خالی است.');
-            const response = await appApiFetch<any>('/ai/portfolio-optimize', { method: 'POST', body: JSON.stringify({ portfolio, analyses }) });
-            const payload = response?.data ?? response;
-            const result = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
-            if (!result || typeof result !== 'object') throw new Error('پاسخ معتبر از سرویس بهینه‌سازی سبد دریافت نشد.');
-            return result as PortfolioOptimizationResult;
-          };'''
-
-          p = re.compile(r"export const getPortfolioOptimization = async \([\s\S]*?\n\};\n\n/\* ==============================\n   .*?Compare", re.M)
-          m = p.search(text)
-          if not m: raise SystemExit('getPortfolioOptimization block not found')
-          text = text[:m.start()] + portfolio + "\n\n/* ==============================\n   ?? ?????? ????" + text[m.end():]
-          gap.write_text(text, encoding='utf-8')
-
-          routes = Path('backend/routes/ai.routes.cjs')
-          r = routes.read_text(encoding='utf-8-sig')
-          if "require('../services/ai.service.cjs')" not in r:
-              r = r.replace("const axios = require('axios');", "const axios = require('axios');\nconst aiService = require('../services/ai.service.cjs');")
-          endpoint = """
-// --- POST /api/ai/portfolio-optimize - Backend-first portfolio optimization ---
-router.post('/portfolio-optimize', authenticate, async function (req, res) {
-  try {
-    const portfolio = req.body && (req.body.portfolio || req.body.items);
-    const analyses = req.body && Array.isArray(req.body.analyses) ? req.body.analyses : [];
-    const result = await aiService.optimizePortfolio({ portfolio: Array.isArray(portfolio) ? portfolio : [], analyses, userId: req.user && req.user.id });
-    return res.json({ success: true, data: result && result.data ? result.data : result, source: 'backend-gapgpt' });
-  } catch (error) {
-    console.error('[AI] POST /portfolio-optimize error:', error.message);
-    return res.status(error.message === 'سبد سرمایه‌گذاری خالی است' ? 400 : 502).json({ success: false, message: error.message || 'خطا در تحلیل و بهینه‌سازی سبد', code: 'PORTFOLIO_AI_FAILED' });
-  }
-});
-"""
-          if "router.post('/portfolio-optimize'" not in r:
-              r = r.replace("\nmodule.exports = router;", endpoint + "\nmodule.exports = router;")
-          routes.write_text(r, encoding='utf-8')
-          PY
-
-      - name: Commit backend-first AI changes
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/services/gapgptService.ts backend/routes/ai.routes.cjs
-          if ! git diff --cached --quiet; then
-            git commit -m "fix(ai): backend-first stock and portfolio analysis"
-            git push
-          fi
 
       - name: Build frontend
         run: npm run build
