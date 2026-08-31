@@ -128,9 +128,9 @@ export const getPortfolioOptimization = async (portfolio: PortfolioItem[], analy
     '━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
     ...holdingsSummary.map(item => [
       `نماد: ${item.symbol}${item.name ? ` | ${item.name}` : ''}`,
-      `تعداد کل: ${formatMoney(item.totalQuantity)} سهم | میانگین قیمت خرید: ${formatMoney(item.averageEntryPrice)} تومان`,
-      `قیمت فعلی: ${formatMoney(item.currentPrice)} تومان | ارزش فعلی: ${formatMoney(item.currentValue)} تومان`,
-      `مبلغ سود/زیان: ${item.pnl >= 0 ? '+' : ''}${formatMoney(item.pnl)} تومان | درصد سود/زیان: ${formatPercent(item.pnlPercent)}`,
+      `تعداد کل: ${formatMoney(item.totalQuantity)} سهم | میانگین قیمت خرید: ${formatMoney(item.averageEntryPrice)} ریال`,
+      `قیمت فعلی: ${formatMoney(item.currentPrice)} ریال | ارزش فعلی: ${formatMoney(item.currentValue)} ریال`,
+      `مبلغ سود/زیان: ${item.pnl >= 0 ? '+' : ''}${formatMoney(item.pnl)} ریال | درصد سود/زیان: ${formatPercent(item.pnlPercent)}`,
       '────────────────────────────',
     ].join('\n')),
   ].join('\n');
