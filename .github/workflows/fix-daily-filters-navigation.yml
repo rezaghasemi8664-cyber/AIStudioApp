@@ -1,0 +1,41 @@
+name: Finalize Daily Filters Navigation
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fix-navigation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Move daily filters tab to main navigation
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/App.tsx')
+          s = p.read_text(encoding='utf-8-sig')
+          old = '''            {currentUser.isAdmin && (\n              <>\n                <TabButton\n                  tab="users"'''
+          new = '''            <TabButton\n              tab="dailyFilters"\n              label="فیلترهای روزانه"\n              icon={<PresentationChartLineIcon />}\n              alertType="none"\n              locked={isExpired}\n              activeTab={activeTab}\n              onTabClick={handleTabClick}\n            />\n\n            {currentUser.isAdmin && (\n              <>\n                <TabButton\n                  tab="users"'''
+          if old not in s:
+              raise SystemExit('navigation anchor not found')
+          s = s.replace(old, new, 1)
+          old2 = '''\n\n            <TabButton\n              tab="dailyFilters"\n              label="فیلترهای روزانه"\n              icon={<PresentationChartLineIcon />}\n              alertType="none"\n              locked={isExpired}\n              activeTab={activeTab}\n              onTabClick={handleTabClick}\n            />                <TabButton\n                  tab="notifications"'''
+          new2 = '''\n                <TabButton\n                  tab="notifications"'''
+          if old2 not in s:
+              raise SystemExit('duplicate daily filters anchor not found')
+          s = s.replace(old2, new2, 1)
+          p.write_text(s, encoding='utf-8')
+      - name: Verify TypeScript build
+        run: |
+          npm ci
+          npm run build
+      - name: Commit navigation change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: expose daily filters in main navigation"
+          git push
