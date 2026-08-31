@@ -1,0 +1,105 @@
+name: Fix Portfolio Aggregate Rial Summary
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Add aggregated same-symbol Rial summary
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/components/Portfolio.tsx')
+          s = p.read_text(encoding='utf-8')
+
+          marker = "  const pieData = useMemo(() => portfolio.filter(x => x.analysis).map(x => ({ name: x.symbol, value: x.analysis!.currentPrice * x.quantity })), [portfolio]);\n"
+          block = r'''  const aggregatedHoldings = useMemo(() => {
+    const groups = new Map<string, { symbol: string; quantity: number; totalCost: number; currentPrice: number }>();
+    for (const item of portfolio) {
+      const symbol = String(item.symbol || '').trim().toUpperCase();
+      if (!symbol) continue;
+      const quantity = Number(item.quantity) || 0;
+      const entryPrice = Number(item.entryPrice) || 0;
+      const currentPrice = Number(item.analysis?.currentPrice) || 0;
+      const existing = groups.get(symbol);
+      if (existing) {
+        existing.quantity += quantity;
+        existing.totalCost += entryPrice * quantity;
+        if (currentPrice > 0) existing.currentPrice = currentPrice;
+      } else {
+        groups.set(symbol, { symbol, quantity, totalCost: entryPrice * quantity, currentPrice });
+      }
+    }
+    return Array.from(groups.values()).map(item => {
+      const averageEntryPrice = item.quantity > 0 ? item.totalCost / item.quantity : 0;
+      const currentValue = item.currentPrice > 0 ? item.currentPrice * item.quantity : 0;
+      const pnl = currentValue - item.totalCost;
+      const pnlPercent = item.totalCost > 0 ? (pnl / item.totalCost) * 100 : 0;
+      return { ...item, averageEntryPrice, currentValue, pnl, pnlPercent };
+    });
+  }, [portfolio]);
+'''
+          if 'const aggregatedHoldings = useMemo' not in s:
+              if marker not in s:
+                  raise SystemExit('pieData marker not found')
+              s = s.replace(marker, marker + block, 1)
+
+          modal_marker = '          <p className="leading-7 mb-5 whitespace-pre-wrap">{optimizationResult.summary}</p>\n'
+          modal_block = r'''          {aggregatedHoldings.length > 0 && <div className="mb-6">
+            <h4 className="font-bold text-base mb-3">خلاصه تجمیعی نمادهای همنام</h4>
+            <div className="overflow-x-auto rounded-lg border" style={{ borderColor: 'var(--portfolio-item-card-border-color)' }}>
+              <table className="w-full text-sm text-center">
+                <thead className="bg-gray-100 dark:bg-gray-700">
+                  <tr>
+                    <th className="px-3 py-2">نماد</th>
+                    <th className="px-3 py-2">تعداد کل</th>
+                    <th className="px-3 py-2">میانگین قیمت خرید (ریال)</th>
+                    <th className="px-3 py-2">قیمت فعلی (ریال)</th>
+                    <th className="px-3 py-2">ارزش فعلی (ریال)</th>
+                    <th className="px-3 py-2">سود/زیان (ریال)</th>
+                    <th className="px-3 py-2">سود/زیان (%)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {aggregatedHoldings.map(h => <tr key={h.symbol} className="border-t" style={{ borderColor: 'var(--portfolio-item-card-border-color)' }}>
+                    <td className="px-3 py-2 font-bold text-cyan-600">{h.symbol}</td>
+                    <td className="px-3 py-2 font-mono">{formatNumber(h.quantity)}</td>
+                    <td className="px-3 py-2 font-mono">{formatNumber(Math.round(h.averageEntryPrice))}</td>
+                    <td className="px-3 py-2 font-mono">{h.currentPrice > 0 ? formatNumber(Math.round(h.currentPrice)) : '—'}</td>
+                    <td className="px-3 py-2 font-mono">{h.currentPrice > 0 ? formatNumber(Math.round(h.currentValue)) : '—'}</td>
+                    <td className="px-3 py-2"><PnLDisplay value={h.pnl} /></td>
+                    <td className="px-3 py-2"><PnLDisplay value={h.pnlPercent} isPercent /></td>
+                  </tr>)}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">تمام مبالغ و قیمت‌های این خلاصه به ریال محاسبه و نمایش داده می‌شوند.</p>
+          </div>}
+'''
+          if 'خلاصه تجمیعی نمادهای همنام' not in s:
+              if modal_marker not in s:
+                  raise SystemExit('optimization modal marker not found')
+              s = s.replace(modal_marker, modal_marker + modal_block, 1)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/Portfolio.tsx .github/workflows/fix-portfolio-aggregate-riyal.yml
+          git commit -m "Add aggregated portfolio same-symbol Rial summary" || exit 0
+          git push
