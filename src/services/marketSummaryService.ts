@@ -293,9 +293,41 @@ const normalizeSummary = (candidate: JsonObject): MarketSummaryData | null => {
 
   const overallIndex = coalesceNumber(candidate.overallIndex, rawData?.index);
   const overallChange = coalesceNumber(candidate.overallChange, rawData?.index_change);
-  const equalIndex = coalesceNumber(candidate.equalIndex, rawData?.index_equalWeight);
-  const equalChange = coalesceNumber(candidate.equalChange, rawData?.index_equalWeight_change);
+  const equalIndex = coalesceNumber(
+    candidate.equalIndex,
+    candidate.equalWeightedValue,
+    candidate.equalWeightValue,
+    candidate.equalWeightedIndex,
+    candidate.equalWeightIndex,
 
+    rawData?.equalIndex,
+    rawData?.equalWeightedValue,
+    rawData?.equalWeightValue,
+    rawData?.equalWeightedIndex,
+    rawData?.equalWeightIndex,
+
+    rawData?.index_equalWeight,
+    rawData?.indexEqualWeight,
+    rawData?.equal_index
+);
+
+const equalChange = coalesceNumber(
+    candidate.equalChange,
+    candidate.equalWeightedChange,
+    candidate.equalWeightedChangeValue,
+    candidate.equalWeightChange,
+    candidate.equalWeightChangeValue,
+
+    rawData?.equalChange,
+    rawData?.equalWeightedChange,
+    rawData?.equalWeightedChangeValue,
+    rawData?.equalWeightChange,
+    rawData?.equalWeightChangeValue,
+
+    rawData?.index_equalWeight_change,
+    rawData?.indexEqualWeightChange,
+    rawData?.equal_index_change
+);
   const totalTrades = coalesceStringValue(candidate.totalTrades, rawData?.tno);
   const totalVolume = coalesceStringValue(candidate.totalVolume, rawData?.tvol);
   const totalValue = coalesceStringValue(candidate.totalValue, rawData?.tval);
@@ -413,15 +445,27 @@ const pickMarketSummary = (payload: unknown): MarketSummaryData | null => {
           candidate.indexChange
         ),
         equalIndex: coalesceNumber(
-          candidate.equalIndex,
-          candidate.index_equalWeight,
-          candidate.indexEqualWeight
-        ),
-        equalChange: coalesceNumber(
-          candidate.equalChange,
-          candidate.index_equalWeight_change,
-          candidate.indexEqualWeightChange
-        ),
+    candidate.equalIndex,
+    candidate.equalWeightedValue,
+    candidate.equalWeightValue,
+    candidate.equalWeightedIndex,
+    candidate.equalWeightIndex,
+    candidate.index_equalWeight,
+    candidate.indexEqualWeight,
+    candidate.equal_index
+),
+
+equalChange: coalesceNumber(
+    candidate.equalChange,
+    candidate.equalWeightedChange,
+    candidate.equalWeightedChangeValue,
+    candidate.equalWeightChange,
+    candidate.equalWeightChangeValue,
+    candidate.index_equalWeight_change,
+    candidate.indexEqualWeightChange,
+    candidate.equal_index_change
+),
+        
         marketStatus: normalizeMarketStatus(
           candidate.marketStatus,
           candidate.state
