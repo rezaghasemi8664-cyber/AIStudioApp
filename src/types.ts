@@ -43,7 +43,6 @@ export interface PortfolioItem { id: string; symbol: string; name?: string; entr
 // --- Scalping ---
 export type ScalpingSignalType = 'BUY' | 'SELL' | 'NONE';
 export interface ScalpingOpportunity { id?: string | number; symbol: string; price: number | null; reason: string; score: number; confidence?: number | null; signal?: ScalpingSignalType; type?: ScalpingSignalType; timestamp?: number; createdAt?: string; }
-export interface ScalpingSignalsResponse { signals: ScalpingOpportunity[]; total?: number; }
 export interface ScalpingHistoryItem extends ScalpingOpportunity {}
 export interface ScalpingHistoryResult { items: ScalpingHistoryItem[]; page: number; limit: number; total: number; totalPages: number; }
 export interface ScalpingCache { data: ScalpingOpportunity[]; timestamp: number; }
@@ -55,8 +54,8 @@ export type PortfolioAlertType = 'none' | 'buy' | 'sell';
 // =============================================================================
 export interface User {
   id: string; username: string; firstName: string; lastName: string; mobile: string; isAdmin: boolean; isActive: boolean; registrationDate: string;
-  activationDate: string; validityDays: number; expiryDate?: string; email?: string; phone?: string; role?: string; isGuest?: boolean; analysisIntervalMinutes: number; analysisLimit24h: number; isDeleted?: boolean;
-  name?: string; subscriptionStart?: string | null; subscriptionEnd?: string | null; subscriptionMonths?: number;
+  activationDate: string; validityDays: number; email?: string; isGuest?: boolean; analysisIntervalMinutes: number; analysisLimit24h: number; isDeleted?: boolean;
+  name?: string; phone?: string; role?: string; subscriptionStart?: string | null; subscriptionEnd?: string | null; subscriptionMonths?: number;
   analysisLimit?: number; isSubscriptionActive?: boolean; remainingDays?: number; createdAt?: string; validityDate?: string | null; expiresAt?: string | null; analysisUsed?: number;
 }
 export interface StoredUser extends User { passwordHash: string; password?: string; }
@@ -65,7 +64,7 @@ export interface UserProfile { id: string; username: string; name: string; email
 export interface UpdateProfileData { name?: string; email?: string; phone?: string; mobile?: string; }
 export interface SubscriptionInfo { isSubscriptionActive: boolean; subscriptionStart: string | null; subscriptionEnd: string | null; subscriptionMonths: number; analysisLimit: number; remainingDays: number; analysisCount: number; }
 export interface AdminDashboardStats { totalUsers: number; activeSubscriptions: number; totalAnalyses: number; totalApiKeys: number; recentUsers?: AdminUserListItem[]; }
-export interface AdminUserListItem { userId?: string; id: string; username: string; name: string | null; email: string | null; phone: string | null; mobile: string | null; role: string; isActive: boolean; isSubscriptionActive: boolean; subscriptionStart: string | null; subscriptionEnd: string | null; subscriptionMonths: number; analysisLimit: number; remainingDays: number; analysisCount: number; createdAt: string; updatedAt: string; }
+export interface AdminUserListItem { id: string; username: string; name: string | null; email: string | null; phone: string | null; mobile: string | null; role: string; isActive: boolean; isSubscriptionActive: boolean; subscriptionStart: string | null; subscriptionEnd: string | null; subscriptionMonths: number; analysisLimit: number; remainingDays: number; analysisCount: number; createdAt: string; updatedAt: string; }
 export interface AdminUpdateSubscriptionData { userId: string; isSubscriptionActive: boolean; subscriptionStart: string; subscriptionEnd: string; subscriptionMonths: number; analysisLimit: number; }
 export interface SystemRole { id: string; name: string; description?: string; }
 export interface ApiResponse<T = unknown> { success: boolean; data?: T; error?: string; message?: string; }
