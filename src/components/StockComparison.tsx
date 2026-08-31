@@ -1,7 +1,8 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import type { StoredUser, StockComparisonResult } from '../types';
 import * as analysisUsageService from '../services/analysisUsageService';
 import * as storageService from '../services/storageService';
+import * as gapgptService from '../services/gapgptService';
 import { useNotification } from './NotificationSystem';
 import { SparklesIcon, ClipboardDocumentIcon } from './Icons';
 
@@ -40,7 +41,7 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
             const settingsJson = storageService.getItem(settingsKey);
             const settings = settingsJson ? JSON.parse(settingsJson) : { chartDays: 30, chartWeeks: 24 };
             
-            const comparisonResult = await geminiService.compareStocks(symbol1, symbol2, { dailyCount: settings.chartDays, weeklyCount: settings.chartWeeks });
+            const comparisonResult = await gapgptService.compareStocks(symbol1, symbol2, { dailyCount: settings.chartDays, weeklyCount: settings.chartWeeks });
             setResult(comparisonResult);
 
         } catch (err: any) {
@@ -99,7 +100,6 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
 
             {result && (
                 <div className="space-y-8 animate-fade-in">
-                    {/* Final Recommendation */}
                     <div className="p-6 rounded-lg shadow-md bg-indigo-50 dark:bg-indigo-900/40 border-l-4 border-indigo-500">
                         <h3 className="text-xl font-bold mb-2 text-indigo-800 dark:text-indigo-300">جمع‌بندی و توصیه نهایی</h3>
                         <p className="text-gray-800 dark:text-gray-200 leading-relaxed">{result.final_recommendation}</p>
@@ -109,16 +109,13 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                         <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">{result.comparison_summary}</p>
                     </div>
 
-                    {/* Side-by-side comparison */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {/* Symbol 1 */}
                         <div className="p-6 rounded-lg shadow-md space-y-4 bg-white dark:bg-gray-800">
                             <h3 className="text-2xl font-bold text-cyan-700 dark:text-cyan-400">{result.symbol1_analysis.recommendation}: {symbol1}</h3>
                              <AnalysisCard title="خلاصه" content={result.symbol1_analysis.summary} />
                              <AnalysisCard title="تحلیل تکنیکال" content={result.symbol1_analysis.technicalAnalysis} />
                              <AnalysisCard title="تحلیل بنیادی" content={result.symbol1_analysis.fundamentalAnalysis} />
                         </div>
-                        {/* Symbol 2 */}
                         <div className="p-6 rounded-lg shadow-md space-y-4 bg-white dark:bg-gray-800">
                              <h3 className="text-2xl font-bold text-cyan-700 dark:text-cyan-400">{result.symbol2_analysis.recommendation}: {symbol2}</h3>
                              <AnalysisCard title="خلاصه" content={result.symbol2_analysis.summary} />
