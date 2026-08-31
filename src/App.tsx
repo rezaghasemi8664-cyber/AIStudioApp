@@ -1,4 +1,4 @@
-﻿import React, {
+import React, {
   useState,
   useEffect,
   useCallback,
@@ -75,6 +75,7 @@ const StockAnalysis = lazy(() => import('./components/StockAnalysis'));
 const Scalping = lazy(() => import('./components/Scalping'));
 const Portfolio = lazy(() => import('./components/Portfolio'));
 const StockComparison = lazy(() => import('./components/StockComparison'));
+const DailyFilters = lazy(() => import('./components/DailyFilters'));
 const UserProfile = lazy(() => import('./components/UserProfile'));
 const UserManagement = lazy(() => import('./components/UserManagement'));
 const NotificationsManagement = lazy(() => import('./components/NotificationsManagement'));
@@ -85,6 +86,7 @@ type Tab =
   | 'scalping'
   | 'portfolio'
   | 'comparison'
+  | 'dailyFilters'
   | 'users'
   | 'settings'
   | 'notifications'
@@ -1102,6 +1104,9 @@ const App: React.FC = () => {
       case 'comparison':
         return <StockComparison currentUser={currentUser} isOnline={isOnline} />;
 
+      case 'dailyFilters':
+        return <DailyFilters />;
+
       case 'profile':
         return (
           <UserProfile
@@ -1346,7 +1351,17 @@ const App: React.FC = () => {
                   activeTab={activeTab}
                   onTabClick={handleTabClick}
                 />
-                <TabButton
+
+
+            <TabButton
+              tab="dailyFilters"
+              label="فیلترهای روزانه"
+              icon={<PresentationChartLineIcon />}
+              alertType="none"
+              locked={isExpired}
+              activeTab={activeTab}
+              onTabClick={handleTabClick}
+            />                <TabButton
                   tab="notifications"
                   label="اطلاعیه‌ها"
                   icon={<MegaphoneIcon />}
