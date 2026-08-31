@@ -1,0 +1,43 @@
+name: Temporary Portfolio Rial Fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply Rial labels in Portfolio
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/components/Portfolio.tsx')
+          s = p.read_text(encoding='utf-8')
+          replacements = {
+              'تومان': 'ریال',
+              'قیمت ورود</p>': 'قیمت ورود (ریال)</p>',
+              'placeholder="قیمت ورود"': 'placeholder="قیمت ورود (ریال)"',
+          }
+          for old, new in replacements.items():
+              s = s.replace(old, new)
+          p.write_text(s, encoding='utf-8')
+          PY
+          grep -n -E 'تومان|قیمت ورود' src/components/Portfolio.tsx
+
+      - name: Commit and push fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/Portfolio.tsx .github/workflows/temp-fix-portfolio-riyal.yml
+          git commit -m "Fix portfolio entry price unit to Rial" || exit 0
+          git push
