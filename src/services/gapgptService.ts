@@ -51,13 +51,7 @@ export const analyzeStock = async (
 
   const response = await appApiFetch<any>('/analyze/stock', {
     method: 'POST',
-    body: JSON.stringify({
-      symbol: normalizedSymbol,
-      dailyCount,
-      weeklyCount,
-      analysisType: featureKey,
-      featureKey,
-    }),
+    body: JSON.stringify({ symbol: normalizedSymbol, dailyCount, weeklyCount, analysisType: featureKey, featureKey }),
   });
 
   return normalizeAnalysis(unwrap(response), normalizedSymbol);
@@ -67,21 +61,44 @@ export const getPortfolioOptimization = async (
   portfolio: PortfolioItem[],
   analyses: (AnalysisResult | undefined)[]
 ): Promise<PortfolioOptimizationResult> => {
-  if (!Array.isArray(portfolio) || portfolio.length === 0) {
-    throw new Error('سبد سرمایه‌گذاری خالی است.');
-  }
+  if (!Array.isArray(portfolio) || portfolio.length === 0) throw new Error('سبد سرمایه‌گذاری خالی است.');
 
-  const response = await appApiFetch<any>('/ai/portfolio-optimize', {
+  const context = portfolio.map((item, index) => ({
+    symbol: item.symbol,
+    name: (item as any).name || item.symbol,
+    quantity: item.quantity,
+    entryPrice: (item as any).entryPrice ?? (item as any).buyPrice ?? 0,
+    purchaseDate: (item as any).entryDate ?? (item as any).purchaseDate ?? null,
+    recommendation: analyses[index]?.recommendation || 'نامشخص',
+    riskLevel: analyses[index]?.riskLevel || 'متوسط',
+    currentPrice: analyses[index]?.currentPrice || 0,
+    confidence: analyses[index]?.confidence || 0,
+    summary: analyses[index]?.summary || '',
+  }));
+
+  const prompt = [
+    'سبد سرمایه‌گذاری کاربر را به صورت حرفه‌ای تحلیل و بهینه‌سازی کن.',
+    'فقط بر اساس داده‌های زیر تصمیم بگیر و عدد یا قیمت فرضی نساز.',
+    'برای هر سهم اقدام خرید، فروش یا نگهداری و دلیل ارائه کن.',
+    'خروجی فقط JSON معتبر باشد با ساختار: summary, riskScore, diversificationScore, recommendations.',
+    JSON.stringify(context, null, 2),
+  ].join('\n\n');
+
+  const response = await appApiFetch<any>('/analyze', {
     method: 'POST',
-    body: JSON.stringify({ portfolio, analyses }),
+    body: JSON.stringify({ prompt, analysisType: 'portfolio', featureKey: 'portfolio' }),
   });
 
   const result = unwrap<any>(response);
-  if (!result || typeof result !== 'object') {
-    throw new Error('پاسخ معتبر از سرویس بهینه‌سازی سبد دریافت نشد.');
-  }
+  if (!result || typeof result !== 'object') throw new Error('پاسخ معتبر از سرویس بهینه‌سازی سبد دریافت نشد.');
 
-  return result as PortfolioOptimizationResult;
+  const data = result?.data && typeof result.data === 'object' ? result.data : result;
+  return {
+    summary: data.summary || data.content || 'تحلیل سبد دریافت شد.',
+    riskScore: Number(data.riskScore ?? data.risk_score ?? 50),
+    diversificationScore: Number(data.diversificationScore ?? data.diversification_score ?? 50),
+    recommendations: Array.isArray(data.recommendations) ? data.recommendations : [],
+  } as PortfolioOptimizationResult;
 };
 
 export const compareStocks = async (
@@ -91,13 +108,8 @@ export const compareStocks = async (
 ): Promise<StockComparisonResult> => {
   const response = await appApiFetch<any>('/analyze/compare', {
     method: 'POST',
-    body: JSON.stringify({
-      symbols: [symbol1, symbol2],
-      dailyCount: settings.dailyCount,
-      weeklyCount: settings.weeklyCount,
-    }),
+    body: JSON.stringify({ symbols: [symbol1, symbol2], dailyCount: settings.dailyCount, weeklyCount: settings.weeklyCount }),
   });
-
   return unwrap<StockComparisonResult>(response);
 };
 
@@ -114,9 +126,7 @@ export const runAutomatedScalpingAnalysis = async (): Promise<{ newOpportunitySy
   }
 };
 
-export const runAutomatedScalping = async (): Promise<{ newOpportunitySymbols: string[] }> => {
-  return runAutomatedScalpingAnalysis();
-};
+export const runAutomatedScalping = async (): Promise<{ newOpportunitySymbols: string[] }> => runAutomatedScalpingAnalysis();
 
 export const getScalpingOpportunities = async (): Promise<ScalpingCache | null> => {
   if (scalpingCacheMem) return scalpingCacheMem;
@@ -125,20 +135,15 @@ export const getScalpingOpportunities = async (): Promise<ScalpingCache | null> 
     const data = unwrap<any>(response);
     scalpingCacheMem = data?.data ? data : { data: Array.isArray(data) ? data : [], timestamp: Date.now() };
     return scalpingCacheMem;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 };
 
 export const getMarketSummary = async (): Promise<string> => {
   try {
     const response = await appApiFetch<any>('/market-summary/latest', { method: 'GET' });
     const data = unwrap<any>(response);
-    if (typeof data === 'string') return data;
-    return String(data?.summary ?? data?.content ?? data?.text ?? '');
-  } catch {
-    return '';
-  }
+    return typeof data === 'string' ? data : String(data?.summary ?? data?.content ?? data?.text ?? '');
+  } catch { return ''; }
 };
 
 export const getMostTradedStocks = async (): Promise<MostTradedStock[]> => {
@@ -146,9 +151,7 @@ export const getMostTradedStocks = async (): Promise<MostTradedStock[]> => {
     const response = await appApiFetch<any>('/most-traded', { method: 'GET' });
     const data = unwrap<any>(response);
     return Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 };
 
 export const getTopIndustryGroups = async (): Promise<TopIndustryGroup[]> => [];
@@ -163,20 +166,9 @@ export const getMarketIndexData = async (): Promise<MarketIndexData | null> => {
     if (!data) return null;
     marketIndexCacheMem = data as MarketIndexData;
     return marketIndexCacheMem;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 };
 
-export const getFinalMarketIndexData = async (): Promise<MarketIndexData | null> => {
-  return getMarketIndexData();
-};
-
-export const updateMarketIndex = async (): Promise<MarketIndexData | null> => {
-  marketIndexCacheMem = null;
-  return getMarketIndexData();
-};
-
-export const testAnalyzeStock = async (symbol = 'فملی'): Promise<AnalysisResult> => {
-  return analyzeStock(symbol, 10, 5);
-};
+export const getFinalMarketIndexData = async (): Promise<MarketIndexData | null> => getMarketIndexData();
+export const updateMarketIndex = async (): Promise<MarketIndexData | null> => { marketIndexCacheMem = null; return getMarketIndexData(); };
+export const testAnalyzeStock = async (symbol = 'فملی'): Promise<AnalysisResult> => analyzeStock(symbol, 10, 5);
