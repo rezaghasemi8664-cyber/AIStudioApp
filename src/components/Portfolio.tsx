@@ -60,7 +60,7 @@ const PortfolioItemCard: React.FC<CardProps> = ({ item, onRemove, onEdit, onAnal
           <div className="min-w-0">
             <h3 className="text-xl font-bold text-cyan-600 dark:text-cyan-400">{item.symbol}</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{item.name || item.symbol}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{formatNumber(item.quantity)} سهم × {formatNumber(item.entryPrice)} تومان</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{formatNumber(item.quantity)} سهم × {formatNumber(item.entryPrice)} ریال</p>
           </div>
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
@@ -78,7 +78,7 @@ const PortfolioItemCard: React.FC<CardProps> = ({ item, onRemove, onEdit, onAnal
         {item.analysisError && <p className="text-sm text-center font-semibold text-[var(--color-negative)]">{item.analysisError}</p>}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
           <div><p className="text-xs text-gray-500">تاریخ خرید</p><p className="font-semibold font-mono">{item.entryDate}</p></div>
-          <div><p className="text-xs text-gray-500">قیمت ورود</p><p className="font-semibold">{formatNumber(item.entryPrice)}</p></div>
+          <div><p className="text-xs text-gray-500">قیمت ورود (ریال)</p><p className="font-semibold">{formatNumber(item.entryPrice)}</p></div>
           <div><p className="text-xs text-gray-500">قیمت فعلی</p><p className="font-semibold">{hasAnalysis ? formatNumber(item.analysis!.currentPrice) : '—'}</p></div>
           <div><p className="text-xs text-gray-500">ارزش کل</p><p className="font-semibold">{hasAnalysis ? formatNumber(currentValue) : '—'}</p></div>
           <div><p className="text-xs text-gray-500">سود/زیان</p>{hasAnalysis ? <><PnLDisplay value={pnl} /><br /><PnLDisplay value={pnlPercent} isPercent /></> : <span>—</span>}</div>
@@ -225,7 +225,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onAlertChange, currentUser, isOnl
 
       {pieData.length > 0 && <div className="p-4 rounded-lg shadow-md mb-8 bg-gray-50 dark:bg-gray-800/50">
         <h3 className="text-lg font-semibold mb-2 text-center">ترکیب سبد دارایی</h3>
-        <ResponsiveContainer width="100%" height={250}><PieChart><Pie data={pieData} cx="50%" cy="50%" outerRadius={80} dataKey="value">{pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip formatter={(v: number) => `${formatNumber(v)} تومان`} /><Legend /></PieChart></ResponsiveContainer>
+        <ResponsiveContainer width="100%" height={250}><PieChart><Pie data={pieData} cx="50%" cy="50%" outerRadius={80} dataKey="value">{pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip formatter={(v: number) => `${formatNumber(v)} ریال`} /><Legend /></PieChart></ResponsiveContainer>
       </div>}
 
       <div className="p-4 rounded-lg shadow-md mb-8" style={{ backgroundColor: 'var(--portfolio-add-form-bg)', color: 'var(--portfolio-add-form-color)', borderWidth: 'var(--portfolio-add-form-border-width)', borderStyle: 'var(--portfolio-add-form-border-style)', borderColor: 'var(--portfolio-add-form-border-color)' }}>
@@ -234,7 +234,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onAlertChange, currentUser, isOnl
           <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
             <input value={newSymbol} onChange={e => setNewSymbol(e.target.value.toUpperCase())} placeholder="نماد سهم" required className="border rounded px-3 py-2" />
             <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="نام سهم" required className="border rounded px-3 py-2" />
-            <input type="number" min="0" step="any" value={newPrice} onChange={e => setNewPrice(e.target.value)} placeholder="قیمت ورود" required className="border rounded px-3 py-2" />
+            <input type="number" min="0" step="any" value={newPrice} onChange={e => setNewPrice(e.target.value)} placeholder="قیمت ورود (ریال)" required className="border rounded px-3 py-2" />
             <input type="number" min="1" step="1" value={newQuantity} onChange={e => setNewQuantity(e.target.value)} placeholder="تعداد سهم" required className="border rounded px-3 py-2" />
             <input value={newDate} onChange={e => setNewDate(normalizeJalaliDate(e.target.value))} placeholder="تاریخ خرید (۱۴۰۵/۰۶/۰۹)" inputMode="numeric" required className="border rounded px-3 py-2" dir="ltr" />
             <button type="submit" disabled={!isOnline} className="font-bold rounded flex items-center justify-center gap-2 disabled:opacity-50" style={{ backgroundColor: 'var(--btn-primary-bg)', color: 'var(--btn-primary-color)' }}><PlusIcon /> افزودن</button>
@@ -257,7 +257,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onAlertChange, currentUser, isOnl
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input value={editState.symbol} onChange={e => setEditState({ ...editState, symbol: e.target.value.toUpperCase() })} placeholder="نماد" required className="border rounded px-3 py-2" />
             <input value={editState.name} onChange={e => setEditState({ ...editState, name: e.target.value })} placeholder="نام سهم" required className="border rounded px-3 py-2" />
-            <input type="number" min="0" step="any" value={editState.entryPrice} onChange={e => setEditState({ ...editState, entryPrice: e.target.value })} placeholder="قیمت ورود" required className="border rounded px-3 py-2" />
+            <input type="number" min="0" step="any" value={editState.entryPrice} onChange={e => setEditState({ ...editState, entryPrice: e.target.value })} placeholder="قیمت ورود (ریال)" required className="border rounded px-3 py-2" />
             <input type="number" min="1" step="1" value={editState.quantity} onChange={e => setEditState({ ...editState, quantity: e.target.value })} placeholder="تعداد" required className="border rounded px-3 py-2" />
             <input value={editState.entryDate} onChange={e => setEditState({ ...editState, entryDate: normalizeJalaliDate(e.target.value) })} placeholder="تاریخ خرید شمسی" required className="border rounded px-3 py-2" dir="ltr" />
           </div>
