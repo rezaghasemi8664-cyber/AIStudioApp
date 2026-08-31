@@ -1,5 +1,7 @@
 name: Finalize Daily Filters Navigation
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: write
@@ -18,14 +20,12 @@ jobs:
           s = p.read_text(encoding='utf-8-sig')
           old = '''            {currentUser.isAdmin && (\n              <>\n                <TabButton\n                  tab="users"'''
           new = '''            <TabButton\n              tab="dailyFilters"\n              label="فیلترهای روزانه"\n              icon={<PresentationChartLineIcon />}\n              alertType="none"\n              locked={isExpired}\n              activeTab={activeTab}\n              onTabClick={handleTabClick}\n            />\n\n            {currentUser.isAdmin && (\n              <>\n                <TabButton\n                  tab="users"'''
-          if old not in s:
-              raise SystemExit('navigation anchor not found')
-          s = s.replace(old, new, 1)
+          if old in s:
+              s = s.replace(old, new, 1)
           old2 = '''\n\n            <TabButton\n              tab="dailyFilters"\n              label="فیلترهای روزانه"\n              icon={<PresentationChartLineIcon />}\n              alertType="none"\n              locked={isExpired}\n              activeTab={activeTab}\n              onTabClick={handleTabClick}\n            />                <TabButton\n                  tab="notifications"'''
           new2 = '''\n                <TabButton\n                  tab="notifications"'''
-          if old2 not in s:
-              raise SystemExit('duplicate daily filters anchor not found')
-          s = s.replace(old2, new2, 1)
+          if old2 in s:
+              s = s.replace(old2, new2, 1)
           p.write_text(s, encoding='utf-8')
       - name: Verify TypeScript build
         run: |
