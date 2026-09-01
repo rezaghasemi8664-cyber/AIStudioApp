@@ -1,0 +1,99 @@
+name: Apply closing price percent fix
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch StockAnalysis closing-price percentage
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path('src/components/StockAnalysis.tsx')
+          text = path.read_text(encoding='utf-8-sig')
+
+          pattern = re.compile(
+              r"    const closingPriceChangePercent = pickFirstNumber\(.*?\n    \);\n    const lastPriceChangePercent = pickFirstNumber\(",
+              re.S,
+          )
+
+          replacement = '''    const previousClosingPrice = pickFirstNumber(
+      md?.previousClosingPrice,
+      (md as any)?.previousClosePrice,
+      (md as any)?.yesterdayPrice,
+      (md as any)?.priceYesterday,
+      (md as any)?.pYstClPr,
+      mm?.previousClosingPrice,
+      (mm as any)?.previousClosePrice,
+      (mm as any)?.yesterdayPrice,
+      (mm as any)?.priceYesterday,
+      (mm as any)?.pYstClPr,
+      rawMarketData?.previousClosingPrice,
+      rawMarketData?.previousClosePrice,
+      rawMarketData?.yesterdayPrice,
+      rawMarketData?.priceYesterday,
+      rawMarketData?.pYstClPr,
+      rawPayload?.previousClosingPrice,
+      rawPayload?.previousClosePrice,
+      rawPayload?.yesterdayPrice,
+      rawPayload?.priceYesterday,
+      rawPayload?.pYstClPr,
+      raw?.previousClosingPrice,
+      raw?.previousClosePrice,
+      raw?.yesterdayPrice,
+      raw?.priceYesterday,
+      raw?.pYstClPr
+    );
+
+    const calculatedClosingPriceChangePercent =
+      closingPrice !== null && previousClosingPrice !== null && previousClosingPrice !== 0
+        ? ((closingPrice - previousClosingPrice) / previousClosingPrice) * 100
+        : null;
+
+    const closingPriceChangePercent = pickFirstNumber(
+      md?.closingPriceChangePercent,
+      (md as any)?.closeChangePercent,
+      (md as any)?.pcp,
+      mm?.closingPriceChangePercent,
+      (mm as any)?.closeChangePercent,
+      (mm as any)?.pcp,
+      rawMarketData?.closingPriceChangePercent,
+      rawMarketData?.closeChangePercent,
+      rawMarketData?.pcp,
+      rawPayload?.closingPriceChangePercent,
+      rawPayload?.closeChangePercent,
+      rawPayload?.pcp,
+      raw?.closingPriceChangePercent,
+      raw?.closeChangePercent,
+      raw?.pcp,
+      calculatedClosingPriceChangePercent
+    );
+
+    const lastPriceChangePercent = pickFirstNumber('''
+
+          new_text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('Expected closingPriceChangePercent block was not found')
+
+          path.write_text(new_text, encoding='utf-8')
+
+      - name: Commit fix and remove one-time workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/StockAnalysis.tsx .github/workflows/apply-closing-price-percent-fix.yml
+          git commit -m "fix: separate closing and last price change percentages"
+          git push
