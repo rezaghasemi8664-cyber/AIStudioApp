@@ -1,0 +1,46 @@
+name: Fix StockAnalysis runtime reference
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix undefined legacy price variable
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/components/StockAnalysis.tsx')
+          s = p.read_text(encoding='utf-8-sig')
+          if 'const priceChangePercent =' not in s:
+              marker = '  const closingPriceChangePercent ='
+              if marker not in s:
+                  raise SystemExit('closingPriceChangePercent declaration not found')
+              s = s.replace(marker, '  // Backward-compatible alias for any remaining legacy debug/render references.\n  // The UI uses lastPriceChangePercent and closingPriceChangePercent explicitly.\n  const priceChangePercent = lastPriceChangePercent;\n\n' + marker, 1)
+              p.write_text(s, encoding='utf-8')
+          else:
+              print('legacy variable already declared')
+      - name: Verify no undefined reference
+        run: |
+          grep -n "const priceChangePercent" src/components/StockAnalysis.tsx
+          npm ci --ignore-scripts
+          npm run build
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/StockAnalysis.tsx
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix: resolve undefined priceChangePercent in StockAnalysis'
+            git push
+          fi
+          rm -f .github/workflows/fix-stock-analysis-runtime.yml
+          git add .github/workflows/fix-stock-analysis-runtime.yml
+          if ! git diff --cached --quiet; then
+            git commit -m 'chore: remove temporary stock analysis fix workflow'
+            git push
+          fi
