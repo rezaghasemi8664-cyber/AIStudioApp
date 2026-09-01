@@ -105,9 +105,9 @@ function calculateBreadth(payload) {
     return { available: false, reason: 'NO_VALID_SYMBOL_CHANGE_DATA', total, positive: null, negative: null, neutral: null, unknown, classifiedTotal: 0 };
   }
 
-  const topGainers = [...rows].sort((a,b)=>b.pct-a.pct).slice(0,10)
+  const topGainers = rows.filter(x=>x.pct > 0).sort((a,b)=>b.pct-a.pct).slice(0,10)
     .map(x=>({symbol:x.symbol, changePercent:Number(x.pct.toFixed(4)), volume:firstNumber(x.item,VOLUME_KEYS), value:firstNumber(x.item,VALUE_KEYS)}));
-  const topLosers = [...rows].sort((a,b)=>a.pct-b.pct).slice(0,10)
+  const topLosers = rows.filter(x=>x.pct < 0).sort((a,b)=>a.pct-b.pct).slice(0,10)
     .map(x=>({symbol:x.symbol, changePercent:Number(x.pct.toFixed(4)), volume:firstNumber(x.item,VOLUME_KEYS), value:firstNumber(x.item,VALUE_KEYS)}));
   const topVolumes = [...rows].sort((a,b)=>(firstNumber(b.item,VOLUME_KEYS)||0)-(firstNumber(a.item,VOLUME_KEYS)||0))
     .slice(0,10).map(x=>({symbol:x.symbol, volume:firstNumber(x.item,VOLUME_KEYS), value:firstNumber(x.item,VALUE_KEYS), changePercent:Number(x.pct.toFixed(4))}));
