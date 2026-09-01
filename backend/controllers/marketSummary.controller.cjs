@@ -69,6 +69,22 @@ async function enrich(item) {
           breadthUnknownSymbols: breadth.unknown,
           breadthCoveragePercent: breadth.coveragePercent
         };
+        if (breadth.sectors?.available) {
+          intelligence.sectors = breadth.sectors;
+        }
+        if (breadth.moneyFlow?.available) {
+          intelligence.moneyFlow = {
+            ...(intelligence.moneyFlow || {}),
+            ...breadth.moneyFlow,
+            net: breadth.moneyFlow.netValue,
+            available: true,
+            interpretation: breadth.moneyFlow.netValue > 0
+              ? 'ورود خالص پول حقیقی مشاهده شده است.'
+              : breadth.moneyFlow.netValue < 0
+                ? 'خروج خالص پول حقیقی مشاهده شده است.'
+                : 'جریان خالص پول حقیقی متعادل است.'
+          };
+        }
       } else {
         intelligence.breadth = { ...(intelligence.breadth || {}), available: false, reason: breadth?.reason || 'BREADTH_UNAVAILABLE' };
         intelligence.dataQuality = { ...(intelligence.dataQuality || {}), breadthAvailable: false };
