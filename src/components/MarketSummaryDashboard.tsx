@@ -460,10 +460,22 @@ export default function MarketSummaryDashboard({
   const risk = intelligence.risk || {};
   const action = intelligence.action || {};
   const leaders = intelligence.leaders || {};
+  const normalizedLeaders = {
+    gainers: Array.isArray(normalizedLeaders.gainers) ? leaders.gainers : [],
+    losers: Array.isArray(normalizedLeaders.losers) ? leaders.losers : [],
+    volumes: Array.isArray(normalizedLeaders.volumess) ? leaders.volumes : Array.isArray(leaders.volume) ? leaders.volume : [],
+  };
   const dataQuality =
     intelligence.dataQuality ||
     intelligence.data_quality ||
     {};
+
+  const dataQualityAvailable =
+    dataQuality.availableFields ?? dataQuality.availableComponents;
+  const dataQualityExpected =
+    dataQuality.expectedFields ?? dataQuality.totalComponents;
+  const dataQualityCoverage =
+    dataQualityExpected > 0 ? (Number(dataQualityAvailable) / Number(dataQualityExpected)) * 100 : null;
 
   const divergences = Array.isArray(intelligence.divergences)
     ? intelligence.divergences
@@ -1404,7 +1416,7 @@ export default function MarketSummaryDashboard({
               dataQuality.label ||
               dataQuality.interpretation ||
               dataQuality.status ||
-              'مشخص نیست'
+              (dataQualityCoverage !== null ? (dataQualityCoverage >= 80 ? 'بالا' : dataQualityCoverage >= 55 ? 'متوسط' : 'پایین') : 'مشخص نیست')
             }
             tone={
               ['high', 'good', 'بالا'].includes(
@@ -1431,7 +1443,7 @@ export default function MarketSummaryDashboard({
             value={
               dataQuality.source ||
               intelligence.source ||
-              'داده در دسترس نیست'
+              'داده بازار'
             }
           />
         </div>
@@ -1445,7 +1457,7 @@ export default function MarketSummaryDashboard({
 
             <strong className="text-white">
               {formatNumber(
-                dataQuality.availableComponents,
+                dataQualityAvailable,
                 true
               )}
             </strong>
@@ -1456,7 +1468,7 @@ export default function MarketSummaryDashboard({
 
                 <strong className="text-white">
                   {formatNumber(
-                    dataQuality.totalComponents,
+                    dataQualityExpected,
                     true
                   )}
                 </strong>
