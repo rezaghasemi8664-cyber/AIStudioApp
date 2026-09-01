@@ -302,70 +302,47 @@ function liquidity(current, previous) {
 /* -------------------------------------------------------------------------- */
 
 function money(data) {
-  const inflow = num(
-    first(data, [
-      'realMoneyInflow',
-      'real_inflow',
-      'realNetInflow',
-      'netRealMoney',
-      'realMoneyNet'
-    ])
-  );
+  const sources = [
+    data,
+    data?.clientType,
+    data?.clientTypeAll,
+    data?.clientTypeAllDto,
+    data?.clientTypes,
+    data?.realMoney,
+    data?.moneyFlow
+  ].filter(Boolean);
 
-  const outflow = num(
-    first(data, [
-      'realMoneyOutflow',
-      'real_outflow',
-      'realNetOutflow'
-    ])
-  );
+  const sumField = (keys) => sources.reduce((sum, src) => {
+    const v = num(first(src, keys));
+    return sum + (v === null ? 0 : v);
+  }, 0);
 
-  const buy = num(
-    first(data, [
-      'realBuyValue',
-      'real_buy_value',
-      'realPurchaseValue'
-    ])
-  );
-
-  const sell = num(
-    first(data, [
-      'realSellValue',
-      'real_sell_value',
-      'realSalesValue'
-    ])
-  );
-
-  let net = null;
-
-  if (inflow !== null) {
-    net = inflow;
-  } else if (buy !== null && sell !== null) {
-    net = buy - sell;
-  } else if (outflow !== null) {
-    net = -outflow;
+  const buyVolume = sumField(['buy_I_Volume','buyIVolume','realBuyVolume','individualBuyVolume','buyRealVolume']);
+  const sellVolume = sumField(['sell_I_Volume','sellIVolume','realSellVolume','individualSellVolume','sellRealVolume']);
+  const directInflow = sources.map(src => num(first(src,['realMoneyInflow','real_inflow','realNetInflow','netRealMoney','realMoneyNet']))).find(v=>v!==null);
+  const directOutflow = sources.map(src => num(first(src,['realMoneyOutflow','real_outflow','realNetOutflow']))).find(v=>v!==null);
+  const buyValue = sources.map(src => num(first(src,['realBuyValue','real_buy_value','realPurchaseValue','buy_I_Value','buyIValue']))).find(v=>v!==null);
+  const sellValue = sources.map(src => num(first(src,['realSellValue','real_sell_value','realSalesValue','sell_I_Value','sellIValue']))).find(v=>v!==null);
+  let net = directInflow;
+  if (net === null && buyValue !== null && sellValue !== null) net = buyValue - sellValue;
+  if (net === null && directOutflow !== null) net = -directOutflow;
+  if (net === null && buyVolume > 0 || sellVolume > 0) {
+    const price = sources.map(src => num(first(src,['pl','pDrCotVal','lastPrice','priceLast','pc','pClosing']))).find(v=>v!==null);
+    if (price !== undefined && price !== null) net = (buyVolume - sellVolume) * price;
   }
-
-  let interpretation = 'داده جریان پول حقیقی در دسترس نیست.';
-
-  if (net !== null) {
-    if (net > 0) {
-      interpretation = 'ورود خالص پول حقیقی مشاهده شده است.';
-    } else if (net < 0) {
-      interpretation = 'خروج خالص پول حقیقی مشاهده شده است.';
-    } else {
-      interpretation = 'جریان خالص پول حقیقی متعادل است.';
-    }
-  }
-
+  const available = net !== null && Number.isFinite(net);
   return {
-    net,
-    inflow,
-    outflow,
-    buy,
-    sell,
-    available: net !== null,
-    interpretation
+    net: available ? net : null,
+    inflow: directInflow,
+    outflow: directOutflow,
+    buy: buyValue !== null ? buyValue : (buyVolume || null),
+    sell: sellValue !== null ? sellValue : (sellVolume || null),
+    buyVolume: buyVolume || null,
+    sellVolume: sellVolume || null,
+    available,
+    interpretation: available
+      ? net > 0 ? 'ورود خالص پول حقیقی مشاهده شده است.' : net < 0 ? 'خروج خالص پول حقیقی مشاهده شده است.' : 'جریان خالص پول حقیقی متعادل است.'
+      : 'داده جریان پول حقیقی در Snapshot بازار موجود نیست.'
   };
 }
 
@@ -374,82 +351,18 @@ function money(data) {
 /* -------------------------------------------------------------------------- */
 
 function sectors(data) {
-  const raw = first(data, [
-    'sectors',
-    'sectorRotation',
-    'sector_rotation',
-    'industryPerformance',
-    'industry_performance'
-  ]);
-
-  if (!raw) {
-    return {
-      available: false,
-      leaders: [],
-      laggards: []
-    };
-  }
-
+  const raw = first(data, ['sectors','sectorRotation','sector_rotation','industryPerformance','industry_performance','industries','groups']);
   const list = arr(raw);
-
-  if (!list.length) {
-    return {
-      available: false,
-      leaders: [],
-      laggards: []
-    };
-  }
-
-  const normalized = list
-    .map((item) => {
-      if (!item || typeof item !== 'object') {
-        return null;
-      }
-
-      const change = num(
-        first(item, [
-          'changePercent',
-          'change',
-          'percentChange',
-          'performance'
-        ])
-      );
-
-      const name =
-        first(item, [
-          'name',
-          'title',
-          'sector',
-          'industry',
-          'group'
-        ]) || null;
-
-      if (!name || change === null) {
-        return null;
-      }
-
-      return {
-        ...item,
-        name,
-        changePercent: change
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => b.changePercent - a.changePercent);
-
-  if (!normalized.length) {
-    return {
-      available: false,
-      leaders: [],
-      laggards: []
-    };
-  }
-
-  return {
-    available: true,
-    leaders: normalized.slice(0, 5),
-    laggards: normalized.slice(-5).reverse()
-  };
+  if (!list.length) return { available:false, leaders:[], laggards:[], reason:'SECTOR_DATA_UNAVAILABLE' };
+  const normalized = list.map(item => {
+    if (!item || typeof item !== 'object') return null;
+    const change = num(first(item,['changePercent','change','percentChange','performance','pct']));
+    const name = first(item,['name','title','sector','industry','group','sectorName','industryName','groupName']);
+    return name && change !== null ? {...item,name:String(name),changePercent:change} : null;
+  }).filter(Boolean).sort((a,b)=>b.changePercent-a.changePercent);
+  return normalized.length
+    ? {available:true,leaders:normalized.slice(0,5),laggards:normalized.slice(-5).reverse()}
+    : {available:false,leaders:[],laggards:[],reason:'SECTOR_DATA_INVALID'};
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1062,29 +975,26 @@ async function buildMarketIntelligence(
    * 6. liquidity comparison
    * 7. five-day momentum
    */
-  const availableFields = [
-    num(current.overallIndex),
-    num(current.equalIndex),
-    num(current.totalValue),
-    breadth?.available
-      ? breadth.total
-      : null,
-    overallChangePct,
-    liquidityData.valueVsPreviousPct,
-    momentumData.fiveDayChangePct
-  ].filter(
-    (value) =>
-      value !== null &&
-      value !== undefined &&
-      Number.isFinite(Number(value))
-  ).length;
-
+  const qualityChecks = {
+    overallIndex: num(current.overallIndex) !== null,
+    equalIndex: num(current.equalIndex) !== null,
+    tradingValue: num(current.totalValue) !== null,
+    tradingVolume: num(current.totalVolume) !== null,
+    tradeCount: num(current.totalTrades) !== null,
+    breadth: Boolean(breadth?.available),
+    indexChange: overallChangePct !== null,
+    equalChange: equalChangePct !== null,
+    liquidityComparison: liquidityData.valueVsPreviousPct !== null,
+    moneyFlow: Boolean(moneyFlow?.available),
+    sectors: Boolean(sectorData?.available),
+    leaders: Boolean((breadth?.topGainers?.length || current.topGainers) && (breadth?.topLosers?.length || current.topLosers))
+  };
+  const availableFields = Object.values(qualityChecks).filter(Boolean).length;
+  const expectedFields = Object.keys(qualityChecks).length;
   const dataQualityLevel =
-    availableFields >= 6
-      ? 'high'
-      : availableFields >= 4
-        ? 'medium'
-        : 'low';
+    availableFields >= Math.ceil(expectedFields * 0.8) ? 'high'
+      : availableFields >= Math.ceil(expectedFields * 0.55) ? 'medium'
+      : 'low';
 
   const scoreNumber = Number.isFinite(
     Number(scoreData.score)
@@ -1152,9 +1062,9 @@ async function buildMarketIntelligence(
     ),
 
     leaders: {
-      gainers: arr(current.topGainers).slice(0, 5),
-      losers: arr(current.topLosers).slice(0, 5),
-      volumes: arr(current.topVolumes).slice(0, 5)
+      gainers: (breadth?.topGainers?.length ? breadth.topGainers : arr(current.topGainers)).slice(0,5),
+      losers: (breadth?.topLosers?.length ? breadth.topLosers : arr(current.topLosers)).slice(0,5),
+      volumes: (breadth?.topVolumes?.length ? breadth.topVolumes : arr(current.topVolumes)).slice(0,5)
     },
 
     scenarios: scenarios(
@@ -1171,18 +1081,12 @@ async function buildMarketIntelligence(
     dataQuality: {
       level: dataQualityLevel,
       availableFields,
-      expectedFields: 7,
+      expectedFields,
+      checks: qualityChecks,
       symbolsCoverage:
-        breadth?.available &&
-        Number.isFinite(
-          Number(breadth.coveragePercent)
-        )
-          ? Number(
-              Number(
-                breadth.coveragePercent
-              ).toFixed(1)
-            )
-          : 0,
+        breadth?.available && Number.isFinite(Number(breadth.coveragePercent))
+          ? Number(Number(breadth.coveragePercent).toFixed(1))
+          : null,
       breadthAvailable:
         Boolean(breadth?.available),
       breadthReason:
