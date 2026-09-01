@@ -3,92 +3,29 @@
 const { fetchAllSymbols } = require('./marketHistory.service.cjs');
 const env = require('../config/env.cjs');
 
-const CHANGE_KEYS = ['plp','pLp','percentLast','lastPercent','priceChangePercent','price_change_percent','pcp','pCp','percentClose','closePercent','changePercent','change_percent','percentage','percent'];
-const LAST_PRICE_KEYS = ['pl','pDrCotVal','lastPrice','last','priceLast','closeLast'];
-const PREV_CLOSE_KEYS = ['py','priceYesterday','previousClose','prevClose','yesterdayClose','yesterdayPrice','pPriceYesterday'];
-const CLOSE_PRICE_KEYS = ['pc','pClosing','closingPrice','closePrice','close'];
-const VOLUME_KEYS = ['qTotTran5J','tvol','totalVolume','volume'];
-const VALUE_KEYS = ['qTotCap','tval','totalValue','tradeValue'];
-const BUY_I_VOL_KEYS = ['buy_I_Volume','buyIVolume','realBuyVolume','individualBuyVolume'];
-const SELL_I_VOL_KEYS = ['sell_I_Volume','sellIVolume','realSellVolume','individualSellVolume'];
-const SECTOR_KEYS = ['sector','industry','group','sectorName','industryName','groupName'];
-const SYMBOL_KEYS = ['symbol','l18','l30','namad','name','insCode','inscode','ticker'];
-const ARRAY_KEYS = ['symbols','data','items','result','results','rows','list','records'];
+const CHANGE_KEYS=['plp','pLp','percentLast','lastPercent','priceChangePercent','price_change_percent','pcp','pCp','percentClose','closePercent','changePercent','change_percent','percentage','percent'];
+const LAST_PRICE_KEYS=['pl','pDrCotVal','lastPrice','last','priceLast','closeLast'];
+const PREV_CLOSE_KEYS=['py','priceYesterday','previousClose','prevClose','yesterdayClose','yesterdayPrice','pPriceYesterday'];
+const CLOSE_PRICE_KEYS=['pc','pClosing','closingPrice','closePrice','close'];
+const VOLUME_KEYS=['qTotTran5J','tvol','totalVolume','volume'];
+const VALUE_KEYS=['qTotCap','tval','totalValue','tradeValue'];
+const SYMBOL_KEYS=['symbol','l18','l18AFC','l30','namad','name','insCode','inscode','ticker'];
+const ARRAY_KEYS=['symbols','data','items','result','results','rows','list','records','clientTypeAllDto','sectorsSummary'];
+const CDN='https://cdn.tsetmc.com/api';
+const timeoutMs=Number(env.BRS_TIMEOUT_MS)||15000;
 
-function firstNumber(obj, keys) {
-  for (const key of keys) {
-    const value = obj?.[key];
-    if (value === null || value === undefined || value === '') continue;
-    const n = Number(String(value).replace(/,/g, '').replace(/٪/g, '').trim());
-    if (Number.isFinite(n)) return n;
-  }
-  return null;
-}
-function allNumbers(obj, keys) { return keys.map((key) => firstNumber(obj, [key])).filter((v) => v !== null); }
-function derivedPercent(item) {
-  const directValues = allNumbers(item, CHANGE_KEYS);
-  const nonZeroDirect = directValues.find((v) => Math.abs(v) > 1e-12);
-  if (nonZeroDirect !== undefined) return nonZeroDirect;
-  const last = firstNumber(item, LAST_PRICE_KEYS);
-  const prev = firstNumber(item, PREV_CLOSE_KEYS);
-  if (last !== null && prev !== null && prev !== 0) return ((last - prev) / prev) * 100;
-  const close = firstNumber(item, CLOSE_PRICE_KEYS);
-  if (close !== null && prev !== null && prev !== 0) return ((close - prev) / prev) * 100;
-  if (directValues.length > 0 && (last !== null || close !== null || prev !== null)) return 0;
-  return null;
-}
-function normalizeSymbolName(item) { for (const key of SYMBOL_KEYS) { const value=item?.[key]; if(value!==null&&value!==undefined&&String(value).trim()) return String(value).trim(); } return null; }
-function normalizeSectorName(item) { for (const key of SECTOR_KEYS) { const value=item?.[key]; if(value!==null&&value!==undefined&&String(value).trim()) return String(value).trim(); } return null; }
-function hasSymbol(item) { return SYMBOL_KEYS.some((key)=>item?.[key]!==null&&item?.[key]!==undefined&&String(item[key]).trim()); }
-function flattenSymbolPayload(payload) {
-  if(Array.isArray(payload)) return payload;
-  if(!payload||typeof payload!=='object') return [];
-  for(const key of ARRAY_KEYS){ if(Array.isArray(payload[key])) return payload[key]; if(payload[key]&&typeof payload[key]==='object'){const nested=flattenSymbolPayload(payload[key]); if(nested.length) return nested;} }
-  const values=Object.values(payload).filter((value)=>value&&typeof value==='object'&&!Array.isArray(value));
-  return values.length?values:[];
-}
-
-async function fetchLiveAllSymbols() {
-  const base = env.BRS_ALL_SYMBOLS_URL || 'https://Api.BrsApi.ir/Tsetmc/AllSymbols.php';
-  const url = new URL(base);
-  if (env.BRS_API_KEY) url.searchParams.set('key', env.BRS_API_KEY);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), Number(env.BRS_TIMEOUT_MS) || 15000);
-  try {
-    const response = await fetch(url.toString(), { headers:{Accept:'application/json','User-Agent':'AIStudioApp/5.0'}, signal:controller.signal });
-    if(!response.ok) throw new Error(`BRS AllSymbols error: ${response.status}`);
-    return await response.json();
-  } finally { clearTimeout(timeout); }
-}
-
-function calculateBreadth(payload) {
-  const symbols=flattenSymbolPayload(payload);
-  if(!symbols.length) return {available:false,reason:'NO_SYMBOL_DATA',positive:null,negative:null,neutral:null,unknown:0,total:0,classifiedTotal:0};
-  const usable=symbols.filter(hasSymbol);
-  const rows=usable.map((item)=>({item,symbol:normalizeSymbolName(item),pct:derivedPercent(item)})).filter((row)=>row.symbol&&row.pct!==null&&Number.isFinite(row.pct));
-  const positive=rows.filter((x)=>x.pct>0).length, negative=rows.filter((x)=>x.pct<0).length, neutral=rows.filter((x)=>x.pct===0).length;
-  const classifiedTotal=rows.length,total=usable.length,unknown=total-classifiedTotal;
-  if(classifiedTotal===0) return {available:false,reason:'NO_VALID_SYMBOL_CHANGE_DATA',total,positive:null,negative:null,neutral:null,unknown,classifiedTotal:0};
-  const zeroRatio=neutral/classifiedTotal;
-  const topGainers=rows.filter(x=>x.pct>0).sort((a,b)=>b.pct-a.pct).slice(0,10).map(x=>({symbol:x.symbol,changePercent:Number(x.pct.toFixed(4)),volume:firstNumber(x.item,VOLUME_KEYS),value:firstNumber(x.item,VALUE_KEYS)}));
-  const topLosers=rows.filter(x=>x.pct<0).sort((a,b)=>a.pct-b.pct).slice(0,10).map(x=>({symbol:x.symbol,changePercent:Number(x.pct.toFixed(4)),volume:firstNumber(x.item,VOLUME_KEYS),value:firstNumber(x.item,VALUE_KEYS)}));
-  const topVolumes=[...rows].sort((a,b)=>(firstNumber(b.item,VOLUME_KEYS)||0)-(firstNumber(a.item,VOLUME_KEYS)||0)).slice(0,10).map(x=>({symbol:x.symbol,volume:firstNumber(x.item,VOLUME_KEYS),value:firstNumber(x.item,VALUE_KEYS),changePercent:Number(x.pct.toFixed(4))}));
-  const sectorMap=new Map(); for(const row of rows){const sector=normalizeSectorName(row.item);if(!sector)continue;const entry=sectorMap.get(sector)||{name:sector,sum:0,count:0};entry.sum+=row.pct;entry.count+=1;sectorMap.set(sector,entry);}
-  const sectorList=[...sectorMap.values()].map(x=>({name:x.name,changePercent:Number((x.sum/x.count).toFixed(4)),symbols:x.count})).sort((a,b)=>b.changePercent-a.changePercent);
-  const sectors=sectorList.length?{available:true,leaders:sectorList.slice(0,5),laggards:sectorList.slice(-5).reverse()}:{available:false,leaders:[],laggards:[],reason:'SECTOR_DATA_UNAVAILABLE'};
-  let buyIVolume=0,sellIVolume=0,moneyPriceValue=0; for(const row of rows){const buy=firstNumber(row.item,BUY_I_VOL_KEYS)||0,sell=firstNumber(row.item,SELL_I_VOL_KEYS)||0,price=firstNumber(row.item,LAST_PRICE_KEYS)||firstNumber(row.item,CLOSE_PRICE_KEYS)||0;buyIVolume+=buy;sellIVolume+=sell;if(price>0)moneyPriceValue+=(buy-sell)*price;}
-  const moneyFlow=(buyIVolume||sellIVolume)?{available:true,buyVolume:buyIVolume,sellVolume:sellIVolume,netVolume:buyIVolume-sellIVolume,netValue:moneyPriceValue}:{available:false,reason:'REAL_MONEY_FLOW_UNAVAILABLE'};
-  if(zeroRatio>0.90 && topGainers.length===0 && topLosers.length===0) return {available:false,reason:'SUSPICIOUS_ALL_NEUTRAL_FEED',total,positive:null,negative:null,neutral:null,unknown:total,classifiedTotal:0,coveragePercent:0,diagnostics:{zeroRatio}};
-  return {available:true,positive,negative,neutral,unknown,total,classifiedTotal,coveragePercent:total?(classifiedTotal/total)*100:0,positivePercent:(positive/classifiedTotal)*100,negativePercent:(negative/classifiedTotal)*100,neutralPercent:(neutral/classifiedTotal)*100,advanceDeclineRatio:negative>0?positive/negative:positive>0?null:0,score:Math.max(0,Math.min(100,Math.round(50+((positive-negative)/classifiedTotal)*50))),topGainers,topLosers,topVolumes,sectors,moneyFlow,interpretation:positive>negative*1.2?'عرض بازار مثبت و گسترده است':negative>positive*1.2?'عرض بازار منفی و ضعیف است':'عرض بازار متعادل است'};
-}
-
-let cache={value:null,timestamp:0}; const TTL=2*60*1000;
-async function getMarketBreadth(){
-  if(cache.value&&Date.now()-cache.timestamp<TTL)return cache.value;
-  try{
-    let payload;
-    try { payload=await fetchLiveAllSymbols(); } catch(liveError) { payload=await fetchAllSymbols(); }
-    const result=calculateBreadth(payload); cache={value:result,timestamp:Date.now()}; return result;
-  }catch(error){return {available:false,reason:'BREADTH_FETCH_FAILED',error:error.message,positive:null,negative:null,neutral:null,unknown:null,total:null,classifiedTotal:null};}
-}
+function firstNumber(obj,keys){for(const key of keys){const v=obj?.[key];if(v===null||v===undefined||v==='')continue;const n=Number(String(v).replace(/,/g,'').replace(/٪/g,'').trim());if(Number.isFinite(n))return n;}return null;}
+function allNumbers(obj,keys){return keys.map(k=>firstNumber(obj,[k])).filter(v=>v!==null);}
+function derivedPercent(item){const direct=allNumbers(item,CHANGE_KEYS);const nz=direct.find(v=>Math.abs(v)>1e-12);if(nz!==undefined)return nz;const last=firstNumber(item,LAST_PRICE_KEYS),prev=firstNumber(item,PREV_CLOSE_KEYS);if(last!==null&&prev!==null&&prev!==0)return((last-prev)/prev)*100;const close=firstNumber(item,CLOSE_PRICE_KEYS);if(close!==null&&prev!==null&&prev!==0)return((close-prev)/prev)*100;return null;}
+function normalizeSymbolName(item){for(const k of SYMBOL_KEYS){const v=item?.[k];if(v!==null&&v!==undefined&&String(v).trim())return String(v).trim();}return null;}
+function getInsCode(item){return String(item?.insCode??item?.inscode??item?.InsCode??'').trim()||null;}
+function flatten(payload){if(Array.isArray(payload))return payload;if(!payload||typeof payload!=='object')return[];for(const k of ARRAY_KEYS){if(Array.isArray(payload[k]))return payload[k];if(payload[k]&&typeof payload[k]==='object'){const n=flatten(payload[k]);if(n.length)return n;}}return Object.values(payload).filter(v=>v&&typeof v==='object'&&!Array.isArray(v));}
+async function jsonGet(url){const c=new AbortController();const t=setTimeout(()=>c.abort(),timeoutMs);try{const r=await fetch(url,{headers:{Accept:'application/json','User-Agent':'AIStudioApp/5.0'},signal:c.signal});if(!r.ok)throw new Error(`TSETMC ${r.status}`);return await r.json();}finally{clearTimeout(t);}}
+async function fetchLiveAllSymbols(){const base=env.BRS_ALL_SYMBOLS_URL||'https://Api.BrsApi.ir/Tsetmc/AllSymbols.php';const u=new URL(base);if(env.BRS_API_KEY)u.searchParams.set('key',env.BRS_API_KEY);const c=new AbortController();const t=setTimeout(()=>c.abort(),timeoutMs);try{const r=await fetch(u,{headers:{Accept:'application/json','User-Agent':'AIStudioApp/5.0'},signal:c.signal});if(!r.ok)throw new Error(`BRS AllSymbols ${r.status}`);return await r.json();}finally{clearTimeout(t);}}
+async function fetchClientTypeAll(){const d=await jsonGet(`${CDN}/ClientType/GetClientTypeAll`);return flatten(d).filter(r=>getInsCode(r));}
+function moneyFlowFromClientTypes(rows,priceByCode){let buyVol=0,sellVol=0,buyValue=0,sellValue=0,buyCount=0,sellCount=0,matched=0;for(const r of rows){const buy=firstNumber(r,['buy_I_Volume','buyIVolume','buyIvolume','buy_I_volume','buyVolumeI'])||0;const sell=firstNumber(r,['sell_I_Volume','sellIVolume','sellIvolume','sell_I_volume','sellVolumeI'])||0;const bv=firstNumber(r,['buy_I_Value','buyIValue','buy_I_value'])||0;const sv=firstNumber(r,['sell_I_Value','sellIValue','sell_I_value'])||0;const p=priceByCode.get(getInsCode(r))||0;buyVol+=buy;sellVol+=sell;buyValue+=bv||buy*p;sellValue+=sv||sell*p;buyCount+=firstNumber(r,['buy_CountI','buyI_Count','buy_I_Count'])||0;sellCount+=firstNumber(r,['sell_CountI','sellI_Count','sell_I_Count'])||0;if(buy||sell)matched++;}if(!matched)return{available:false,reason:'REAL_MONEY_FLOW_UNAVAILABLE'};return{available:true,buyVolume:buyVol,sellVolume:sellVol,netVolume:buyVol-sellVol,buyValue,sellValue,netValue:buyValue-sellValue,buyCount,sellCount,matchedSymbols:matched};}
+async function fetchSectorsSummary(){const d=await jsonGet(`${CDN}/MarketData/GetSectorsSummary`);return flatten(d).map(r=>({name:r.name??r.lVal30??r.sectorName??r.title??r.lSecVal??r.sector,changePercent:firstNumber(r,['changePercent','change_percentage','percent','pChange','change']),symbols:firstNumber(r,['symbols','symbolCount','count','numberOfSymbols']),value:firstNumber(r,['tradeValue','tval','value','qTotCap'])})).filter(r=>r.name&&r.changePercent!==null);}
+function calculateBreadth(payload,extras={}){const symbols=flatten(payload);if(!symbols.length)return{available:false,reason:'NO_SYMBOL_DATA'};const usable=symbols.filter(i=>normalizeSymbolName(i));const rows=usable.map(item=>({item,symbol:normalizeSymbolName(item),code:getInsCode(item),pct:derivedPercent(item)})).filter(r=>r.pct!==null&&Number.isFinite(r.pct));if(!rows.length)return{available:false,reason:'NO_VALID_SYMBOL_CHANGE_DATA',total:usable.length,classifiedTotal:0};const positive=rows.filter(x=>x.pct>0).length,negative=rows.filter(x=>x.pct<0).length,neutral=rows.filter(x=>x.pct===0).length,total=usable.length,classifiedTotal=rows.length;const topGainers=rows.filter(x=>x.pct>0).sort((a,b)=>b.pct-a.pct).slice(0,10).map(x=>({symbol:x.symbol,changePercent:+x.pct.toFixed(4),volume:firstNumber(x.item,VOLUME_KEYS),value:firstNumber(x.item,VALUE_KEYS)}));const topLosers=rows.filter(x=>x.pct<0).sort((a,b)=>a.pct-b.pct).slice(0,10).map(x=>({symbol:x.symbol,changePercent:+x.pct.toFixed(4),volume:firstNumber(x.item,VOLUME_KEYS),value:firstNumber(x.item,VALUE_KEYS)}));const topVolumes=[...rows].sort((a,b)=>(firstNumber(b.item,VOLUME_KEYS)||0)-(firstNumber(a.item,VOLUME_KEYS)||0)).slice(0,10).map(x=>({symbol:x.symbol,volume:firstNumber(x.item,VOLUME_KEYS),value:firstNumber(x.item,VALUE_KEYS),changePercent:+x.pct.toFixed(4)}));const priceByCode=new Map(rows.filter(x=>x.code).map(x=>[x.code,firstNumber(x.item,LAST_PRICE_KEYS)||firstNumber(x.item,CLOSE_PRICE_KEYS)||0]));const moneyFlow=extras.clientTypes?moneyFlowFromClientTypes(extras.clientTypes,priceByCode):{available:false,reason:'REAL_MONEY_FLOW_UNAVAILABLE'};const sectors=extras.sectors?.length?{available:true,leaders:[...extras.sectors].sort((a,b)=>b.changePercent-a.changePercent).slice(0,5),laggards:[...extras.sectors].sort((a,b)=>a.changePercent-b.changePercent).slice(0,5)}:{available:false,leaders:[],laggards:[],reason:'SECTOR_DATA_UNAVAILABLE'};const zeroRatio=neutral/classifiedTotal;if(zeroRatio>.9&&topGainers.length===0&&topLosers.length===0)return{available:false,reason:'SUSPICIOUS_ALL_NEUTRAL_FEED',total,classifiedTotal:0,positive:null,negative:null,neutral:null,unknown:total,coveragePercent:0};return{available:true,positive,negative,neutral,unknown:total-classifiedTotal,total,classifiedTotal,coveragePercent:classifiedTotal/total*100,positivePercent:positive/classifiedTotal*100,negativePercent:negative/classifiedTotal*100,neutralPercent:neutral/classifiedTotal*100,advanceDeclineRatio:negative?positive/negative:null,score:Math.max(0,Math.min(100,Math.round(50+(positive-negative)/classifiedTotal*50))),topGainers,topLosers,topVolumes,moneyFlow,sectors,interpretation:positive>negative*1.2?'عرض بازار مثبت و گسترده است':negative>positive*1.2?'عرض بازار منفی و ضعیف است':'عرض بازار متعادل است'};}
+let cache={value:null,timestamp:0};const TTL=2*60*1000;
+async function getMarketBreadth(){if(cache.value&&Date.now()-cache.timestamp<TTL)return cache.value;try{let payload;try{payload=await fetchLiveAllSymbols();}catch{payload=await fetchAllSymbols();}const [ct,ss]=await Promise.allSettled([fetchClientTypeAll(),fetchSectorsSummary()]);const extras={clientTypes:ct.status==='fulfilled'?ct.value:[],sectors:ss.status==='fulfilled'?ss.value:[]};const result=calculateBreadth(payload,extras);result.diagnostics={moneyFlowSource:'TSETMC ClientType/GetClientTypeAll',sectorSource:'TSETMC MarketData/GetSectorsSummary',clientTypeRows:extras.clientTypes.length,sectorRows:extras.sectors.length,clientTypeError:ct.status==='rejected'?ct.reason?.message:null,sectorError:ss.status==='rejected'?ss.reason?.message:null};cache={value:result,timestamp:Date.now()};return result;}catch(error){return{available:false,reason:'BREADTH_FETCH_FAILED',error:error.message};}}
 module.exports={calculateBreadth,getMarketBreadth};
