@@ -602,23 +602,64 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
       lastHistoryRecord
   );
 
+  // Canonical TSETMC/BRS mapping
+  // closing price = pClosing / pc
+  // last traded price = pDrCotVal / pl
+
   const closingPrice = pickFirstNumber(
-    marketData.closingPrice, marketData.lastClosePrice, marketData.closePrice, marketData.finalPrice, marketData.pClosing,
-    lastHistoryRecord.closingPrice, lastHistoryRecord.lastClosePrice, lastHistoryRecord.closePrice, lastHistoryRecord.finalPrice, lastHistoryRecord.pClosing,
-    source.closingPrice, source.lastClosePrice, source.closePrice, source.finalPrice, source.pClosing
+    marketData.closingPrice,
+    marketData.pClosing,
+    marketData.pc,
+    marketData.close,
+
+    lastHistoryRecord.closingPrice,
+    lastHistoryRecord.pClosing,
+    lastHistoryRecord.pc,
+    lastHistoryRecord.close,
+
+    source.closingPrice,
+    source.pClosing,
+    source.pc,
+    source.close
   );
 
   const lastTradedPrice = pickFirstNumber(
-    marketData.lastTradedPrice, marketData.lastPrice, marketData.finalPrice, marketData.closePrice, marketData.pDrCotVal,
-    lastHistoryRecord.lastTradedPrice, lastHistoryRecord.lastPrice, lastHistoryRecord.finalPrice, lastHistoryRecord.closePrice, lastHistoryRecord.pDrCotVal,
-    mergedMetrics?.lastPrice, source.lastTradedPrice, source.lastPrice, source.finalPrice, source.closePrice, source.pDrCotVal
+    marketData.lastTradedPrice,
+    marketData.price?.last,
+    marketData.pDrCotVal,
+    marketData.pl,
+    marketData.last,
+
+    lastHistoryRecord.lastTradedPrice,
+    lastHistoryRecord.price?.last,
+    lastHistoryRecord.pDrCotVal,
+    lastHistoryRecord.pl,
+    lastHistoryRecord.last,
+
+    source.lastTradedPrice,
+    source.price?.last,
+    source.pDrCotVal,
+    source.pl,
+    source.last
   );
 
 
   const lastPriceChangePercent = pickFirstNumber(
-    marketData.lastPriceChangePercent, marketData.lastChangePercent, marketData.plp,
-    lastHistoryRecord.lastPriceChangePercent, lastHistoryRecord.lastChangePercent, lastHistoryRecord.plp,
-    source.lastPriceChangePercent, source.lastChangePercent, source.plp,
+    marketData.lastPriceChangePercent,
+    marketData.price?.lastChangePercent,
+    marketData.lastChangePercent,
+    marketData.plp,
+
+    lastHistoryRecord.lastPriceChangePercent,
+    lastHistoryRecord.price?.lastChangePercent,
+    lastHistoryRecord.lastChangePercent,
+    lastHistoryRecord.plp,
+
+    source.lastPriceChangePercent,
+    source.price?.lastChangePercent,
+    source.lastChangePercent,
+    source.plp,
+
     mergedMetrics?.lastPriceChangePercent,
     (mergedMetrics as any)?.priceChangePercent,
   );
@@ -649,7 +690,23 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
         })()
       : null;
 
-  const closingPriceChangePercent = calculatedClosingPriceChangePercent;
+  const explicitClosingPriceChangePercent = pickFirstNumber(
+    marketData.closingPriceChangePercent,
+    marketData.closeChangePercent,
+    marketData.pcp,
+
+    lastHistoryRecord.closingPriceChangePercent,
+    lastHistoryRecord.closeChangePercent,
+    lastHistoryRecord.pcp,
+
+    source.closingPriceChangePercent,
+    source.closeChangePercent,
+    source.pcp
+  );
+
+  const closingPriceChangePercent =
+    explicitClosingPriceChangePercent ??
+    calculatedClosingPriceChangePercent;
 
   const pe = pickFirstNumber(marketData.pe, lastHistoryRecord.pe, mergedMetrics?.pe, source.pe);
   const eps = pickFirstNumber(marketData.eps, lastHistoryRecord.eps, mergedMetrics?.eps, source.eps);
@@ -1504,44 +1561,79 @@ const clearCurrentAnalysis = () => {
     const rawMarketData = raw?.marketData ?? {};
     const rawPayload = raw?.analysisPayload ?? {};
 
+    // Canonical TSETMC/BRS mapping
+    // closing price = pClosing / pc
+    // last traded price = pDrCotVal / pl
+
     const closingPrice = pickFirstNumber(
       md?.closingPrice,
-      (md as any)?.close,
+      (md as any)?.price?.closing,
       (md as any)?.pClosing,
-      (mm as any)?.lastPrice,
+      (md as any)?.pc,
+      (md as any)?.close,
+
       rawMarketData?.closingPrice,
+      rawMarketData?.price?.closing,
       rawMarketData?.pClosing,
+      rawMarketData?.pc,
+      rawMarketData?.close,
+
       rawPayload?.closingPrice,
+      rawPayload?.price?.closing,
+      rawPayload?.pClosing,
+      rawPayload?.pc,
       rawPayload?.close,
-      raw?.pClosing
+
+      raw?.price?.closing,
+      raw?.pClosing,
+      raw?.pc,
+      raw?.close
     );
 
     const lastTradedPrice = pickFirstNumber(
       md?.lastTradedPrice,
-      (md as any)?.lastPrice,
-      (md as any)?.last,
+      (md as any)?.price?.last,
       (md as any)?.pDrCotVal,
-      mm?.lastPrice,
+      (md as any)?.pl,
+      (md as any)?.last,
+
       rawMarketData?.lastTradedPrice,
-      rawMarketData?.lastPrice,
+      rawMarketData?.price?.last,
       rawMarketData?.pDrCotVal,
-      rawPayload?.lastPrice,
-      rawPayload?.last,
+      rawMarketData?.pl,
+      rawMarketData?.last,
+
+      rawPayload?.lastTradedPrice,
+      rawPayload?.price?.last,
       rawPayload?.pDrCotVal,
-      raw?.pDrCotVal
+      rawPayload?.pl,
+      rawPayload?.last,
+
+      raw?.price?.last,
+      raw?.pDrCotVal,
+      raw?.pl,
+      raw?.last
     );
 
     const closingPriceChangePercent = pickFirstNumber(
       md?.closingPriceChangePercent,
+      (md as any)?.price?.closingChangePercent,
       (md as any)?.closeChangePercent,
       (md as any)?.pcp,
+
       mm?.closingPriceChangePercent,
+
       rawMarketData?.closingPriceChangePercent,
+      rawMarketData?.price?.closingChangePercent,
       rawMarketData?.closeChangePercent,
       rawMarketData?.pcp,
+
       rawPayload?.closingPriceChangePercent,
+      rawPayload?.price?.closingChangePercent,
       rawPayload?.closeChangePercent,
       rawPayload?.pcp,
+
+      raw?.price?.closingChangePercent,
       raw?.closingPriceChangePercent,
       raw?.closeChangePercent,
       raw?.pcp
@@ -2277,6 +2369,9 @@ const clearCurrentAnalysis = () => {
     </div>
   );
 }
+
+
+
 
 
 
