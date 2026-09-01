@@ -1,0 +1,67 @@
+name: Fix price change runtime reference
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: "!contains(github.event.head_commit.message, 'fix: define price change metrics')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fix StockAnalysis price metrics
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/components/StockAnalysis.tsx')
+          s = p.read_text(encoding='utf-8-sig')
+
+          old = '''  const priceChangePercent = pickFirstNumber(
+    marketData.priceChangePercent, marketData.changePercent, marketData.priceChange, marketData.change, marketData.chp,
+    lastHistoryRecord.priceChangePercent, lastHistoryRecord.changePercent,
+    mergedMetrics?.priceChangePercent, source.priceChangePercent, source.changePercent
+  );'''
+
+          new = '''  const closingPriceChangePercent = pickFirstNumber(
+    marketData.closingPriceChangePercent, marketData.closeChangePercent, marketData.pcp,
+    lastHistoryRecord.closingPriceChangePercent, lastHistoryRecord.closeChangePercent, lastHistoryRecord.pcp,
+    source.closingPriceChangePercent, source.closeChangePercent, source.pcp,
+    mergedMetrics?.closingPriceChangePercent
+  );
+
+  const lastPriceChangePercent = pickFirstNumber(
+    marketData.lastPriceChangePercent, marketData.lastChangePercent, marketData.plp,
+    lastHistoryRecord.lastPriceChangePercent, lastHistoryRecord.lastChangePercent, lastHistoryRecord.plp,
+    source.lastPriceChangePercent, source.lastChangePercent, source.plp,
+    mergedMetrics?.lastPriceChangePercent
+  );'''
+
+          if old not in s:
+              raise SystemExit('Expected old priceChangePercent block was not found')
+          s = s.replace(old, new, 1)
+
+          # Remove stale volume-as-value fallback.
+          s = s.replace(', lastHistoryRecord.qTotTran5J', '', 1)
+          s = s.replace(', source.qTotTran5J, dailySummary?.value', ', dailySummary?.value', 1)
+
+          p.write_text(s, encoding='utf-8-sig')
+
+      - name: Build frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit fix and remove workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/fix-price-change-runtime.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/StockAnalysis.tsx .github/workflows/fix-price-change-runtime.yml
+          git commit -m "fix: define price change metrics" || exit 0
+          git push
