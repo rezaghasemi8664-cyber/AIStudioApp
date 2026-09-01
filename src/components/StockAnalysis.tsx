@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChartBarIcon, ClockIcon, MarketIcon, TrashIcon } from './Icons';
 import api from '../api/apiClient';
-import { getLatestSummary } from '../services/marketSummaryService';
+import { getLatestSummary, getSummaryHistory, getMarketSummaryByDate } from '../services/marketSummaryService';
 import { exportElementToPdf } from '../utils/exportToPdf';
 import toast from 'react-hot-toast';
 import * as analysisHistoryService from '../services/analysisHistoryService';
@@ -31,8 +31,11 @@ type AnalysisHistoryItem = {
 };
 
 type MarketSummary = {
+  id: number;
+  date: string;
   content: string;
   createdAt: string;
+  updatedAt?: string | null;
 };
 
 type ActiveTab = 'analysis' | 'marketSummary' | 'history';
@@ -971,7 +974,10 @@ export default function StockAnalysis() {
   const [analysisHistory, setAnalysisHistory] = useState<AnalysisHistoryItem[]>([]);
   const [showHistoryLimitWarning, setShowHistoryLimitWarning] = useState(false);
   const [marketSummary, setMarketSummary] = useState<MarketSummary | null>(null);
+  const [marketSummaryHistory, setMarketSummaryHistory] = useState<MarketSummary[]>([]);
+  const [selectedMarketSummaryId, setSelectedMarketSummaryId] = useState<number | null>(null);
   const [isLoadingMarketSummary, setIsLoadingMarketSummary] = useState(false);
+  const [isLoadingMarketSummaryHistory, setIsLoadingMarketSummaryHistory] = useState(false);
   const [hasUnreadMarketSummary, setHasUnreadMarketSummary] = useState(false);
   const [selectedAnalysisId, setSelectedAnalysisId] = useState<string | null>(null);
   const [selectedAnalysisDetail, setSelectedAnalysisDetail] = useState<any | null>(null);
@@ -1112,106 +1118,62 @@ useEffect(() => {
   };
 
  
-const fetchMarketSummary = async () => {
+const toMarketSummaryView = (item: any): MarketSummary | null => {
+  if (!item || typeof item !== 'object') return null;
+
+  const content =
+    typeof item.content === 'string' && item.content.trim()
+      ? item.content.trim()
+      : typeof item.summary === 'string' && item.summary.trim()
+        ? item.summary.trim()
+        : '';
+
+  const createdAt =
+    typeof item.createdAt === 'string' && item.createdAt
+      ? item.createdAt
+      : typeof item.updatedAt === 'string' && item.updatedAt
+        ? item.updatedAt
+        : '';
+
+  const id = Number(item.id);
+  if (!Number.isFinite(id) || !createdAt) return null;
+
+  return {
+    id,
+    date: typeof item.date === 'string' ? item.date : createdAt,
+    content: content || 'محتوای خلاصه بازار در دسترس نیست.',
+    createdAt,
+    updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : null,
+  };
+};
+
+const fetchMarketSummaryHistory = async () => {
+  const response = await getSummaryHistory(1, 5);
+  const items = (response?.data ?? [])
+    .map(toMarketSummaryView)
+    .filter((item): item is MarketSummary => item !== null)
+    .sort((a, b) => {
+      const at = new Date(a.createdAt).getTime();
+      const bt = new Date(b.createdAt).getTime();
+      return bt - at;
+    })
+    .slice(0, 5);
+
+  return items;
+};
+
+const fetchMarketSummary = async (id?: number) => {
   try {
+    if (id !== undefined) {
+      const selected = await getMarketSummaryByDate(String(id));
+      return selected ? toMarketSummaryView(selected) : null;
+    }
+
     const response = await getLatestSummary();
-
-    if (!response || typeof response !== 'object') {
-      console.warn('[MarketSummary] Empty response');
-      return undefined;
-    }
-
-    const raw = response as any;
-
-    const payload =
-      raw?.data && typeof raw.data === 'object'
-        ? raw.data
-        : raw;
-
-    let content = '';
-
-    if (
-      typeof payload?.content === 'string' &&
-      payload.content.trim()
-    ) {
-      content = payload.content.trim();
-    } else if (
-      typeof payload?.summary === 'string' &&
-      payload.summary.trim()
-    ) {
-      content = payload.summary.trim();
-    }
-
-    if (!content) {
-      const overallIndex = Number(
-        payload?.overallIndex ?? payload?.index ?? 0
-      );
-
-      const overallChange = Number(
-        payload?.overallChange ??
-          payload?.index_change ??
-          0
-      );
-
-      const marketStatus =
-        payload?.marketStatus ??
-        payload?.state ??
-        'نامشخص';
-
-      const totalTrades =
-        payload?.totalTrades ??
-        payload?.tno ??
-        'نامشخص';
-
-      const totalVolume =
-        payload?.totalVolume ??
-        payload?.tvol ??
-        'نامشخص';
-
-      const totalValue =
-        payload?.totalValue ??
-        payload?.tval ??
-        'نامشخص';
-
-      const indexText = Number.isFinite(overallIndex)
-        ? overallIndex.toLocaleString('fa-IR')
-        : 'نامشخص';
-
-      const changeText = Number.isFinite(overallChange)
-        ? overallChange.toLocaleString('fa-IR')
-        : 'نامشخص';
-
-      content =
-        'شاخص کل: ' +
-        indexText +
-        '؛ تغییر: ' +
-        changeText +
-        '؛ وضعیت بازار: ' +
-        String(marketStatus) +
-        '؛ تعداد معاملات: ' +
-        String(totalTrades) +
-        '؛ حجم معاملات: ' +
-        String(totalVolume) +
-        '؛ ارزش معاملات: ' +
-        String(totalValue);
-    }
-
-    return {
-      content,
-      createdAt:
-        typeof payload?.createdAt === 'string'
-          ? payload.createdAt
-          : typeof payload?.updatedAt === 'string'
-            ? payload.updatedAt
-            : new Date().toISOString(),
-    };
+    return toMarketSummaryView(response);
   } catch (error) {
-    console.error(
-      '[MarketSummary] Error fetching market summary:',
-      error
-    );
-
-    return undefined;
+    console.error('[MarketSummary] Error fetching market summary:', error);
+    return null;
   }
 };
 
@@ -1376,36 +1338,70 @@ const clearCurrentAnalysis = () => {
     if (activeTab !== 'marketSummary') return;
 
     let isMounted = true;
-    const run = async () => {
-      if (!marketSummary) {
-        setIsLoadingMarketSummary(true);
-        try {
-          const res = await fetchMarketSummary();
-          if (!isMounted) return;
-          if (!res) {
-            setMarketSummary(null);
-            return;
-          }
- setMarketSummary({
-            content: res.content ?? 'خلاصه بازار در دسترس نیست.',
-            createdAt: res.createdAt ?? new Date().toISOString(),
-          });
-          setHasUnreadMarketSummary(false);
-        } catch (e) {
-          console.error(e);
-        } finally {
-          if (isMounted) setIsLoadingMarketSummary(false);
+
+    const loadMarketSummary = async () => {
+      setIsLoadingMarketSummaryHistory(true);
+      try {
+        const history = await fetchMarketSummaryHistory();
+        if (!isMounted) return;
+
+        setMarketSummaryHistory(history);
+
+        if (history.length === 0) {
+          setSelectedMarketSummaryId(null);
+          setMarketSummary(null);
+          return;
         }
-      } else {
+
+        const currentId =
+          selectedMarketSummaryId !== null &&
+          history.some((item) => item.id === selectedMarketSummaryId)
+            ? selectedMarketSummaryId
+            : history[0].id;
+
+        setSelectedMarketSummaryId(currentId);
+
+        const selected = history.find((item) => item.id === currentId) ?? history[0];
+        setMarketSummary(selected);
         setHasUnreadMarketSummary(false);
+      } catch (error) {
+        console.error('[MarketSummary] failed to load history:', error);
+      } finally {
+        if (isMounted) setIsLoadingMarketSummaryHistory(false);
       }
     };
 
-    void run();
+    void loadMarketSummary();
+
     return () => {
       isMounted = false;
     };
-  }, [activeTab, marketSummary]);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'marketSummary' || selectedMarketSummaryId === null) return;
+
+    let isMounted = true;
+
+    const loadSelectedSummary = async () => {
+      setIsLoadingMarketSummary(true);
+      try {
+        const selected = await fetchMarketSummary(selectedMarketSummaryId);
+        if (!isMounted) return;
+        if (selected) setMarketSummary(selected);
+      } catch (error) {
+        console.error('[MarketSummary] failed to load selected summary:', error);
+      } finally {
+        if (isMounted) setIsLoadingMarketSummary(false);
+      }
+    };
+
+    void loadSelectedSummary();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, selectedMarketSummaryId]);
 
   const removeHistoryItem = async (id: string) => {
   if (!window.confirm('این تحلیل حذف شود؟')) {
@@ -1878,30 +1874,71 @@ const clearCurrentAnalysis = () => {
     dir="rtl"
     className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
   >
-    {isLoadingMarketSummary ? (
+    {isLoadingMarketSummaryHistory ? (
       <div className="py-6 text-center text-[13px] font-medium text-slate-500">
-        در حال دریافت خلاصه بازار...
+        در حال دریافت ۵ خلاصه بازار آخر...
       </div>
-    ) : marketSummary ? (
+    ) : marketSummaryHistory.length === 0 ? (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-right text-[13px] font-medium leading-7 text-amber-700">
+        هنوز خلاصه بازار ثبت‌شده‌ای وجود ندارد.
+      </div>
+    ) : (
       <>
-        {marketSummary.createdAt ? (
-          <div className="text-[12px] font-semibold text-slate-500">
-            {new Date(marketSummary.createdAt).toLocaleString('fa-IR')}
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="mb-2 text-[12px] font-bold text-slate-600">
+            ۵ روز معاملاتی آخر
           </div>
-        ) : null}
-
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <div className="whitespace-pre-wrap text-right text-[14px] font-medium leading-8 text-slate-900">
-            {marketSummary.content?.trim()
-              ? marketSummary.content
-              : 'محتوای خلاصه بازار در حال حاضر در دسترس نیست.'}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {marketSummaryHistory.map((item) => {
+              const isSelected = item.id === selectedMarketSummaryId;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSelectedMarketSummaryId(item.id)}
+                  className={`rounded-xl border p-3 text-right transition-colors ${
+                    isSelected
+                      ? 'border-blue-500 bg-blue-50 text-blue-900'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50/50'
+                  }`}
+                >
+                  <div className="text-[12px] font-extrabold">
+                    {new Date(item.createdAt).toLocaleDateString('fa-IR')}
+                  </div>
+                  <div className="mt-1 text-[11px] font-medium text-slate-500">
+                    {new Date(item.createdAt).toLocaleTimeString('fa-IR')}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
+
+        {isLoadingMarketSummary ? (
+          <div className="py-4 text-center text-[13px] font-medium text-slate-500">
+            در حال دریافت خلاصه انتخاب‌شده...
+          </div>
+        ) : marketSummary ? (
+          <>
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+              <div className="text-[11px] font-bold text-blue-700">تاریخ و زمان ثبت در پایگاه داده</div>
+              <div className="mt-1 text-[13px] font-extrabold text-blue-950">
+                {new Date(marketSummary.createdAt).toLocaleString('fa-IR')}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="whitespace-pre-wrap text-right text-[14px] font-medium leading-8 text-slate-900">
+                {marketSummary.content}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-right text-[13px] font-medium leading-7 text-amber-700">
+            خلاصه انتخاب‌شده برای نمایش دریافت نشد.
+          </div>
+        )}
       </>
-    ) : (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-right text-[13px] font-medium leading-7 text-amber-700">
-        خلاصه بازار برای نمایش دریافت نشد.
-      </div>
     )}
   </div>
 )}
