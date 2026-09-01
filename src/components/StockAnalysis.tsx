@@ -625,6 +625,8 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     source.closeChangePercent,
     source.pcp,
     mergedMetrics?.closingPriceChangePercent
+    (mergedMetrics as any)?.closeChangePercent,
+
   );
 
   const lastPriceChangePercent = pickFirstNumber(
@@ -632,6 +634,8 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     lastHistoryRecord.lastPriceChangePercent, lastHistoryRecord.lastChangePercent, lastHistoryRecord.plp,
     source.lastPriceChangePercent, source.lastChangePercent, source.plp,
     mergedMetrics?.lastPriceChangePercent
+    (mergedMetrics as any)?.priceChangePercent,
+
   );
 
   const pe = pickFirstNumber(marketData.pe, lastHistoryRecord.pe, mergedMetrics?.pe, source.pe);
