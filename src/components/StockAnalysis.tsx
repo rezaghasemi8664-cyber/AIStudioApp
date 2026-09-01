@@ -430,26 +430,6 @@ function normalizeMarketMetrics(input: unknown): AnalysisMarketMetrics | undefin
   };
 }
 
-priceChangePercent: pickFirstNumber(
-  mm.priceChangePercent,
-  mm.pctChange,
-  mm.changePercent
-),
-
-closingPriceChangePercent: pickFirstNumber(
-  mm.closingPriceChangePercent,
-  mm.closeChangePercent,
-  mm.pcp
-),
-
-tradedValue: pickFirstNumber(
-  mm.tradedValue,
-  mm.tradeValue,
-  mm.value,
-  mm.qTotCap,
-  mm.tval
-),
-
 function getLastHistoryRecord(history: unknown): Record<string, any> | null {
   if (Array.isArray(history) && history.length > 0) {
     const last = history[history.length - 1];
@@ -635,24 +615,17 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
   );
 
   const closingPriceChangePercent = pickFirstNumber(
-  marketData.closingPriceChangePercent,
-  marketData.closeChangePercent,
-  marketData.pcp,
-  marketData.priceChangePercent,
-
-  lastHistoryRecord.closingPriceChangePercent,
-  lastHistoryRecord.closeChangePercent,
-  lastHistoryRecord.pcp,
-  lastHistoryRecord.priceChangePercent,
-
-  source.closingPriceChangePercent,
-  source.closeChangePercent,
-  source.pcp,
-  source.priceChangePercent,
-
-  mergedMetrics?.closingPriceChangePercent,
-  mergedMetrics?.priceChangePercent
-);
+    marketData.closingPriceChangePercent,
+    marketData.closeChangePercent,
+    marketData.pcp,
+    lastHistoryRecord.closingPriceChangePercent,
+    lastHistoryRecord.closeChangePercent,
+    lastHistoryRecord.pcp,
+    source.closingPriceChangePercent,
+    source.closeChangePercent,
+    source.pcp,
+    mergedMetrics?.closingPriceChangePercent
+  );
 
   const lastPriceChangePercent = pickFirstNumber(
     marketData.lastPriceChangePercent, marketData.lastChangePercent, marketData.plp,
@@ -1542,24 +1515,21 @@ const clearCurrentAnalysis = () => {
     );
 
     const closingPriceChangePercent = pickFirstNumber(
-  md?.closingPriceChangePercent,
-  (md as any)?.closeChangePercent,
-  (md as any)?.pcp,
+      md?.closingPriceChangePercent,
+      (md as any)?.closeChangePercent,
+      (md as any)?.pcp,
+      mm?.closingPriceChangePercent,
+      rawMarketData?.closingPriceChangePercent,
+      rawMarketData?.closeChangePercent,
+      rawMarketData?.pcp,
+      rawPayload?.closingPriceChangePercent,
+      rawPayload?.closeChangePercent,
+      rawPayload?.pcp,
+      raw?.closingPriceChangePercent,
+      raw?.closeChangePercent,
+      raw?.pcp
+    );
 
-  mm?.closingPriceChangePercent,
-
-  rawMarketData?.closingPriceChangePercent,
-  rawMarketData?.closeChangePercent,
-  rawMarketData?.pcp,
-
-  rawPayload?.closingPriceChangePercent,
-  rawPayload?.closeChangePercent,
-  rawPayload?.pcp,
-
-  raw?.closingPriceChangePercent,
-  raw?.closeChangePercent,
-  raw?.pcp
-);
     const lastPriceChangePercent = pickFirstNumber(
       md?.lastPriceChangePercent,
       (md as any)?.lastChangePercent,
