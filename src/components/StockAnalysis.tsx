@@ -416,8 +416,8 @@ function normalizeMarketMetrics(input: unknown): AnalysisMarketMetrics | undefin
       mm.qTotCap,
       mm.tval
     ),
-    priceChangePercent: pickFirstNumber(mm.priceChangePercent, mm.pctChange, mm.changePercent, mm.priceChange, mm.change, mm.chp),
-    tradedValue: pickFirstNumber(mm.tradedValue, mm.tradeValue, mm.value, mm.qTotCap, mm.tval, mm.qTotTran5J),
+    priceChangePercent: pickFirstNumber(mm.priceChangePercent, mm.pctChange, mm.changePercent),
+    tradedValue: pickFirstNumber(mm.tradedValue, mm.tradeValue, mm.value, mm.qTotCap, mm.tval),
     realMoneyFlow: pickFirstNumber(mm.realMoneyFlow),
     legalMoneyFlow: pickFirstNumber(mm.legalMoneyFlow),
     highPrice: pickFirstNumber(mm.highPrice, mm.high, mm.pMax),

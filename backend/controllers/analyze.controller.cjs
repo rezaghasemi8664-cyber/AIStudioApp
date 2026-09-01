@@ -129,10 +129,10 @@ function enrichMarketMetrics(data) {
   const closingPrice = closingPriceRaw;
   const lastPrice = lastPriceRaw !== null ? lastPriceRaw : closingPriceRaw;
   const derivedPrice = lastPrice !== null ? lastPrice : closingPrice;
-  const tradedValue = tradedValueDirect !== null ? tradedValueDirect : (derivedPrice !== null && tradedVolume !== null ? derivedPrice * tradedVolume : null);
+  const tradedValue = tradedValueDirect;
   if (averagePrice === null && tradedValue !== null && tradedVolume !== null && tradedVolume > 0) averagePrice = tradedValue / tradedVolume;
   if (priceChange === null && lastPrice !== null && closingPrice !== null) priceChange = lastPrice - closingPrice;
-  if (priceChangePercent === null && priceChange !== null && closingPrice !== null && closingPrice !== 0) priceChangePercent = (priceChange / closingPrice) * 100;
+  if (priceChangePercent === null && lastPrice !== null && yesterdayClose !== null && yesterdayClose !== 0) priceChangePercent = ((lastPrice - yesterdayClose) / yesterdayClose) * 100;
   const realMoneyFlowRaw = firstDefined(getNested(data,'realMoneyFlow'),getNested(data,'realFlow'),getNested(data,'moneyFlow.real'),getNested(data,'money_flow.real'),getNested(data,'snapshot.realMoneyFlow'),getNested(data,'snapshot.realFlow'));
   const legalMoneyFlowRaw = firstDefined(getNested(data,'legalMoneyFlow'),getNested(data,'legalFlow'),getNested(data,'moneyFlow.legal'),getNested(data,'money_flow.legal'),getNested(data,'snapshot.legalMoneyFlow'),getNested(data,'snapshot.legalFlow'));
   return { pe, eps, marketCap, priceChangePercent, tradedValue, realMoneyFlow:normalizeMoneyFlowValue(realMoneyFlowRaw), legalMoneyFlow:normalizeMoneyFlowValue(legalMoneyFlowRaw), realMoneyFlowBreakdown:normalizeMoneyFlowBreakdown(realMoneyFlowRaw), legalMoneyFlowBreakdown:normalizeMoneyFlowBreakdown(legalMoneyFlowRaw), highPrice, lowPrice, averagePrice, lastPrice:derivedPrice, closingPrice, tradedVolume, yesterdayClose, priceChange };
