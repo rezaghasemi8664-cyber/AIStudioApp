@@ -19,27 +19,23 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
           p = Path('src/components/StockAnalysis.tsx')
           s = p.read_text(encoding='utf-8-sig')
 
-          # Remove the malformed orphan property block that is outside any object.
-          s = re.sub(r'\npriceChangePercent:\s*pickFirstNumber\(.*?\),\s*\n\nclosingPriceChangePercent:\s*pickFirstNumber\(.*?\),\s*\n\ntradedValue:\s*pickFirstNumber\(.*?\),\s*\n\n(?=function getLastHistoryRecord)', '\n\n', s, count=1, flags=re.S)
+          # Backend BRS exposes two distinct percentages:
+          # priceChangePercent = last/live price percentage
+          # closeChangePercent = closing-price percentage
+          # The UI must consume both from mergedMetrics without falling back
+          # from closing percent to the live percent.
+          old = "    mergedMetrics?.closingPriceChangePercent\n  );"
+          new = "    mergedMetrics?.closingPriceChangePercent,\n    (mergedMetrics as any)?.closeChangePercent\n  );"
+          if old in s and new not in s:
+              s = s.replace(old, new, 1)
 
-          # Remove generic priceChangePercent from the normalized closing percentage.
-          s = re.sub(r'(const closingPriceChangePercent = pickFirstNumber\(.*?)(?:\n\s*marketData\.priceChangePercent,|\n\s*lastHistoryRecord\.priceChangePercent,|\n\s*source\.priceChangePercent,|\n\s*mergedMetrics\?\.priceChangePercent,?)(.*?\n\s*\);)', r'\1\2', s, count=1, flags=re.S)
-
-          # Remove generic priceChangePercent from the resolved closing percentage block.
-          starts = [m.start() for m in re.finditer(r'const closingPriceChangePercent = pickFirstNumber\(', s)]
-          if len(starts) >= 2:
-              a = starts[1]
-              b = s.find('const lastPriceChangePercent = pickFirstNumber(', a)
-              block = s[a:b]
-              block = re.sub(r'\n\s*mm\?\.priceChangePercent,?', '', block)
-              block = re.sub(r'\n\s*rawMarketData\?\.priceChangePercent,?', '', block)
-              block = re.sub(r'\n\s*rawPayload\?\.priceChangePercent,?', '', block)
-              block = re.sub(r'\n\s*raw\?\.priceChangePercent,?', '', block)
-              s = s[:a] + block + s[b:]
+          old_last = "    mergedMetrics?.lastPriceChangePercent\n  );"
+          new_last = "    mergedMetrics?.lastPriceChangePercent,\n    (mergedMetrics as any)?.priceChangePercent\n  );"
+          if old_last in s and new_last not in s:
+              s = s.replace(old_last, new_last, 1)
 
           p.write_text(s, encoding='utf-8-sig')
           PY
