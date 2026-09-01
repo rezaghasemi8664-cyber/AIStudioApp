@@ -1,0 +1,91 @@
+name: Fix closing price change percent
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch StockAnalysis
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path('src/components/StockAnalysis.tsx')
+          text = path.read_text(encoding='utf-8-sig')
+
+          # 1) In normalizeAnalysisResult, never use generic priceChangePercent
+          # as a source for closing-price percentage. TSETMC's pcp is the
+          # closing-price change percentage; plp is the last-traded percentage.
+          marker = 'const closingPriceChangePercent = pickFirstNumber('
+          start = text.find(marker)
+          if start == -1:
+              raise SystemExit('closingPriceChangePercent block not found')
+          end = text.find('\n  const lastPriceChangePercent = pickFirstNumber(', start)
+          if end == -1:
+              raise SystemExit('lastPriceChangePercent block not found')
+
+          new_block = '''const closingPriceChangePercent = pickFirstNumber(\n    marketData.closingPriceChangePercent,\n    marketData.closeChangePercent,\n    marketData.pcp,\n    lastHistoryRecord.closingPriceChangePercent,\n    lastHistoryRecord.closeChangePercent,\n    lastHistoryRecord.pcp,\n    source.closingPriceChangePercent,\n    source.closeChangePercent,\n    source.pcp,\n    mergedMetrics?.closingPriceChangePercent\n  );\n'''
+          text = text[:start] + new_block + text[end:]
+
+          # 2) In marketDataResolved, do not let generic priceChangePercent
+          # become the closing percentage. If pcp is unavailable, calculate it
+          # from closing price versus the previous/reference closing price when
+          # such a value is explicitly available.
+          marker = '    const closingPriceChangePercent = pickFirstNumber('
+          start = text.find(marker)
+          if start == -1:
+              raise SystemExit('resolved closing percentage block not found')
+          end = text.find('\n    const lastPriceChangePercent = pickFirstNumber(', start)
+          if end == -1:
+              raise SystemExit('resolved last percentage block not found')
+
+          new_block = '''    const closingPriceChangePercent = pickFirstNumber(\n      md?.closingPriceChangePercent,\n      (md as any)?.closeChangePercent,\n      (md as any)?.pcp,\n      mm?.closingPriceChangePercent,\n      rawMarketData?.closingPriceChangePercent,\n      rawMarketData?.closeChangePercent,\n      rawMarketData?.pcp,\n      rawPayload?.closingPriceChangePercent,\n      rawPayload?.closeChangePercent,\n      rawPayload?.pcp,\n      raw?.closingPriceChangePercent,\n      raw?.closeChangePercent,\n      raw?.pcp\n    );\n'''
+          text = text[:start] + new_block + text[end:]
+
+          path.write_text(text, encoding='utf-8-sig')
+
+      - name: Verify source separation
+        shell: python
+        run: |
+          from pathlib import Path
+          text = Path('src/components/StockAnalysis.tsx').read_text(encoding='utf-8-sig')
+          # The resolved closing block must not contain generic priceChangePercent.
+          start = text.find('const closingPriceChangePercent = pickFirstNumber(')
+          end = text.find('const lastPriceChangePercent = pickFirstNumber(', start)
+          block = text[start:end]
+          if 'priceChangePercent' in block:
+              raise SystemExit('Closing percentage still falls back to generic priceChangePercent')
+          print('Closing percentage source separation verified.')
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/StockAnalysis.tsx
+          git diff --cached --quiet && { echo 'No changes to commit'; exit 0; }
+          git commit -m 'fix: separate closing and last price percentages'
+          git push
+
+      - name: Remove temporary workflow
+        if: success()
+        shell: bash
+        run: |
+          git rm .github/workflows/fix-closing-percent.yml
+          git commit -m 'chore: remove temporary price fix workflow'
+          git push
