@@ -1,0 +1,60 @@
+name: Repair closing percent and build
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: "!contains(github.event.head_commit.message, 'closing percent repair commit')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Repair source
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('src/components/StockAnalysis.tsx')
+          s = p.read_text(encoding='utf-8-sig')
+
+          # Remove the malformed orphan property block that is outside any object.
+          s = re.sub(r'\npriceChangePercent:\s*pickFirstNumber\(.*?\),\s*\n\nclosingPriceChangePercent:\s*pickFirstNumber\(.*?\),\s*\n\ntradedValue:\s*pickFirstNumber\(.*?\),\s*\n\n(?=function getLastHistoryRecord)', '\n\n', s, count=1, flags=re.S)
+
+          # Remove generic priceChangePercent from the normalized closing percentage.
+          s = re.sub(r'(const closingPriceChangePercent = pickFirstNumber\(.*?)(?:\n\s*marketData\.priceChangePercent,|\n\s*lastHistoryRecord\.priceChangePercent,|\n\s*source\.priceChangePercent,|\n\s*mergedMetrics\?\.priceChangePercent,?)(.*?\n\s*\);)', r'\1\2', s, count=1, flags=re.S)
+
+          # Remove generic priceChangePercent from the resolved closing percentage block.
+          starts = [m.start() for m in re.finditer(r'const closingPriceChangePercent = pickFirstNumber\(', s)]
+          if len(starts) >= 2:
+              a = starts[1]
+              b = s.find('const lastPriceChangePercent = pickFirstNumber(', a)
+              block = s[a:b]
+              block = re.sub(r'\n\s*mm\?\.priceChangePercent,?', '', block)
+              block = re.sub(r'\n\s*rawMarketData\?\.priceChangePercent,?', '', block)
+              block = re.sub(r'\n\s*rawPayload\?\.priceChangePercent,?', '', block)
+              block = re.sub(r'\n\s*raw\?\.priceChangePercent,?', '', block)
+              s = s[:a] + block + s[b:]
+
+          p.write_text(s, encoding='utf-8-sig')
+          PY
+
+      - name: Build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit repaired source
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/StockAnalysis.tsx
+          git diff --cached --quiet && { echo 'No source change'; exit 0; }
+          git commit -m 'fix: closing percent repair commit'
+          git push
