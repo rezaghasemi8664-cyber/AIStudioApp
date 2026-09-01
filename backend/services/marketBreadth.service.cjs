@@ -63,17 +63,11 @@ async function getJson(url) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, {
-      headers: { Accept: 'application/json', 'User-Agent': 'AIStudioApp/5.0' },
-      signal: controller.signal,
-    });
+    const response = await fetch(url, { headers: { Accept: 'application/json', 'User-Agent': 'AIStudioApp/5.0' }, signal: controller.signal });
     if (!response.ok) throw new Error(`TSETMC ${response.status}`);
     return await response.json();
-  } finally {
-    clearTimeout(timer);
-  }
+  } finally { clearTimeout(timer); }
 }
-
 function percentChange(row) {
   const directKeys = ['plp','pLp','percentLast','lastPercent','priceChangePercent','price_change_percent','pcp','pCp','percentClose','closePercent','changePercent','change_percent','percentage','percent'];
   for (const key of directKeys) {
@@ -85,7 +79,6 @@ function percentChange(row) {
   const previous = first(row, ['py','priceYesterday','previousClose','prevClose','yesterdayClose','yesterdayPrice']);
   const base = close ?? last;
   if (base !== null && previous !== null && previous !== 0) return ((base - previous) / previous) * 100;
-  if (last !== null && previous !== null && previous !== 0) return ((last - previous) / previous) * 100;
   return null;
 }
 function isIndex(row) {
@@ -100,64 +93,52 @@ function isTradable(row) {
   return (tradeCount !== null && tradeCount > 0) || (volume !== null && volume > 0) || (value !== null && value > 0);
 }
 function normalizeRows(payload) {
-  return flatten(payload)
-    .map(row => ({
-      item: row,
-      symbol: nameOf(row),
-      code: codeOf(row),
-      pct: percentChange(row),
-      traded: isTradable(row),
-      volume: first(row, VOLUME_KEYS) || 0,
-      value: first(row, VALUE_KEYS) || 0,
-    }))
-    .filter(row => row.symbol);
+  return flatten(payload).map(row => ({
+    item: row,
+    symbol: nameOf(row),
+    code: codeOf(row),
+    pct: percentChange(row),
+    traded: isTradable(row),
+    volume: first(row, VOLUME_KEYS) || 0,
+    value: first(row, VALUE_KEYS) || 0,
+    tradeCount: first(row, TRADE_KEYS) || 0,
+  })).filter(row => row.symbol);
 }
 
-// TSETMC ClientTypeAll order is:
-// insCode,n_buy_count,l_buy_count,n_buy_volume,l_buy_volume,
-// n_sell_count,l_sell_count,n_sell_volume,l_sell_volume.
+// AllSymbols can contain duplicate records for one instrument. Breadth must count
+// each traded instrument exactly once. Prefer the most active record when duplicates exist.
+function dedupeTradedRows(rows) {
+  const map = new Map();
+  for (const row of rows) {
+    if (!row.traded) continue;
+    const key = row.code || `symbol:${row.symbol}`;
+    const previous = map.get(key);
+    if (!previous || (row.tradeCount + row.volume + row.value) > (previous.tradeCount + previous.volume + previous.value)) {
+      map.set(key, row);
+    }
+  }
+  return [...map.values()];
+}
+
 function parseLegacyClientTypes(text) {
-  return String(text || '')
-    .split(';')
-    .map(line => line.trim())
-    .filter(Boolean)
-    .map(line => line.split(','))
-    .filter(parts => parts.length >= 9 && parts[0])
-    .map(parts => ({
-      insCode: String(parts[0]).trim(),
-      buy_CountI: num(parts[1]) || 0,
-      buy_CountN: num(parts[2]) || 0,
-      buy_I_Volume: num(parts[3]) || 0,
-      buy_N_Volume: num(parts[4]) || 0,
-      sell_CountI: num(parts[5]) || 0,
-      sell_CountN: num(parts[6]) || 0,
-      sell_I_Volume: num(parts[7]) || 0,
-      sell_N_Volume: num(parts[8]) || 0,
-    }));
+  return String(text || '').split(';').map(line => line.trim()).filter(Boolean).map(line => line.split(',')).filter(parts => parts.length >= 9 && parts[0]).map(parts => ({
+    insCode: String(parts[0]).trim(), buy_CountI: num(parts[1]) || 0, buy_CountN: num(parts[2]) || 0, buy_I_Volume: num(parts[3]) || 0, buy_N_Volume: num(parts[4]) || 0, sell_CountI: num(parts[5]) || 0, sell_CountN: num(parts[6]) || 0, sell_I_Volume: num(parts[7]) || 0, sell_N_Volume: num(parts[8]) || 0,
+  }));
 }
 async function fetchClientTypes() {
   try {
     const payload = await getJson(`${CDN}/ClientType/GetClientTypeAll`);
     const rows = flatten(payload).filter(row => codeOf(row));
     if (rows.length) return rows;
-  } catch (error) {
-    console.warn('[MARKET][ClientType JSON]', error.message);
-  }
+  } catch (error) { console.warn('[MARKET][ClientType JSON]', error.message); }
   try {
-    const response = await fetch('http://old.tsetmc.com/tsev2/data/ClientTypeAll.aspx', {
-      headers: { Accept: 'text/plain,*/*', 'User-Agent': 'Mozilla/5.0' },
-    });
+    const response = await fetch('http://old.tsetmc.com/tsev2/data/ClientTypeAll.aspx', { headers: { Accept: 'text/plain,*/*', 'User-Agent': 'Mozilla/5.0' } });
     if (!response.ok) throw new Error(`TSETMC ${response.status}`);
     return parseLegacyClientTypes(await response.text());
-  } catch (error) {
-    console.warn('[MARKET][ClientType legacy]', error.message);
-    return [];
-  }
+  } catch (error) { console.warn('[MARKET][ClientType legacy]', error.message); return []; }
 }
-
 function moneyFlowFromClientTypes(clientRows, priceByCode) {
-  let buyVolume = 0, sellVolume = 0, buyValue = 0, sellValue = 0;
-  let buyCount = 0, sellCount = 0, matchedSymbols = 0;
+  let buyVolume = 0, sellVolume = 0, buyValue = 0, sellValue = 0, buyCount = 0, sellCount = 0, matchedSymbols = 0;
   for (const client of clientRows) {
     const code = codeOf(client);
     if (!code || !priceByCode.has(code)) continue;
@@ -167,116 +148,77 @@ function moneyFlowFromClientTypes(clientRows, priceByCode) {
     const sellV = first(client, ['sell_I_Volume','sellIVolume','sellIvolume']) || 0;
     const buyVal = first(client, ['buy_I_Value','buyIValue','buy_I_value']);
     const sellVal = first(client, ['sell_I_Value','sellIValue','sell_I_value']);
-    buyVolume += buyV;
-    sellVolume += sellV;
-    buyValue += buyVal ?? buyV * price;
-    sellValue += sellVal ?? sellV * price;
+    buyVolume += buyV; sellVolume += sellV; buyValue += buyVal ?? buyV * price; sellValue += sellVal ?? sellV * price;
     buyCount += first(client, ['buy_CountI','buyI_Count','buy_I_Count']) || 0;
     sellCount += first(client, ['sell_CountI','sellI_Count','sell_I_Count']) || 0;
     matchedSymbols += 1;
   }
   if (!matchedSymbols) return null;
-  return {
-    available: true,
-    buyVolume,
-    sellVolume,
-    netVolume: buyVolume - sellVolume,
-    buyValue,
-    sellValue,
-    netValue: buyValue - sellValue,
-    buyCount,
-    sellCount,
-    matchedSymbols,
-  };
+  return { available: true, buyVolume, sellVolume, netVolume: buyVolume - sellVolume, buyValue, sellValue, netValue: buyValue - sellValue, buyCount, sellCount, matchedSymbols };
 }
-
 async function fetchSectorsApi() {
   try {
     const payload = await getJson(`${CDN}/MarketData/GetSectorsSummary`);
-    return flatten(payload)
-      .map(row => ({
-        name: row.lSecVal ?? row.lVal30 ?? row.name ?? row.sectorName ?? row.title ?? row.sector,
-        changePercent: first(row, ['changePercent','change_percentage','percent','pChange','change','changeValue','priceChangePercent']),
-        symbols: first(row, ['symbols','symbolCount','count','numberOfSymbols','insCount']),
-        value: first(row, ['tradeValue','tval','value','qTotCap']),
-      }))
-      .filter(row => row.name && row.changePercent !== null);
-  } catch (error) {
-    console.warn('[MARKET][Sectors]', error.message);
-    return [];
-  }
+    return flatten(payload).map(row => ({ name: row.lSecVal ?? row.lVal30 ?? row.name ?? row.sectorName ?? row.title ?? row.sector, changePercent: first(row, ['changePercent','change_percentage','percent','pChange','change','changeValue','priceChangePercent']), symbols: first(row, ['symbols','symbolCount','count','numberOfSymbols','insCount']), value: first(row, ['tradeValue','tval','value','qTotCap']) })).filter(row => row.name && row.changePercent !== null);
+  } catch (error) { console.warn('[MARKET][Sectors]', error.message); return []; }
 }
 function deriveSectors(rows) {
   const groups = new Map();
   for (const row of rows) {
     if (!row.traded || row.pct === null) continue;
-    const sector = sectorOf(row.item);
-    if (!sector) continue;
+    const sector = sectorOf(row.item); if (!sector) continue;
     const current = groups.get(sector) || { name: sector, symbols: 0, sumPct: 0, value: 0 };
-    current.symbols += 1;
-    current.sumPct += row.pct;
-    current.value += row.value;
-    groups.set(sector, current);
+    current.symbols += 1; current.sumPct += row.pct; current.value += row.value; groups.set(sector, current);
   }
-  return [...groups.values()].map(group => ({
-    name: group.name,
-    symbols: group.symbols,
-    changePercent: group.sumPct / group.symbols,
-    value: group.value,
-  }));
+  return [...groups.values()].map(group => ({ name: group.name, symbols: group.symbols, changePercent: group.sumPct / group.symbols, value: group.value }));
 }
 
 function build(payload, clientRows = [], sectorApiRows = []) {
   const all = normalizeRows(payload);
-  const rows = all.filter(row => row.traded && row.pct !== null);
-  const positive = rows.filter(row => row.pct > 0).length;
-  const negative = rows.filter(row => row.pct < 0).length;
-  const neutral = rows.filter(row => row.pct === 0).length;
+  // IMPORTANT: total breadth is the number of unique instruments that actually traded today.
+  const traded = dedupeTradedRows(all);
+  const classified = traded.filter(row => row.pct !== null);
+  const positive = classified.filter(row => row.pct > 0).length;
+  const negative = classified.filter(row => row.pct < 0).length;
+  const neutral = classified.filter(row => row.pct === 0).length;
+  const unclassified = traded.length - classified.length;
   const total = positive + negative + neutral;
 
   const priceByCode = new Map(all.filter(row => row.code).map(row => [row.code, row.item]));
   const moneyFlow = moneyFlowFromClientTypes(clientRows, priceByCode);
-
-  // Prefer the official TSETMC sector summary; derive from symbols only as fallback.
-  const derivedSectors = deriveSectors(all);
+  const derivedSectors = deriveSectors(traded);
   const sectors = sectorApiRows.length ? sectorApiRows : derivedSectors;
   const leaders = [...sectors].sort((a,b) => (b.changePercent || 0) - (a.changePercent || 0)).slice(0, 5);
   const laggards = [...sectors].sort((a,b) => (a.changePercent || 0) - (b.changePercent || 0)).slice(0, 5);
-
-  const topGainers = [...rows].filter(r => r.pct > 0).sort((a,b) => b.pct - a.pct).slice(0, 10).map(r => ({ symbol:r.symbol, changePercent:+r.pct.toFixed(4), volume:r.volume, value:r.value }));
-  const topLosers = [...rows].filter(r => r.pct < 0).sort((a,b) => a.pct - b.pct).slice(0, 10).map(r => ({ symbol:r.symbol, changePercent:+r.pct.toFixed(4), volume:r.volume, value:r.value }));
-  const topVolumes = [...rows].sort((a,b) => b.volume - a.volume).slice(0, 10).map(r => ({ symbol:r.symbol, volume:r.volume, value:r.value, changePercent:+r.pct.toFixed(4) }));
+  const topGainers = [...classified].filter(r => r.pct > 0).sort((a,b) => b.pct - a.pct).slice(0, 10).map(r => ({ symbol:r.symbol, changePercent:+r.pct.toFixed(4), volume:r.volume, value:r.value }));
+  const topLosers = [...classified].filter(r => r.pct < 0).sort((a,b) => a.pct - b.pct).slice(0, 10).map(r => ({ symbol:r.symbol, changePercent:+r.pct.toFixed(4), volume:r.volume, value:r.value }));
+  const topVolumes = [...classified].sort((a,b) => b.volume - a.volume).slice(0, 10).map(r => ({ symbol:r.symbol, volume:r.volume, value:r.value, changePercent:+r.pct.toFixed(4) }));
 
   return {
     available: true,
-    positive,
-    negative,
-    neutral,
-    unknown: 0,
-    total,
-    classifiedTotal: total,
-    coveragePercent: total ? 100 : 0,
+    positive, negative, neutral, unknown: unclassified, total, classifiedTotal: total,
+    tradedSymbols: traded.length,
+    coveragePercent: traded.length ? total / traded.length * 100 : 0,
     positivePercent: total ? positive / total * 100 : 0,
     negativePercent: total ? negative / total * 100 : 0,
     neutralPercent: total ? neutral / total * 100 : 0,
     advanceDeclineRatio: negative ? positive / negative : null,
     score: total ? Math.max(0, Math.min(100, Math.round(50 + ((positive - negative) / total) * 50))) : null,
-    topGainers,
-    topLosers,
-    topVolumes,
+    topGainers, topLosers, topVolumes,
     moneyFlow: moneyFlow || { available:false, reason:'REAL_MONEY_FLOW_UNAVAILABLE', matchedSymbols:0 },
-    sectors: sectors.length
-      ? { available:true, leaders, laggards, rows:sectors, source:sectorApiRows.length ? 'tsetmc-sector-summary' : 'symbol-aggregation' }
-      : { available:false, leaders:[], laggards:[], rows:[], reason:'SECTOR_DATA_UNAVAILABLE' },
+    sectors: sectors.length ? { available:true, leaders, laggards, rows:sectors, source:sectorApiRows.length ? 'tsetmc-sector-summary' : 'symbol-aggregation' } : { available:false, leaders:[], laggards:[], rows:[], reason:'SECTOR_DATA_UNAVAILABLE' },
     interpretation: positive > negative * 1.2 ? 'عرض بازار مثبت و گسترده است' : negative > positive * 1.2 ? 'عرض بازار منفی و ضعیف است' : 'عرض بازار متعادل است',
     diagnostics: {
       clientTypeRows: clientRows.length,
       matchedClientTypeRows: moneyFlow?.matchedSymbols || 0,
       sectorRows: sectors.length,
       sectorSource: sectorApiRows.length ? 'tsetmc-sector-summary' : derivedSectors.length ? 'symbol-aggregation' : 'none',
-      breadthRule: 'فقط نمادهای معامله‌شده با درصد تغییر معتبر؛ شاخص‌ها و رکوردهای بدون قیمت تغییر معتبر حذف شدند',
+      breadthRule: 'هر نماد معامله‌شده دقیقاً یک بار؛ شاخص‌ها حذف؛ نماد بدون درصد تغییر در unknown و خارج از جمع مثبت/منفی/خنثی',
       sourceRows: all.length,
+      uniqueTradedRows: traded.length,
       classifiedRows: total,
+      unclassifiedTradedRows: unclassified,
+      invariant: total + unclassified === traded.length,
     },
   };
 }
