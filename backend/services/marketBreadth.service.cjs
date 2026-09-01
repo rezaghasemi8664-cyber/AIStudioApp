@@ -1,24 +1,28 @@
 'use strict';
 
+/**
+ * Market breadth / real-money-flow / sector intelligence.
+ *
+ * Primary source: BRS AllSymbols, because the CDN GetMarketWatch endpoint can
+ * legitimately return an empty payload from a server/VPS environment.
+ * The breadth invariant is strict: positive + negative + neutral === total
+ * unique traded symbols used in the snapshot.
+ */
+
 const env = require('../config/env.cjs');
+const brs = require('./brs.service.cjs');
 
 const CDN = 'https://cdn.tsetmc.com/api';
 const timeoutMs = Number(env.BRS_TIMEOUT_MS) || 15000;
 const TTL = 2 * 60 * 1000;
 let cache = { value: null, timestamp: 0 };
 
-const NAME_KEYS = ['lVal18AFC','lVal18','symbol','l18','l30','namad','name','ticker'];
-const CODE_KEYS = ['insCode','inscode','InsCode','instrumentCode','instrumentId','ins_code'];
-const SECTOR_KEYS = ['sectorName','industryName','groupName','sector','industry','group','lSecVal'];
-const VOLUME_KEYS = ['qTotTran5J','tvol','totalVolume','volume','tradeVolume'];
-const VALUE_KEYS = ['qTotCap','tval','totalValue','tradeValue'];
-const TRADE_KEYS = ['zTotTran','tno','tradeCount','totalTrades'];
-
 function num(value) {
   if (value === null || value === undefined || value === '') return null;
   const n = Number(String(value).replace(/,/g, '').replace(/٪/g, '').trim());
   return Number.isFinite(n) ? n : null;
 }
+
 function first(obj, keys) {
   for (const key of keys) {
     const n = num(obj?.[key]);
@@ -26,22 +30,19 @@ function first(obj, keys) {
   }
   return null;
 }
-function nameOf(row) {
-  for (const key of NAME_KEYS) if (row?.[key] != null && String(row[key]).trim()) return String(row[key]).trim();
+
+function text(obj, keys) {
+  for (const key of keys) {
+    const value = obj?.[key];
+    if (value !== null && value !== undefined && String(value).trim()) return String(value).trim();
+  }
   return null;
 }
-function codeOf(row) {
-  for (const key of CODE_KEYS) if (row?.[key] != null && String(row[key]).trim()) return String(row[key]).trim();
-  return null;
-}
-function sectorOf(row) {
-  for (const key of SECTOR_KEYS) if (row?.[key] != null && String(row[key]).trim()) return String(row[key]).trim();
-  return null;
-}
+
 function flatten(payload) {
   if (Array.isArray(payload)) return payload;
   if (!payload || typeof payload !== 'object') return [];
-  const keys = ['marketwatch','marketWatch','data','items','result','results','rows','list','records','clientTypeAllDto','sectorSummeries','sectorsSummary'];
+  const keys = ['marketwatch', 'marketWatch', 'data', 'items', 'result', 'results', 'rows', 'list', 'records', 'clientTypeAllDto', 'sectorSummeries', 'sectorsSummary'];
   for (const key of keys) {
     if (Array.isArray(payload[key])) return payload[key];
     if (payload[key] && typeof payload[key] === 'object') {
@@ -51,12 +52,13 @@ function flatten(payload) {
   }
   return [];
 }
+
 async function getJson(url) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, {
-      headers: { Accept: 'application/json', 'User-Agent': 'AIStudioApp/5.0' },
+      headers: { Accept: 'application/json', 'User-Agent': 'AIStudioApp/5.2' },
       signal: controller.signal,
     });
     if (!response.ok) throw new Error(`TSETMC ${response.status}`);
@@ -65,50 +67,179 @@ async function getJson(url) {
     clearTimeout(timer);
   }
 }
-function percentChange(row) {
-  for (const key of ['plp','pLp','percentLast','lastPercent','priceChangePercent','price_change_percent','pcp','pCp','percentClose','closePercent','changePercent','change_percent','percentage','percent']) {
-    const n = num(row?.[key]);
-    if (n !== null) return n;
-  }
-  const last = first(row, ['pl','pDrCotVal','lastPrice','last','priceLast']);
-  const close = first(row, ['pc','pClosing','closingPrice','closePrice','close']);
-  const previous = first(row, ['py','priceYesterday','previousClose','prevClose','yesterdayClose','yesterdayPrice']);
-  const base = close ?? last;
-  if (base !== null && previous !== null && previous !== 0) return ((base - previous) / previous) * 100;
-  return null;
-}
-function isIndex(row) {
-  const name = nameOf(row) || '';
-  return /شاخص|index/i.test(name) || String(row?.paperType ?? row?.type ?? '').toLowerCase() === 'index';
-}
-function normalizeRows(payload) {
-  return flatten(payload).map(row => ({
+
+function normalizeBRSRow(row) {
+  const symbol = text(row, ['symbol', 'l18', 'lVal18AFC', 'ticker']);
+  const code = text(row, ['insCode', 'inscode', 'id', 'instrumentId']);
+  const last = first(row, ['lastPrice', 'pl', 'last']);
+  const close = first(row, ['closingPrice', 'pc', 'close']);
+  const yesterday = first(row, ['yesterday', 'py', 'previousClose']);
+  const lastPct = first(row, ['lastChangePercent', 'plp']);
+  const closePct = first(row, ['closingChangePercent', 'pcp']);
+  const volume = first(row, ['tradeVolume', 'tradedVolume', 'tvol', 'volume']) || 0;
+  const value = first(row, ['tradeValue', 'tradedValue', 'tval', 'value']) || 0;
+  const trades = first(row, ['tradeCount', 'trades', 'tno', 'count']) || 0;
+  const pct = closePct !== null
+    ? closePct
+    : (close !== null && yesterday !== null && yesterday !== 0 ? ((close - yesterday) / yesterday) * 100 : lastPct);
+
+  return {
     item: row,
-    symbol: nameOf(row),
-    code: codeOf(row),
-    pct: percentChange(row),
-    volume: first(row, VOLUME_KEYS) || 0,
-    value: first(row, VALUE_KEYS) || 0,
-    tradeCount: first(row, TRADE_KEYS) || 0,
-  })).filter(row => row.symbol && !isIndex(row.item));
+    symbol,
+    code,
+    pct,
+    last,
+    close,
+    volume,
+    value,
+    tradeCount: trades,
+    sector: text(row, ['sector', 'cs', 'sectorName', 'industryName', 'groupName']),
+    realBuyVolume: first(row, ['realBuyVolume', 'Buy_I_Volume', 'buy_I_Volume']) || 0,
+    realSellVolume: first(row, ['realSellVolume', 'Sell_I_Volume', 'sell_I_Volume']) || 0,
+    legalBuyVolume: first(row, ['instBuyVolume', 'legalBuyVolume', 'Buy_N_Volume', 'buy_N_Volume']) || 0,
+    legalSellVolume: first(row, ['instSellVolume', 'legalSellVolume', 'Sell_N_Volume', 'sell_N_Volume']) || 0,
+  };
 }
+
+function isIndex(row) {
+  const value = `${row.symbol || ''} ${row.item?.name || ''}`;
+  return /شاخص|index/i.test(value) || String(row.item?.paperType ?? row.item?.type ?? '').toLowerCase() === 'index';
+}
+
 function isTraded(row) {
   return row.tradeCount > 0 || row.volume > 0 || row.value > 0;
 }
+
 function dedupeRows(rows) {
   const map = new Map();
   for (const row of rows) {
-    if (!isTraded(row)) continue;
+    if (!row.symbol || isIndex(row) || !isTraded(row)) continue;
     const key = row.code || `symbol:${row.symbol}`;
     const old = map.get(key);
-    if (!old || (row.tradeCount + row.volume + row.value) > (old.tradeCount + old.volume + old.value)) map.set(key, row);
+    const score = row.tradeCount + row.volume + row.value;
+    const oldScore = old ? old.tradeCount + old.volume + old.value : -1;
+    if (!old || score > oldScore) map.set(key, row);
   }
   return [...map.values()];
 }
 
-// TSETMC's CDN market-watch is the complete live market universe. BRS AllSymbols
-// may return a reduced/filtered set and must not be used to define breadth totals.
-async function fetchCompleteMarketWatch() {
+function moneyFlowFromRows(rows) {
+  let buyVolume = 0;
+  let sellVolume = 0;
+  let buyValue = 0;
+  let sellValue = 0;
+  let matchedSymbols = 0;
+
+  for (const row of rows) {
+    if (row.realBuyVolume <= 0 && row.realSellVolume <= 0) continue;
+    const price = row.last ?? row.close ?? 0;
+    buyVolume += row.realBuyVolume;
+    sellVolume += row.realSellVolume;
+    buyValue += row.realBuyVolume * price;
+    sellValue += row.realSellVolume * price;
+    matchedSymbols += 1;
+  }
+
+  if (!matchedSymbols) return null;
+  return {
+    available: true,
+    buyVolume,
+    sellVolume,
+    netVolume: buyVolume - sellVolume,
+    buyValue,
+    sellValue,
+    netValue: buyValue - sellValue,
+    buyCount: null,
+    sellCount: null,
+    matchedSymbols,
+    source: 'brs-all-symbols',
+  };
+}
+
+function deriveSectors(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    if (!row.sector || row.pct === null) continue;
+    const current = groups.get(row.sector) || { name: row.sector, symbols: 0, sumPct: 0, value: 0 };
+    current.symbols += 1;
+    current.sumPct += row.pct;
+    current.value += row.value;
+    groups.set(row.sector, current);
+  }
+  return [...groups.values()]
+    .map((g) => ({ name: g.name, symbols: g.symbols, changePercent: g.symbols ? g.sumPct / g.symbols : null, value: g.value }))
+    .filter((g) => g.changePercent !== null)
+    .sort((a, b) => b.changePercent - a.changePercent);
+}
+
+function build(rows, source = 'brs-all-symbols') {
+  const traded = dedupeRows(rows);
+  const positive = traded.filter((r) => r.pct !== null && r.pct > 0).length;
+  const negative = traded.filter((r) => r.pct !== null && r.pct < 0).length;
+  const neutral = traded.length - positive - negative;
+  const total = positive + negative + neutral;
+
+  const sectors = deriveSectors(traded);
+  const moneyFlow = moneyFlowFromRows(traded);
+  const topGainers = traded.filter((r) => r.pct !== null && r.pct > 0).sort((a, b) => b.pct - a.pct).slice(0, 10)
+    .map((r) => ({ symbol: r.symbol, changePercent: +r.pct.toFixed(4), volume: r.volume, value: r.value }));
+  const topLosers = traded.filter((r) => r.pct !== null && r.pct < 0).sort((a, b) => a.pct - b.pct).slice(0, 10)
+    .map((r) => ({ symbol: r.symbol, changePercent: +r.pct.toFixed(4), volume: r.volume, value: r.value }));
+  const topVolumes = [...traded].sort((a, b) => b.volume - a.volume).slice(0, 10)
+    .map((r) => ({ symbol: r.symbol, volume: r.volume, value: r.value, changePercent: r.pct === null ? null : +r.pct.toFixed(4) }));
+
+  const leaders = sectors.slice(0, 5);
+  const laggards = sectors.slice(-5).reverse();
+  const coveragePercent = total > 0 ? 100 : 0;
+
+  return {
+    available: total > 0,
+    source,
+    positive,
+    negative,
+    neutral,
+    unknown: 0,
+    total,
+    classifiedTotal: total,
+    tradedSymbols: total,
+    coveragePercent,
+    positivePercent: total ? (positive / total) * 100 : 0,
+    negativePercent: total ? (negative / total) * 100 : 0,
+    neutralPercent: total ? (neutral / total) * 100 : 0,
+    advanceDeclineRatio: negative ? positive / negative : null,
+    score: total ? Math.max(0, Math.min(100, Math.round(50 + ((positive - negative) / total) * 50))) : null,
+    interpretation: positive > negative * 1.2 ? 'عرض بازار مثبت و گسترده است' : negative > positive * 1.2 ? 'عرض بازار منفی و ضعیف است' : 'عرض بازار متعادل است',
+    topGainers,
+    topLosers,
+    topVolumes,
+    moneyFlow: moneyFlow || { available: false, reason: 'REAL_MONEY_FLOW_UNAVAILABLE', matchedSymbols: 0 },
+    sectors: sectors.length
+      ? { available: true, leaders, laggards, rows: sectors, source: 'symbol-aggregation' }
+      : { available: false, leaders: [], laggards: [], rows: [], reason: 'SECTOR_DATA_UNAVAILABLE' },
+    diagnostics: {
+      source,
+      sourceRows: rows.length,
+      uniqueTradedRows: total,
+      classifiedRows: total,
+      unclassifiedTradedRows: 0,
+      clientTypeRows: 0,
+      matchedClientTypeRows: moneyFlow?.matchedSymbols || 0,
+      sectorRows: sectors.length,
+      sectorSource: sectors.length ? 'symbol-aggregation' : 'none',
+      invariant: total === positive + negative + neutral,
+      breadthRule: 'فقط نمادهای یکتای دارای معامله/حجم/ارزش؛ شاخص‌ها و تکراری‌ها حذف؛ نماد بدون درصد تغییر در خنثی قرار می‌گیرد.',
+    },
+  };
+}
+
+async function fetchBRSAllSymbols() {
+  const result = await brs.getAllSymbols();
+  const data = Array.isArray(result?.data) ? result.data : [];
+  if (!data.length) throw new Error('BRS AllSymbols returned no symbol rows');
+  return data.map(normalizeBRSRow);
+}
+
+async function fetchTsetmcMarketWatch() {
   const params = [
     'market=0',
     'industrialGroup=',
@@ -126,120 +257,45 @@ async function fetchCompleteMarketWatch() {
     'RefID=0',
   ].join('&');
   const payload = await getJson(`${CDN}/ClosingPrice/GetMarketWatch?${params}`);
-  const rows = normalizeRows(payload);
+  const rows = flatten(payload).map(normalizeBRSRow);
   if (!rows.length) throw new Error('TSETMC MarketWatch returned no symbol rows');
   return rows;
 }
 
-async function fetchClientTypes() {
-  try {
-    const payload = await getJson(`${CDN}/ClientType/GetClientTypeAll`);
-    return flatten(payload).filter(row => codeOf(row));
-  } catch (error) {
-    console.warn('[MARKET][ClientType]', error.message);
-    return [];
-  }
-}
-function moneyFlowFromClientTypes(clientRows, priceByCode) {
-  let buyVolume = 0, sellVolume = 0, buyValue = 0, sellValue = 0, buyCount = 0, sellCount = 0, matchedSymbols = 0;
-  for (const client of clientRows) {
-    const code = codeOf(client);
-    if (!code || !priceByCode.has(code)) continue;
-    const market = priceByCode.get(code);
-    const price = first(market, ['pl','pDrCotVal','lastPrice','pc','pClosing','close']) || 0;
-    const buyV = first(client, ['buy_I_Volume','buyIVolume','buyIvolume']) || 0;
-    const sellV = first(client, ['sell_I_Volume','sellIVolume','sellIvolume']) || 0;
-    const buyVal = first(client, ['buy_I_Value','buyIValue','buy_I_value']);
-    const sellVal = first(client, ['sell_I_Value','sellIValue','sell_I_value']);
-    buyVolume += buyV; sellVolume += sellV;
-    buyValue += buyVal ?? buyV * price;
-    sellValue += sellVal ?? sellV * price;
-    buyCount += first(client, ['buy_CountI','buyI_Count','buy_I_Count']) || 0;
-    sellCount += first(client, ['sell_CountI','sellI_Count','sell_I_Count']) || 0;
-    matchedSymbols += 1;
-  }
-  if (!matchedSymbols) return null;
-  return { available: true, buyVolume, sellVolume, netVolume: buyVolume - sellVolume, buyValue, sellValue, netValue: buyValue - sellValue, buyCount, sellCount, matchedSymbols };
-}
-async function fetchSectorsApi() {
-  try {
-    const payload = await getJson(`${CDN}/MarketData/GetSectorsSummary`);
-    return flatten(payload).map(row => ({
-      name: row.lSecVal ?? row.lVal30 ?? row.name ?? row.sectorName ?? row.title ?? row.sector,
-      changePercent: first(row, ['changePercent','change_percentage','percent','pChange','change','changeValue','priceChangePercent']),
-      symbols: first(row, ['symbols','symbolCount','count','numberOfSymbols','insCount']),
-      value: first(row, ['tradeValue','tval','value','qTotCap']),
-    })).filter(row => row.name && row.changePercent !== null);
-  } catch (error) {
-    console.warn('[MARKET][Sectors]', error.message);
-    return [];
-  }
-}
-function deriveSectors(rows) {
-  const groups = new Map();
-  for (const row of rows) {
-    if (row.pct === null) continue;
-    const sector = sectorOf(row.item);
-    if (!sector) continue;
-    const current = groups.get(sector) || { name: sector, symbols: 0, sumPct: 0, value: 0 };
-    current.symbols += 1; current.sumPct += row.pct; current.value += row.value;
-    groups.set(sector, current);
-  }
-  return [...groups.values()].map(g => ({ name: g.name, symbols: g.symbols, changePercent: g.sumPct / g.symbols, value: g.value }));
-}
-
-function build(rows, clientRows = [], sectorApiRows = []) {
-  const traded = dedupeRows(rows);
-  const classified = traded.map(row => ({ ...row, pct: row.pct === null ? 0 : row.pct }));
-  const positive = classified.filter(r => r.pct > 0).length;
-  const negative = classified.filter(r => r.pct < 0).length;
-  const neutral = classified.filter(r => r.pct === 0).length;
-  const total = positive + negative + neutral;
-  const priceByCode = new Map(rows.filter(r => r.code).map(r => [r.code, r.item]));
-  const moneyFlow = moneyFlowFromClientTypes(clientRows, priceByCode);
-  const derivedSectors = deriveSectors(traded);
-  const sectors = sectorApiRows.length ? sectorApiRows : derivedSectors;
-  const leaders = [...sectors].sort((a,b) => (b.changePercent || 0) - (a.changePercent || 0)).slice(0,5);
-  const laggards = [...sectors].sort((a,b) => (a.changePercent || 0) - (b.changePercent || 0)).slice(0,5);
-  const topGainers = classified.filter(r => r.pct > 0).sort((a,b) => b.pct-a.pct).slice(0,10).map(r => ({symbol:r.symbol,changePercent:+r.pct.toFixed(4),volume:r.volume,value:r.value}));
-  const topLosers = classified.filter(r => r.pct < 0).sort((a,b) => a.pct-b.pct).slice(0,10).map(r => ({symbol:r.symbol,changePercent:+r.pct.toFixed(4),volume:r.volume,value:r.value}));
-  const topVolumes = [...classified].sort((a,b) => b.volume-a.volume).slice(0,10).map(r => ({symbol:r.symbol,volume:r.volume,value:r.value,changePercent:+r.pct.toFixed(4)}));
-  return {
-    available:true, positive, negative, neutral, unknown:0, total, classifiedTotal:total,
-    tradedSymbols:traded.length, coveragePercent:traded.length ? 100 : 0,
-    positivePercent:total ? positive/total*100 : 0, negativePercent:total ? negative/total*100 : 0, neutralPercent:total ? neutral/total*100 : 0,
-    advanceDeclineRatio:negative ? positive/negative : null,
-    score:total ? Math.max(0,Math.min(100,Math.round(50+((positive-negative)/total)*50))) : null,
-    topGainers, topLosers, topVolumes,
-    moneyFlow:moneyFlow || {available:false,reason:'REAL_MONEY_FLOW_UNAVAILABLE',matchedSymbols:0},
-    sectors:sectors.length ? {available:true,leaders,laggards,rows:sectors,source:sectorApiRows.length?'tsetmc-sector-summary':'symbol-aggregation'} : {available:false,leaders:[],laggards:[],rows:[],reason:'SECTOR_DATA_UNAVAILABLE'},
-    interpretation:positive > negative*1.2 ? 'عرض بازار مثبت و گسترده است' : negative > positive*1.2 ? 'عرض بازار منفی و ضعیف است' : 'عرض بازار متعادل است',
-    diagnostics:{
-      clientTypeRows:clientRows.length, matchedClientTypeRows:moneyFlow?.matchedSymbols||0, sectorRows:sectors.length,
-      sectorSource:sectorApiRows.length?'tsetmc-sector-summary':derivedSectors.length?'symbol-aggregation':'none',
-      breadthRule:'منبع Breadth = TSETMC MarketWatch کامل؛ فقط نمادهای یکتای دارای معامله/حجم/ارزش؛ شاخص‌ها و تکراری‌ها حذف؛ درصد نامشخص = خنثی',
-      sourceRows:rows.length, uniqueTradedRows:traded.length, classifiedRows:total, unclassifiedTradedRows:0,
-      invariant:total===traded.length,
-    },
-  };
-}
-
 async function getMarketBreadth() {
-  if (cache.value && Date.now()-cache.timestamp<TTL) return cache.value;
+  if (cache.value && Date.now() - cache.timestamp < TTL) return cache.value;
+
+  let rows;
+  let source;
+  let tsetmcError = null;
+
   try {
-    const rows = await fetchCompleteMarketWatch();
-    const [clientResult,sectorResult] = await Promise.allSettled([fetchClientTypes(),fetchSectorsApi()]);
-    const clientRows = clientResult.status==='fulfilled' ? clientResult.value : [];
-    const sectorRows = sectorResult.status==='fulfilled' ? sectorResult.value : [];
-    const result = build(rows,clientRows,sectorRows);
-    result.diagnostics.clientTypeError = clientResult.status==='rejected' ? clientResult.reason?.message : null;
-    result.diagnostics.sectorError = sectorResult.status==='rejected' ? sectorResult.reason?.message : null;
-    cache={value:result,timestamp:Date.now()};
-    return result;
-  } catch(error) {
-    console.error('[MARKET][Breadth]',error.message);
-    return {available:false,reason:'BREADTH_FETCH_FAILED',error:error.message};
+    rows = await fetchTsetmcMarketWatch();
+    source = 'tsetmc-marketwatch';
+  } catch (error) {
+    tsetmcError = error.message;
+    console.warn('[MARKET][Breadth] TSETMC MarketWatch unavailable, falling back to BRS AllSymbols:', error.message);
+    try {
+      rows = await fetchBRSAllSymbols();
+      source = 'brs-all-symbols-fallback';
+    } catch (brsError) {
+      console.error('[MARKET][Breadth] BRS fallback failed:', brsError.message);
+      return { available: false, reason: 'BREADTH_FETCH_FAILED', error: brsError.message, diagnostics: { tsetmcError } };
+    }
   }
+
+  const result = build(rows, source);
+  result.diagnostics.tsetmcError = tsetmcError;
+  result.diagnostics.generatedAt = new Date().toISOString();
+  cache = { value: result, timestamp: Date.now() };
+  return result;
 }
 
-module.exports={calculateBreadth:(payload,extras={})=>build(normalizeRows(payload),extras.clientTypes||[],extras.sectors||[]),getMarketBreadth};
+function normalizeRows(payload) {
+  return flatten(payload).map(normalizeBRSRow);
+}
+
+module.exports = {
+  calculateBreadth: (payload) => build(normalizeRows(payload), 'payload'),
+  getMarketBreadth,
+};
