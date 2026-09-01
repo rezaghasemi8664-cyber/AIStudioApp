@@ -1,0 +1,147 @@
+name: Repair historical market summary
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Repair historical market intelligence and snapshot selection
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('backend/services/marketIntelligence.service.cjs')
+          s = p.read_text(encoding='utf-8-sig')
+
+          marker = "/* -------------------------------------------------------------------------- */\n/* Main Builder                                                               */\n/* -------------------------------------------------------------------------- */\n"
+          helper = r'''/* -------------------------------------------------------------------------- */
+/* Stored historical breadth                                                   */
+/* -------------------------------------------------------------------------- */
+
+function storedBreadth(summary, data) {
+  const positive = num(summary?.positiveStocks ?? data?.positiveStocks);
+  const negative = num(summary?.negativeStocks ?? data?.negativeStocks);
+  const neutral = num(summary?.neutralStocks ?? data?.neutralStocks);
+  const total = [positive, negative, neutral].every((v) => v !== null)
+    ? positive + negative + neutral
+    : null;
+
+  if (total === null || total <= 0) {
+    return {
+      available: false,
+      source: 'stored-summary-unavailable',
+      positive: null,
+      negative: null,
+      neutral: null,
+      total: 0,
+      classifiedTotal: 0,
+      coveragePercent: 0,
+      positivePercent: null,
+      negativePercent: null,
+      neutralPercent: null,
+      unknown: null,
+      topGainers: arr(summary?.topGainers),
+      topLosers: arr(summary?.topLosers),
+      topVolumes: arr(summary?.topVolumes),
+      interpretation: 'پهنای تاریخی بازار در Snapshot ذخیره‌شده موجود نیست.'
+    };
+  }
+
+  return {
+    available: true,
+    source: 'stored-summary',
+    positive,
+    negative,
+    neutral,
+    unknown: 0,
+    total,
+    classifiedTotal: total,
+    coveragePercent: 100,
+    positivePercent: (positive / total) * 100,
+    negativePercent: (negative / total) * 100,
+    neutralPercent: (neutral / total) * 100,
+    topGainers: arr(summary?.topGainers),
+    topLosers: arr(summary?.topLosers),
+    topVolumes: arr(summary?.topVolumes),
+    interpretation:
+      positive > negative * 1.2
+        ? 'عرض تاریخی بازار مثبت و گسترده است'
+        : negative > positive * 1.2
+          ? 'عرض تاریخی بازار منفی و ضعیف است'
+          : 'عرض تاریخی بازار متعادل است'
+  };
+}
+
+'''
+          if marker not in s:
+              raise SystemExit('Main Builder marker not found')
+          if 'function storedBreadth(' not in s:
+              s = s.replace(marker, helper + marker, 1)
+
+          old = """  const summaries = await MarketSummary.findMany({\n    orderBy: [\n      {\n        summaryDate: 'desc'\n      },\n      {\n        id: 'desc'\n      }\n    ],\n    take: historyLimit\n  });\n\n  const previous =\n    summaries.find((row) => row.id !== current.id) || null;\n\n  const { data } = rawData(current);\n\n  const breadth = await getMarketBreadth();\n\n  const liquidityData = liquidity(\n    current,\n    previous\n  );\n\n  const moneyFlow = money(data);\n\n  const sectorData = sectors(data);\n\n  const momentumData = momentum(\n    summaries\n  );\n\n  const volatilityData = volatility(\n    summaries\n  );\n"""
+          new = """  const summaries = await MarketSummary.findMany({\n    orderBy: [\n      { summaryDate: 'desc' },\n      { id: 'desc' }\n    ],\n    take: historyLimit\n  });\n\n  const currentDate = new Date(current.summaryDate).getTime();\n  const historicalSummaries = summaries\n    .filter((row) => {\n      const rowDate = new Date(row.summaryDate).getTime();\n      return Number.isFinite(rowDate) && Number.isFinite(currentDate) && rowDate <= currentDate;\n    })\n    .sort((a, b) => {\n      const ad = new Date(a.summaryDate).getTime();\n      const bd = new Date(b.summaryDate).getTime();\n      return bd - ad || Number(b.id) - Number(a.id);\n    });\n\n  const previous = historicalSummaries\n    .find((row) => row.id !== current.id) || null;\n\n  const { data } = rawData(current);\n\n  // Historical reports must never use today's live breadth. The live breadth\n  // is injected by the controller only for the live/latest view.\n  const breadth = storedBreadth(current, data);\n\n  const liquidityData = liquidity(\n    current,\n    previous\n  );\n\n  const moneyFlow = money(data);\n\n  const sectorData = sectors(data);\n\n  const momentumData = momentum(\n    historicalSummaries\n  );\n\n  const volatilityData = volatility(\n    historicalSummaries\n  );\n"""
+          if old not in s:
+              raise SystemExit('Main builder block not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+
+          p = Path('backend/services/marketSummary.service.cjs')
+          s = p.read_text(encoding='utf-8-sig')
+
+          old = """  const rows = await model.findMany({ orderBy: { createdAt: 'desc' }, take });\n\n  let merged = null, rowsUsed = 0, inspected = 0;\n  for (const row of rows) {\n    inspected += 1;\n    if (!row?.createdAt) continue;\n    if (toDateOnlyISO(row.createdAt) !== targetDateISO) continue;\n\n    const parsed = parseJsonSafe(row.jsonData);\n    const candidate = extractMarketDataCandidate(parsed);\n    if (!candidate) continue;\n    if (isLikelySyntheticMarketData(candidate)) continue;\n\n    merged = merged ? deepMergePreferDefined(merged, candidate) : { ...candidate };\n    rowsUsed += 1;\n  }\n\n  return { merged: rowsUsed ? merged : null, rowsUsed, inspected };\n"""
+          new = """  const rows = await model.findMany({ orderBy: { createdAt: 'desc' }, take });\n\n  let selected = null, rowsUsed = 0, inspected = 0;\n  for (const row of rows) {\n    inspected += 1;\n    if (!row?.createdAt) continue;\n\n    const parsed = parseJsonSafe(row.jsonData);\n    const candidate = extractMarketDataCandidate(parsed);\n    if (!candidate) continue;\n    if (isLikelySyntheticMarketData(candidate)) continue;\n\n    // Prefer the timestamp stored inside the immutable snapshot. This avoids\n    // assigning a historical snapshot to the day on which a later repair job\n    // happened to process it.\n    const snapshotDate = toDateOnlyISO(\n      parsed?.snapshotCreatedAt ||\n      parsed?.lastUpdate ||\n      parsed?.dateTime ||\n      row.createdAt\n    );\n    if (snapshotDate !== targetDateISO) continue;\n\n    // A market-index snapshot is already an aggregate market snapshot. Do not\n    // merge several snapshots from the same day: merging scalar fields from\n    // different times creates internally inconsistent numbers. Choose the\n    // latest valid snapshot for that day.\n    if (!selected || new Date(row.createdAt).getTime() > new Date(selected.row.createdAt).getTime()) {\n      selected = { row, candidate };\n    }\n  }\n\n  if (selected) rowsUsed = 1;\n  return { merged: selected?.candidate || null, rowsUsed, inspected };\n"""
+          if old not in s:
+              raise SystemExit('buildMergedMarketDataForDay block not found')
+          s = s.replace(old, new, 1)
+
+          # Historical catch-up day discovery must use the snapshot timestamp,\n          # not only the database insertion timestamp.
+          old = """    if (!row?.createdAt) continue;\n    const dayISO = toDateOnlyISO(row.createdAt);\n"""
+          new = """    if (!row?.createdAt) continue;\n    const parsed = parseJsonSafe(row.jsonData);\n    const dayISO = toDateOnlyISO(\n      parsed?.snapshotCreatedAt ||\n      parsed?.lastUpdate ||\n      parsed?.dateTime ||\n      row.createdAt\n    );\n"""
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          p.write_text(s, encoding='utf-8')
+
+          # Prevent historical AI text from being overwritten by a live-date
+          # timestamp mismatch and keep its date explicitly with the record.
+          p = Path('backend/services/marketSummary.service.cjs')
+          s = p.read_text(encoding='utf-8-sig')
+          old = """      await MarketSummary.update({\n        where: { id: record.id },\n        data: { rawJson: jsonStringifySafe({ ...currentRaw, aiAnalysis: text }) }\n      });\n"""
+          new = """      await MarketSummary.update({\n        where: { id: record.id },\n        data: {\n          rawJson: jsonStringifySafe({\n            ...currentRaw,\n            aiAnalysis: text,\n            meta: {\n              ...(currentRaw?.meta || {}),\n              aiAnalysisDate: targetAiDate\n            }\n          })\n        }\n      });\n"""
+          if old not in s:
+              raise SystemExit('AI enrichment update block not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+
+          # One-time workflow: remove itself after committing the repair.
+          wf = Path('.github/workflows/fix-historical-market-summary.yml')
+          if wf.exists():
+              wf.unlink()
+
+          print('Historical market summary repair applied.')
+      
+      - name: Commit repaired files
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/services/marketIntelligence.service.cjs backend/services/marketSummary.service.cjs .github/workflows/fix-historical-market-summary.yml
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "fix: make historical market summaries date-accurate [skip ci]"
+          git push origin HEAD:main
