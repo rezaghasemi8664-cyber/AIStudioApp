@@ -1,4 +1,4 @@
-name: Enforce Bourse-only market breadth
+name: Enforce stock market universe for market summary
 
 on:
   push:
@@ -20,57 +20,157 @@ jobs:
           fetch-depth: 0
           ref: main
 
-      - name: Patch breadth universe
+      - name: Patch market universe
         shell: python
         run: |
           from pathlib import Path
-          import re
 
-          p = Path('backend/services/marketBreadth.service.cjs')
-          s = p.read_text(encoding='utf-8-sig')
+          breadth = Path('backend/services/marketBreadth.service.cjs')
+          s = breadth.read_text(encoding='utf-8-sig')
           original = s
 
-          # GetMarketWatch flow=1 is Bourse. market=0 is the combined market
-          # and was the reason non-Bourse instruments could enter breadth.
-          s = s.replace("    'market=0',", "    'market=1',")
+          # The market-summary universe is exactly the three stock markets:
+          # Bourse (flow=1), Farabourse (flow=2), and Base Market (flow=4).
+          # paperType=1 keeps ordinary equities and excludes options, funds,
+          # bonds, rights and other instruments.
+          old = """  if (row.flow !== null && row.flow !== undefined) {
+    const numericFlow = num(row.flow);
+    if (numericFlow !== null && numericFlow !== 1) return false;
+  }
+"""
+          new = """  if (row.flow !== null && row.flow !== undefined) {
+    const numericFlow = num(row.flow);
+    // TSETMC: 1=Bourse, 2=Farabourse, 4=Base Market.
+    if (numericFlow !== null && ![1, 2, 4].includes(numericFlow)) return false;
+  }
+"""
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif "!\[1, 2, 4\].includes(numericFlow)" not in s:
+              raise SystemExit('Could not locate existing flow filter in marketBreadth.service.cjs')
 
-          # Preserve the instrument market/flow from BRS fallback rows.
-          if "flow: first(row, ['flow', 'market', 'flowId'])" not in s:
-              needle = "    tradeCount: trades,\n    sector: text(row, ['sector', 'cs', 'sectorName', 'industryName', 'groupName']),"
-              repl = "    tradeCount: trades,\n    flow: first(row, ['flow', 'market', 'flowId']),\n    sector: text(row, ['sector', 'cs', 'sectorName', 'industryName', 'groupName']),"
-              if needle not in s:
-                  raise SystemExit('Could not locate normalizeBRSRow insertion point')
-              s = s.replace(needle, repl, 1)
+          # Request each market explicitly. This avoids market=1 silently
+          # limiting the result to Bourse only.
+          start = s.find('async function fetchTsetmcMarketWatch() {')
+          if start < 0:
+              raise SystemExit('fetchTsetmcMarketWatch not found')
+          end = s.find('\n}\n\nasync function getMarketBreadth()', start)
+          if end < 0:
+              raise SystemExit('fetchTsetmcMarketWatch end not found')
+          replacement = r'''async function fetchTsetmcMarketWatch() {
+  const markets = [
+    { flow: 1, name: 'bourse' },
+    { flow: 2, name: 'farabourse' },
+    { flow: 4, name: 'base-market' },
+  ];
+  const allRows = [];
 
-          # The fallback must also be Bourse-only whenever the source exposes
-          # a flow/market field. flow=1 is Bourse; other flows are excluded.
-          needle = "function isEquity(row) {\n  if (!row || !row.symbol || isIndex(row)) return false;\n"
-          repl = "function isEquity(row) {\n  if (!row || !row.symbol || isIndex(row)) return false;\n\n  if (row.flow !== null && row.flow !== undefined) {\n    const numericFlow = num(row.flow);\n    if (numericFlow !== null && numericFlow !== 1) return false;\n  }\n"
-          if "const numericFlow = num(row.flow);" not in s:
-              if needle not in s:
-                  raise SystemExit('Could not locate isEquity insertion point')
-              s = s.replace(needle, repl, 1)
+  for (const market of markets) {
+    const params = [
+      `market=${market.flow}`,
+      'industrialGroup=',
+      'paperTypes%5B0%5D=1',
+      'withBestLimits=false',
+      'hEven=0',
+      'RefID=0',
+    ].join('&');
+    const payload = await getJson(`${CDN}/ClosingPrice/GetMarketWatch?${params}`);
+    const rows = flatten(payload).map(normalizeBRSRow).map((row) => ({
+      ...row,
+      flow: row.flow ?? market.flow,
+    }));
+    if (!rows.length) throw new Error(`TSETMC MarketWatch returned no rows for ${market.name}`);
+    allRows.push(...rows);
+  }
+
+  if (!allRows.length) throw new Error('TSETMC MarketWatch returned no equity rows');
+  return allRows;
+}'''
+          s = s[:start] + replacement + s[end + 2:]
+
+          # Return market totals from exactly the same unique traded stock
+          # universe used by breadth. This prevents liquidity KPIs from being
+          # taken from a different market/snapshot universe.
+          needle = """  const coveragePercent = total > 0 ? 100 : 0;
+
+  return {
+"""
+          repl = """  const coveragePercent = total > 0 ? 100 : 0;
+  const marketTotals = {
+    tradeCount: traded.reduce((sum, r) => sum + (Number(r.tradeCount) || 0), 0),
+    volume: traded.reduce((sum, r) => sum + (Number(r.volume) || 0), 0),
+    value: traded.reduce((sum, r) => sum + (Number(r.value) || 0), 0),
+    universe: 'بورس + فرابورس + بازار پایه؛ فقط سهام (paperType=1)',
+    flows: [1, 2, 4],
+  };
+
+  return {
+"""
+          if needle not in s:
+              raise SystemExit('Could not locate coveragePercent block')
+          s = s.replace(needle, repl, 1)
+          s = s.replace("    source,\n    positive,", "    source,\n    marketTotals,\n    positive,", 1)
 
           s = s.replace(
-              "فقط نمادهای یکتای دارای معامله از نوع سهم عادی (paperType=1)؛ شاخص‌ها و ابزارهای غیرسهامی حذف؛ نماد بدون درصد تغییر در خنثی قرار می‌گیرد.",
-              "فقط نمادهای یکتای معامله‌شده در بورس تهران (flow=1 و paperType=1)؛ فرابورس، پایه، صندوق، اوراق، مشتقه، حق‌تقدم و شاخص‌ها حذف؛ نماد بدون درصد تغییر در خنثی قرار می‌گیرد."
+              "breadthRule: 'فقط نمادهای یکتای معامله‌شده در بورس تهران (flow=1 و paperType=1)؛ فرابورس، پایه، صندوق، اوراق، مشتقه، حق‌تقدم و شاخص‌ها حذف؛ نماد بدون درصد تغییر در خنثی قرار می‌گیرد.',",
+              "breadthRule: 'فقط نمادهای یکتای معامله‌شده در بورس تهران، فرابورس و بازار پایه (flow=1,2,4 و paperType=1)؛ صندوق، اوراق، مشتقه، حق‌تقدم و شاخص‌ها حذف؛ نماد بدون درصد تغییر در خنثی قرار می‌گیرد.',"
           )
 
-          if s == original:
-              print('No patch needed; breadth filter is already Bourse-only.')
-          else:
-              p.write_text(s, encoding='utf-8')
-              print('Breadth filter patched for Bourse-only universe.')
+          s = s.replace(
+              "sourceRows: rows.length,",
+              "sourceRows: rows.length,\n      marketUniverse: 'flow=1,2,4 + paperType=1',\n      marketTotals,",
+              1
+          )
+
+          breadth.write_text(s, encoding='utf-8')
+          print('Market breadth universe patched:', 'changed' if s != original else 'already current')
+
+          # Align the market-summary liquidity KPIs with the same three-market
+          # stock universe. Breadth is already loaded by the controller before
+          # the final intelligence text is generated.
+          controller = Path('backend/controllers/marketSummary.controller.cjs')
+          c = controller.read_text(encoding='utf-8-sig')
+          coriginal = c
+          needle = """        if (breadth.sectors?.available) intelligence.sectors = breadth.sectors;
+        if (breadth.moneyFlow?.available) {
+"""
+          repl = """        if (breadth.marketTotals) {
+          intelligence.liquidity = {
+            ...(intelligence.liquidity || {}),
+            trades: breadth.marketTotals.tradeCount,
+            volume: breadth.marketTotals.volume,
+            value: breadth.marketTotals.value,
+            source: 'market-breadth-universe',
+            universe: breadth.marketTotals.universe,
+            interpretation: intelligence.liquidity?.interpretation || 'محاسبه‌شده از بورس، فرابورس و بازار پایه',
+          };
+        }
+        if (breadth.sectors?.available) intelligence.sectors = breadth.sectors;
+        if (breadth.moneyFlow?.available) {
+"""
+          if needle in c:
+              c = c.replace(needle, repl, 1)
+          elif "source: 'market-breadth-universe'" not in c:
+              raise SystemExit('Could not locate liquidity insertion point in marketSummary.controller.cjs')
+
+          controller.write_text(c, encoding='utf-8')
+          print('Market-summary liquidity alignment:', 'changed' if c != coriginal else 'already current')
+
+      - name: Validate syntax
+        shell: bash
+        run: |
+          node --check backend/services/marketBreadth.service.cjs
+          node --check backend/controllers/marketSummary.controller.cjs
 
       - name: Commit patch
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add backend/services/marketBreadth.service.cjs
+          git add backend/services/marketBreadth.service.cjs backend/controllers/marketSummary.controller.cjs
           if git diff --cached --quiet; then
             echo 'No changes to commit.'
             exit 0
           fi
-          git commit -m 'fix: restrict breadth to Bourse symbols only'
+          git commit -m 'fix: align market summary with Bourse Farabourse and Base Market'
           git push origin main
