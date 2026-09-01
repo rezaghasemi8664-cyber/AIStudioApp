@@ -1,0 +1,95 @@
+name: Apply canonical market metrics fix
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/fix-market-metrics.yml'
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch market metrics
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace(path, old, new):
+              p = Path(path)
+              s = p.read_text(encoding='utf-8-sig')
+              if old not in s:
+                  raise SystemExit(f'pattern not found in {path}: {old[:120]!r}')
+              s = s.replace(old, new, 1)
+              p.write_text(s, encoding='utf-8-sig')
+
+          # Backend: canonical TSETMC/BRS price, trading and money-flow metrics.
+          p = 'backend/services/brs.service.cjs'
+          replace(p,
+            "  var realBuyVolume = nz(toInt(raw.Buy_I_Volume), 0);\n  var realSellVolume = nz(toInt(raw.Sell_I_Volume), 0);\n  var instBuyVolume = nz(toInt(raw.Buy_N_Volume), 0);\n  var instSellVolume = nz(toInt(raw.Sell_N_Volume), 0);",
+            "  var realBuyVolume = nz(toInt(raw.Buy_I_Volume), 0);\n  var realSellVolume = nz(toInt(raw.Sell_I_Volume), 0);\n  var instBuyVolume = nz(toInt(raw.Buy_N_Volume), 0);\n  var instSellVolume = nz(toInt(raw.Sell_N_Volume), 0);\n  var realBuyValue = toNumber(raw.Buy_I_Value != null ? raw.Buy_I_Value : raw.buy_I_Value);\n  var realSellValue = toNumber(raw.Sell_I_Value != null ? raw.Sell_I_Value : raw.sell_I_Value);\n  var instBuyValue = toNumber(raw.Buy_N_Value != null ? raw.Buy_N_Value : raw.buy_N_Value);\n  var instSellValue = toNumber(raw.Sell_N_Value != null ? raw.Sell_N_Value : raw.sell_N_Value);")
+          replace(p,
+            "  var tradeVolume = toInt(raw.tvol != null ? raw.tvol : raw.volume);\n  var tradeValue = toNumber(raw.tval != null ? raw.tval : raw.value);\n  var avgPrice = tradeValue != null && tradeVolume != null && tradeVolume > 0 ? tradeValue / tradeVolume : null;",
+            "  var tradeVolume = toInt(raw.tvol != null ? raw.tvol : (raw.qTotTran5J != null ? raw.qTotTran5J : raw.volume));\n  var tradeValue = toNumber(raw.qTotCap != null ? raw.qTotCap : (raw.tval != null ? raw.tval : raw.value));\n  var yesterdayPrice = toNumber(raw.py != null ? raw.py : raw.yesterday);\n  var rawLastChangePercent = toNumber(raw.plp != null ? raw.plp : raw.lastChangePercent);\n  var lastChangePercent = rawLastChangePercent;\n  if (lastChangePercent == null && priceLast != null && yesterdayPrice != null && yesterdayPrice !== 0) {\n    lastChangePercent = Number((((priceLast - yesterdayPrice) / yesterdayPrice) * 100).toFixed(2));\n  }\n  var rawCloseChangePercent = toNumber(raw.pcp != null ? raw.pcp : raw.closeChangePercent);\n  var closeChangePercent = rawCloseChangePercent;\n  if (closeChangePercent == null && priceClose != null && yesterdayPrice != null && yesterdayPrice !== 0) {\n    closeChangePercent = Number((((priceClose - yesterdayPrice) / yesterdayPrice) * 100).toFixed(2));\n  }\n  var avgPrice = tradeValue != null && tradeVolume != null && tradeVolume > 0 ? tradeValue / tradeVolume : null;")
+          replace(p,
+            "      lastChangePercent: toNumber(raw.plp != null ? raw.plp : raw.lastChangePercent),\n      closing: priceClose,\n      closingChange: toNumber(raw.pcc != null ? raw.pcc : raw.closeChange),\n      closingChangePercent: toNumber(raw.pcp != null ? raw.pcp : raw.closeChangePercent),\n      yesterday: toNumber(raw.py != null ? raw.py : raw.yesterday),",
+            "      lastChangePercent: lastChangePercent,\n      closing: priceClose,\n      closingChange: toNumber(raw.pcc != null ? raw.pcc : raw.closeChange),\n      closingChangePercent: closeChangePercent,\n      yesterday: yesterdayPrice,")
+          replace(p,
+            "      real: {\n        buyVolume: realBuyVolume,\n        sellVolume: realSellVolume,",
+            "      real: {\n        buyVolume: realBuyVolume,\n        sellVolume: realSellVolume,\n        buyValue: realBuyValue,\n        sellValue: realSellValue,\n        netValue: realBuyValue != null && realSellValue != null ? realBuyValue - realSellValue : null,")
+          replace(p,
+            "        netCount: realBuyCount - realSellCount,\n        net: realBuyVolume - realSellVolume",
+            "        netCount: realBuyCount - realSellCount,\n        net: realBuyValue != null && realSellValue != null ? realBuyValue - realSellValue : null")
+          replace(p,
+            "      institutional: {\n        buyVolume: instBuyVolume,\n        sellVolume: instSellVolume,",
+            "      institutional: {\n        buyVolume: instBuyVolume,\n        sellVolume: instSellVolume,\n        buyValue: instBuyValue,\n        sellValue: instSellValue,\n        netValue: instBuyValue != null && instSellValue != null ? instBuyValue - instSellValue : null,")
+          replace(p,
+            "        netCount: instBuyCount - instSellCount,\n        net: instBuyVolume - instSellVolume\n      },\n      legal:",
+            "        netCount: instBuyCount - instSellCount,\n        net: instBuyValue != null && instSellValue != null ? instBuyValue - instSellValue : null\n      },\n      legal:")
+          replace(p,
+            "      legal: {\n        buyVolume: instBuyVolume,\n        sellVolume: instSellVolume,",
+            "      legal: {\n        buyVolume: instBuyVolume,\n        sellVolume: instSellVolume,\n        buyValue: instBuyValue,\n        sellValue: instSellValue,\n        netValue: instBuyValue != null && instSellValue != null ? instBuyValue - instSellValue : null,")
+          replace(p,
+            "        netCount: instBuyCount - instSellCount,\n        net: instBuyVolume - instSellVolume\n      }",
+            "        netCount: instBuyCount - instSellCount,\n        net: instBuyValue != null && instSellValue != null ? instBuyValue - instSellValue : null\n      }")
+          replace(p,
+            "  result.realBuyVolume = realBuyVolume;\n  result.realSellVolume = realSellVolume;\n  result.instBuyVolume = instBuyVolume;\n  result.instSellVolume = instSellVolume;\n  result.realMoneyFlow = realBuyVolume - realSellVolume;\n  result.legalMoneyFlow = instBuyVolume - instSellVolume;\n  result.instMoneyFlow = instBuyVolume - instSellVolume;",
+            "  result.realBuyVolume = realBuyVolume;\n  result.realSellVolume = realSellVolume;\n  result.instBuyVolume = instBuyVolume;\n  result.instSellVolume = instSellVolume;\n  result.realBuyValue = realBuyValue;\n  result.realSellValue = realSellValue;\n  result.instBuyValue = instBuyValue;\n  result.instSellValue = instSellValue;\n  result.realMoneyFlow = realBuyValue != null && realSellValue != null ? realBuyValue - realSellValue : null;\n  result.legalMoneyFlow = instBuyValue != null && instSellValue != null ? instBuyValue - instSellValue : null;\n  result.instMoneyFlow = instBuyValue != null && instSellValue != null ? instBuyValue - instSellValue : null;")
+          replace(p,
+            "  result.tradeCount = result.trading.count;",
+            "  result.tradeCount = result.trading.count;\n  result.priceChangePercent = result.price.lastChangePercent;\n  result.closeChangePercent = result.price.closingChangePercent;")
+
+          # Frontend: never mix transaction count/volume into the wrong metric.
+          p = 'src/components/StockAnalysis.tsx'
+          replace(p,
+            "const volume = toNum(getPropByAliases(item, ['volume', 'vol', 'zTotTran', 'qTotTran5J', 'qTotTran']));",
+            "const volume = toNum(getPropByAliases(item, ['volume', 'vol', 'qTotTran5J', 'qTotTran']));")
+          replace(p,
+            "getPropByAliases(item, ['value', 'tradedValue', 'tradeValue', 'marketValue', 'qTotCap', 'tval', 'qTotTran5J'])",
+            "getPropByAliases(item, ['value', 'tradedValue', 'tradeValue', 'qTotCap', 'tval'])")
+          replace(p,
+            "    lastHistoryRecord.priceChangePercent, lastHistoryRecord.changePercent, lastHistoryRecord.priceChange, lastHistoryRecord.change, lastHistoryRecord.chp,\n    mergedMetrics?.priceChangePercent, source.priceChangePercent, source.changePercent, source.priceChange, source.change, source.chp",
+            "    lastHistoryRecord.priceChangePercent, lastHistoryRecord.changePercent,\n    mergedMetrics?.priceChangePercent, source.priceChangePercent, source.changePercent")
+          replace(p,
+            "    marketData.tradedVolume, marketData.volume, marketData.vol, marketData.zTotTran, marketData.qTotTran5J,\n    lastHistoryRecord.tradedVolume, lastHistoryRecord.volume, lastHistoryRecord.vol, lastHistoryRecord.zTotTran, lastHistoryRecord.qTotTran5J,\n    source.tradedVolume, source.volume, source.vol, source.zTotTran, source.qTotTran5J",
+            "    marketData.tradedVolume, marketData.volume, marketData.vol, marketData.qTotTran5J,\n    lastHistoryRecord.tradedVolume, lastHistoryRecord.volume, lastHistoryRecord.vol, lastHistoryRecord.qTotTran5J,\n    source.tradedVolume, source.volume, source.vol, source.qTotTran5J")
+          replace(p,
+            "marketData.tradedValue, marketData.tradeValue, marketData.value, marketData.qTotCap, marketData.tval, marketData.qTotTran5J,",
+            "marketData.tradedValue, marketData.tradeValue, marketData.value, marketData.qTotCap, marketData.tval,")
+
+          # Remove the temporary workflow after applying the patch.
+          wf = Path('.github/workflows/fix-market-metrics.yml')
+          wf.unlink()
+
+          # Basic syntax-level checks.
+          import subprocess
+          subprocess.run(['node', '--check', 'backend/services/brs.service.cjs'], check=True)
+          subprocess.run(['git', 'diff', '--check'], check=True)
+      - name: Commit corrected files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/services/brs.service.cjs src/components/StockAnalysis.tsx .github/workflows/fix-market-metrics.yml
+          git commit -m "fix: use canonical market metrics and money flow values"
+          git push
