@@ -1,0 +1,76 @@
+name: Enforce Bourse-only market breadth
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-bourse-breadth-filter.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Patch breadth universe
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('backend/services/marketBreadth.service.cjs')
+          s = p.read_text(encoding='utf-8-sig')
+          original = s
+
+          # GetMarketWatch flow=1 is Bourse. market=0 is the combined market
+          # and was the reason non-Bourse instruments could enter breadth.
+          s = s.replace("    'market=0',", "    'market=1',")
+
+          # Preserve the instrument market/flow from BRS fallback rows.
+          if "flow: first(row, ['flow', 'market', 'flowId'])" not in s:
+              needle = "    tradeCount: trades,\n    sector: text(row, ['sector', 'cs', 'sectorName', 'industryName', 'groupName']),"
+              repl = "    tradeCount: trades,\n    flow: first(row, ['flow', 'market', 'flowId']),\n    sector: text(row, ['sector', 'cs', 'sectorName', 'industryName', 'groupName']),"
+              if needle not in s:
+                  raise SystemExit('Could not locate normalizeBRSRow insertion point')
+              s = s.replace(needle, repl, 1)
+
+          # The fallback must also be Bourse-only whenever the source exposes
+          # a flow/market field. flow=1 is Bourse; other flows are excluded.
+          needle = "function isEquity(row) {\n  if (!row || !row.symbol || isIndex(row)) return false;\n"
+          repl = "function isEquity(row) {\n  if (!row || !row.symbol || isIndex(row)) return false;\n\n  if (row.flow !== null && row.flow !== undefined) {\n    const numericFlow = num(row.flow);\n    if (numericFlow !== null && numericFlow !== 1) return false;\n  }\n"
+          if "const numericFlow = num(row.flow);" not in s:
+              if needle not in s:
+                  raise SystemExit('Could not locate isEquity insertion point')
+              s = s.replace(needle, repl, 1)
+
+          s = s.replace(
+              "فقط نمادهای یکتای دارای معامله از نوع سهم عادی (paperType=1)؛ شاخص‌ها و ابزارهای غیرسهامی حذف؛ نماد بدون درصد تغییر در خنثی قرار می‌گیرد.",
+              "فقط نمادهای یکتای معامله‌شده در بورس تهران (flow=1 و paperType=1)؛ فرابورس، پایه، صندوق، اوراق، مشتقه، حق‌تقدم و شاخص‌ها حذف؛ نماد بدون درصد تغییر در خنثی قرار می‌گیرد."
+          )
+
+          if s == original:
+              print('No patch needed; breadth filter is already Bourse-only.')
+          else:
+              p.write_text(s, encoding='utf-8')
+              print('Breadth filter patched for Bourse-only universe.')
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/services/marketBreadth.service.cjs
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git commit -m 'fix: restrict breadth to Bourse symbols only'
+          git push origin main
