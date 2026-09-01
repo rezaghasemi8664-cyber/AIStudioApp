@@ -614,20 +614,6 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     mergedMetrics?.lastPrice, source.lastTradedPrice, source.lastPrice, source.finalPrice, source.closePrice, source.pDrCotVal
   );
 
-  const closingPriceChangePercent = pickFirstNumber(
-    marketData.closingPriceChangePercent,
-    marketData.closeChangePercent,
-    marketData.pcp,
-    lastHistoryRecord.closingPriceChangePercent,
-    lastHistoryRecord.closeChangePercent,
-    lastHistoryRecord.pcp,
-    source.closingPriceChangePercent,
-    source.closeChangePercent,
-    source.pcp,
-    mergedMetrics?.closingPriceChangePercent,
-    (mergedMetrics as any)?.closeChangePercent,
-
-  );
 
   const lastPriceChangePercent = pickFirstNumber(
     marketData.lastPriceChangePercent, marketData.lastChangePercent, marketData.plp,
@@ -635,8 +621,35 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     source.lastPriceChangePercent, source.lastChangePercent, source.plp,
     mergedMetrics?.lastPriceChangePercent,
     (mergedMetrics as any)?.priceChangePercent,
-
   );
+
+  const calculatedClosingPriceChangePercent =
+    closingPrice !== null &&
+    lastTradedPrice !== null &&
+    lastPriceChangePercent !== null &&
+    Number.isFinite(closingPrice) &&
+    Number.isFinite(lastTradedPrice) &&
+    Number.isFinite(lastPriceChangePercent) &&
+    lastTradedPrice > 0 &&
+    1 + lastPriceChangePercent / 100 > 0
+      ? (() => {
+          const referencePrice =
+            lastTradedPrice / (1 + lastPriceChangePercent / 100);
+
+          if (!Number.isFinite(referencePrice) || referencePrice <= 0) {
+            return null;
+          }
+
+          const percent =
+            ((closingPrice - referencePrice) / referencePrice) * 100;
+
+          return Number.isFinite(percent)
+            ? Number(percent.toFixed(2))
+            : null;
+        })()
+      : null;
+
+  const closingPriceChangePercent = calculatedClosingPriceChangePercent;
 
   const pe = pickFirstNumber(marketData.pe, lastHistoryRecord.pe, mergedMetrics?.pe, source.pe);
   const eps = pickFirstNumber(marketData.eps, lastHistoryRecord.eps, mergedMetrics?.eps, source.eps);
@@ -2264,6 +2277,7 @@ const clearCurrentAnalysis = () => {
     </div>
   );
 }
+
 
 
 
