@@ -1,0 +1,302 @@
+name: Fix StockAnalysis market summary history
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch StockAnalysis market summary
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('src/components/StockAnalysis.tsx')
+          s = p.read_text(encoding='utf-8-sig')
+
+          s = s.replace(
+              "import { getLatestSummary } from '../services/marketSummaryService';",
+              "import { getLatestSummary, getSummaryHistory, getMarketSummaryByDate } from '../services/marketSummaryService';"
+          )
+
+          s = s.replace(
+              "type MarketSummary = {\n  content: string;\n  createdAt: string;\n};",
+              "type MarketSummary = {\n  id?: number;\n  date?: string;\n  summaryDate?: string;\n  content: string;\n  summary?: string | null;\n  createdAt: string;\n  updatedAt?: string | null;\n  marketIntelligence?: any;\n  rawJson?: any;\n};"
+          )
+
+          state_marker = "  const [hasUnreadMarketSummary, setHasUnreadMarketSummary] = useState(false);"
+          state_add = state_marker + "\n  const [marketSummaryHistory, setMarketSummaryHistory] = useState<MarketSummary[]>([]);\n  const [selectedMarketSummaryId, setSelectedMarketSummaryId] = useState<string>('');\n  const [isLoadingMarketSummaryHistory, setIsLoadingMarketSummaryHistory] = useState(false);"
+          if 'marketSummaryHistory' not in s:
+              s = s.replace(state_marker, state_add, 1)
+
+          start = s.index('const fetchMarketSummary = async () => {')
+          end = s.index('\n    \n  const renderAnalysisHistory = () => {', start)
+          new_fetch = r'''const fetchMarketSummary = async () => {
+  try {
+    const response = await getLatestSummary();
+    if (!response || typeof response !== 'object') return undefined;
+
+    const payload: any = (response as any)?.data && typeof (response as any).data === 'object'
+      ? (response as any).data
+      : response;
+
+    const content = typeof payload?.content === 'string' && payload.content.trim()
+      ? payload.content.trim()
+      : typeof payload?.summary === 'string' && payload.summary.trim()
+        ? payload.summary.trim()
+        : '';
+
+    if (!content) return undefined;
+
+    const createdAt = typeof payload?.createdAt === 'string' ? payload.createdAt : '';
+    if (!createdAt) {
+      console.warn('[MarketSummary] latest summary has no stored createdAt; refusing synthetic browser timestamp');
+    }
+
+    return {
+      id: typeof payload?.id === 'number' ? payload.id : undefined,
+      date: typeof payload?.date === 'string' ? payload.date : undefined,
+      summaryDate: typeof payload?.summaryDate === 'string' ? payload.summaryDate : undefined,
+      content,
+      summary: typeof payload?.summary === 'string' ? payload.summary : null,
+      createdAt,
+      updatedAt: typeof payload?.updatedAt === 'string' ? payload.updatedAt : null,
+      marketIntelligence: payload?.marketIntelligence,
+      rawJson: payload?.rawJson,
+    };
+  } catch (error) {
+    console.error('[MarketSummary] Error fetching market summary:', error);
+    return undefined;
+  }
+};'''
+          s = s[:start] + new_fetch + s[end:]
+
+          effect_pattern = re.compile(r"  useEffect\(\(\) => \{\n    if \(activeTab !== 'marketSummary'\) return;.*?\n  \}, \[activeTab, marketSummary\]\);", re.S)
+          new_effect = r'''  useEffect(() => {
+    if (activeTab !== 'marketSummary') return;
+
+    let active = true;
+
+    const loadMarketSummaryHistory = async () => {
+      setIsLoadingMarketSummaryHistory(true);
+      try {
+        const response = await getSummaryHistory(1, 5);
+        if (!active) return;
+
+        const rows = Array.isArray(response?.data)
+          ? response.data
+              .filter((item: any) => item && item.createdAt)
+              .sort((a: any, b: any) => {
+                const ta = new Date(String(a.createdAt)).getTime();
+                const tb = new Date(String(b.createdAt)).getTime();
+                return tb - ta;
+              })
+              .slice(0, 5)
+          : [];
+
+        setMarketSummaryHistory(rows as MarketSummary[]);
+
+        if (rows.length > 0) {
+          setSelectedMarketSummaryId((current) => {
+            const stillExists = rows.some((item: any) => String(item.id) === current);
+            return stillExists ? current : String(rows[0].id);
+          });
+        } else {
+          setSelectedMarketSummaryId('');
+        }
+      } catch (error) {
+        console.error('[MarketSummary] history load failed:', error);
+        if (active) setMarketSummaryHistory([]);
+      } finally {
+        if (active) setIsLoadingMarketSummaryHistory(false);
+      }
+    };
+
+    const loadLatest = async () => {
+      try {
+        const latest = await fetchMarketSummary();
+        if (!active || !latest) return;
+        setMarketSummary(latest);
+        setHasUnreadMarketSummary(false);
+      } catch (error) {
+        console.error('[MarketSummary] latest load failed:', error);
+      }
+    };
+
+    void Promise.all([loadMarketSummaryHistory(), loadLatest()]);
+
+    const interval = window.setInterval(() => {
+      void loadMarketSummaryHistory();
+      void loadLatest();
+    }, 30_000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [activeTab]);'''
+          s2, count = effect_pattern.subn(new_effect, s, count=1)
+          if count != 1:
+              raise SystemExit('market summary effect block not found')
+          s = s2
+
+          render_pattern = re.compile(r"      \{activeTab === 'marketSummary' && \(.*?\n\}\n\n      \{activeTab === 'analysis' && \(", re.S)
+          new_render = r'''      {activeTab === 'marketSummary' && (
+        <div
+          dir="rtl"
+          className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-[16px] font-extrabold text-slate-900">خلاصه بازار</h3>
+              <p className="mt-1 text-[12px] font-medium text-slate-500">
+                ۵ خلاصه آخر بر اساس تاریخ و زمان واقعی ثبت‌شده در پایگاه داده
+              </p>
+            </div>
+            {isLoadingMarketSummaryHistory ? (
+              <span className="text-[12px] font-semibold text-blue-600">در حال دریافت…</span>
+            ) : null}
+          </div>
+
+          {marketSummaryHistory.length > 0 ? (
+            <>
+              <div className="hidden gap-2 overflow-x-auto pb-1 md:flex">
+                {marketSummaryHistory.map((item) => {
+                  const key = String(item.id ?? item.createdAt);
+                  const active = selectedMarketSummaryId === key;
+                  const stored = new Date(item.createdAt);
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={async () => {
+                        setSelectedMarketSummaryId(key);
+                        try {
+                          const date = String(item.summaryDate || item.date || item.createdAt).slice(0, 10);
+                          const full = date ? await getMarketSummaryByDate(date) : null;
+                          if (full) {
+                            setMarketSummary(full as MarketSummary);
+                          } else {
+                            setMarketSummary(item);
+                          }
+                        } catch (error) {
+                          console.warn('[MarketSummary] selected summary load failed:', error);
+                          setMarketSummary(item);
+                        }
+                      }}
+                      className={`min-w-[205px] rounded-xl border px-4 py-3 text-right transition ${
+                        active
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-slate-200 bg-slate-50 hover:border-blue-300 hover:bg-blue-50/40'
+                      }`}
+                    >
+                      <div className="text-[13px] font-extrabold text-slate-900">
+                        {stored.toLocaleDateString('fa-IR')}
+                      </div>
+                      <div className="mt-1 text-[11px] font-semibold text-slate-500">
+                        زمان ثبت: {stored.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <select
+                value={selectedMarketSummaryId}
+                onChange={async (event) => {
+                  const key = event.target.value;
+                  const item = marketSummaryHistory.find((row) => String(row.id ?? row.createdAt) === key);
+                  if (!item) return;
+                  setSelectedMarketSummaryId(key);
+                  try {
+                    const date = String(item.summaryDate || item.date || item.createdAt).slice(0, 10);
+                    const full = date ? await getMarketSummaryByDate(date) : null;
+                    setMarketSummary((full as MarketSummary) || item);
+                  } catch (error) {
+                    console.warn('[MarketSummary] selected summary load failed:', error);
+                    setMarketSummary(item);
+                  }
+                }}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-[13px] font-semibold text-slate-900 md:hidden"
+              >
+                {marketSummaryHistory.map((item) => {
+                  const stored = new Date(item.createdAt);
+                  return (
+                    <option key={String(item.id ?? item.createdAt)} value={String(item.id ?? item.createdAt)}>
+                      {stored.toLocaleDateString('fa-IR')} - {stored.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </option>
+                  );
+                })}
+              </select>
+            </>
+          ) : null}
+
+          {isLoadingMarketSummary ? (
+            <div className="py-6 text-center text-[13px] font-medium text-slate-500">
+              در حال دریافت خلاصه بازار...
+            </div>
+          ) : marketSummary ? (
+            <>
+              {marketSummary.createdAt ? (
+                <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-[12px] font-semibold text-slate-600">
+                  تاریخ و زمان ثبت در پایگاه داده:{' '}
+                  <span className="font-extrabold text-blue-700">
+                    {new Date(marketSummary.createdAt).toLocaleString('fa-IR')}
+                  </span>
+                </div>
+              ) : null}
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="whitespace-pre-wrap text-right text-[14px] font-medium leading-8 text-slate-900">
+                  {marketSummary.content?.trim()
+                    ? marketSummary.content
+                    : 'محتوای خلاصه بازار در حال حاضر در دسترس نیست.'}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-right text-[13px] font-medium leading-7 text-amber-700">
+              خلاصه بازار برای نمایش دریافت نشد.
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'analysis' && ('''
+          s2, count = render_pattern.subn(new_render, s, count=1)
+          if count != 1:
+              raise SystemExit('market summary render block not found')
+          s = s2
+
+          p.write_text(s, encoding='utf-8')
+
+      - name: Verify TypeScript syntax
+        shell: bash
+        run: |
+          npx tsc --noEmit --pretty false 2>&1 | tee /tmp/tsc.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Commit direct frontend fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/StockAnalysis.tsx
+          if git diff --cached --quiet; then
+            echo "No StockAnalysis changes"
+            exit 0
+          fi
+          git commit -m "fix: make market summary history selection use stored records"
+          git push origin main
