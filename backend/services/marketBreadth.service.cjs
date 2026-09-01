@@ -3,10 +3,9 @@
 /**
  * Market breadth / real-money-flow / sector intelligence.
  *
- * Primary source: BRS AllSymbols, because the CDN GetMarketWatch endpoint can
- * legitimately return an empty payload from a server/VPS environment.
- * The breadth invariant is strict: positive + negative + neutral === total
- * unique traded symbols used in the snapshot.
+ * Breadth is calculated only from unique traded equity symbols. Non-equity
+ * instruments (funds, bonds, options, rights, indices, etc.) are excluded so
+ * positive + negative + neutral represents the actual traded equity universe.
  */
 
 const env = require('../config/env.cjs');
@@ -106,6 +105,47 @@ function isIndex(row) {
   return /شاخص|index/i.test(value) || String(row.item?.paperType ?? row.item?.type ?? '').toLowerCase() === 'index';
 }
 
+function instrumentType(row) {
+  const raw = row?.item || row || {};
+  return [
+    raw.paperType,
+    raw.paper_type,
+    raw.paperTypeId,
+    raw.pType,
+    raw.pTypeId,
+    raw.instrumentType,
+    raw.instrumentTypeId,
+    raw.insType,
+    raw.insTypeId,
+    raw.type,
+    raw.typeId,
+  ].find((value) => value !== undefined && value !== null && value !== '');
+}
+
+function isEquity(row) {
+  if (!row || !row.symbol || isIndex(row)) return false;
+
+  const type = instrumentType(row);
+  if (type !== undefined) {
+    const numericType = num(type);
+    // TSETMC paper type 1 is the ordinary listed equity instrument.
+    if (numericType !== null) return numericType === 1;
+
+    const normalized = String(type).trim().toLowerCase();
+    if (['stock', 'share', 'equity', 'commonstock', 'common stock', 'سهم', 'سهام'].includes(normalized)) return true;
+    if (/صندوق|اوراق|اختیار|آتی|حق.?تقدم|index|bond|fund|option|future|certificate|warrant/.test(normalized)) return false;
+  }
+
+  const label = [row.symbol, row.item?.name, row.item?.lVal30, row.item?.title, row.item?.instrumentName]
+    .filter(Boolean).join(' ').toLowerCase();
+  if (/شاخص|صندوق|اوراق|اختیار|آتی|حق.?تقدم|اوراق.?تسهیلات|index|fund|bond|option|future|warrant/.test(label)) return false;
+
+  // BRS fallback rows sometimes omit the instrument type. Keep only rows that
+  // have real trading data; the TSETMC MarketWatch path is the authoritative
+  // source and explicitly requests paper type 1.
+  return true;
+}
+
 function isTraded(row) {
   return row.tradeCount > 0 || row.volume > 0 || row.value > 0;
 }
@@ -113,7 +153,7 @@ function isTraded(row) {
 function dedupeRows(rows) {
   const map = new Map();
   for (const row of rows) {
-    if (!row.symbol || isIndex(row) || !isTraded(row)) continue;
+    if (!row.symbol || !isEquity(row) || !isTraded(row)) continue;
     const key = row.code || `symbol:${row.symbol}`;
     const old = map.get(key);
     const score = row.tradeCount + row.volume + row.value;
@@ -176,8 +216,9 @@ function build(rows, source = 'brs-all-symbols') {
   const traded = dedupeRows(rows);
   const positive = traded.filter((r) => r.pct !== null && r.pct > 0).length;
   const negative = traded.filter((r) => r.pct !== null && r.pct < 0).length;
-  const neutral = traded.length - positive - negative;
-  const total = positive + negative + neutral;
+  const neutral = traded.filter((r) => r.pct === null || r.pct === 0).length;
+  const total = traded.length;
+  const invariant = positive + negative + neutral === total;
 
   const sectors = deriveSectors(traded);
   const moneyFlow = moneyFlowFromRows(traded);
@@ -193,7 +234,7 @@ function build(rows, source = 'brs-all-symbols') {
   const coveragePercent = total > 0 ? 100 : 0;
 
   return {
-    available: total > 0,
+    available: invariant && total > 0,
     source,
     positive,
     negative,
@@ -226,8 +267,8 @@ function build(rows, source = 'brs-all-symbols') {
       matchedClientTypeRows: moneyFlow?.matchedSymbols || 0,
       sectorRows: sectors.length,
       sectorSource: sectors.length ? 'symbol-aggregation' : 'none',
-      invariant: total === positive + negative + neutral,
-      breadthRule: 'فقط نمادهای یکتای دارای معامله/حجم/ارزش؛ شاخص‌ها و تکراری‌ها حذف؛ نماد بدون درصد تغییر در خنثی قرار می‌گیرد.',
+      invariant,
+      breadthRule: 'فقط نمادهای یکتای دارای معامله از نوع سهم عادی (paperType=1)؛ شاخص‌ها و ابزارهای غیرسهامی حذف؛ نماد بدون درصد تغییر در خنثی قرار می‌گیرد.',
     },
   };
 }
@@ -243,15 +284,9 @@ async function fetchTsetmcMarketWatch() {
   const params = [
     'market=0',
     'industrialGroup=',
+    // Only ordinary listed equities. Do not request all paper types because
+    // that mixes shares with funds, bonds, rights and derivatives.
     'paperTypes%5B0%5D=1',
-    'paperTypes%5B1%5D=2',
-    'paperTypes%5B2%5D=3',
-    'paperTypes%5B3%5D=4',
-    'paperTypes%5B4%5D=5',
-    'paperTypes%5B5%5D=6',
-    'paperTypes%5B6%5D=7',
-    'paperTypes%5B7%5D=8',
-    'paperTypes%5B8%5D=9',
     'withBestLimits=false',
     'hEven=0',
     'RefID=0',
@@ -271,13 +306,13 @@ async function getMarketBreadth() {
 
   try {
     rows = await fetchTsetmcMarketWatch();
-    source = 'tsetmc-marketwatch';
+    source = 'tsetmc-marketwatch-equities';
   } catch (error) {
     tsetmcError = error.message;
     console.warn('[MARKET][Breadth] TSETMC MarketWatch unavailable, falling back to BRS AllSymbols:', error.message);
     try {
       rows = await fetchBRSAllSymbols();
-      source = 'brs-all-symbols-fallback';
+      source = 'brs-all-symbols-equities-fallback';
     } catch (brsError) {
       console.error('[MARKET][Breadth] BRS fallback failed:', brsError.message);
       return { available: false, reason: 'BREADTH_FETCH_FAILED', error: brsError.message, diagnostics: { tsetmcError } };
