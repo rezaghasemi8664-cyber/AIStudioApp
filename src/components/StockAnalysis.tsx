@@ -318,7 +318,7 @@ function normalizeCandle(input: unknown): OHLCPoint | null {
       'pClosing',
     ])
   );
-  const volume = toNum(getPropByAliases(item, ['volume', 'vol', 'zTotTran', 'qTotTran5J', 'qTotTran']));
+  const volume = toNum(getPropByAliases(item, ['volume', 'vol', 'qTotTran5J', 'qTotTran']));
 
   const o = open ?? close;
   const h = high ?? close ?? open;
@@ -394,7 +394,7 @@ function normalizeDailySummary(input: unknown): DailySummary | null {
   const average = averageDirect ?? averageFromOHLC;
 
   const value = toNullableNum(
-    getPropByAliases(item, ['value', 'tradedValue', 'tradeValue', 'marketValue', 'qTotCap', 'tval', 'qTotTran5J'])
+    getPropByAliases(item, ['value', 'tradedValue', 'tradeValue', 'qTotCap', 'tval'])
   );
 
   if (high === null && low === null && average === null && value === null) return null;
@@ -615,8 +615,8 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
 
   const priceChangePercent = pickFirstNumber(
     marketData.priceChangePercent, marketData.changePercent, marketData.priceChange, marketData.change, marketData.chp,
-    lastHistoryRecord.priceChangePercent, lastHistoryRecord.changePercent, lastHistoryRecord.priceChange, lastHistoryRecord.change, lastHistoryRecord.chp,
-    mergedMetrics?.priceChangePercent, source.priceChangePercent, source.changePercent, source.priceChange, source.change, source.chp
+    lastHistoryRecord.priceChangePercent, lastHistoryRecord.changePercent,
+    mergedMetrics?.priceChangePercent, source.priceChangePercent, source.changePercent
   );
 
   const pe = pickFirstNumber(marketData.pe, lastHistoryRecord.pe, mergedMetrics?.pe, source.pe);
@@ -629,13 +629,13 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
   );
 
   const tradedVolume = pickFirstNumber(
-    marketData.tradedVolume, marketData.volume, marketData.vol, marketData.zTotTran, marketData.qTotTran5J,
-    lastHistoryRecord.tradedVolume, lastHistoryRecord.volume, lastHistoryRecord.vol, lastHistoryRecord.zTotTran, lastHistoryRecord.qTotTran5J,
-    source.tradedVolume, source.volume, source.vol, source.zTotTran, source.qTotTran5J
+    marketData.tradedVolume, marketData.volume, marketData.vol, marketData.qTotTran5J,
+    lastHistoryRecord.tradedVolume, lastHistoryRecord.volume, lastHistoryRecord.vol, lastHistoryRecord.qTotTran5J,
+    source.tradedVolume, source.volume, source.vol, source.qTotTran5J
   );
 
   const tradedValue = pickFirstNumber(
-    marketData.tradedValue, marketData.tradeValue, marketData.value, marketData.qTotCap, marketData.tval, marketData.qTotTran5J,
+    marketData.tradedValue, marketData.tradeValue, marketData.value, marketData.qTotCap, marketData.tval,
     lastHistoryRecord.tradedValue, lastHistoryRecord.tradeValue, lastHistoryRecord.value, lastHistoryRecord.qTotCap, lastHistoryRecord.tval, lastHistoryRecord.qTotTran5J,
     mergedMetrics?.tradedValue, source.tradedValue, source.tradeValue, source.value, source.qTotCap, source.tval, source.qTotTran5J, dailySummary?.value
   );

@@ -758,6 +758,10 @@ function mapSymbolData(raw) {
   var realSellVolume = nz(toInt(raw.Sell_I_Volume), 0);
   var instBuyVolume = nz(toInt(raw.Buy_N_Volume), 0);
   var instSellVolume = nz(toInt(raw.Sell_N_Volume), 0);
+  var realBuyValue = toNumber(raw.Buy_I_Value != null ? raw.Buy_I_Value : raw.buy_I_Value);
+  var realSellValue = toNumber(raw.Sell_I_Value != null ? raw.Sell_I_Value : raw.sell_I_Value);
+  var instBuyValue = toNumber(raw.Buy_N_Value != null ? raw.Buy_N_Value : raw.buy_N_Value);
+  var instSellValue = toNumber(raw.Sell_N_Value != null ? raw.Sell_N_Value : raw.sell_N_Value);
   var realBuyCount = nz(toInt(raw.Buy_CountI), 0);
   var realSellCount = nz(toInt(raw.Sell_CountI), 0);
   var instBuyCount = nz(toInt(raw.Buy_CountN), 0);
@@ -768,8 +772,19 @@ function mapSymbolData(raw) {
   var priceOpen = toNumber(raw.pf != null ? raw.pf : raw.open);
   var priceHigh = toNumber(raw.pmax != null ? raw.pmax : raw.high);
   var priceLow = toNumber(raw.pmin != null ? raw.pmin : raw.low);
-  var tradeVolume = toInt(raw.tvol != null ? raw.tvol : raw.volume);
-  var tradeValue = toNumber(raw.tval != null ? raw.tval : raw.value);
+  var tradeVolume = toInt(raw.tvol != null ? raw.tvol : (raw.qTotTran5J != null ? raw.qTotTran5J : raw.volume));
+  var tradeValue = toNumber(raw.qTotCap != null ? raw.qTotCap : (raw.tval != null ? raw.tval : raw.value));
+  var yesterdayPrice = toNumber(raw.py != null ? raw.py : raw.yesterday);
+  var rawLastChangePercent = toNumber(raw.plp != null ? raw.plp : raw.lastChangePercent);
+  var lastChangePercent = rawLastChangePercent;
+  if (lastChangePercent == null && priceLast != null && yesterdayPrice != null && yesterdayPrice !== 0) {
+    lastChangePercent = Number((((priceLast - yesterdayPrice) / yesterdayPrice) * 100).toFixed(2));
+  }
+  var rawCloseChangePercent = toNumber(raw.pcp != null ? raw.pcp : raw.closeChangePercent);
+  var closeChangePercent = rawCloseChangePercent;
+  if (closeChangePercent == null && priceClose != null && yesterdayPrice != null && yesterdayPrice !== 0) {
+    closeChangePercent = Number((((priceClose - yesterdayPrice) / yesterdayPrice) * 100).toFixed(2));
+  }
   var avgPrice = tradeValue != null && tradeVolume != null && tradeVolume > 0 ? tradeValue / tradeVolume : null;
 
   var result = {
@@ -794,11 +809,11 @@ function mapSymbolData(raw) {
     price: {
       last: priceLast,
       lastChange: toNumber(raw.plc != null ? raw.plc : raw.lastChange),
-      lastChangePercent: toNumber(raw.plp != null ? raw.plp : raw.lastChangePercent),
+      lastChangePercent: lastChangePercent,
       closing: priceClose,
       closingChange: toNumber(raw.pcc != null ? raw.pcc : raw.closeChange),
-      closingChangePercent: toNumber(raw.pcp != null ? raw.pcp : raw.closeChangePercent),
-      yesterday: toNumber(raw.py != null ? raw.py : raw.yesterday),
+      closingChangePercent: closeChangePercent,
+      yesterday: yesterdayPrice,
       open: priceOpen,
       high: priceHigh,
       low: priceLow,
@@ -847,29 +862,38 @@ function mapSymbolData(raw) {
       real: {
         buyVolume: realBuyVolume,
         sellVolume: realSellVolume,
+        buyValue: realBuyValue,
+        sellValue: realSellValue,
+        netValue: realBuyValue != null && realSellValue != null ? realBuyValue - realSellValue : null,
         buyCount: realBuyCount,
         sellCount: realSellCount,
         netVolume: realBuyVolume - realSellVolume,
         netCount: realBuyCount - realSellCount,
-        net: realBuyVolume - realSellVolume
+        net: realBuyValue != null && realSellValue != null ? realBuyValue - realSellValue : null
       },
       institutional: {
         buyVolume: instBuyVolume,
         sellVolume: instSellVolume,
+        buyValue: instBuyValue,
+        sellValue: instSellValue,
+        netValue: instBuyValue != null && instSellValue != null ? instBuyValue - instSellValue : null,
         buyCount: instBuyCount,
         sellCount: instSellCount,
         netVolume: instBuyVolume - instSellVolume,
         netCount: instBuyCount - instSellCount,
-        net: instBuyVolume - instSellVolume
+        net: instBuyValue != null && instSellValue != null ? instBuyValue - instSellValue : null
       },
       legal: {
         buyVolume: instBuyVolume,
         sellVolume: instSellVolume,
+        buyValue: instBuyValue,
+        sellValue: instSellValue,
+        netValue: instBuyValue != null && instSellValue != null ? instBuyValue - instSellValue : null,
         buyCount: instBuyCount,
         sellCount: instSellCount,
         netVolume: instBuyVolume - instSellVolume,
         netCount: instBuyCount - instSellCount,
-        net: instBuyVolume - instSellVolume
+        net: instBuyValue != null && instSellValue != null ? instBuyValue - instSellValue : null
       }
     },
     assembly: Array.isArray(raw.assembly) ? raw.assembly : [],
@@ -898,6 +922,8 @@ function mapSymbolData(raw) {
   result.value = result.trading.value;
   result.averagePrice = result.price.average;
   result.tradeCount = result.trading.count;
+  result.priceChangePercent = result.price.lastChangePercent;
+  result.closeChangePercent = result.price.closingChangePercent;
   result.baseVolume = result.fundamental.baseVolume;
   result.marketCap = result.fundamental.marketCap;
   result.eps = result.fundamental.eps;
@@ -906,9 +932,13 @@ function mapSymbolData(raw) {
   result.realSellVolume = realSellVolume;
   result.instBuyVolume = instBuyVolume;
   result.instSellVolume = instSellVolume;
-  result.realMoneyFlow = realBuyVolume - realSellVolume;
-  result.legalMoneyFlow = instBuyVolume - instSellVolume;
-  result.instMoneyFlow = instBuyVolume - instSellVolume;
+  result.realBuyValue = realBuyValue;
+  result.realSellValue = realSellValue;
+  result.instBuyValue = instBuyValue;
+  result.instSellValue = instSellValue;
+  result.realMoneyFlow = realBuyValue != null && realSellValue != null ? realBuyValue - realSellValue : null;
+  result.legalMoneyFlow = instBuyValue != null && instSellValue != null ? instBuyValue - instSellValue : null;
+  result.instMoneyFlow = instBuyValue != null && instSellValue != null ? instBuyValue - instSellValue : null;
   result.lastUpdate = ((result.date || '') + ' ' + (result.time || '')).trim();
 
   return result;
