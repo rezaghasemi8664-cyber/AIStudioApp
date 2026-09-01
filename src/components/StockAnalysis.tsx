@@ -1867,7 +1867,7 @@ const clearCurrentAnalysis = () => {
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setSelectedMarketSummaryId(item.id)}
+                  onClick={() => { setSelectedMarketSummaryId(item.id); setMarketSummary(item); }}
                   className={`rounded-xl border p-3 text-right transition-colors ${
                     isSelected
                       ? 'border-blue-500 bg-blue-50 text-blue-900'
