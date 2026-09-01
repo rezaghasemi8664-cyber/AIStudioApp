@@ -22,23 +22,80 @@ jobs:
           p = Path('src/components/StockAnalysis.tsx')
           s = p.read_text(encoding='utf-8-sig')
 
-          # Backend BRS exposes two distinct percentages:
-          # priceChangePercent = last/live price percentage
-          # closeChangePercent = closing-price percentage
-          # The UI must consume both from mergedMetrics without falling back
-          # from closing percent to the live percent.
-          old = "    mergedMetrics?.closingPriceChangePercent\n  );"
-          new = "    mergedMetrics?.closingPriceChangePercent,\n    (mergedMetrics as any)?.closeChangePercent\n  );"
-          if old in s and new not in s:
-              s = s.replace(old, new, 1)
+          old = '''  const closingPriceChangePercent = pickFirstNumber(
+    marketData.closingPriceChangePercent,
+    marketData.closeChangePercent,
+    marketData.pcp,
+    lastHistoryRecord.closingPriceChangePercent,
+    lastHistoryRecord.closeChangePercent,
+    lastHistoryRecord.pcp,
+    source.closingPriceChangePercent,
+    source.closeChangePercent,
+    source.pcp,
+    mergedMetrics?.closingPriceChangePercent
+    (mergedMetrics as any)?.closeChangePercent,
 
-          old_last = "    mergedMetrics?.lastPriceChangePercent\n  );"
-          new_last = "    mergedMetrics?.lastPriceChangePercent,\n    (mergedMetrics as any)?.priceChangePercent\n  );"
-          if old_last in s and new_last not in s:
-              s = s.replace(old_last, new_last, 1)
+  );
+
+  const lastPriceChangePercent = pickFirstNumber(
+    marketData.lastPriceChangePercent, marketData.lastChangePercent, marketData.plp,
+    lastHistoryRecord.lastPriceChangePercent, lastHistoryRecord.lastChangePercent, lastHistoryRecord.plp,
+    source.lastPriceChangePercent, source.lastChangePercent, source.plp,
+    mergedMetrics?.lastPriceChangePercent
+    (mergedMetrics as any)?.priceChangePercent,
+
+  );'''
+
+          new = '''  const closingPriceChangePercent = pickFirstNumber(
+    marketData.closingPriceChangePercent,
+    marketData.closeChangePercent,
+    marketData.pcp,
+    lastHistoryRecord.closingPriceChangePercent,
+    lastHistoryRecord.closeChangePercent,
+    lastHistoryRecord.pcp,
+    source.closingPriceChangePercent,
+    source.closeChangePercent,
+    source.pcp,
+    mergedMetrics?.closingPriceChangePercent,
+    (mergedMetrics as any)?.closeChangePercent,
+    (mergedMetrics as any)?.pcp,
+  );
+
+  const lastPriceChangePercent = pickFirstNumber(
+    marketData.lastPriceChangePercent,
+    marketData.lastChangePercent,
+    marketData.plp,
+    lastHistoryRecord.lastPriceChangePercent,
+    lastHistoryRecord.lastChangePercent,
+    lastHistoryRecord.plp,
+    source.lastPriceChangePercent,
+    source.lastChangePercent,
+    source.plp,
+    mergedMetrics?.lastPriceChangePercent,
+    (mergedMetrics as any)?.priceChangePercent,
+  );'''
+
+          if old not in s:
+              raise SystemExit('Expected malformed percentage block was not found')
+          s = s.replace(old, new, 1)
+
+          marker = "    priceChangePercent: pickFirstNumber(mm.priceChangePercent, mm.pctChange, mm.changePercent),\n"
+          addition = marker + "    closingPriceChangePercent: pickFirstNumber(mm.closingPriceChangePercent, mm.closeChangePercent, mm.pcp),\n"
+          if 'closingPriceChangePercent: pickFirstNumber(mm.closingPriceChangePercent' not in s:
+              if marker not in s:
+                  raise SystemExit('normalizeMarketMetrics marker was not found')
+              s = s.replace(marker, addition, 1)
 
           p.write_text(s, encoding='utf-8-sig')
+          print('Closing percentage now maps only to closeChangePercent/pcp; live percentage maps to priceChangePercent.')
           PY
+
+      - name: Verify source mapping
+        shell: bash
+        run: |
+          grep -n "closingPriceChangePercent" src/components/StockAnalysis.tsx
+          grep -n "closeChangePercent" src/components/StockAnalysis.tsx
+          grep -n "priceChangePercent" src/components/StockAnalysis.tsx
 
       - name: Build
         run: |
