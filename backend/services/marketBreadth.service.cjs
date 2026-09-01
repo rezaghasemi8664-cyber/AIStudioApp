@@ -92,6 +92,7 @@ function normalizeBRSRow(row) {
     volume,
     value,
     tradeCount: trades,
+    flow: first(row, ['flow', 'market', 'flowId']),
     sector: text(row, ['sector', 'cs', 'sectorName', 'industryName', 'groupName']),
     realBuyVolume: first(row, ['realBuyVolume', 'Buy_I_Volume', 'buy_I_Volume']) || 0,
     realSellVolume: first(row, ['realSellVolume', 'Sell_I_Volume', 'sell_I_Volume']) || 0,
@@ -124,6 +125,11 @@ function instrumentType(row) {
 
 function isEquity(row) {
   if (!row || !row.symbol || isIndex(row)) return false;
+
+  if (row.flow !== null && row.flow !== undefined) {
+    const numericFlow = num(row.flow);
+    if (numericFlow !== null && numericFlow !== 1) return false;
+  }
 
   const type = instrumentType(row);
   if (type !== undefined) {
@@ -268,7 +274,7 @@ function build(rows, source = 'brs-all-symbols') {
       sectorRows: sectors.length,
       sectorSource: sectors.length ? 'symbol-aggregation' : 'none',
       invariant,
-      breadthRule: 'فقط نمادهای یکتای دارای معامله از نوع سهم عادی (paperType=1)؛ شاخص‌ها و ابزارهای غیرسهامی حذف؛ نماد بدون درصد تغییر در خنثی قرار می‌گیرد.',
+      breadthRule: 'فقط نمادهای یکتای معامله‌شده در بورس تهران (flow=1 و paperType=1)؛ فرابورس، پایه، صندوق، اوراق، مشتقه، حق‌تقدم و شاخص‌ها حذف؛ نماد بدون درصد تغییر در خنثی قرار می‌گیرد.',
     },
   };
 }
@@ -282,7 +288,7 @@ async function fetchBRSAllSymbols() {
 
 async function fetchTsetmcMarketWatch() {
   const params = [
-    'market=0',
+    'market=1',
     'industrialGroup=',
     // Only ordinary listed equities. Do not request all paper types because
     // that mixes shares with funds, bonds, rights and derivatives.
