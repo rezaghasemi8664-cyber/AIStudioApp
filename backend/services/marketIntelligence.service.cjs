@@ -326,7 +326,7 @@ function money(data) {
   let net = directInflow;
   if (net === null && buyValue !== null && sellValue !== null) net = buyValue - sellValue;
   if (net === null && directOutflow !== null) net = -directOutflow;
-  if (net === null && buyVolume > 0 || sellVolume > 0) {
+  if (net === null && (buyVolume > 0 || sellVolume > 0)) {
     const price = sources.map(src => num(first(src,['pl','pDrCotVal','lastPrice','priceLast','pc','pClosing']))).find(v=>v!==null);
     if (price !== undefined && price !== null) net = (buyVolume - sellVolume) * price;
   }
