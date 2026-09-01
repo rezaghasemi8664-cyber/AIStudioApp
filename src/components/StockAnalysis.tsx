@@ -633,7 +633,7 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     marketData.lastPriceChangePercent, marketData.lastChangePercent, marketData.plp,
     lastHistoryRecord.lastPriceChangePercent, lastHistoryRecord.lastChangePercent, lastHistoryRecord.plp,
     source.lastPriceChangePercent, source.lastChangePercent, source.plp,
-    mergedMetrics?.lastPriceChangePercent
+    mergedMetrics?.lastPriceChangePercent,
     (mergedMetrics as any)?.priceChangePercent,
 
   );
@@ -2264,5 +2264,6 @@ const clearCurrentAnalysis = () => {
     </div>
   );
 }
+
 
 
