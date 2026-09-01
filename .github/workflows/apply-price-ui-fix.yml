@@ -1,0 +1,126 @@
+name: Apply stock analysis price UI fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: "!contains(github.event.head_commit.message, 'fix: stock analysis price cards')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch StockAnalysis UI
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path('src/components/StockAnalysis.tsx')
+          text = path.read_text(encoding='utf-8-sig')
+
+          # Ensure the canonical fields exist.
+          if 'closingPriceChangePercent: number | null;' not in text:
+              text = text.replace(
+                  '  priceChangePercent: number | null;\n',
+                  '  closingPriceChangePercent: number | null;\n  lastPriceChangePercent: number | null;\n', 1
+              )
+
+          # Replace the resolved percentage block if the old single field is still present.
+          old_pattern = re.compile(r'''    const priceChangePercent = pickFirstNumber\(.*?    \);\n''', re.S)
+          if old_pattern.search(text):
+              new = '''    const closingPriceChangePercent = pickFirstNumber(
+      md?.closingPriceChangePercent,
+      (md as any)?.closeChangePercent,
+      (md as any)?.pcp,
+      mm?.closingPriceChangePercent,
+      rawMarketData?.closingPriceChangePercent,
+      rawMarketData?.closeChangePercent,
+      rawMarketData?.pcp,
+      rawPayload?.closingPriceChangePercent,
+      rawPayload?.closeChangePercent,
+      rawPayload?.pcp
+    );
+
+    const lastPriceChangePercent = pickFirstNumber(
+      md?.lastPriceChangePercent,
+      (md as any)?.lastChangePercent,
+      (md as any)?.priceChangePercent,
+      (md as any)?.changePercent,
+      (md as any)?.plp,
+      (md as any)?.chp,
+      mm?.lastPriceChangePercent,
+      mm?.priceChangePercent,
+      rawMarketData?.lastPriceChangePercent,
+      rawMarketData?.priceChangePercent,
+      rawMarketData?.lastChangePercent,
+      rawMarketData?.plp,
+      rawMarketData?.chp,
+      rawPayload?.lastPriceChangePercent,
+      rawPayload?.priceChangePercent,
+      rawPayload?.lastChangePercent,
+      rawPayload?.plp,
+      rawPayload?.chp,
+      raw?.lastPriceChangePercent,
+      raw?.priceChangePercent
+    );
+'''
+              text = old_pattern.sub(new, text, count=1)
+
+          text = text.replace('      priceChangePercent,\n      pe,\n', '      closingPriceChangePercent,\n      lastPriceChangePercent,\n      pe,\n', 1)
+
+          # Replace the three-card block: remove the standalone percentage card and
+          # put the appropriate percentage directly below each price.
+          card_pattern = re.compile(
+              r'''(?P<indent>\s*)<SectionHeader\s*\n\s*title="مشخصات معاملاتی سهم".*?\n\s*<MetricCard label="قیمت پایانی" value=\{formatNumber\(marketDataResolved\.closingPrice\)\} tone="slate" />\s*\n\s*<MetricCard label="آخرین قیمت معامله" value=\{formatNumber\(marketDataResolved\.lastTradedPrice\)\} tone="blue" />\s*\n\s*<MetricCard\s*\n\s*label="درصد تغییر قیمت".*?\n\s*/>''', re.S)
+
+          replacement = '''                  <SectionHeader
+                    title="مشخصات معاملاتی سهم"
+                    subtitle="قیمت پایانی و لحظه‌ای همراه با درصد تغییر، P/E، EPS، ارزش بازار و حجم معاملات"
+                  />
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="text-[11px] font-semibold leading-5 text-slate-500">قیمت پایانی</div>
+                      <div className="mt-1 text-[17px] font-extrabold leading-7 text-slate-900">
+                        {formatNumber(marketDataResolved.closingPrice)}
+                      </div>
+                      <div className={`mt-1 text-[12px] font-bold ${getPercentToneClass(marketDataResolved.closingPriceChangePercent)}`}>
+                        {formatPercent(marketDataResolved.closingPriceChangePercent)}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+                      <div className="text-[11px] font-semibold leading-5 text-slate-500">قیمت لحظه‌ای</div>
+                      <div className="mt-1 text-[17px] font-extrabold leading-7 text-blue-900">
+                        {formatNumber(marketDataResolved.lastTradedPrice)}
+                      </div>
+                      <div className={`mt-1 text-[12px] font-bold ${getPercentToneClass(marketDataResolved.lastPriceChangePercent)}`}>
+                        {formatPercent(marketDataResolved.lastPriceChangePercent)}
+                      </div>
+                    </div>'''
+
+          if 'label="درصد تغییر قیمت"' in text:
+              text, count = card_pattern.subn(replacement, text, count=1)
+              if count != 1:
+                  raise SystemExit('Could not locate the stock price card block')
+
+          path.write_text(text, encoding='utf-8-sig')
+
+      - name: Build frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit and remove temporary workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/apply-price-ui-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/StockAnalysis.tsx .github/workflows/apply-price-ui-fix.yml
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "fix: stock analysis price cards"
+          git push
