@@ -477,6 +477,10 @@ export default function MarketSummaryDashboard({
   const dataQualityCoverage =
     dataQualityExpected > 0 ? (Number(dataQualityAvailable) / Number(dataQualityExpected)) * 100 : null;
 
+  const hasRealMoneyFlow = Boolean(f.available) || hasValue(f.net) || hasValue(f.netValue);
+  const sectorLeaders = Array.isArray(sectors.leaders) ? sectors.leaders : [];
+  const sectorLaggards = Array.isArray(sectors.laggards) ? sectors.laggards : [];
+
   const divergences = Array.isArray(intelligence.divergences)
     ? intelligence.divergences
     : [];
