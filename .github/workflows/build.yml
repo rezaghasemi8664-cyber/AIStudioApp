@@ -23,92 +23,14 @@ jobs:
 
       - name: Apply one-time closing price percentage fix
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        shell: python
+        shell: bash
         run: |
-          from pathlib import Path
-          import re
-          import subprocess
-
-          path = Path('src/components/StockAnalysis.tsx')
-          text = path.read_text(encoding='utf-8-sig')
-
-          if 'const calculatedClosingPriceChangePercent' not in text:
-              pattern = re.compile(
-                  r"    const closingPriceChangePercent = pickFirstNumber\(.*?\n    \);\n    const lastPriceChangePercent = pickFirstNumber\(",
-                  re.S,
-              )
-
-              replacement = '''    const previousClosingPrice = pickFirstNumber(
-      md?.previousClosingPrice,
-      (md as any)?.previousClosePrice,
-      (md as any)?.yesterdayPrice,
-      (md as any)?.priceYesterday,
-      (md as any)?.pYstClPr,
-      mm?.previousClosingPrice,
-      (mm as any)?.previousClosePrice,
-      (mm as any)?.yesterdayPrice,
-      (mm as any)?.priceYesterday,
-      (mm as any)?.pYstClPr,
-      rawMarketData?.previousClosingPrice,
-      rawMarketData?.previousClosePrice,
-      rawMarketData?.yesterdayPrice,
-      rawMarketData?.priceYesterday,
-      rawMarketData?.pYstClPr,
-      rawPayload?.previousClosingPrice,
-      rawPayload?.previousClosePrice,
-      rawPayload?.yesterdayPrice,
-      rawPayload?.priceYesterday,
-      rawPayload?.pYstClPr,
-      raw?.previousClosingPrice,
-      raw?.previousClosePrice,
-      raw?.yesterdayPrice,
-      raw?.priceYesterday,
-      raw?.pYstClPr
-    );
-
-    const calculatedClosingPriceChangePercent =
-      closingPrice !== null && previousClosingPrice !== null && previousClosingPrice !== 0
-        ? ((closingPrice - previousClosingPrice) / previousClosingPrice) * 100
-        : null;
-
-    const closingPriceChangePercent = pickFirstNumber(
-      md?.closingPriceChangePercent,
-      (md as any)?.closeChangePercent,
-      (md as any)?.pcp,
-      mm?.closingPriceChangePercent,
-      (mm as any)?.closeChangePercent,
-      (mm as any)?.pcp,
-      rawMarketData?.closingPriceChangePercent,
-      rawMarketData?.closeChangePercent,
-      rawMarketData?.pcp,
-      rawPayload?.closingPriceChangePercent,
-      rawPayload?.closeChangePercent,
-      rawPayload?.pcp,
-      raw?.closingPriceChangePercent,
-      raw?.closeChangePercent,
-      raw?.pcp,
-      calculatedClosingPriceChangePercent
-    );
-
-    const lastPriceChangePercent = pickFirstNumber('''
-
-              new_text, count = pattern.subn(replacement, text, count=1)
-              if count != 1:
-                  raise SystemExit('Expected closingPriceChangePercent block was not found')
-              path.write_text(new_text, encoding='utf-8')
-
-          # Remove the temporary workflow; this patch is intentionally one-time.
-          temporary_workflow = Path('.github/workflows/apply-closing-price-percent-fix.yml')
-          if temporary_workflow.exists():
-              temporary_workflow.unlink()
-
-          changed = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, check=True).stdout.strip()
-          if changed:
-              subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
-              subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
-              subprocess.run(['git', 'add', 'src/components/StockAnalysis.tsx', '.github/workflows/apply-closing-price-percent-fix.yml'], check=True)
-              subprocess.run(['git', 'commit', '-m', 'fix: separate closing and last price change percentages'], check=True)
-              subprocess.run(['git', 'push'], check=True)
+          python -c "from pathlib import Path; import re,base64; p=Path('src/components/StockAnalysis.tsx'); t=p.read_text(encoding='utf-8-sig'); pat=base64.b64decode('ICAgIGNvbnN0IGNsb3NpbmdQcmljZUNoYW5nZVBlcmNlbnQgPSBwaWNrRmlyc3ROdW1iZXJcKC4qP1xuICAgIFwpO1xuICAgIGNvbnN0IGxhc3RQcmljZUNoYW5nZVBlcmNlbnQgPSBwaWNrRmlyc3ROdW1iZXJcKA==').decode(); rep=base64.b64decode('ICAgIGNvbnN0IHByZXZpb3VzQ2xvc2luZ1ByaWNlID0gcGlja0ZpcnN0TnVtYmVyKAogICAgICBtZD8ucHJldmlvdXNDbG9zaW5nUHJpY2UsCiAgICAgIChtZCBhcyBhbnkpPy5wcmV2aW91c0Nsb3NlUHJpY2UsCiAgICAgIChtZCBhcyBhbnkpPy55ZXN0ZXJkYXlQcmljZSwKICAgICAgKG1kIGFzIGFueSk/LnByaWNlWWVzdGVyZGF5LAogICAgICAobWQgYXMgYW55KT8ucFlzdENsUHIsCiAgICAgIG1tPy5wcmV2aW91c0Nsb3NpbmdQcmljZSwKICAgICAgKG1tIGFzIGFueSk/LnByZXZpb3VzQ2xvc2VQcmljZSwKICAgICAgKG1tIGFzIGFueSk/Lnllc3RlcmRheVByaWNlLAogICAgICAobW0gYXMgYW55KT8ucHJpY2VZZXN0ZXJkYXksCiAgICAgIChtbSBhcyBhbnkpPy5wWXN0Q2xQciwKICAgICAgcmF3TWFya2V0RGF0YT8ucHJldmlvdXNDbG9zaW5nUHJpY2UsCiAgICAgIHJhd01hcmtldERhdGE/LnByZXZpb3VzQ2xvc2VQcmljZSwKICAgICAgcmF3TWFya2V0RGF0YT8ueWVzdGVyZGF5UHJpY2UsCiAgICAgIHJhd01hcmtldERhdGE/LnByaWNlWWVzdGVyZGF5LAogICAgICByYXdNYXJrZXREYXRhPy5wWXN0Q2xQciwKICAgICAgcmF3UGF5bG9hZD8ucHJldmlvdXNDbG9zaW5nUHJpY2UsCiAgICAgIHJhd1BheWxvYWQ/LnByZXZpb3VzQ2xvc2VQcmljZSwKICAgICAgcmF3UGF5bG9hZD8ueWVzdGVyZGF5UHJpY2UsCiAgICAgIHJhd1BheWxvYWQ/LnByaWNlWWVzdGVyZGF5LAogICAgICByYXdQYXlsb2FkPy5wWXN0Q2xQciwKICAgICAgcmF3Py5wcmV2aW91c0Nsb3NpbmdQcmljZSwKICAgICAgcmF3Py5wcmV2aW91c0Nsb3NlUHJpY2UsCiAgICAgIHJhdz8ueWVzdGVyZGF5UHJpY2UsCiAgICAgIHJhdz8ucHJpY2VZZXN0ZXJkYXksCiAgICAgIHJhdz8ucFlzdENsUHIKICAgICk7CgogICAgY29uc3QgY2FsY3VsYXRlZENsb3NpbmdQcmljZUNoYW5nZVBlcmNlbnQgPQogICAgICBjbG9zaW5nUHJpY2UgIT09IG51bGwgJiYgcHJldmlvdXNDbG9zaW5nUHJpY2UgIT09IG51bGwgJiYgcHJldmlvdXNDbG9zaW5nUHJpY2UgIT09IDAKICAgICAgICA/ICgoY2xvc2luZ1ByaWNlIC0gcHJldmlvdXNDbG9zaW5nUHJpY2UpIC8gcHJldmlvdXNDbG9zaW5nUHJpY2UpICogMTAwCiAgICAgICAgOiBudWxsOwoKICAgIGNvbnN0IGNsb3NpbmdQcmljZUNoYW5nZVBlcmNlbnQgPSBwaWNrRmlyc3ROdW1iZXIoCiAgICAgIG1kPy5jbG9zaW5nUHJpY2VDaGFuZ2VQZXJjZW50LAogICAgICAobWQgYXMgYW55KT8uY2xvc2VDaGFuZ2VQZXJjZW50LAogICAgICAobWQgYXMgYW55KT8ucGNwLAogICAgICBtbT8uY2xvc2luZ1ByaWNlQ2hhbmdlUGVyY2VudCwKICAgICAgKG1tIGFzIGFueSk/LmNsb3NlQ2hhbmdlUGVyY2VudCwKICAgICAgKG1tIGFzIGFueSk/LnBjcCwKICAgICAgcmF3TWFya2V0RGF0YT8uY2xvc2luZ1ByaWNlQ2hhbmdlUGVyY2VudCwKICAgICAgcmF3TWFya2V0RGF0YT8uY2xvc2VDaGFuZ2VQZXJjZW50LAogICAgICByYXdNYXJrZXREYXRhPy5wY3AsCiAgICAgIHJhd1BheWxvYWQ/LmNsb3NpbmdQcmljZUNoYW5nZVBlcmNlbnQsCiAgICAgIHJhd1BheWxvYWQ/LmNsb3NlQ2hhbmdlUGVyY2VudCwKICAgICAgcmF3UGF5bG9hZD8ucGNwLAogICAgICByYXc/LmNsb3NpbmdQcmljZUNoYW5nZVBlcmNlbnQsCiAgICAgIHJhdz8uY2xvc2VDaGFuZ2VQZXJjZW50LAogICAgICByYXc/LnBjcCwKICAgICAgY2FsY3VsYXRlZENsb3NpbmdQcmljZUNoYW5nZVBlcmNlbnQKICAgICk7CgogICAgY29uc3QgbGFzdFByaWNlQ2hhbmdlUGVyY2VudCA9IHBpY2tGaXJzdE51bWJlcig=').decode(); n,c=re.subn(pat,rep,t,count=1); assert c==1, 'closing price block not found'; p.write_text(n,encoding='utf-8')"
+          rm -f .github/workflows/apply-closing-price-percent-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/StockAnalysis.tsx .github/workflows/apply-closing-price-percent-fix.yml
+          if ! git diff --cached --quiet; then git commit -m "fix: separate closing and last price change percentages"; git push; fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
