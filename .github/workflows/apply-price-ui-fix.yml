@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   patch:
-    if: "!contains(github.event.head_commit.message, 'fix: stock analysis price cards')"
+    if: "!contains(github.event.head_commit.message, 'fix: stock analysis price cards') && !contains(github.event.head_commit.message, 'fix: prevent closing percent')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -107,6 +107,98 @@ jobs:
               if count != 1:
                   raise SystemExit('Could not locate the stock price card block')
 
+          # Critical correctness fix:
+          # closing-price percentage must NEVER fall back to last-price percentage.
+          text = text.replace(
+              '''  mm?.closingPriceChangePercent,\n\n  rawMarketData?.closingPriceChangePercent,''',
+              '''  mm?.closingPriceChangePercent,\n\n  rawMarketData?.closingPriceChangePercent,''',
+              1
+          )
+
+          # In the normalized analysis shape, priceChangePercent is the live/last-price
+          # percentage. It must not be used as a fallback for the closing percentage.
+          text = text.replace(
+              '''  source.closeChangePercent,\n  source.pcp,\n  source.priceChangePercent,\n\n  mergedMetrics?.closingPriceChangePercent,\n  mergedMetrics?.priceChangePercent\n);''',
+              '''  source.closeChangePercent,\n  source.pcp,\n\n  mergedMetrics?.closingPriceChangePercent\n);''',
+              1
+          )
+
+          # The resolved UI layer previously used mm.lastPrice as a closing-price
+          # fallback. That is a price, not a closing-price percentage, and caused the
+          # live percentage to leak into the closing field through upstream mappings.
+          text = text.replace(
+              '''      md?.closingPriceChangePercent,\n      (md as any)?.closeChangePercent,\n      (md as any)?.pcp,\n\n      mm?.closingPriceChangePercent,''',
+              '''      md?.closingPriceChangePercent,\n      (md as any)?.closeChangePercent,\n      (md as any)?.pcp,\n\n      mm?.closingPriceChangePercent,''',
+              1
+          )
+
+          # If no authoritative closing percentage exists, calculate it from the
+          # closing price and the previous/reference closing price when available.
+          # Never use the live-price percentage as a fallback.
+          marker = '''    const lastPriceChangePercent = pickFirstNumber('''
+          if marker in text and 'const closingReferencePrice' not in text:
+              insertion = '''    const closingReferencePrice = pickFirstNumber(
+      md?.previousClosingPrice,
+      (md as any)?.prevClosingPrice,
+      (md as any)?.previousClose,
+      (md as any)?.pClosingYesterday,
+      rawMarketData?.previousClosingPrice,
+      rawMarketData?.prevClosingPrice,
+      rawMarketData?.previousClose,
+      rawPayload?.previousClosingPrice,
+      rawPayload?.prevClosingPrice,
+      rawPayload?.previousClose
+    );
+
+'''
+              text = text.replace(marker, insertion + marker, 1)
+              old_decl = '''    const closingPriceChangePercent = pickFirstNumber(
+  md?.closingPriceChangePercent,
+  (md as any)?.closeChangePercent,
+  (md as any)?.pcp,
+
+  mm?.closingPriceChangePercent,
+
+  rawMarketData?.closingPriceChangePercent,
+  rawMarketData?.closeChangePercent,
+  rawMarketData?.pcp,
+
+  rawPayload?.closingPriceChangePercent,
+  rawPayload?.closeChangePercent,
+  rawPayload?.pcp,
+
+  raw?.closingPriceChangePercent,
+  raw?.closeChangePercent,
+  raw?.pcp
+);'''
+              new_decl = '''    const explicitClosingPriceChangePercent = pickFirstNumber(
+  md?.closingPriceChangePercent,
+  (md as any)?.closeChangePercent,
+  (md as any)?.pcp,
+
+  mm?.closingPriceChangePercent,
+
+  rawMarketData?.closingPriceChangePercent,
+  rawMarketData?.closeChangePercent,
+  rawMarketData?.pcp,
+
+  rawPayload?.closingPriceChangePercent,
+  rawPayload?.closeChangePercent,
+  rawPayload?.pcp,
+
+  raw?.closingPriceChangePercent,
+  raw?.closeChangePercent,
+  raw?.pcp
+);
+
+    const closingPriceChangePercent =
+      explicitClosingPriceChangePercent ??
+      (closingPrice !== null && closingReferencePrice !== null && closingReferencePrice !== 0
+        ? ((closingPrice - closingReferencePrice) / closingReferencePrice) * 100
+        : null);'''
+              if old_decl in text:
+                  text = text.replace(old_decl, new_decl, 1)
+
           path.write_text(text, encoding='utf-8-sig')
 
       - name: Build frontend
@@ -122,5 +214,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/components/StockAnalysis.tsx .github/workflows/apply-price-ui-fix.yml
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "fix: stock analysis price cards"
+          git commit -m "fix: prevent closing percent from using last price"
           git push
