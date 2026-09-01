@@ -1,0 +1,84 @@
+name: One-time fix market summary text
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fix buildEightPartSummary
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('backend/services/marketSummary.service.cjs')
+          s = p.read_text(encoding='utf-8-sig')
+          start = s.index('function buildEightPartSummary(data, aiText) {')
+          end = s.index('\nfunction extractAiText(', start)
+          new = r'''function calculateIndexChangePercent(indexValue, changeValue) {
+  const current = toNumber(indexValue);
+  const change = toNumber(changeValue);
+  if (current === null || change === null) return null;
+
+  const previousClose = current - change;
+  if (!Number.isFinite(previousClose) || previousClose === 0) return null;
+
+  const percent = (change / previousClose) * 100;
+  return Number.isFinite(percent) ? percent : null;
+}
+
+function formatIndexPercent(value) {
+  const n = toNumber(value);
+  if (n === null) return 'نامشخص';
+  const abs = new Intl.NumberFormat('fa-IR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(Math.abs(n));
+  return `${n >= 0 ? '+' : '-'}${abs}٪`;
+}
+
+function buildEightPartSummary(data, _aiText) {
+  // اعداد بخش شاخص‌ها باید همیشه از Snapshot واقعی همین روز ساخته شوند.
+  // متن AI ذخیره‌شده عمداً در اینجا استفاده نمی‌شود تا اعداد قدیمی/متعلق
+  // به Snapshot دیگری وارد خلاصه بازار نشوند.
+  const statusFa = data.marketStatus === 'open' ? 'باز' : data.marketStatus === 'close' ? 'بسته' : 'نامشخص';
+  const overallChange = toNumber(data.overallChange);
+  const equalChange = toNumber(data.equalChange);
+  const overallPercent = calculateIndexChangePercent(data.overallIndex, overallChange);
+  const equalPercent = calculateIndexChangePercent(data.equalIndex, equalChange);
+  const overallDirection = overallChange === null ? 'نامشخص' : overallChange > 0 ? 'مثبت' : overallChange < 0 ? 'منفی' : 'بدون تغییر';
+
+  return [
+    `۱) وضعیت کلی بازار: وضعیت بازار ${statusFa} گزارش شده و برآیند عمومی معاملات ${overallDirection} است.`,
+    `۲) شاخص‌ها: شاخص کل ${faNum(data.overallIndex)} واحد با تغییر ${formatIndexPercent(overallPercent)}؛ شاخص هم‌وزن ${faNum(data.equalIndex)} واحد با تغییر ${formatIndexPercent(equalPercent)}.`,
+    `۳) نقدشوندگی و معاملات: تعداد معاملات ${faNum(data.totalTrades)}، حجم معاملات ${faNum(data.totalVolume)} و ارزش معاملات ${faNum(data.totalValue)} بوده است.`,
+    `۴) پهنای بازار: نمادهای مثبت ${faNum(data.positiveStocks)}، منفی ${faNum(data.negativeStocks)} و خنثی ${faNum(data.neutralStocks)} هستند.`,
+    `۵) برترین‌های رشد: ${pickTopSymbols(data.topGainers)}.`,
+    `۶) برترین‌های افت: ${pickTopSymbols(data.topLosers)}.`,
+    `۷) برترین‌های معاملاتی: ${pickTopSymbols(data.topVolumes)}.`,
+    `۸) جمع‌بندی عملیاتی: با توجه به داده‌های ثبت‌شده همین روز، تصمیم‌گیری کوتاه‌مدت باید بر مبنای روند واقعی شاخص‌ها، پهنای بازار و نقدشوندگی انجام شود و مدیریت ریسک مرحله‌ای رعایت شود.`
+  ].join('\\n');
+}
+'''
+          p.write_text(s[:start] + new + s[end:], encoding='utf-8')
+          PY
+
+      - name: Commit corrected source
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/services/marketSummary.service.cjs
+          git commit -m "fix: use snapshot values in market summary text" || exit 0
+          git push origin HEAD:main
