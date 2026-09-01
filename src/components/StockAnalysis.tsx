@@ -40,7 +40,8 @@ type ActiveTab = 'analysis' | 'marketSummary' | 'history';
 type UnifiedMarketData = {
   closingPrice: number | null;
   lastTradedPrice: number | null;
-  priceChangePercent: number | null;
+  closingPriceChangePercent: number | null;
+  lastPriceChangePercent: number | null;
   pe: number | null;
   eps: number | null;
   marketCap: number | null;
@@ -661,7 +662,8 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     marketData: {
       closingPrice,
       lastTradedPrice,
-      priceChangePercent,
+      closingPriceChangePercent,
+      lastPriceChangePercent,
       pe,
       eps,
       marketCap,
@@ -1498,17 +1500,39 @@ const clearCurrentAnalysis = () => {
       raw?.pDrCotVal
     );
 
-    const priceChangePercent = pickFirstNumber(
-      md?.priceChangePercent,
-      (md as any)?.changePercent,
+    const closingPriceChangePercent = pickFirstNumber(
+      md?.closingPriceChangePercent,
+      (md as any)?.closeChangePercent,
+      (md as any)?.pcp,
+      mm?.closingPriceChangePercent,
+      rawMarketData?.closingPriceChangePercent,
+      rawMarketData?.closeChangePercent,
+      rawMarketData?.pcp,
+      rawPayload?.closingPriceChangePercent,
+      rawPayload?.closeChangePercent,
+      rawPayload?.pcp
+    );
+
+    const lastPriceChangePercent = pickFirstNumber(
+      md?.lastPriceChangePercent,
       (md as any)?.lastChangePercent,
+      (md as any)?.priceChangePercent,
+      (md as any)?.changePercent,
+      (md as any)?.plp,
       (md as any)?.chp,
+      mm?.lastPriceChangePercent,
       mm?.priceChangePercent,
+      rawMarketData?.lastPriceChangePercent,
       rawMarketData?.priceChangePercent,
-      rawMarketData?.changePercent,
+      rawMarketData?.lastChangePercent,
+      rawMarketData?.plp,
+      rawMarketData?.chp,
+      rawPayload?.lastPriceChangePercent,
       rawPayload?.priceChangePercent,
       rawPayload?.lastChangePercent,
-      rawPayload?.closeChangePercent,
+      rawPayload?.plp,
+      rawPayload?.chp,
+      raw?.lastPriceChangePercent,
       raw?.priceChangePercent
     );
 
@@ -1872,17 +1896,27 @@ const clearCurrentAnalysis = () => {
                 <div className="rounded-2xl border border-slate-200 p-4">
                   <SectionHeader
                     title="مشخصات معاملاتی سهم"
-                    subtitle="آخرین معامله، درصد تغییر، P/E، EPS، ارزش بازار و حجم معاملات"
+                    subtitle="قیمت پایانی و لحظه‌ای همراه با درصد تغییر، P/E، EPS، ارزش بازار و حجم معاملات"
                   />
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    <MetricCard label="قیمت پایانی" value={formatNumber(marketDataResolved.closingPrice)} tone="slate" />
-                    <MetricCard label="آخرین قیمت معامله" value={formatNumber(marketDataResolved.lastTradedPrice)} tone="blue" />
-                    <MetricCard
-                      label="درصد تغییر قیمت"
-                      value={formatPercent(marketDataResolved.priceChangePercent)}
-                      tone="amber"
-                      valueClassName={getPercentToneClass(marketDataResolved.priceChangePercent)}
-                    />
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="text-[11px] font-semibold leading-5 text-slate-500">قیمت پایانی</div>
+                      <div className="mt-1 text-[17px] font-extrabold leading-7 text-slate-900">
+                        {formatNumber(marketDataResolved.closingPrice)}
+                      </div>
+                      <div className={`mt-1 text-[12px] font-bold ${getPercentToneClass(marketDataResolved.closingPriceChangePercent)}`}>
+                        {formatPercent(marketDataResolved.closingPriceChangePercent)}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+                      <div className="text-[11px] font-semibold leading-5 text-slate-500">قیمت لحظه‌ای</div>
+                      <div className="mt-1 text-[17px] font-extrabold leading-7 text-blue-900">
+                        {formatNumber(marketDataResolved.lastTradedPrice)}
+                      </div>
+                      <div className={`mt-1 text-[12px] font-bold ${getPercentToneClass(marketDataResolved.lastPriceChangePercent)}`}>
+                        {formatPercent(marketDataResolved.lastPriceChangePercent)}
+                      </div>
+                    </div>
                     <MetricCard label="P/E" value={formatDecimal(marketDataResolved.pe, 2)} tone="indigo" />
                     <MetricCard label="EPS" value={formatNumber(marketDataResolved.eps)} tone="emerald" />
                     <MetricCard label="ارزش بازار" value={formatNumber(marketDataResolved.marketCap)} tone="violet" />
