@@ -9,12 +9,12 @@ permissions:
 
 jobs:
   patch:
-    if: "!contains(github.event.head_commit.message, 'fix: stock analysis price cards') && !contains(github.event.head_commit.message, 'fix: prevent closing percent')"
+    if: "!contains(github.event.head_commit.message, 'closing percent repair commit')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Patch StockAnalysis UI
+      - name: Patch closing and live percentages
         shell: python
         run: |
           from pathlib import Path
@@ -23,196 +23,43 @@ jobs:
           path = Path('src/components/StockAnalysis.tsx')
           text = path.read_text(encoding='utf-8-sig')
 
-          # Ensure the canonical fields exist.
-          if 'closingPriceChangePercent: number | null;' not in text:
-              text = text.replace(
-                  '  priceChangePercent: number | null;\n',
-                  '  closingPriceChangePercent: number | null;\n  lastPriceChangePercent: number | null;\n', 1
-              )
-
-          # Replace the resolved percentage block if the old single field is still present.
-          old_pattern = re.compile(r'''    const priceChangePercent = pickFirstNumber\(.*?    \);\n''', re.S)
-          if old_pattern.search(text):
-              new = '''    const closingPriceChangePercent = pickFirstNumber(
-      md?.closingPriceChangePercent,
-      (md as any)?.closeChangePercent,
-      (md as any)?.pcp,
-      mm?.closingPriceChangePercent,
-      rawMarketData?.closingPriceChangePercent,
-      rawMarketData?.closeChangePercent,
-      rawMarketData?.pcp,
-      rawPayload?.closingPriceChangePercent,
-      rawPayload?.closeChangePercent,
-      rawPayload?.pcp
-    );
-
-    const lastPriceChangePercent = pickFirstNumber(
-      md?.lastPriceChangePercent,
-      (md as any)?.lastChangePercent,
-      (md as any)?.priceChangePercent,
-      (md as any)?.changePercent,
-      (md as any)?.plp,
-      (md as any)?.chp,
-      mm?.lastPriceChangePercent,
-      mm?.priceChangePercent,
-      rawMarketData?.lastPriceChangePercent,
-      rawMarketData?.priceChangePercent,
-      rawMarketData?.lastChangePercent,
-      rawMarketData?.plp,
-      rawMarketData?.chp,
-      rawPayload?.lastPriceChangePercent,
-      rawPayload?.priceChangePercent,
-      rawPayload?.lastChangePercent,
-      rawPayload?.plp,
-      rawPayload?.chp,
-      raw?.lastPriceChangePercent,
-      raw?.priceChangePercent
-    );
-'''
-              text = old_pattern.sub(new, text, count=1)
-
-          text = text.replace('      priceChangePercent,\n      pe,\n', '      closingPriceChangePercent,\n      lastPriceChangePercent,\n      pe,\n', 1)
-
-          # Replace the three-card block: remove the standalone percentage card and
-          # put the appropriate percentage directly below each price.
-          card_pattern = re.compile(
-              r'''(?P<indent>\s*)<SectionHeader\s*\n\s*title="مشخصات معاملاتی سهم".*?\n\s*<MetricCard label="قیمت پایانی" value=\{formatNumber\(marketDataResolved\.closingPrice\)\} tone="slate" />\s*\n\s*<MetricCard label="آخرین قیمت معامله" value=\{formatNumber\(marketDataResolved\.lastTradedPrice\)\} tone="blue" />\s*\n\s*<MetricCard\s*\n\s*label="درصد تغییر قیمت".*?\n\s*/>''', re.S)
-
-          replacement = '''                  <SectionHeader
-                    title="مشخصات معاملاتی سهم"
-                    subtitle="قیمت پایانی و لحظه‌ای همراه با درصد تغییر، P/E، EPS، ارزش بازار و حجم معاملات"
-                  />
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                      <div className="text-[11px] font-semibold leading-5 text-slate-500">قیمت پایانی</div>
-                      <div className="mt-1 text-[17px] font-extrabold leading-7 text-slate-900">
-                        {formatNumber(marketDataResolved.closingPrice)}
-                      </div>
-                      <div className={`mt-1 text-[12px] font-bold ${getPercentToneClass(marketDataResolved.closingPriceChangePercent)}`}>
-                        {formatPercent(marketDataResolved.closingPriceChangePercent)}
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
-                      <div className="text-[11px] font-semibold leading-5 text-slate-500">قیمت لحظه‌ای</div>
-                      <div className="mt-1 text-[17px] font-extrabold leading-7 text-blue-900">
-                        {formatNumber(marketDataResolved.lastTradedPrice)}
-                      </div>
-                      <div className={`mt-1 text-[12px] font-bold ${getPercentToneClass(marketDataResolved.lastPriceChangePercent)}`}>
-                        {formatPercent(marketDataResolved.lastPriceChangePercent)}
-                      </div>
-                    </div>'''
-
-          if 'label="درصد تغییر قیمت"' in text:
-              text, count = card_pattern.subn(replacement, text, count=1)
-              if count != 1:
-                  raise SystemExit('Could not locate the stock price card block')
-
-          # Critical correctness fix:
-          # closing-price percentage must NEVER fall back to last-price percentage.
-          text = text.replace(
-              '''  mm?.closingPriceChangePercent,\n\n  rawMarketData?.closingPriceChangePercent,''',
-              '''  mm?.closingPriceChangePercent,\n\n  rawMarketData?.closingPriceChangePercent,''',
-              1
+          pattern = re.compile(
+              r'(const closingPriceChangePercent = pickFirstNumber\()(.*?)(\n\s*\);\n\n\s*const lastPriceChangePercent = pickFirstNumber\()(.*?)(\n\s*\);)',
+              re.S,
           )
+          m = pattern.search(text)
+          if not m:
+              raise SystemExit('percentage blocks not found')
 
-          # In the normalized analysis shape, priceChangePercent is the live/last-price
-          # percentage. It must not be used as a fallback for the closing percentage.
-          text = text.replace(
-              '''  source.closeChangePercent,\n  source.pcp,\n  source.priceChangePercent,\n\n  mergedMetrics?.closingPriceChangePercent,\n  mergedMetrics?.priceChangePercent\n);''',
-              '''  source.closeChangePercent,\n  source.pcp,\n\n  mergedMetrics?.closingPriceChangePercent\n);''',
-              1
+          closing_block = m.group(2)
+          closing_block = re.sub(r'\n\s*(?:marketData|lastHistoryRecord|source)\.priceChangePercent,?', '', closing_block)
+          closing_block = re.sub(r'\n\s*mergedMetrics\?\.priceChangePercent,?', '', closing_block)
+          closing_block = re.sub(r'\n\s*\(mergedMetrics as any\)\?\.priceChangePercent,?', '', closing_block)
+          if '(mergedMetrics as any)?.closeChangePercent' not in closing_block:
+              closing_block = closing_block.rstrip() + '\n    (mergedMetrics as any)?.closeChangePercent,\n'
+
+          live_block = m.group(4)
+          if '(mergedMetrics as any)?.priceChangePercent' not in live_block:
+              live_block = live_block.rstrip() + '\n    (mergedMetrics as any)?.priceChangePercent,\n'
+
+          text = (
+              text[:m.start(2)] + closing_block + text[m.end(2):m.start(4)]
+              + live_block + text[m.end(4):]
           )
-
-          # The resolved UI layer previously used mm.lastPrice as a closing-price
-          # fallback. That is a price, not a closing-price percentage, and caused the
-          # live percentage to leak into the closing field through upstream mappings.
-          text = text.replace(
-              '''      md?.closingPriceChangePercent,\n      (md as any)?.closeChangePercent,\n      (md as any)?.pcp,\n\n      mm?.closingPriceChangePercent,''',
-              '''      md?.closingPriceChangePercent,\n      (md as any)?.closeChangePercent,\n      (md as any)?.pcp,\n\n      mm?.closingPriceChangePercent,''',
-              1
-          )
-
-          # If no authoritative closing percentage exists, calculate it from the
-          # closing price and the previous/reference closing price when available.
-          # Never use the live-price percentage as a fallback.
-          marker = '''    const lastPriceChangePercent = pickFirstNumber('''
-          if marker in text and 'const closingReferencePrice' not in text:
-              insertion = '''    const closingReferencePrice = pickFirstNumber(
-      md?.previousClosingPrice,
-      (md as any)?.prevClosingPrice,
-      (md as any)?.previousClose,
-      (md as any)?.pClosingYesterday,
-      rawMarketData?.previousClosingPrice,
-      rawMarketData?.prevClosingPrice,
-      rawMarketData?.previousClose,
-      rawPayload?.previousClosingPrice,
-      rawPayload?.prevClosingPrice,
-      rawPayload?.previousClose
-    );
-
-'''
-              text = text.replace(marker, insertion + marker, 1)
-              old_decl = '''    const closingPriceChangePercent = pickFirstNumber(
-  md?.closingPriceChangePercent,
-  (md as any)?.closeChangePercent,
-  (md as any)?.pcp,
-
-  mm?.closingPriceChangePercent,
-
-  rawMarketData?.closingPriceChangePercent,
-  rawMarketData?.closeChangePercent,
-  rawMarketData?.pcp,
-
-  rawPayload?.closingPriceChangePercent,
-  rawPayload?.closeChangePercent,
-  rawPayload?.pcp,
-
-  raw?.closingPriceChangePercent,
-  raw?.closeChangePercent,
-  raw?.pcp
-);'''
-              new_decl = '''    const explicitClosingPriceChangePercent = pickFirstNumber(
-  md?.closingPriceChangePercent,
-  (md as any)?.closeChangePercent,
-  (md as any)?.pcp,
-
-  mm?.closingPriceChangePercent,
-
-  rawMarketData?.closingPriceChangePercent,
-  rawMarketData?.closeChangePercent,
-  rawMarketData?.pcp,
-
-  rawPayload?.closingPriceChangePercent,
-  rawPayload?.closeChangePercent,
-  rawPayload?.pcp,
-
-  raw?.closingPriceChangePercent,
-  raw?.closeChangePercent,
-  raw?.pcp
-);
-
-    const closingPriceChangePercent =
-      explicitClosingPriceChangePercent ??
-      (closingPrice !== null && closingReferencePrice !== null && closingReferencePrice !== 0
-        ? ((closingPrice - closingReferencePrice) / closingReferencePrice) * 100
-        : null);'''
-              if old_decl in text:
-                  text = text.replace(old_decl, new_decl, 1)
-
           path.write_text(text, encoding='utf-8-sig')
+          print('Mapped closeChangePercent -> closing UI and priceChangePercent -> live UI.')
 
       - name: Build frontend
         run: |
           npm ci
           npm run build
 
-      - name: Commit and remove temporary workflow
+      - name: Commit repaired source
         shell: bash
         run: |
-          rm -f .github/workflows/apply-price-ui-fix.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/components/StockAnalysis.tsx .github/workflows/apply-price-ui-fix.yml
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m "fix: prevent closing percent from using last price"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/StockAnalysis.tsx
+          git diff --cached --quiet && { echo 'No source change'; exit 0; }
+          git commit -m 'fix: closing percent repair commit'
           git push
