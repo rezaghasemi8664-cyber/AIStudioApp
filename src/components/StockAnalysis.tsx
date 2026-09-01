@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChartBarIcon, ClockIcon, MarketIcon, TrashIcon } from './Icons';
 import api from '../api/apiClient';
-import { getLatestSummary, getSummaryHistory, getMarketSummaryByDate } from '../services/marketSummaryService';
+import { getLatestSummary, getSummaryHistory } from '../services/marketSummaryService';
 import { exportElementToPdf } from '../utils/exportToPdf';
 import toast from 'react-hot-toast';
 import * as analysisHistoryService from '../services/analysisHistoryService';
@@ -1162,13 +1162,8 @@ const fetchMarketSummaryHistory = async () => {
   return items;
 };
 
-const fetchMarketSummary = async (id?: number) => {
+const fetchMarketSummary = async () => {
   try {
-    if (id !== undefined) {
-      const selected = await getMarketSummaryByDate(String(id));
-      return selected ? toMarketSummaryView(selected) : null;
-    }
-
     const response = await getLatestSummary();
     return toMarketSummaryView(response);
   } catch (error) {
@@ -1378,30 +1373,7 @@ const clearCurrentAnalysis = () => {
     };
   }, [activeTab]);
 
-  useEffect(() => {
-    if (activeTab !== 'marketSummary' || selectedMarketSummaryId === null) return;
 
-    let isMounted = true;
-
-    const loadSelectedSummary = async () => {
-      setIsLoadingMarketSummary(true);
-      try {
-        const selected = await fetchMarketSummary(selectedMarketSummaryId);
-        if (!isMounted) return;
-        if (selected) setMarketSummary(selected);
-      } catch (error) {
-        console.error('[MarketSummary] failed to load selected summary:', error);
-      } finally {
-        if (isMounted) setIsLoadingMarketSummary(false);
-      }
-    };
-
-    void loadSelectedSummary();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [activeTab, selectedMarketSummaryId]);
 
   const removeHistoryItem = async (id: string) => {
   if (!window.confirm('این تحلیل حذف شود؟')) {
