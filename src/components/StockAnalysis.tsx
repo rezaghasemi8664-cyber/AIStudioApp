@@ -1614,7 +1614,8 @@ const clearCurrentAnalysis = () => {
       console.log('marketDataResolved.base', {
         closingPrice,
         lastTradedPrice,
-        priceChangePercent,
+        closingPriceChangePercent,
+        lastPriceChangePercent,
         pe,
         eps,
         marketCap,
