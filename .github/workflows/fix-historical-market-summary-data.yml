@@ -1,0 +1,112 @@
+name: Fix historical market summary data
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-historical-market-summary-data.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch controller
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('backend/controllers/marketSummary.controller.cjs')
+          text = path.read_text(encoding='utf-8-sig')
+          original = text
+
+          text = text.replace(
+              'async function enrich(item) {\n',
+              'async function enrich(item, options = {}) {\n  const useLiveMarketData = options.useLiveMarketData === true;\n',
+              1,
+          )
+
+          text = text.replace(
+              '    const liveIndexes = await getLiveIndexes();\n    intelligence = applyLiveIndexes(intelligence, liveIndexes);\n',
+              '    const liveIndexes = useLiveMarketData ? await getLiveIndexes() : null;\n    if (useLiveMarketData) {\n      intelligence = applyLiveIndexes(intelligence, liveIndexes);\n    }\n',
+              1,
+          )
+
+          text = text.replace(
+              '      if (breadth?.available) {\n',
+              '      if (useLiveMarketData && breadth?.available) {\n',
+              1,
+          )
+
+          text = text.replace(
+              '      } else {\n        intelligence.breadth = { ...(intelligence.breadth || {}), available: false, reason: breadth?.reason || \'BREADTH_UNAVAILABLE\' };\n',
+              '      } else if (useLiveMarketData) {\n        intelligence.breadth = { ...(intelligence.breadth || {}), available: false, reason: breadth?.reason || \'BREADTH_UNAVAILABLE\' };\n',
+              1,
+          )
+
+          text = text.replace(
+              '    } catch (breadthError) {\n      console.error(\'[MarketSummaryController][Breadth]\', breadthError);\n      intelligence.breadth = { ...(intelligence.breadth || {}), available: false, reason: \'BREADTH_ERROR\' };\n    }\n',
+              '    } catch (breadthError) {\n      console.error(\'[MarketSummaryController][Breadth]\', breadthError);\n      if (useLiveMarketData) {\n        intelligence.breadth = { ...(intelligence.breadth || {}), available: false, reason: \'BREADTH_ERROR\' };\n      }\n    }\n',
+              1,
+          )
+
+          text = text.replace(
+              '    const dataPatch = liveIndexes ? {\n',
+              '    const dataPatch = useLiveMarketData && liveIndexes ? {\n',
+              1,
+          )
+
+          text = text.replace(
+              'async function enrichMany(items) { return Promise.all((items||[]).map(enrich)); }\n',
+              'async function enrichMany(items, options = {}) { return Promise.all((items||[]).map((item) => enrich(item, options))); }\n',
+              1,
+          )
+
+          text = text.replace(
+              'const result=await marketSummaryService.findHistory({page,limit});return sendResponse(res,200,{success:true,data:result.data||[],pagination:result.pagination});',
+              'const result=await marketSummaryService.findHistory({page,limit});const data=await enrichMany(result.data||[],{useLiveMarketData:false});return sendResponse(res,200,{success:true,data,pagination:result.pagination});',
+              1,
+          )
+
+          text = text.replace(
+              'return sendResponse(res,200,{success:true,data:await enrich(item),meta:{date:dateInput,sourceType:\'by_date\'}});',
+              'return sendResponse(res,200,{success:true,data:await enrich(item,{useLiveMarketData:false}),meta:{date:dateInput,sourceType:\'by_date\'}});',
+              1,
+          )
+
+          if text == original:
+              raise SystemExit('No changes were made; controller pattern mismatch.')
+
+          required = [
+              'async function enrich(item, options = {})',
+              'const useLiveMarketData = options.useLiveMarketData === true;',
+              'const liveIndexes = useLiveMarketData ? await getLiveIndexes() : null;',
+              'async function enrichMany(items, options = {})',
+              'useLiveMarketData:false',
+          ]
+          missing = [x for x in required if x not in text]
+          if missing:
+              raise SystemExit('Patch validation failed: ' + ', '.join(missing))
+
+          path.write_text(text, encoding='utf-8')
+          print('Historical market-summary controller patch applied successfully.')
+
+      - name: Validate JavaScript syntax
+        shell: bash
+        run: node --check backend/controllers/marketSummary.controller.cjs
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/controllers/marketSummary.controller.cjs
+          git diff --cached --quiet && { echo 'No changes to commit.'; exit 0; }
+          git commit -m 'fix: use historical snapshot data for market summary history'
+          git push origin HEAD:main
