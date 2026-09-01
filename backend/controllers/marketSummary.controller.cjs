@@ -55,11 +55,19 @@ async function enrich(item) {
       const breadth = await marketBreadthService.getMarketBreadth();
       if (breadth?.available) {
         intelligence.breadth = { ...intelligence.breadth, ...breadth };
+        intelligence.leaders = {
+          ...(intelligence.leaders || {}),
+          gainers: (breadth.topGainers?.length ? breadth.topGainers : intelligence.leaders?.gainers || []).slice(0, 5),
+          losers: (breadth.topLosers?.length ? breadth.topLosers : intelligence.leaders?.losers || []).slice(0, 5),
+          volumes: (breadth.topVolumes?.length ? breadth.topVolumes : intelligence.leaders?.volumes || []).slice(0, 5)
+        };
         intelligence.dataQuality = {
           ...(intelligence.dataQuality || {}),
           breadthAvailable: true,
           breadthClassifiedSymbols: breadth.classifiedTotal,
-          breadthTotalSymbols: breadth.total
+          breadthTotalSymbols: breadth.total,
+          breadthUnknownSymbols: breadth.unknown,
+          breadthCoveragePercent: breadth.coveragePercent
         };
       } else {
         intelligence.breadth = { ...(intelligence.breadth || {}), available: false, reason: breadth?.reason || 'BREADTH_UNAVAILABLE' };
