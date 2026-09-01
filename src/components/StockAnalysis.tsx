@@ -624,7 +624,7 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     source.closingPriceChangePercent,
     source.closeChangePercent,
     source.pcp,
-    mergedMetrics?.closingPriceChangePercent
+    mergedMetrics?.closingPriceChangePercent,
     (mergedMetrics as any)?.closeChangePercent,
 
   );
@@ -2264,4 +2264,5 @@ const clearCurrentAnalysis = () => {
     </div>
   );
 }
+
 
