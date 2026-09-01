@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChartBarIcon, ClockIcon, MarketIcon, TrashIcon } from './Icons';
 import api from '../api/apiClient';
 import { getLatestSummary } from '../services/marketSummaryService';
@@ -614,10 +614,18 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     mergedMetrics?.lastPrice, source.lastTradedPrice, source.lastPrice, source.finalPrice, source.closePrice, source.pDrCotVal
   );
 
-  const priceChangePercent = pickFirstNumber(
-    marketData.priceChangePercent, marketData.changePercent, marketData.priceChange, marketData.change, marketData.chp,
-    lastHistoryRecord.priceChangePercent, lastHistoryRecord.changePercent,
-    mergedMetrics?.priceChangePercent, source.priceChangePercent, source.changePercent
+  const closingPriceChangePercent = pickFirstNumber(
+    marketData.closingPriceChangePercent, marketData.closeChangePercent, marketData.pcp,
+    lastHistoryRecord.closingPriceChangePercent, lastHistoryRecord.closeChangePercent, lastHistoryRecord.pcp,
+    source.closingPriceChangePercent, source.closeChangePercent, source.pcp,
+    mergedMetrics?.closingPriceChangePercent
+  );
+
+  const lastPriceChangePercent = pickFirstNumber(
+    marketData.lastPriceChangePercent, marketData.lastChangePercent, marketData.plp,
+    lastHistoryRecord.lastPriceChangePercent, lastHistoryRecord.lastChangePercent, lastHistoryRecord.plp,
+    source.lastPriceChangePercent, source.lastChangePercent, source.plp,
+    mergedMetrics?.lastPriceChangePercent
   );
 
   const pe = pickFirstNumber(marketData.pe, lastHistoryRecord.pe, mergedMetrics?.pe, source.pe);
