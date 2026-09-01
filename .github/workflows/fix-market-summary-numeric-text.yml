@@ -18,10 +18,10 @@ jobs:
           fetch-depth: 0
 
       - name: Replace numeric summary formatter
-        shell: python
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
-          import re
 
           path = Path('backend/services/marketSummary.service.cjs')
           text = path.read_text(encoding='utf-8-sig')
@@ -97,6 +97,7 @@ function buildEightPartSummary(data, _aiText) {
           text = text[:start] + replacement + text[end:]
           path.write_text(text, encoding='utf-8')
           print('Updated market summary numeric formatter.')
+          PY
 
       - name: Commit fix
         shell: bash
