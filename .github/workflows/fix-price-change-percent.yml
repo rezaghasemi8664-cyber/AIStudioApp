@@ -1,7 +1,11 @@
 name: Fix stock analysis price change
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-price-change-percent.yml'
+      - 'src/components/StockAnalysis.tsx'
 
 permissions:
   contents: write
@@ -11,41 +15,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
         with:
-          node-version: 22
-      - name: Fix undefined priceChangePercent and price metrics
+          ref: main
+          fetch-depth: 0
+      - name: Fix undefined priceChangePercent
         shell: python
         run: |
           from pathlib import Path
-          import re, subprocess
-          p=Path('src/components/StockAnalysis.tsx')
-          s=p.read_text(encoding='utf-8-sig')
-          old=s
-          # Normalize the legacy local variable to the new explicit last-price metric.
-          s=s.replace("  const priceChangePercent = pickFirstNumber(\n    marketData.priceChangePercent, marketData.changePercent, marketData.priceChange, marketData.change, marketData.chp,\n    lastHistoryRecord.priceChangePercent, lastHistoryRecord.changePercent,\n    mergedMetrics?.priceChangePercent, source.priceChangePercent, source.changePercent\n  );", "  const lastPriceChangePercent = pickFirstNumber(\n    marketData.lastPriceChangePercent, marketData.priceChangePercent, marketData.changePercent,\n    lastHistoryRecord.lastPriceChangePercent, lastHistoryRecord.priceChangePercent, lastHistoryRecord.changePercent,\n    mergedMetrics?.priceChangePercent, source.lastPriceChangePercent, source.priceChangePercent, source.changePercent\n  );\n\n  const closingPriceChangePercent = pickFirstNumber(\n    marketData.closingPriceChangePercent, marketData.closeChangePercent, marketData.pcp,\n    lastHistoryRecord.closingPriceChangePercent, lastHistoryRecord.closeChangePercent, lastHistoryRecord.pcp,\n    source.closingPriceChangePercent, source.closeChangePercent, source.pcp\n  );")
-          # Fix the normalized marketData object if the previous workflow left the old field there.
-          s=s.replace("      priceChangePercent,\n      pe,", "      closingPriceChangePercent,\n      lastPriceChangePercent,\n      pe,")
-          # Never use a monetary price delta as a percentage fallback.
-          s=s.replace("marketData.priceChange, marketData.change, marketData.chp", "marketData.changePercent")
-          s=s.replace("lastHistoryRecord.priceChange, lastHistoryRecord.change, lastHistoryRecord.chp", "lastHistoryRecord.changePercent")
-          s=s.replace("source.priceChange, source.change, source.chp", "source.changePercent")
-          # Remove stale references that cause ReferenceError while retaining type-level names elsewhere.
-          s=s.replace("priceChangePercent={priceChangePercent}", "priceChangePercent={lastPriceChangePercent}")
-          s=s.replace("{formatPercent(priceChangePercent)}", "{formatPercent(lastPriceChangePercent)}")
-          # If a direct object property still references the removed local variable, use explicit last-price percent.
-          s=re.sub(r'(?<![A-Za-z0-9_])priceChangePercent(?![A-Za-z0-9_])', 'lastPriceChangePercent', s)
-          # Restore type/property identifiers where they are required by the shared analysis type.
-          s=s.replace('priceChangePercent?: number | null;', 'priceChangePercent?: number | null;')
-          p.write_text(s,encoding='utf-8')
-          subprocess.run(['npx','tsc','--noEmit'],check=False)
-          if s != old:
-            subprocess.run(['git','config','user.name','github-actions[bot]'],check=True)
-            subprocess.run(['git','config','user.email','41898282+github-actions[bot]@users.noreply.github.com'],check=True)
-            subprocess.run(['git','add','src/components/StockAnalysis.tsx'],check=True)
-            subprocess.run(['git','commit','-m','fix: remove undefined priceChangePercent'],check=True)
-            subprocess.run(['git','push'],check=True)
-          Path('.github/workflows/fix-price-change-percent.yml').unlink()
-          subprocess.run(['git','add','.github/workflows/fix-price-change-percent.yml'],check=True)
-          subprocess.run(['git','commit','-m','chore: remove temporary price fix workflow'],check=True)
-          subprocess.run(['git','push'],check=True)
+          p = Path('src/components/StockAnalysis.tsx')
+          s = p.read_text(encoding='utf-8-sig')
+          old = "        priceChangePercent,\n        pe,"
+          new = "        closingPriceChangePercent,\n        lastPriceChangePercent,\n        pe,"
+          if old in s:
+              s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8-sig')
+          if old in s:
+              raise SystemExit('unexpected replacement state')
+      - name: Commit source fix
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git diff --quiet; then
+            echo 'No source change required'
+          else
+            git add src/components/StockAnalysis.tsx
+            git commit -m 'fix: remove undefined priceChangePercent reference'
+            git push origin main
+          fi
+      - name: Remove temporary workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/fix-price-change-percent.yml
+          git add .github/workflows/fix-price-change-percent.yml
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'chore: remove temporary price fix workflow'
+          git push origin main
