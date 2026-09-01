@@ -15,7 +15,6 @@ const VALUE_KEYS = ['qTotCap','tval','totalValue','tradeValue'];
 const BUY_I_VOL_KEYS = ['buy_I_Volume','buyIVolume','realBuyVolume','individualBuyVolume'];
 const SELL_I_VOL_KEYS = ['sell_I_Volume','sellIVolume','realSellVolume','individualSellVolume'];
 const SECTOR_KEYS = ['sector','industry','group','sectorName','industryName','groupName'];
-const SECTOR_KEYS = ['sector','industry','group','sectorName','industryName','groupName'];
 const SYMBOL_KEYS = ['symbol','l18','l30','namad','name','insCode','inscode','ticker'];
 const ARRAY_KEYS = ['symbols','data','items','result','results','rows','list','records'];
 
