@@ -3,6 +3,8 @@
 const marketSummaryService = require('../services/marketSummary.service.cjs');
 const marketIntelligenceService = require('../services/marketIntelligence.service.cjs');
 const marketBreadthService = require('../services/marketBreadth.service.cjs');
+let brsService = null;
+try { brsService = require('../services/brs.service.cjs'); } catch (e) { console.warn('[MarketSummaryController][BRS]', e.message); }
 
 function sanitizeBigIntDeep(input) {
   if (input === null || input === undefined) return input;
@@ -42,15 +44,68 @@ function intelligenceText(i) {
     `۱۱) سناریوهای پیش‌رو: ${scenarioText}`,
     `۱۲) نتیجه عملیاتی: سوگیری ${action.bias||'نامشخص'} و ریسک ${action.risk||'نامشخص'}؛ مناسب برای ${action.suitableFor||'تصمیم‌گیری پس از تأیید داده‌ها'}.`,
     `۱۳) شروط تأیید/ابطال: ${confirmation}.`,
-    `۱۴) کیفیت داده و محدودیت تحلیل: کیفیت داده ${quality.level==='high'?'بالا':quality.level==='medium'?'متوسط':'پایین'} است؛ ${fa(quality.availableFields)} مورد از ${fa(quality.expectedFields)} مؤلفه اصلی در دسترس بوده و پوشش نمادها ${quality.symbolsCoverage||'نامشخص'} است. این گزارش فقط بر داده‌های موجود تکیه دارد و در صورت نبود داده، عدد یا نتیجه‌ای حدس زده نشده است.`
+    `۱۴) کیفیت داده و محدودیت تحلیل: کیفیت داده ${quality.level==='high'?'بالا':quality.level==='medium'?'متوسط':'پایین'} است؛ ${fa(quality.availableFields)} مورد از ${fa(quality.expectedFields)} مؤلفه اصلی در دسترس بوده و پوشش نمادها ${quality.symbolsCoverage==null?'نامشخص':`${quality.symbolsCoverage}%`} است. این گزارش فقط بر داده‌های موجود تکیه دارد و در صورت نبود داده، عدد یا نتیجه‌ای حدس زده نشده است.`
   ].join('\n\n');
+}
+
+function finiteOrNull(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function extractLiveIndexPayload(result) {
+  if (!result) return null;
+  const candidate = result.data && typeof result.data === 'object' ? result.data : result;
+  if (!candidate || typeof candidate !== 'object') return null;
+  const raw = candidate.data && typeof candidate.data === 'object' ? candidate.data : candidate;
+  const overall = finiteOrNull(raw.index ?? raw.value ?? raw.marketIndex);
+  const overallChange = finiteOrNull(raw.indexChange ?? raw.index_change ?? raw.changeValue ?? raw.change);
+  const equal = finiteOrNull(raw.indexEqualWeight ?? raw.index_equalWeight ?? raw.equalWeightedValue ?? raw.equalIndex);
+  const equalChange = finiteOrNull(raw.indexEqualWeightChange ?? raw.index_equalWeight_change ?? raw.equalWeightedChangeValue ?? raw.equalChange);
+  if (overall === null && equal === null) return null;
+  const pct = overall !== null && overallChange !== null && overall - overallChange !== 0 ? (overallChange / (overall - overallChange)) * 100 : null;
+  const equalPct = equal !== null && equalChange !== null && equal - equalChange !== 0 ? (equalChange / (equal - equalChange)) * 100 : null;
+  return { overall, overallChange, equal, equalChange, pct, equalPct, source: 'brs-live' };
+}
+
+async function getLiveIndexes() {
+  if (!brsService || typeof brsService.getMarketIndex !== 'function') return null;
+  try { return extractLiveIndexPayload(await brsService.getMarketIndex()); }
+  catch (error) { console.warn('[MarketSummaryController][LiveIndex]', error.message); return null; }
+}
+
+function applyLiveIndexes(intelligence, live) {
+  if (!live) return intelligence;
+  const indexes = intelligence.indexes || {};
+  return {
+    ...intelligence,
+    indexes: {
+      ...indexes,
+      overall: {
+        ...(indexes.overall || {}),
+        value: live.overall,
+        change: live.overallChange,
+        changePercent: live.pct
+      },
+      equalWeight: {
+        ...(indexes.equalWeight || {}),
+        value: live.equal,
+        change: live.equalChange,
+        changePercent: live.equalPct
+      },
+      source: live.source
+    },
+    liveMarketIndex: live
+  };
 }
 
 async function enrich(item) {
   if (!item?.id) return item;
   try {
-    const intelligence=await marketIntelligenceService.buildMarketIntelligence(item.id,{historyLimit:20});
+    let intelligence=await marketIntelligenceService.buildMarketIntelligence(item.id,{historyLimit:20});
     if (!intelligence) return item;
+    const liveIndexes = await getLiveIndexes();
+    intelligence = applyLiveIndexes(intelligence, liveIndexes);
     try {
       const breadth = await marketBreadthService.getMarketBreadth();
       if (breadth?.available) {
@@ -69,21 +124,10 @@ async function enrich(item) {
           breadthUnknownSymbols: breadth.unknown,
           breadthCoveragePercent: breadth.coveragePercent
         };
-        if (breadth.sectors?.available) {
-          intelligence.sectors = breadth.sectors;
-        }
+        if (breadth.sectors?.available) intelligence.sectors = breadth.sectors;
         if (breadth.moneyFlow?.available) {
-          intelligence.moneyFlow = {
-            ...(intelligence.moneyFlow || {}),
-            ...breadth.moneyFlow,
-            net: breadth.moneyFlow.netValue,
-            available: true,
-            interpretation: breadth.moneyFlow.netValue > 0
-              ? 'ورود خالص پول حقیقی مشاهده شده است.'
-              : breadth.moneyFlow.netValue < 0
-                ? 'خروج خالص پول حقیقی مشاهده شده است.'
-                : 'جریان خالص پول حقیقی متعادل است.'
-          };
+          intelligence.moneyFlow = { ...(intelligence.moneyFlow || {}), ...breadth.moneyFlow, net: breadth.moneyFlow.netValue, available: true,
+            interpretation: breadth.moneyFlow.netValue > 0 ? 'ورود خالص پول حقیقی مشاهده شده است.' : breadth.moneyFlow.netValue < 0 ? 'خروج خالص پول حقیقی مشاهده شده است.' : 'جریان خالص پول حقیقی متعادل است.' };
         }
       } else {
         intelligence.breadth = { ...(intelligence.breadth || {}), available: false, reason: breadth?.reason || 'BREADTH_UNAVAILABLE' };
@@ -94,13 +138,19 @@ async function enrich(item) {
       intelligence.breadth = { ...(intelligence.breadth || {}), available: false, reason: 'BREADTH_ERROR' };
     }
     const text=intelligenceText(intelligence);
-    return {...item,content:text,summary:text,marketIntelligence:intelligence};
+    const dataPatch = liveIndexes ? {
+      overallIndex: liveIndexes.overall,
+      overallChange: liveIndexes.overallChange,
+      equalIndex: liveIndexes.equal,
+      equalChange: liveIndexes.equalChange,
+      liveMarketIndex: liveIndexes
+    } : {};
+    return {...item,...dataPatch,content:text,summary:text,marketIntelligence:intelligence};
   } catch(error) { console.error('[MarketSummaryController][Intelligence]',error); return item; }
 }
 async function enrichMany(items) { return Promise.all((items||[]).map(enrich)); }
 
 exports.getLatestMarketSummary=async(req,res)=>{try{const result=await marketSummaryService.findOrGenerateLatest();if(!result?.data){const nowIso=new Date().toISOString();return sendResponse(res,200,{success:true,data:{id:0,date:nowIso,createdAt:nowIso,summaryDate:nowIso.split('T')[0],content:result?.message||'در حال حاضر داده‌ای در دسترس نیست.',summary:result?.message||'در حال حاضر داده‌ای در دسترس نیست.',overallIndex:null,isNoDataNotice:true},meta:{generated:false,fallback:true,sourceType:result?.sourceType||'none',reason:result?.reason||'NO_DATA_AVAILABLE',diagnostics:result?.diagnostics||null}});}const data=await enrich(result.data);return sendResponse(res,200,{success:true,data,meta:{generated:!!result.generated,sourceType:result.sourceType,cached:!!result.cached,reason:result.reason,diagnostics:result.diagnostics||null}});}catch(error){console.error('[MarketSummaryController][Critical]',error);return sendResponse(res,500,{success:false,message:'Internal Server Failure',error:error.message});}};
-
 exports.getMarketSummaryHistory=async(req,res)=>{try{const page=Math.max(parseInt(req.query.page,10)||1,1),limit=Math.min(Math.max(parseInt(req.query.limit,10)||10,1),50);const result=await marketSummaryService.findHistory({page,limit});return sendResponse(res,200,{success:true,data:await enrichMany(result.data||[]),pagination:result.pagination});}catch(error){console.error('[MarketSummaryController][HistoryError]',error);return sendResponse(res,500,{success:false,message:error.message});}};
 exports.getAvailableDates=async(req,res)=>{try{return sendResponse(res,200,{success:true,data:await marketSummaryService.getAvailableDates()||[]});}catch(error){return sendResponse(res,500,{success:false,message:'خطا در دریافت لیست تاریخ‌ها',error:error.message});}};
 exports.getMarketSummaryByDate=async(req,res)=>{try{const dateInput=toDateInputOrNull(req.params?.date);if(!dateInput)return sendResponse(res,400,{success:false,message:'پارامتر تاریخ الزامی است. مثال: /by-date/2026-08-19'});const item=await marketSummaryService.findByDate(dateInput);if(!item)return sendResponse(res,404,{success:false,message:'تحلیلی برای تاریخ درخواستی یافت نشد',meta:{date:dateInput,reason:'NOT_FOUND'}});return sendResponse(res,200,{success:true,data:await enrich(item),meta:{date:dateInput,sourceType:'by_date'}});}catch(error){return sendResponse(res,500,{success:false,message:'خطا در دریافت تحلیل بر اساس تاریخ',error:error.message});}};
