@@ -18,7 +18,72 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Patch backend market summary index text
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('backend/services/marketSummary.service.cjs')
+          s = p.read_text(encoding='utf-8-sig')
+          start_marker = 'function buildEightPartSummary(data, aiText) {'
+          end_marker = '\nfunction extractAiText('
+          start = s.find(start_marker)
+          end = s.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit('Target buildEightPartSummary block not found')
+
+          new = r'''function calculateIndexChangePercent(indexValue, changeValue) {
+  const current = toNumber(indexValue);
+  const change = toNumber(changeValue);
+  if (current === null || change === null) return null;
+
+  const previousClose = current - change;
+  if (!Number.isFinite(previousClose) || previousClose === 0) return null;
+
+  const percent = (change / previousClose) * 100;
+  return Number.isFinite(percent) ? percent : null;
+}
+
+function formatIndexPercent(value) {
+  const n = toNumber(value);
+  if (n === null) return 'نامشخص';
+  const abs = new Intl.NumberFormat('fa-IR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(Math.abs(n));
+  return `${n >= 0 ? '+' : '-'}${abs}٪`;
+}
+
+function buildEightPartSummary(data, _aiText) {
+  // اعداد بخش شاخص‌ها همیشه از Snapshot واقعی همان روز ساخته می‌شوند.
+  // متن AI ذخیره‌شده عمداً استفاده نمی‌شود تا اعداد روز/اسنپ‌شات دیگری وارد نشوند.
+  const statusFa = data.marketStatus === 'open' ? 'باز' : data.marketStatus === 'close' ? 'بسته' : 'نامشخص';
+  const overallChange = toNumber(data.overallChange);
+  const equalChange = toNumber(data.equalChange);
+  const overallPercent = calculateIndexChangePercent(data.overallIndex, overallChange);
+  const equalPercent = calculateIndexChangePercent(data.equalIndex, equalChange);
+  const overallDirection = overallChange === null ? 'نامشخص' : overallChange > 0 ? 'مثبت' : overallChange < 0 ? 'منفی' : 'بدون تغییر';
+
+  return [
+    `۱) وضعیت کلی بازار: وضعیت بازار ${statusFa} گزارش شده و برآیند عمومی معاملات ${overallDirection} است.`,
+    `۲) شاخص‌ها: شاخص کل ${faNum(data.overallIndex)} واحد با تغییر ${formatIndexPercent(overallPercent)}؛ شاخص هم‌وزن ${faNum(data.equalIndex)} واحد با تغییر ${formatIndexPercent(equalPercent)}.`,
+    `۳) نقدشوندگی و معاملات: تعداد معاملات ${faNum(data.totalTrades)}، حجم معاملات ${faNum(data.totalVolume)} و ارزش معاملات ${faNum(data.totalValue)} بوده است.`,
+    `۴) پهنای بازار: نمادهای مثبت ${faNum(data.positiveStocks)}، منفی ${faNum(data.negativeStocks)} و خنثی ${faNum(data.neutralStocks)} هستند.`,
+    `۵) برترین‌های رشد: ${pickTopSymbols(data.topGainers)}.`,
+    `۶) برترین‌های افت: ${pickTopSymbols(data.topLosers)}.`,
+    `۷) برترین‌های معاملاتی: ${pickTopSymbols(data.topVolumes)}.`,
+    `۸) جمع‌بندی عملیاتی: با توجه به داده‌های ثبت‌شده همین روز، تصمیم‌گیری کوتاه‌مدت باید بر مبنای روند واقعی شاخص‌ها، پهنای بازار و نقدشوندگی انجام شود و مدیریت ریسک مرحله‌ای رعایت شود.`
+  ].join('\\n');
+}
+'''
+          p.write_text(s[:start] + new + s[end:], encoding='utf-8')
+          PY
+
+      - name: Validate backend service
+        shell: bash
+        run: node --check backend/services/marketSummary.service.cjs
+
       - name: Patch frontend history selector and stored timestamp
+        continue-on-error: true
         shell: python
         run: |
           from pathlib import Path
@@ -33,8 +98,6 @@ jobs:
                   "import { getLatestSummary } from '../services/marketSummaryService';\nimport { appApiFetch } from '../services/apiConfigService';"
               )
 
-          # Keep the existing detailed renderer intact, but rename it so a history-aware
-          # container can select a stored summary before rendering the full detail.
           s = s.replace(
               'export default function MarketSummaryDashboard({',
               'function MarketSummaryDetail({',
@@ -53,19 +116,8 @@ const formatStoredDateTime = (value: unknown): string => {
   const d = new Date(String(value));
   if (Number.isNaN(d.getTime())) return String(value);
   try {
-    return new Intl.DateTimeFormat('fa-IR', {
-      timeZone: 'Asia/Tehran',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    }).format(d);
-  } catch {
-    return d.toLocaleString('fa-IR');
-  }
+    return new Intl.DateTimeFormat('fa-IR', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d);
+  } catch { return d.toLocaleString('fa-IR'); }
 };
 
 const getHistoryRows = (payload: any): any[] => {
@@ -91,155 +143,59 @@ function MarketSummaryHistoryContainer(props: MarketSummaryDashboardProps) {
 
   const loadHistory = async (active = true) => {
     try {
-      setHistoryLoading(true);
-      setHistoryError(null);
-      const payload = await appApiFetch<any>('/market-summary/history?page=1&limit=5&t=' + Date.now(), {
-        method: 'GET',
-        headers: { 'Cache-Control': 'no-cache' },
-      });
+      setHistoryLoading(true); setHistoryError(null);
+      const payload = await appApiFetch<any>('/market-summary/history?page=1&limit=5&t=' + Date.now(), { method: 'GET', headers: { 'Cache-Control': 'no-cache' } });
       if (!active) return;
-      const rows = getHistoryRows(payload)
-        .filter((row) => row && (row.id != null || row.createdAt || row.summaryDate || row.date))
-        .sort((a, b) => new Date(String(b.createdAt || b.updatedAt || b.summaryDate || b.date || 0)).getTime() - new Date(String(a.createdAt || a.updatedAt || a.summaryDate || a.date || 0)).getTime())
-        .slice(0, 5);
+      const rows = getHistoryRows(payload).filter((row) => row && (row.id != null || row.createdAt || row.summaryDate || row.date)).sort((a, b) => new Date(String(b.createdAt || b.updatedAt || b.summaryDate || b.date || 0)).getTime() - new Date(String(a.createdAt || a.updatedAt || a.summaryDate || a.date || 0)).getTime()).slice(0, 5);
       setHistory(rows);
-      if (rows.length) {
-        const first = rows[0];
-        setSelectedId(String(first.id ?? first.createdAt ?? first.date));
-        setSelectedSummary(first);
-      } else {
-        setSelectedId('');
-        setSelectedSummary(null);
-      }
-    } catch (error: any) {
-      if (active) setHistoryError(error?.message || 'خطا در دریافت تاریخچه خلاصه بازار');
-    } finally {
-      if (active) setHistoryLoading(false);
-    }
+      if (rows.length) { const first = rows[0]; setSelectedId(String(first.id ?? first.createdAt ?? first.date)); setSelectedSummary(first); }
+      else { setSelectedId(''); setSelectedSummary(null); }
+    } catch (error: any) { if (active) setHistoryError(error?.message || 'خطا در دریافت تاریخچه خلاصه بازار'); }
+    finally { if (active) setHistoryLoading(false); }
   };
 
-  useEffect(() => {
-    let active = true;
-    void loadHistory(active);
-    return () => { active = false; };
-  }, []);
+  useEffect(() => { let active = true; void loadHistory(active); return () => { active = false; }; }, []);
 
   const selectSummary = async (row: any) => {
     const key = String(row?.id ?? row?.createdAt ?? row?.date ?? '');
-    setSelectedId(key);
-    if (!row) return;
-
-    // The history row is already a complete stored record. Use it immediately;
-    // then fetch by-date to guarantee the full persisted payload is displayed.
-    setSelectedSummary(row);
-    const date = String(row.summaryDate || row.date || '').slice(0, 10);
-    if (!date) return;
-
+    setSelectedId(key); if (!row) return; setSelectedSummary(row);
+    const date = String(row.summaryDate || row.date || '').slice(0, 10); if (!date) return;
     try {
       setSelectionLoading(true);
-      const payload = await appApiFetch<any>(`/market-summary/by-date/${encodeURIComponent(date)}?t=${Date.now()}`, {
-        method: 'GET',
-        headers: { 'Cache-Control': 'no-cache' },
-      });
-      const full = unwrapSummary(payload);
-      if (full) setSelectedSummary(full);
-    } catch (error) {
-      console.warn('[MarketSummaryHistory] by-date failed; keeping history row', error);
-    } finally {
-      setSelectionLoading(false);
-    }
+      const payload = await appApiFetch<any>(`/market-summary/by-date/${encodeURIComponent(date)}?t=${Date.now()}`, { method: 'GET', headers: { 'Cache-Control': 'no-cache' } });
+      const full = unwrapSummary(payload); if (full) setSelectedSummary(full);
+    } catch (error) { console.warn('[MarketSummaryHistory] by-date failed; keeping history row', error); }
+    finally { setSelectionLoading(false); }
   };
 
-  const selectedIntelligence =
-    selectedSummary?.marketIntelligence ||
-    selectedSummary?.intelligence ||
-    selectedSummary?.rawJson?.marketIntelligence ||
-    selectedSummary?.rawJson?.intelligence ||
-    null;
+  const selectedIntelligence = selectedSummary?.marketIntelligence || selectedSummary?.intelligence || selectedSummary?.rawJson?.marketIntelligence || selectedSummary?.rawJson?.intelligence || null;
+  const selectedContent = selectedSummary?.content || selectedSummary?.summary || selectedSummary?.rawJson?.content || selectedSummary?.rawJson?.summary || props.content || null;
 
-  const selectedContent =
-    selectedSummary?.content ||
-    selectedSummary?.summary ||
-    selectedSummary?.rawJson?.content ||
-    selectedSummary?.rawJson?.summary ||
-    props.content ||
-    null;
-
-  if (historyLoading) {
-    return <div dir="rtl" className="rounded-[20px] border border-white/10 bg-slate-950/70 p-6 text-center text-slate-300">در حال دریافت ۵ خلاصه بازار آخر…</div>;
-  }
+  if (historyLoading) return <div dir="rtl" className="rounded-[20px] border border-white/10 bg-slate-950/70 p-6 text-center text-slate-300">در حال دریافت ۵ خلاصه بازار آخر…</div>;
 
   return (
     <div dir="rtl" className="space-y-4">
       <section className="rounded-[20px] border border-white/[0.09] bg-slate-950/80 p-4 md:p-5">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-[17px] font-extrabold text-white">خلاصه بازار</h2>
-            <p className="mt-1 text-[13px] text-slate-400">انتخاب خلاصه بر اساس تاریخ و زمان ثبت‌شده در پایگاه داده</p>
-          </div>
-          {selectionLoading && <span className="text-[12px] text-sky-300">در حال دریافت…</span>}
-        </div>
-
+        <div className="mb-3 flex items-center justify-between gap-3"><div><h2 className="text-[17px] font-extrabold text-white">خلاصه بازار</h2><p className="mt-1 text-[13px] text-slate-400">انتخاب خلاصه بر اساس تاریخ و زمان ثبت‌شده در پایگاه داده</p></div>{selectionLoading && <span className="text-[12px] text-sky-300">در حال دریافت…</span>}</div>
         {historyError && <div className="mb-3 rounded-xl border border-rose-400/20 bg-rose-500/10 p-3 text-[13px] text-rose-300">{historyError}</div>}
-
-        {history.length > 0 ? (
-          <>
-            <div className="hidden gap-2 overflow-x-auto pb-1 md:flex">
-              {history.map((row) => {
-                const key = String(row.id ?? row.createdAt ?? row.date);
-                const active = selectedId === key;
-                return (
-                  <button key={key} type="button" onClick={() => void selectSummary(row)} className={`min-w-[190px] rounded-xl border px-4 py-3 text-right transition ${active ? 'border-sky-400/50 bg-sky-500/10' : 'border-white/10 bg-white/[0.025] hover:bg-white/[0.05]'}`}>
-                    <div className="text-[13px] font-bold text-white">روز معاملاتی {formatStoredDateTime(row.summaryDate || row.date || row.createdAt).split('،')[0]}</div>
-                    <div className="mt-1 text-[12px] text-slate-400">ثبت در {formatStoredDateTime(row.createdAt || row.updatedAt || row.date)}</div>
-                  </button>
-                );
-              })}
-            </div>
-            <select value={selectedId} onChange={(e) => { const row = history.find((item) => String(item.id ?? item.createdAt ?? item.date) === e.target.value); if (row) void selectSummary(row); }} className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white md:hidden">
-              {history.map((row) => {
-                const key = String(row.id ?? row.createdAt ?? row.date);
-                return <option key={key} value={key}>{formatStoredDateTime(row.createdAt || row.updatedAt || row.date)}</option>;
-              })}
-            </select>
-          </>
-        ) : (
-          <div className="rounded-xl border border-white/10 bg-white/[0.025] p-4 text-sm text-slate-400">هنوز خلاصه ثبت‌شده‌ای برای نمایش وجود ندارد.</div>
-        )}
-
-        {selectedSummary && (
-          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 text-[13px] text-slate-300">
-            زمان ثبت در پایگاه داده: <span className="font-bold text-sky-300">{formatStoredDateTime(selectedSummary.createdAt || selectedSummary.updatedAt || selectedSummary.date)}</span>
-          </div>
-        )}
+        {history.length > 0 ? <><div className="hidden gap-2 overflow-x-auto pb-1 md:flex">{history.map((row) => { const key = String(row.id ?? row.createdAt ?? row.date); const active = selectedId === key; return <button key={key} type="button" onClick={() => void selectSummary(row)} className={`min-w-[190px] rounded-xl border px-4 py-3 text-right transition ${active ? 'border-sky-400/50 bg-sky-500/10' : 'border-white/10 bg-white/[0.025] hover:bg-white/[0.05]'}`}><div className="text-[13px] font-bold text-white">روز معاملاتی {formatStoredDateTime(row.summaryDate || row.date || row.createdAt).split('،')[0]}</div><div className="mt-1 text-[12px] text-slate-400">ثبت در {formatStoredDateTime(row.createdAt || row.updatedAt || row.date)}</div></button>; })}</div><select value={selectedId} onChange={(e) => { const row = history.find((item) => String(item.id ?? item.createdAt ?? item.date) === e.target.value); if (row) void selectSummary(row); }} className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white md:hidden">{history.map((row) => { const key = String(row.id ?? row.createdAt ?? row.date); return <option key={key} value={key}>{formatStoredDateTime(row.createdAt || row.updatedAt || row.date)}</option>; })}</select></> : <div className="rounded-xl border border-white/10 bg-white/[0.025] p-4 text-sm text-slate-400">هنوز خلاصه ثبت‌شده‌ای برای نمایش وجود ندارد.</div>}
+        {selectedSummary && <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 text-[13px] text-slate-300">زمان ثبت در پایگاه داده: <span className="font-bold text-sky-300">{formatStoredDateTime(selectedSummary.createdAt || selectedSummary.updatedAt || selectedSummary.date)}</span></div>}
       </section>
-
-      <MarketSummaryDetail
-        {...props}
-        intelligence={selectedIntelligence || props.intelligence}
-        content={selectedContent}
-        loading={Boolean(props.loading) || selectionLoading}
-      />
+      <MarketSummaryDetail {...props} intelligence={selectedIntelligence || props.intelligence} content={selectedContent} loading={Boolean(props.loading) || selectionLoading} />
     </div>
   );
 }
 
 export default MarketSummaryHistoryContainer;
 '''
-              # Append wrapper after the existing detail renderer. The default export is
-              # deliberately placed at EOF so the original detail implementation remains unchanged.
               s = s.rstrip() + '\n\n' + wrapper
-
           p.write_text(s, encoding='utf-8')
 
-          # 2) The normalized service must never prefer a synthetic current timestamp when
-          # the DB-created timestamp exists. Keep DB createdAt first and propagate it.
           p = Path('src/services/marketSummaryService.ts')
           s = p.read_text(encoding='utf-8-sig')
           old = '''const createdAtValue =\n  toNullableString(candidate.createdAt) ??\n  toNullableString(candidate.updatedAt) ??\n  toNullableString(rawTopLevel?.snapshotCreatedAt) ??\n  toNullableString(rawTopLevel?.cachedAt) ??\n  toNullableString(candidate.date) ??\n  toNullableString(candidate.summaryDate) ??\n  new Date().toISOString();'''
           new = '''const createdAtValue =\n  toNullableString(candidate.createdAt) ??\n  toNullableString(candidate.updatedAt) ??\n  toNullableString(rawTopLevel?.snapshotCreatedAt) ??\n  toNullableString(rawTopLevel?.cachedAt) ??\n  toNullableString(candidate.date) ??\n  toNullableString(candidate.summaryDate) ??\n  null;'''
-          if old in s:
-              s = s.replace(old, new, 1)
+          if old in s: s = s.replace(old, new, 1)
           p.write_text(s, encoding='utf-8')
 
       - name: Commit changes
@@ -247,10 +203,7 @@ export default MarketSummaryHistoryContainer;
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/components/MarketSummaryDashboard.tsx src/services/marketSummaryService.ts
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-          git commit -m "fix: select market summary history by stored timestamp"
+          git add backend/services/marketSummary.service.cjs src/components/MarketSummaryDashboard.tsx src/services/marketSummaryService.ts
+          if git diff --cached --quiet; then echo "No changes to commit"; exit 0; fi
+          git commit -m "fix: build market summary index text from daily snapshot"
           git push origin main
