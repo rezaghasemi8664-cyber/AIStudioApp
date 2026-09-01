@@ -12,6 +12,9 @@ const PREV_CLOSE_KEYS = ['py','priceYesterday','previousClose','prevClose','yest
 const CLOSE_PRICE_KEYS = ['pc','pClosing','closingPrice','closePrice','close'];
 const VOLUME_KEYS = ['qTotTran5J','tvol','totalVolume','volume'];
 const VALUE_KEYS = ['qTotCap','tval','totalValue','tradeValue'];
+const BUY_I_VOL_KEYS = ['buy_I_Volume','buyIVolume','realBuyVolume','individualBuyVolume'];
+const SELL_I_VOL_KEYS = ['sell_I_Volume','sellIVolume','realSellVolume','individualSellVolume'];
+const SECTOR_KEYS = ['sector','industry','group','sectorName','industryName','groupName'];
 const SECTOR_KEYS = ['sector','industry','group','sectorName','industryName','groupName'];
 const SYMBOL_KEYS = ['symbol','l18','l30','namad','name','insCode','inscode','ticker'];
 const ARRAY_KEYS = ['symbols','data','items','result','results','rows','list','records'];
@@ -39,6 +42,13 @@ function derivedPercent(item) {
 
 function normalizeSymbolName(item) {
   for (const key of SYMBOL_KEYS) {
+    const value = item?.[key];
+    if (value !== null && value !== undefined && String(value).trim()) return String(value).trim();
+  }
+  return null;
+}
+function normalizeSectorName(item) {
+  for (const key of SECTOR_KEYS) {
     const value = item?.[key];
     if (value !== null && value !== undefined && String(value).trim()) return String(value).trim();
   }
@@ -112,6 +122,36 @@ function calculateBreadth(payload) {
   const topVolumes = [...rows].sort((a,b)=>(firstNumber(b.item,VOLUME_KEYS)||0)-(firstNumber(a.item,VOLUME_KEYS)||0))
     .slice(0,10).map(x=>({symbol:x.symbol, volume:firstNumber(x.item,VOLUME_KEYS), value:firstNumber(x.item,VALUE_KEYS), changePercent:Number(x.pct.toFixed(4))}));
 
+  const sectorMap = new Map();
+  for (const row of rows) {
+    const sector = normalizeSectorName(row.item);
+    if (!sector) continue;
+    const entry = sectorMap.get(sector) || { name: sector, sum: 0, count: 0 };
+    entry.sum += row.pct;
+    entry.count += 1;
+    sectorMap.set(sector, entry);
+  }
+  const sectorList = [...sectorMap.values()]
+    .filter(x=>x.count > 0)
+    .map(x=>({name:x.name, changePercent:Number((x.sum/x.count).toFixed(4)), symbols:x.count}))
+    .sort((a,b)=>b.changePercent-a.changePercent);
+  const sectors = sectorList.length
+    ? {available:true, leaders:sectorList.slice(0,5), laggards:sectorList.slice(-5).reverse()}
+    : {available:false, leaders:[], laggards:[], reason:'SECTOR_DATA_UNAVAILABLE'};
+
+  let buyIVolume = 0, sellIVolume = 0, moneyPriceValue = 0;
+  for (const row of rows) {
+    const buy = firstNumber(row.item, BUY_I_VOL_KEYS) || 0;
+    const sell = firstNumber(row.item, SELL_I_VOL_KEYS) || 0;
+    const price = firstNumber(row.item, LAST_PRICE_KEYS) || firstNumber(row.item, CLOSE_PRICE_KEYS) || 0;
+    buyIVolume += buy;
+    sellIVolume += sell;
+    if (price > 0) moneyPriceValue += (buy - sell) * price;
+  }
+  const moneyFlow = (buyIVolume || sellIVolume)
+    ? {available:true, buyVolume:buyIVolume, sellVolume:sellIVolume, netVolume:buyIVolume-sellIVolume, netValue:moneyPriceValue}
+    : {available:false, reason:'REAL_MONEY_FLOW_UNAVAILABLE' };
+
   if (classifiedTotal === 0) {
     return { available: false, reason: 'NO_SYMBOL_CHANGE_DATA', total, positive: null, negative: null, neutral: null, unknown, classifiedTotal: 0 };
   }
@@ -139,6 +179,8 @@ function calculateBreadth(payload) {
     topGainers,
     topLosers,
     topVolumes,
+    sectors,
+    moneyFlow,
     interpretation: positive > negative * 1.2
       ? 'عرض بازار مثبت و گسترده است'
       : negative > positive * 1.2
