@@ -767,8 +767,8 @@ function mapSymbolData(raw) {
   var instBuyCount = nz(toInt(raw.Buy_CountN), 0);
   var instSellCount = nz(toInt(raw.Sell_CountN), 0);
 
-  var priceLast = toNumber(raw.pl != null ? raw.pl : raw.last);
-  var priceClose = toNumber(raw.pc != null ? raw.pc : raw.close);
+  var priceLast = toNumber(raw.pDrCotVal != null ? raw.pDrCotVal : (raw.pl != null ? raw.pl : raw.last));
+  var priceClose = toNumber(raw.pClosing != null ? raw.pClosing : (raw.pc != null ? raw.pc : raw.close));
   var priceOpen = toNumber(raw.pf != null ? raw.pf : raw.open);
   var priceHigh = toNumber(raw.pmax != null ? raw.pmax : raw.high);
   var priceLow = toNumber(raw.pmin != null ? raw.pmin : raw.low);
@@ -1865,3 +1865,4 @@ module.exports = {
   _getLocalMarketWindowStatus: getLocalMarketWindowStatus,
   _isClosedState: isClosedState
 };
+
