@@ -14,40 +14,44 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Patch closing and live percentages
+      - name: Repair closing/live percentage mapping
         shell: python
         run: |
           from pathlib import Path
-          import re
-
           path = Path('src/components/StockAnalysis.tsx')
           text = path.read_text(encoding='utf-8-sig')
 
-          pattern = re.compile(
-              r'(const closingPriceChangePercent = pickFirstNumber\()(.*?)(\n\s*\);\n\n\s*const lastPriceChangePercent = pickFirstNumber\()(.*?)(\n\s*\);)',
-              re.S,
+          # The previous automated patch left two missing commas. Repair them deterministically.
+          text = text.replace(
+              "    mergedMetrics?.priceChangePercent,\n    mergedMetrics?.closingPriceChangePercent\n    (mergedMetrics as any)?.closeChangePercent,",
+              "    mergedMetrics?.closingPriceChangePercent,\n    (mergedMetrics as any)?.closeChangePercent,\n    (mergedMetrics as any)?.pcp,"
           )
-          m = pattern.search(text)
-          if not m:
-              raise SystemExit('percentage blocks not found')
-
-          closing_block = m.group(2)
-          closing_block = re.sub(r'\n\s*(?:marketData|lastHistoryRecord|source)\.priceChangePercent,?', '', closing_block)
-          closing_block = re.sub(r'\n\s*mergedMetrics\?\.priceChangePercent,?', '', closing_block)
-          closing_block = re.sub(r'\n\s*\(mergedMetrics as any\)\?\.priceChangePercent,?', '', closing_block)
-          if '(mergedMetrics as any)?.closeChangePercent' not in closing_block:
-              closing_block = closing_block.rstrip() + '\n    (mergedMetrics as any)?.closeChangePercent,\n'
-
-          live_block = m.group(4)
-          if '(mergedMetrics as any)?.priceChangePercent' not in live_block:
-              live_block = live_block.rstrip() + '\n    (mergedMetrics as any)?.priceChangePercent,\n'
-
-          text = (
-              text[:m.start(2)] + closing_block + text[m.end(2):m.start(4)]
-              + live_block + text[m.end(4):]
+          text = text.replace(
+              "    mergedMetrics?.lastPriceChangePercent\n    (mergedMetrics as any)?.priceChangePercent,",
+              "    mergedMetrics?.lastPriceChangePercent,\n    (mergedMetrics as any)?.priceChangePercent,"
           )
+
+          # Ensure the normalized market metrics preserve the backend's distinct close-change field.
+          marker = "    priceChangePercent: pickFirstNumber(mm.priceChangePercent, mm.pctChange, mm.changePercent),\n"
+          addition = marker + "    closingPriceChangePercent: pickFirstNumber(mm.closingPriceChangePercent, mm.closeChangePercent, mm.pcp),\n"
+          if 'closingPriceChangePercent: pickFirstNumber(mm.closingPriceChangePercent' not in text:
+              if marker not in text:
+                  raise SystemExit('normalizeMarketMetrics marker not found')
+              text = text.replace(marker, addition, 1)
+
+          # Guarantee canonical mappings in normalizeAnalysisShape.
+          if 'const closingPriceChangePercent = pickFirstNumber(' not in text:
+              raise SystemExit('closing percentage block missing')
+          if 'const lastPriceChangePercent = pickFirstNumber(' not in text:
+              raise SystemExit('live percentage block missing')
+
           path.write_text(text, encoding='utf-8-sig')
-          print('Mapped closeChangePercent -> closing UI and priceChangePercent -> live UI.')
+          print('Closing percentage is mapped only from closeChangePercent/pcp; live percentage remains priceChangePercent.')
+
+      - name: Verify TypeScript source
+        shell: bash
+        run: |
+          node -e "const fs=require('fs'); const s=fs.readFileSync('src/components/StockAnalysis.tsx','utf8'); if(/mergedMetrics\?\.closingPriceChangePercent\s*\n\s*\(mergedMetrics/.test(s)) process.exit(1); if(/mergedMetrics\?\.lastPriceChangePercent\s*\n\s*\(mergedMetrics/.test(s)) process.exit(1); console.log('Source mapping syntax verified.')"
 
       - name: Build frontend
         run: |
