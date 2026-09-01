@@ -1,0 +1,291 @@
+name: Market Summary EOD automation
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-market-summary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply market summary automation and Bourse/Farabourse/Base breadth rules
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          root = Path('.')
+
+          # 1) Breadth: only ordinary equities in Bourse + Farabourse + Base.
+          p = root / 'backend/services/marketBreadth.service.cjs'
+          s = p.read_text(encoding='utf-8-sig')
+          s = s.replace("if (numericFlow !== null && numericFlow !== 1) return false;", "if (numericFlow !== null && ![1, 2, 4].includes(numericFlow)) return false;")
+          s = s.replace("'market=1',", "'market=0',")
+          s = s.replace("فقط نمادهای یکتای معامله‌شده در بورس تهران (flow=1 و paperType=1)؛ فرابورس، پایه، صندوق، اوراق، مشتقه، حق‌تقدم و شاخص‌ها حذف؛ نماد بدون درصد تغییر در خنثی قرار می‌گیرد.", "فقط نمادهای یکتای معامله‌شده در بورس تهران، فرابورس و بازار پایه (flow=1,2,4 و paperType=1)؛ صندوق، اوراق، مشتقه، حق‌تقدم و شاخص‌ها حذف؛ مثبت+منفی+خنثی باید دقیقاً برابر کل نمادهای سهامی معامله‌شده باشد.")
+          p.write_text(s, encoding='utf-8')
+
+          # 2) Realtime socket broadcast helper.
+          p = root / 'backend/services/appConfig.service.cjs'
+          s = p.read_text(encoding='utf-8-sig')
+          marker = "function setSocketIO(io) {\n  ioInstance = io || null;\n}\n"
+          addition = marker + "\nfunction emitSocketEvent(eventName, payload) {\n  if (!ioInstance || !eventName) return false;\n  try {\n    ioInstance.emit(eventName, payload);\n    return true;\n  } catch (err) {\n    console.warn('[SOCKET] Broadcast failed:', err.message);\n    return false;\n  }\n}\n"
+          if 'function emitSocketEvent(' not in s:
+              s = s.replace(marker, addition)
+          s = s.replace('  setSocketIO,\n};', '  setSocketIO,\n  emitSocketEvent,\n};')
+          p.write_text(s, encoding='utf-8')
+
+          # 3) Persist a notification for every user exactly once per generated summary.
+          p = root / 'backend/services/notification.service.cjs'
+          s = p.read_text(encoding='utf-8-sig')
+          addition = '''\n\nasync function broadcastToAllUsers(title, message, metadata = {}) {\n  const users = await prisma.user.findMany({ select: { id: true } });\n  if (!users.length) return { created: 0 };\n\n  const rows = users.map((user) => ({\n    userId: user.id,\n    title,\n    message,\n    ...(metadata && typeof metadata === 'object' && metadata.type ? { type: String(metadata.type) } : {})\n  }));\n\n  // Use createMany when the generated Prisma client supports it; otherwise\n  // fall back to individual creates so one unsupported optional field cannot\n  // prevent the EOD job from completing.\n  try {\n    const result = await prisma.notification.createMany({ data: rows });\n    return { created: result.count ?? rows.length };\n  } catch (error) {\n    let created = 0;\n    for (const row of rows) {\n      try {\n        await prisma.notification.create({ data: row });\n        created += 1;\n      } catch (rowError) {\n        console.warn('[Notification] Failed for user:', row.userId, rowError.message);\n      }\n    }\n    return { created, fallback: true, error: error.message };\n  }\n}\n'''
+          if 'async function broadcastToAllUsers(' not in s:
+              s = s.replace('\nmodule.exports = {', addition + '\nmodule.exports = {')
+          s = s.replace('  markAllRead\n};', '  markAllRead,\n  broadcastToAllUsers\n};')
+          p.write_text(s, encoding='utf-8')
+
+          # 4) EOD: no catch-up on closed days. Generate only when the service
+          # confirms a fresh summary was generated after the close window.
+          p = root / 'backend/cron/marketSummaryCron.cjs'
+          s = p.read_text(encoding='utf-8-sig')
+          s = s.replace("const marketSummaryService = require('../services/marketSummary.service.cjs');", "const marketSummaryService = require('../services/marketSummary.service.cjs');\nconst notificationService = require('../services/notification.service.cjs');\nconst appConfigService = require('../services/appConfig.service.cjs');")
+
+          start = s.index('async function runEndOfDaySummaryJob() {')
+          end = s.index('\n/** ---------- Scheduler ---------- */', start)
+          new_job = r'''async function runEndOfDaySummaryJob() {
+  if (eodRunning) {
+    console.log('[Cron][MarketSummary] EOD skipped: already running.');
+    return { success: false, skipped: true, reason: 'ALREADY_RUNNING' };
+  }
+
+  eodRunning = true;
+  try {
+    console.log(`[Cron][MarketSummary] EOD started | Tehran: ${nowTehranString()}`);
+
+    // Calendar weekday is only a first gate. The canonical service must also
+    // confirm that a real market snapshot exists for an actually open trading
+    // day. Closed days/holidays must never create a new MarketSummary row.
+    if (!isMarketDayTehran()) {
+      console.log('[Cron][MarketSummary] Closed calendar day — no summary generation.');
+      return { success: false, skipped: true, reason: 'NON_TRADING_DAY' };
+    }
+
+    if (typeof marketSummaryService.findOrGenerateLatest !== 'function') {
+      throw new TypeError('[Cron][MarketSummary] findOrGenerateLatest is not implemented.');
+    }
+
+    const result = await marketSummaryService.findOrGenerateLatest();
+    const data = result?.data || null;
+    const generated = Boolean(result?.generated);
+    const sourceType = result?.sourceType || 'unknown';
+    const reason = result?.reason || null;
+    const id = data?.id || result?.id || null;
+
+    if (generated && data) {
+      // Service retention is the source of truth; enforce five trading-day
+      // summaries here as a second guard after a successful new generation.
+      if (typeof marketSummaryService.retainOnlyLastNSummaries === 'function') {
+        try {
+          await marketSummaryService.retainOnlyLastNSummaries(5);
+        } catch (retentionError) {
+          console.warn('[Cron][MarketSummary] Retention failed:', retentionError.message);
+        }
+      }
+
+      const notificationMessage = 'خلاصه بازار روز جاری ایجاد شد';
+      try {
+        const notification = await notificationService.broadcastToAllUsers(
+          'خلاصه بازار',
+          notificationMessage,
+          { type: 'market-summary', summaryId: id }
+        );
+        console.log(`[Cron][MarketSummary] 🔔 Notification created for ${notification.created} users.`);
+      } catch (notificationError) {
+        console.error('[Cron][MarketSummary] Notification failed:', notificationError.message);
+      }
+
+      try {
+        appConfigService.emitSocketEvent('market-summary:created', {
+          id,
+          date: data.date || data.summaryDate || data.createdAt || null,
+          createdAt: data.createdAt || new Date().toISOString(),
+          message: notificationMessage
+        });
+      } catch (socketError) {
+        console.warn('[Cron][MarketSummary] Socket broadcast failed:', socketError.message);
+      }
+    }
+
+    console.log(
+      `[Cron][MarketSummary] ${generated ? '🆕 Generated' : '📦 Existing'} | source=${sourceType} id=${id ?? 'N/A'} reason=${reason ?? '-'}`
+    );
+
+    return {
+      success: true,
+      data,
+      meta: {
+        generated,
+        sourceType,
+        reason,
+        diagnostics: result?.diagnostics || null
+      }
+    };
+  } catch (error) {
+    console.error('[Cron][MarketSummary] EOD Job Error:', error?.message || error);
+    return { success: false, error: error?.message || String(error) };
+  } finally {
+    eodRunning = false;
+  }
+}'''
+          s = s[:start] + new_job + s[end:]
+          s = s.replace("// هر روز ساعت ۱۲:۳۵: شنبه تا چهارشنبه تحلیل امروز را می‌سازد؛\n  // پنجشنبه/جمعه (یا هر روز غیرمعاملاتی) به‌جای بیکاری، چک catch-up\n  // را اجرا می‌کند تا اگر روز معاملاتیِ قبلی تحلیل نداشت، همان‌جا پر شود.", "// هر روز ساعت ۱۲:۳۵ به وقت تهران بررسی می‌شود؛ فقط اگر همان روز واقعاً\n  // روز معاملاتی بوده و سرویس یک خلاصه جدید بسازد، رکورد/اعلان ایجاد می‌شود.")
+          s = s.replace("console.log('[Cron] ✅ Market Summary scheduled: هر روز ۱۲:۳۵ (تولید در روز باز، catch-up در روز بسته) TZ=Asia/Tehran');", "console.log('[Cron] ✅ Market Summary scheduled: EOD 12:35 Tehran; trading days only; retention=5; realtime notification enabled.');")
+          p.write_text(s, encoding='utf-8')
+
+          # 5) Frontend socket helper.
+          p = root / 'src/services/socketService.ts'
+          s = p.read_text(encoding='utf-8-sig')
+          marker = "export const getSocket = (): Socket | null => socket;\n"
+          addition = marker + "\nexport const onMarketSummaryCreated = (handler: (payload: any) => void): (() => void) => {\n  if (!socket) return () => {};\n  socket.on('market-summary:created', handler);\n  return () => socket?.off('market-summary:created', handler);\n};\n"
+          if 'onMarketSummaryCreated' not in s:
+              s = s.replace(marker, addition)
+          p.write_text(s, encoding='utf-8')
+
+          # 6) Market summary dashboard: poll latest/history and expose the five
+          # newest trading-day summaries without requiring a browser refresh.
+          p = root / 'src/components/MarketSummaryDashboard.tsx'
+          s = p.read_text(encoding='utf-8-sig')
+          s = s.replace("import { getLatestSummary } from '../services/marketSummaryService';", "import { getLatestSummary, getSummaryHistory, getMarketSummaryByDate } from '../services/marketSummaryService';\nimport * as socketService from '../services/socketService';")
+          s = s.replace("  const [fetching, setFetching] = useState(false);", "  const [fetching, setFetching] = useState(false);\n  const [history, setHistory] = useState<any[]>([]);\n  const [selectedSummaryDate, setSelectedSummaryDate] = useState<string | null>(null);\n  const [selectedContent, setSelectedContent] = useState<string | null>(null);")
+
+          anchor = "  const intelligence =\n    suppliedIntelligence ?? fetchedIntelligence;"
+          realtime = r'''  useEffect(() => {
+    let active = true;
+    const loadHistory = async () => {
+      try {
+        const response = await getSummaryHistory(1, 5);
+        if (active && response?.success) setHistory((response.data || []).slice(0, 5));
+      } catch (error) {
+        console.warn('[MarketSummaryDashboard] history refresh failed', error);
+      }
+    };
+
+    const loadLatest = async () => {
+      try {
+        const summary: any = await getLatestSummary();
+        if (!active || !summary) return;
+        if (!selectedSummaryDate || String(summary.date || summary.createdAt || '').startsWith(selectedSummaryDate)) {
+          setFetchedIntelligence(summary.marketIntelligence ?? null);
+          setSelectedContent(summary.content ?? summary.summary ?? null);
+        }
+      } catch (error) {
+        console.warn('[MarketSummaryDashboard] latest refresh failed', error);
+      }
+    };
+
+    const refresh = async () => { await Promise.all([loadLatest(), loadHistory()]); };
+    refresh();
+    const interval = window.setInterval(refresh, 30_000);
+
+    const unsubscribe = socketService.onMarketSummaryCreated?.(() => {
+      refresh();
+    });
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      unsubscribe?.();
+    };
+  }, [selectedSummaryDate]);
+
+  const selectSummary = async (item: any) => {
+    const date = String(item?.date || item?.summaryDate || item?.createdAt || '').slice(0, 10);
+    if (!date) return;
+    setSelectedSummaryDate(date);
+    const full: any = await getMarketSummaryByDate(date);
+    const selected = full || item;
+    setFetchedIntelligence(selected?.marketIntelligence ?? null);
+    setSelectedContent(selected?.content ?? selected?.summary ?? null);
+  };
+
+'''
+          if realtime not in s:
+              s = s.replace(anchor, realtime + anchor)
+
+          # Insert history selector into the final dashboard return.
+          history_block = r'''      <div className="mb-5 rounded-[20px] border border-white/[0.09] bg-slate-900/70 p-4 md:p-5" dir="rtl">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[16px] font-extrabold text-white">۵ روز معاملاتی آخر</div>
+            <div className="mt-1 text-[12px] text-slate-400">تاریخ و زمان ذخیره‌شده در پایگاه داده</div>
+          </div>
+        </div>
+        <div className="md:hidden">
+          <select
+            value={selectedSummaryDate || (history[0] ? String(history[0].date || history[0].createdAt).slice(0, 10) : '')}
+            onChange={(e) => { const item = history.find((x) => String(x.date || x.createdAt).slice(0, 10) === e.target.value); if (item) selectSummary(item); }}
+            className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-3 text-sm text-white"
+          >
+            {history.map((item) => {
+              const d = String(item.date || item.createdAt).slice(0, 10);
+              return <option key={`${d}-${item.id}`} value={d}>{d} — {item.createdAt ? new Date(item.createdAt).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : ''}</option>;
+            })}
+          </select>
+        </div>
+        <div className="hidden gap-2 overflow-x-auto md:flex">
+          {history.map((item) => {
+            const d = String(item.date || item.createdAt).slice(0, 10);
+            const active = selectedSummaryDate === d || (!selectedSummaryDate && history[0] === item);
+            return <button key={`${d}-${item.id}`} onClick={() => selectSummary(item)} className={`min-w-[150px] rounded-xl border px-3 py-3 text-right transition ${active ? 'border-sky-400/40 bg-sky-500/10' : 'border-white/10 bg-slate-800/40 hover:bg-slate-800'}`}>
+              <div className="text-sm font-bold text-white">{d}</div>
+              <div className="mt-1 text-xs text-slate-400">{item.createdAt ? new Date(item.createdAt).toLocaleString('fa-IR') : 'زمان نامشخص'}</div>
+            </button>;
+          })}
+        </div>
+      </div>
+'''
+          # Place block immediately after the final dashboard root div opening.
+          marker = "    <div\n      dir=\"rtl\"\n      className=\"rounded-[20px] border border-white/10 bg-slate-950/70 p-6\""
+          idx = s.rfind(marker)
+          if idx != -1 and '۵ روز معاملاتی آخر' not in s:
+              close = s.find('>', idx)
+              if close != -1:
+                  s = s[:close+1] + "\n" + history_block + s[close+1:]
+
+          s = s.replace("          {content || 'تحلیل بازار در دسترس نیست.'}", "          {selectedContent || content || 'تحلیل بازار در دسترس نیست.'}")
+          p.write_text(s, encoding='utf-8')
+
+          print('Market summary automation patch applied.')
+
+      - name: Validate changed Node files
+        run: |
+          node --check backend/services/marketBreadth.service.cjs
+          node --check backend/services/appConfig.service.cjs
+          node --check backend/services/notification.service.cjs
+          node --check backend/cron/marketSummaryCron.cjs
+
+      - name: Validate frontend TypeScript build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/services/marketBreadth.service.cjs backend/services/appConfig.service.cjs backend/services/notification.service.cjs backend/cron/marketSummaryCron.cjs src/services/socketService.ts src/components/MarketSummaryDashboard.tsx .github/workflows/market-summary-automation.yml
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git commit -m 'feat: automate EOD market summaries, retention and realtime updates'
+          git push origin main
