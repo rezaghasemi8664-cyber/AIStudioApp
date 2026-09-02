@@ -57,8 +57,10 @@ const SUMMARY_RETENTION_COUNT = Number(env.MARKET_SUMMARY_RETENTION_COUNT || 5);
 const FIELD_KEYS = {
   index: ['index', 'index_main', 'index_total', 'index_tepix', 'market_index', 'tedpix'],
   changeIndex: ['change_index', 'index_change', 'index_change_value', 'index_diff', 'tepix_change'],
-  equalIndex: ['equalWeight_index', 'index_equalWeight', 'index_equal_weight', 'equal_weight_index', 'equal_index'],
-  equalChange: ['change_equalWeight_index', 'index_equalWeight_change', 'index_equal_weight_change', 'equal_weight_change', 'equal_change'],
+  changeIndexPercent: ['changePercent', 'overallChangePercent', 'indexChangePercent', 'index_change_percent', 'percentChange', 'change_index_percent'],
+  equalIndex: ['equalWeight_index', 'index_equalWeight', 'index_equal_weight', 'equal_weight_index', 'equal_index', 'indexEqualWeight'],
+  equalChange: ['change_equalWeight_index', 'index_equalWeight_change', 'index_equal_weight_change', 'equal_weight_change', 'equal_change', 'indexEqualWeightChange'],
+  equalChangePercent: ['equalWeightedChangePercent', 'equalChangePercent', 'indexEqualWeightChangePercent', 'index_equalWeight_change_percent', 'index_equal_weight_change_percent'],
   marketState: ['state', 'market_state', 'status', 'marketStatus'],
   totalTrades: ['tno', 'total_trades', 'trade_count', 'trades'],
   totalVolume: ['tvol', 'total_volume', 'volume', 'trade_volume'],
@@ -247,7 +249,6 @@ function toBigIntOrNull(value) {
     return null;
   }
 }
-
 function firstString(...values) {
   for (const value of values) {
     if (value !== undefined && value !== null && String(value).trim()) {
@@ -497,31 +498,68 @@ function trendWord(n) {
 }
 function pickTopSymbols(list, count = 3) {
   if (!Array.isArray(list) || !list.length) return 'نامشخص';
-  return list.slice(0, count).map((x) => x?.symbol || '---').join('، ');
-}
+  return list.slice(0, count).map((x) => x?.symbol || '---').join('، ');}
 function isPendingAiText(text) {
   const normalized = firstString(text);
   if (!normalized) return false;
   return [AI_PENDING_TEXT, 'در حال تولید تحلیل', 'analysis pending', 'pending', 'loading']
     .some((token) => normalized.toLowerCase().includes(String(token).toLowerCase()));
 }
-function buildEightPartSummary(data, aiText) {
-  const ai = firstString(aiText);
-  if (ai && ai.length >= 220 && !isPendingAiText(ai)) return ai;
+function calculateIndexChangePercent(currentValue, changeValue, directPercent = null) {
+  const direct = toNumber(directPercent);
+  if (direct !== null && Number.isFinite(direct)) return Number(direct.toFixed(2));
 
+  const current = toNumber(currentValue);
+  const change = toNumber(changeValue);
+  if (current === null || change === null) return null;
+
+  const previous = current - change;
+  if (!Number.isFinite(previous) || previous === 0) return null;
+
+  const calculated = (change / previous) * 100;
+  return Number.isFinite(calculated) ? Number(calculated.toFixed(2)) : null;
+}
+
+function formatSignedPercent(value) {
+  const n = toNumber(value);
+  if (n === null) return 'نامشخص';
+  const sign = n > 0 ? '+' : n < 0 ? '−' : '';
+  return `${sign}${Math.abs(n).toLocaleString('fa-IR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}%`;
+}
+
+function buildEightPartSummary(data, aiText) {
   const statusFa = data.marketStatus === 'open' ? 'باز' : data.marketStatus === 'close' ? 'بسته' : 'نامشخص';
-  const overallChangeAbs = toNumber(data.overallChange) !== null ? Math.abs(toNumber(data.overallChange)) : null;
-  const equalChangeAbs = toNumber(data.equalChange) !== null ? Math.abs(toNumber(data.equalChange)) : null;
+
+  // درصد تغییر باید از فیلد واقعی درصد تغییر Snapshot همان روز گرفته شود.
+  // اگر API درصد را نداشت، فقط از change / (current - change) محاسبه می‌شود.
+  // هرگز از متن AI برای اعداد شاخص استفاده نمی‌کنیم؛ متن AI می‌تواند
+  // متعلق به Snapshot قدیمی باشد و باعث نمایش عدد اشتباه در تاریخ انتخاب‌شده شود.
+  const overallChangePct = calculateIndexChangePercent(
+    data.overallIndex,
+    data.overallChange,
+    data.overallChangePercent
+  );
+  const equalChangePct = calculateIndexChangePercent(
+    data.equalIndex,
+    data.equalChange,
+    data.equalChangePercent
+  );
+
+  const overallChangeAbs = toNumber(data.overallChange);
+  const equalChangeAbs = toNumber(data.equalChange);
 
   return [
     `۱) وضعیت کلی بازار: وضعیت بازار ${statusFa} گزارش شده و برآیند عمومی معاملات ${trendWord(data.overallChange)} است.`,
-    `۲) شاخص کل: مقدار شاخص کل ${faNum(data.overallIndex)} واحد است و تغییر آن ${faNum(overallChangeAbs)} واحد ثبت شده است.`,
-    `۳) شاخص هم‌وزن: مقدار شاخص هم‌وزن ${faNum(data.equalIndex)} واحد است و تغییر آن ${faNum(equalChangeAbs)} واحد گزارش می‌شود.`,
+    `۲) شاخص‌ها: شاخص کل ${faNum(data.overallIndex)} واحد با تغییر ${formatSignedPercent(overallChangePct)}؛ شاخص هم‌وزن ${faNum(data.equalIndex)} واحد با تغییر ${formatSignedPercent(equalChangePct)}. تغییر عددی شاخص کل ${faNum(overallChangeAbs)} واحد و تغییر عددی شاخص هم‌وزن ${faNum(equalChangeAbs)} واحد است.`,
+    `۳) شاخص هم‌وزن: مقدار شاخص هم‌وزن ${faNum(data.equalIndex)} واحد و تغییر آن ${formatSignedPercent(equalChangePct)} است.`,
     `۴) نقدشوندگی و معاملات: تعداد معاملات ${faNum(data.totalTrades)}، حجم معاملات ${faNum(data.totalVolume)} و ارزش معاملات ${faNum(data.totalValue)} بوده است.`,
     `۵) پهنای بازار: نمادهای مثبت ${faNum(data.positiveStocks)}، منفی ${faNum(data.negativeStocks)} و خنثی ${faNum(data.neutralStocks)} هستند.`,
     `۶) برترین‌های رشد: ${pickTopSymbols(data.topGainers)}.`,
     `۷) برترین‌های افت: ${pickTopSymbols(data.topLosers)}.`,
-    `۸) جمع‌بندی عملیاتی: با توجه به داده‌های فعلی، رویکرد کوتاه‌مدت باید هم‌راستا با مومنتوم بازار و همراه با مدیریت ریسک مرحله‌ای باشد.`
+    `۸) جمع‌بندی عملیاتی: با توجه به داده‌های همین Snapshot، رویکرد کوتاه‌مدت باید هم‌راستا با مومنتوم بازار و همراه با مدیریت ریسک مرحله‌ای باشد.`
   ].join('\n');
 }
 
@@ -747,7 +785,6 @@ function buildPatchDataIfNeeded(existingRecord, nextPayload) {
   mergedRaw.aiAnalysis = oldAi && !isPendingAiText(oldAi) ? oldAi : (nextRaw.aiAnalysis || AI_PENDING_TEXT);
 
   if (jsonStringifySafe(oldRaw) !== jsonStringifySafe(mergedRaw)) patch.rawJson = jsonStringifySafe(mergedRaw);
-
   return Object.keys(patch).length ? patch : null;
 }
 
@@ -863,8 +900,18 @@ function normalizeSummaryRecord(record, diagnostics = null) {
     summaryDate: toDateOnlyISO(record.summaryDate),
     overallIndex: toNumber(record.overallIndex),
     overallChange: toNumber(record.overallChange),
+    overallChangePercent: calculateIndexChangePercent(
+      record.overallIndex,
+      record.overallChange,
+      pickValue(rawData, FIELD_KEYS.changeIndexPercent, toNumber)
+    ),
     equalIndex,
     equalChange,
+    equalChangePercent: calculateIndexChangePercent(
+      equalIndex,
+      equalChange,
+      pickValue(rawData, FIELD_KEYS.equalChangePercent, toNumber)
+    ),
     displayOverallIndex: formatFaNumber(record.overallIndex),
     displayOverallChange: formatFaNumber(record.overallChange),
     displayEqualIndex: formatFaNumber(equalIndex),
@@ -997,8 +1044,7 @@ async function findLatestUnsummarizedMarketDay({ maxDaysBack = 10, rowsPerDayLoo
  * (با تاریخ همان روز، نه امروز) بسازد. هم از کرون ۱۲:۳۵ و هم از
  * findOrGenerateLatest (باز شدن تب توسط کاربر) به‌عنوان شبکه‌ی ایمنی
  * صدا زده می‌شود.
- */
-async function runCatchUpForMissingSummary() {
+ */async function runCatchUpForMissingSummary() {
   try {
     const target = await findLatestUnsummarizedMarketDay({ maxDaysBack: 10 });
     if (!target) {
@@ -1247,8 +1293,7 @@ exports.findHistory = async ({ page = 1, limit = 10 }) => {
 
 /* ================================
  * New APIs support
- * ================================ */
-exports.getAvailableDates = async () => {
+ * ================================ */exports.getAvailableDates = async () => {
   const MarketSummary = getMarketSummaryModel();
   const rows = await MarketSummary.findMany({
     select: { id: true, summaryDate: true },
@@ -1303,4 +1348,3 @@ async function inspectLatestMarketRows(opts) {
   return inspectLatestMarketHistoryRows(opts);
 }
 exports.inspectLatestMarketRows = inspectLatestMarketRows;
-
