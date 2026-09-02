@@ -8,7 +8,6 @@ export interface RegisterUserData {
   lastName: string;
   mobile: string;
   email: string;
-  password: string;
 }
 
 // -----------------------------
@@ -357,7 +356,6 @@ export async function registerUser(userData: RegisterUserData): Promise<StoredUs
   const res = await post<any>('/auth/register', {
     username: userData.email,
     email: userData.email,
-    password: userData.password,
     name: fullName,
     phone: userData.mobile,
   });
