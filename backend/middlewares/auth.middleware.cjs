@@ -2,6 +2,8 @@
 
 const jwt = require('jsonwebtoken');
 const env = require('../config/env.cjs');
+let prisma;
+try { prisma = require('../config/prisma.cjs').prisma || require('../config/prisma.cjs'); } catch (_) { prisma = null; }
 
 function getJwtSecret() {
   const secret =
@@ -79,7 +81,7 @@ function buildUserFromDecoded(decoded) {
   };
 }
 
-function authenticate(req, res, next) {
+async function authenticate(req, res, next) {
   try {
     const { token, source } = extractToken(req);
 
@@ -122,6 +124,12 @@ function authenticate(req, res, next) {
         messageEn: 'Token missing valid user information.',
         code: 'INVALID_TOKEN_PAYLOAD',
       });
+    }
+
+    if (prisma) {
+      const dbUser = await prisma.user.findUnique({ where: { id: Number(user.userId) }, select: { id: true, isActive: true, isDeleted: true, passwordChangedAt: true } });
+      if (!dbUser || !dbUser.isActive || dbUser.isDeleted) return res.status(401).json({ success:false, message:'حساب کاربری غیرفعال یا نامعتبر است.', code:'USER_DISABLED' });
+      if (dbUser.passwordChangedAt && decoded.iat && dbUser.passwordChangedAt.getTime() > Number(decoded.iat) * 1000) return res.status(401).json({ success:false, message:'کلمه عبور تغییر کرده است. لطفا مجددا وارد شوید.', code:'PASSWORD_CHANGED' });
     }
 
     req.user = user;
