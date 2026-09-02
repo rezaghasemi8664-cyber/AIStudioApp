@@ -1,5 +1,6 @@
 import api from '../api/apiClient';
 
+// دیده‌بان: ذخیره‌سازی و دریافت اطلاعات بازار در سطح حساب کاربری
 export interface WatchlistSymbol {
   symbol: string;
   name: string;
