@@ -1,16 +1,13 @@
 'use strict';
 
 const express = require('express');
-const axios = require('axios');
 const router = express.Router();
 const authMiddleware = require('../middlewares/auth.middleware.cjs');
 const { PrismaClient } = require('@prisma/client');
+const brsService = require('../services/brs.service.cjs');
 const prisma = new PrismaClient();
 
 const PREF_KEY = 'portfolio_watchlists';
-const brsBaseUrl = process.env.BRS_API_URL || process.env.BRS_BASE_URL || 'http://localhost:8080';
-const brsApiKey = process.env.BRS_API_KEY || '';
-const brsTimeout = parseInt(process.env.BRS_TIMEOUT, 10) || 15000;
 
 function getUserId(req) {
   const id = Number(req.user && (req.user.id ?? req.user.userId));
@@ -44,18 +41,21 @@ async function writeWatchlists(userId, watchlists) {
     update: { value },
   });
 }
+
 async function validateMarketSymbol(symbol) {
   const clean = normalizeSymbol(symbol);
   if (!clean) return null;
   try {
-    const headers = { Accept: 'application/json' };
-    if (brsApiKey) headers['X-API-Key'] = brsApiKey;
-    const response = await axios.get(`${brsBaseUrl}/api/symbol/${encodeURIComponent(clean)}`, { headers, timeout: brsTimeout });
-    const raw = response.data?.data ?? response.data ?? {};
-    if (raw?.available === false) return null;
+    if (!brsService || typeof brsService.getSymbolData !== 'function') return null;
+    const result = await brsService.getSymbolData(clean);
+    const raw = result?.data ?? result ?? {};
+    if (!raw || raw.available === false) return null;
     const resolved = normalizeSymbol(raw?.symbol ?? raw?.l18 ?? raw?.lVal18AFC ?? raw?.ticker ?? clean);
     if (!resolved) return null;
-    return { symbol: resolved, name: String(raw?.name ?? raw?.lVal30 ?? raw?.companyName ?? resolved).trim() || resolved };
+    return {
+      symbol: resolved,
+      name: String(raw?.name ?? raw?.lVal30 ?? raw?.companyName ?? resolved).trim() || resolved,
+    };
   } catch (error) {
     console.error('[WATCHLIST] symbol validation failed:', error.message);
     return null;
