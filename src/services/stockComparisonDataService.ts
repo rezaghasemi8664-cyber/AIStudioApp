@@ -3,6 +3,7 @@ import { appApiFetch } from './apiConfigService';
 export interface ComparisonMarketSnapshot {
   symbol: string;
   currentPrice: number | null;
+  closingPrice: number | null;
   eps: number | null;
   pe: number | null;
   marketCap: number | null;
@@ -37,10 +38,31 @@ function pick(source: any, paths: string[]): any {
 
 function normalizeSnapshot(symbol: string, raw: any): ComparisonMarketSnapshot {
   const data = raw && typeof raw === 'object' ? raw : {};
-  const price = toNumber(firstDefined(
-    pick(data, ['currentPrice', 'lastPrice', 'closingPrice', 'closePrice', 'finalPrice', 'price', 'pl', 'pc']),
-    pick(data, ['marketData.lastClosePrice', 'marketData.currentPrice', 'marketData.closingPrice'])
+
+  // BRS exposes live/last-traded values separately from the official closing values.
+  // The comparison table must never use the live price or live change as closing metrics.
+  const closingPrice = toNumber(firstDefined(
+    pick(data, ['closingPrice', 'lastClosePrice', 'closePrice', 'finalPrice']),
+    pick(data, ['price.closing', 'price.close', 'marketData.lastClosePrice', 'marketData.closingPrice'])
   ));
+
+  const currentPrice = toNumber(firstDefined(
+    pick(data, ['currentPrice', 'lastPrice', 'lastTradedPrice', 'price', 'pl']),
+    pick(data, ['marketData.currentPrice', 'marketData.lastPrice', 'marketData.lastTradedPrice'])
+  ));
+
+  // This field is intentionally the official closing-price percentage change.
+  const closingChangePercent = toNumber(firstDefined(
+    pick(data, ['closeChangePercent', 'closingChangePercent', 'pcp']),
+    pick(data, ['price.closingChangePercent', 'marketData.closingChangePercent', 'marketData.price.closingChangePercent']),
+    pick(data, ['fundamental.priceChangePercent'])
+  ));
+
+  const fallbackChangePercent = toNumber(firstDefined(
+    pick(data, ['priceChangePercent', 'changePercent', 'pctChange', 'chp']),
+    pick(data, ['marketData.priceChangePercent', 'marketData.changePercent'])
+  ));
+
   const eps = toNumber(firstDefined(
     pick(data, ['eps', 'EPS', 'earningsPerShare', 'eps_ttm']),
     pick(data, ['fundamental.eps', 'fundamentals.eps', 'metrics.eps'])
@@ -50,11 +72,13 @@ function normalizeSnapshot(symbol: string, raw: any): ComparisonMarketSnapshot {
     pick(data, ['fundamental.pe', 'fundamentals.pe', 'metrics.pe'])
   ));
 
-  if (pe === null && price !== null && eps !== null && eps !== 0) pe = price / eps;
+  // If the API does not provide P/E, calculate it from the official closing price.
+  if (pe === null && closingPrice !== null && eps !== null && eps !== 0) pe = closingPrice / eps;
 
   return {
     symbol,
-    currentPrice: price,
+    currentPrice,
+    closingPrice,
     eps,
     pe,
     marketCap: toNumber(firstDefined(
@@ -65,10 +89,8 @@ function normalizeSnapshot(symbol: string, raw: any): ComparisonMarketSnapshot {
       pick(data, ['baseVolume', 'base_volume']),
       pick(data, ['fundamental.baseVolume', 'fundamentals.baseVolume'])
     )),
-    priceChangePercent: toNumber(firstDefined(
-      pick(data, ['priceChangePercent', 'changePercent', 'pctChange', 'chp']),
-      pick(data, ['price.closingChangePercent', 'fundamental.priceChangePercent'])
-    )),
+    // Preserve the public field name used by the comparison UI, but source it from closing change first.
+    priceChangePercent: closingChangePercent ?? fallbackChangePercent,
     raw: data,
   };
 }
@@ -86,7 +108,7 @@ export function buildComparisonDataPayload(snapshots: Record<string, ComparisonM
   return Object.fromEntries(Object.entries(snapshots).map(([symbol, snapshot]) => [symbol, {
     symbol,
     currentPrice: snapshot.currentPrice,
-    closingPrice: snapshot.currentPrice,
+    closingPrice: snapshot.closingPrice,
     eps: snapshot.eps,
     pe: snapshot.pe,
     marketCap: snapshot.marketCap,
