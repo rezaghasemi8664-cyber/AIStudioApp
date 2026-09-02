@@ -1875,10 +1875,10 @@ const clearCurrentAnalysis = () => {
                   }`}
                 >
                   <div className="text-[12px] font-extrabold">
-                    {new Date(item.createdAt).toLocaleDateString('fa-IR')}
+                    {new Date(item.date || item.createdAt).toLocaleDateString('fa-IR')}
                   </div>
                   <div className="mt-1 text-[11px] font-medium text-slate-500">
-                    {new Date(item.createdAt).toLocaleTimeString('fa-IR')}
+                    {new Date(item.date || item.createdAt).toLocaleTimeString('fa-IR')}
                   </div>
                 </button>
               );
@@ -2378,6 +2378,7 @@ const clearCurrentAnalysis = () => {
     </div>
   );
 }
+
 
 
 
