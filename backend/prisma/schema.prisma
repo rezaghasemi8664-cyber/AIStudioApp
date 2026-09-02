@@ -144,7 +144,7 @@ model MarketDaily {
 }
 
 model MarketSummary {
-  id             Int      @id(map: "PK__MarketSu__3213E83FFABFB5FF") @default(autoincrement())
+  id             Int      @id(map: "PK__MarketSu__3213E83FFABFB5FF")
   date           DateTime @default(dbgenerated("sysdatetime()"), map: "DF__MarketSumm__date__6CC31A31")
   summaryDate    DateTime @unique(map: "UQ_MarketSummary_summaryDate") @db.Date
 
@@ -166,11 +166,8 @@ model MarketSummary {
   topLosers      String?  @db.NVarChar(Max)
   topVolumes     String?  @db.NVarChar(Max)
 
-  // ✅ فیلدهای اصولی برای خروجی AI
   content        String?  @db.NVarChar(Max)
   summary        String?  @db.NVarChar(Max)
-
-  // نگهداری داده خام/ساختاریافته
   rawJson        String?  @db.NVarChar(Max)
 
   createdAt      DateTime @default(dbgenerated("sysdatetime()"), map: "DF__MarketSum__creat__6DB73E6A")
@@ -179,7 +176,6 @@ model MarketSummary {
   @@map("MarketSummary")
   @@schema("dbo")
 }
-
 
 model ThemeConfig {
   id        Int       @id(map: "PK__ThemeCon__3213E83FEEABC965") @default(autoincrement())
@@ -192,7 +188,7 @@ model ThemeConfig {
 }
 
 model UiConfig {
-  id        Int       @id(map: "PK__UIConfig__3213E83FAC762C85") @default(autoincrement())
+  id        Int       @id(map: "PK__UIConfig__3213E83FAC762C85")
   key       String    @unique(map: "UQ__UIConfig__DFD83CAFBB5156A5") @db.NVarChar(100)
   valueJson String?   @db.NVarChar(Max)
   updatedAt DateTime? @default(dbgenerated("sysdatetime()"), map: "DF__UIConfig__update__0697FACD")
@@ -202,7 +198,7 @@ model UiConfig {
 }
 
 model LogEntry {
-  id        Int       @id(map: "PK__LogEntry__3213E83F5869E60D") @default(autoincrement())
+  id        Int       @id(map: "PK__LogEntry__3213E83F5869E60D")
   level     String?   @db.NVarChar(20)
   message   String?   @db.NVarChar(Max)
   createdAt DateTime? @default(dbgenerated("sysdatetime()"), map: "DF__LogEntry__create__09746778")
@@ -282,7 +278,6 @@ model GlobalSetting {
   @@schema("dbo")
 }
 
-
 model UserPreference {
   id        Int      @id @default(autoincrement())
   userId    Int
@@ -322,23 +317,24 @@ model ScalpingOpportunity {
   meta       String?  @db.NVarChar(Max)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  
-  // فیلد userId به صورت اختیاری اضافه شد تا با ساختار دیتابیس همخوانی داشته باشد
-  userId     Int?     
+  userId     Int?
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([symbol])
-  @@index([userId]) // ایندکس برای افزایش سرعت جستجو بر اساس کاربر
+  @@index([userId])
   @@map("ScalpingOpportunity")
   @@schema("dbo")
 }
+
 model ScalpingRun {
-  id        Int              @id @default(autoincrement())
-  userId    Int
-  status    String           @db.NVarChar(50)
-  createdAt DateTime         @default(now())
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  results   ScalpingResult[]
+  id         Int              @id @default(autoincrement())
+  userId     Int
+  status     String           @db.NVarChar(50)
+  meta       String?          @db.NVarChar(Max)
+  finishedAt DateTime?
+  createdAt  DateTime         @default(now())
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  results    ScalpingResult[]
 
   @@index([userId])
   @@index([status])
@@ -400,8 +396,8 @@ model admin_scheduler_rules {
   lastRunAt       DateTime?
   nextRunAt       DateTime?
   createdBy       Int
-  createdAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sch__creat__0682EC34")
-  updatedAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sch__updat__0777106D")
+  createdAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sc__creat__0682EC34")
+  updatedAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sc__updat__0777106D")
   User            User      @relation(fields: [createdBy], references: [id], onUpdate: NoAction, map: "FK_admin_scheduler_rules_user")
 
   @@schema("dbo")
