@@ -137,10 +137,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         return signupSuccess ? (
           <div className="p-6 text-center space-y-4">
             <CheckCircleIcon className="mx-auto" />
-            <h4 className="text-lg font-bold">ثبت‌نام با موفقیت انجام شد!</h4>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              اکنون می‌توانید با ایمیل و کلمه عبور خود وارد شوید.
-            </p>
+            <h4 className="text-lg font-bold">کلمه عبور به ایمیل شما ارسال گردید</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400">لطفا جهت مشاهده کلمه عبور ایمیل خود را بررسی نمایید.</p>
             <div className="pt-2">
               <button
                 onClick={() => handleViewChange('login')}
