@@ -119,7 +119,7 @@ model AnalysisHistory {
 model MarketHistory {
   id        Int       @id(map: "PK__MarketHi__3213E83F9B8AD4C3") @default(autoincrement())
   jsonData  String?   @db.NVarChar(Max)
-  createdAt DateTime? @default(dbgenerated("sysdatetime()"), map: "DF__MarketHis__creat__7FEAFD3E")
+  createdAt DateTime? @default(dbgenerated("sysdatetime()"), map: "DF__MarketHi__creat__7FEAFD3E")
 
   @@map("MarketHistory")
   @@schema("dbo")
@@ -147,29 +147,23 @@ model MarketSummary {
   id             Int      @id(map: "PK__MarketSu__3213E83FFABFB5FF")
   date           DateTime @default(dbgenerated("sysdatetime()"), map: "DF__MarketSumm__date__6CC31A31")
   summaryDate    DateTime @unique(map: "UQ_MarketSummary_summaryDate") @db.Date
-
   overallIndex   Float?
   overallChange  Float?
   equalIndex     Float?
   equalChange    Float?
   marketStatus   String?  @db.NVarChar(50)
-
   totalTrades    BigInt?
   totalVolume    BigInt?
   totalValue     BigInt?
-
   positiveStocks Int?
   negativeStocks Int?
   neutralStocks  Int?
-
   topGainers     String?  @db.NVarChar(Max)
   topLosers      String?  @db.NVarChar(Max)
   topVolumes     String?  @db.NVarChar(Max)
-
   content        String?  @db.NVarChar(Max)
   summary        String?  @db.NVarChar(Max)
   rawJson        String?  @db.NVarChar(Max)
-
   createdAt      DateTime @default(dbgenerated("sysdatetime()"), map: "DF__MarketSum__creat__6DB73E6A")
 
   @@index([date], map: "IX_MarketSummary_date")
@@ -188,7 +182,7 @@ model ThemeConfig {
 }
 
 model UiConfig {
-  id        Int       @id(map: "PK__UIConfig__3213E83FAC762C85")
+  id        Int       @id(map: "PK__UIConfig__3213E83FAC762C85") @default(autoincrement())
   key       String    @unique(map: "UQ__UIConfig__DFD83CAFBB5156A5") @db.NVarChar(100)
   valueJson String?   @db.NVarChar(Max)
   updatedAt DateTime? @default(dbgenerated("sysdatetime()"), map: "DF__UIConfig__update__0697FACD")
@@ -198,7 +192,7 @@ model UiConfig {
 }
 
 model LogEntry {
-  id        Int       @id(map: "PK__LogEntry__3213E83F5869E60D")
+  id        Int       @id(map: "PK__LogEntry__3213E83F5869E60D") @default(autoincrement())
   level     String?   @db.NVarChar(20)
   message   String?   @db.NVarChar(Max)
   createdAt DateTime? @default(dbgenerated("sysdatetime()"), map: "DF__LogEntry__create__09746778")
@@ -211,7 +205,6 @@ model AppConfig {
   key       String   @id @db.NVarChar(100)
   value     String   @db.NVarChar(Max)
   updatedAt DateTime @default(dbgenerated("sysdatetime()"))
-
   @@map("AppConfig")
   @@schema("dbo")
 }
@@ -223,7 +216,6 @@ model Conversation {
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   ConversationMember ConversationMember[]
-
   @@map("Conversation")
   @@schema("dbo")
 }
@@ -235,7 +227,6 @@ model ConversationMember {
   lastReadAt     DateTime?
   Conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   User           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   @@unique([conversationId, userId])
   @@map("ConversationMember")
   @@schema("dbo")
@@ -247,7 +238,6 @@ model Session {
   token     String    @unique
   createdAt DateTime? @default(dbgenerated("sysdatetime()"))
   user      User      @relation(fields: [userId], references: [id])
-
   @@index([userId])
   @@map("Session")
   @@schema("dbo")
@@ -260,7 +250,6 @@ model UserSettings {
   language      String?
   notifications Boolean? @default(true)
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   @@map("UserSettings")
   @@schema("dbo")
 }
@@ -274,7 +263,6 @@ model GlobalSetting {
   updatedAt DateTime @default(dbgenerated("sysdatetime()"))
   version   Int      @default(1)
   isPublic  Boolean  @default(false)
-
   @@schema("dbo")
 }
 
@@ -285,7 +273,6 @@ model UserPreference {
   value     String   @db.NVarChar(Max)
   updatedAt DateTime @default(dbgenerated("sysdatetime()"))
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   @@unique([userId, key])
   @@index([userId])
   @@map("UserPreference")
@@ -300,7 +287,6 @@ model ScalpingConfig {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   @@map("ScalpingConfig")
   @@schema("dbo")
 }
@@ -319,7 +305,6 @@ model ScalpingOpportunity {
   updatedAt  DateTime @updatedAt
   userId     Int?
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-
   @@index([symbol])
   @@index([userId])
   @@map("ScalpingOpportunity")
@@ -335,7 +320,6 @@ model ScalpingRun {
   createdAt  DateTime         @default(now())
   user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   results    ScalpingResult[]
-
   @@index([userId])
   @@index([status])
   @@map("ScalpingRun")
@@ -348,7 +332,6 @@ model ScalpingResult {
   symbol    String       @db.NVarChar(50)
   dataJson  String       @db.NVarChar(Max)
   run       ScalpingRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
-
   @@index([runId])
   @@index([symbol])
   @@map("ScalpingResult")
@@ -361,7 +344,6 @@ model Role {
   title       String?          @db.NVarChar(100)
   permissions RolePermission[]
   users       User[]
-
   @@schema("dbo")
 }
 
@@ -369,7 +351,6 @@ model Permission {
   id    Int              @id @default(autoincrement())
   key   String           @unique
   roles RolePermission[]
-
   @@schema("dbo")
 }
 
@@ -379,7 +360,6 @@ model RolePermission {
   permissionId Int
   permission   Permission @relation(fields: [permissionId], references: [id])
   role         Role       @relation(fields: [roleId], references: [id])
-
   @@unique([roleId, permissionId])
   @@schema("dbo")
 }
@@ -396,9 +376,8 @@ model admin_scheduler_rules {
   lastRunAt       DateTime?
   nextRunAt       DateTime?
   createdBy       Int
-  createdAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sc__creat__0682EC34")
-  updatedAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sc__updat__0777106D")
+  createdAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sch__creat__0682EC34")
+  updatedAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sch__updat__0777106D")
   User            User      @relation(fields: [createdBy], references: [id], onUpdate: NoAction, map: "FK_admin_scheduler_rules_user")
-
   @@schema("dbo")
 }
