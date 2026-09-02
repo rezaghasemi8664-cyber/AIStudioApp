@@ -19,30 +19,103 @@ const fa = (v) => v === null || v === undefined ? 'نامشخص' : Number(v).toL
 const signPct = (v) => v === null || v === undefined ? 'نامشخص' : `${v >= 0 ? '+' : ''}${Number(v).toLocaleString('fa-IR', { maximumFractionDigits: 2 })}%`;
 const level = (v) => ({ low:'کم', medium:'متوسط', high:'زیاد' })[v] || 'نامشخص';
 
+function directionFa(value) {
+  const n = finiteOrNull(value);
+  if (n === null) return 'نامشخص';
+  if (n > 0) return 'مثبت';
+  if (n < 0) return 'منفی';
+  return 'خنثی';
+}
+
+function buildDeterministicDivergenceText(indexes, breadth, liquidity, flow) {
+  const overallDirection = directionFa(indexes.overall?.change);
+  const equalDirection = directionFa(indexes.equalWeight?.change);
+  const breadthDirection = breadth?.positive != null && breadth?.negative != null
+    ? breadth.positive > breadth.negative ? 'مثبت' : breadth.negative > breadth.positive ? 'منفی' : 'خنثی'
+    : 'نامشخص';
+
+  const parts = [];
+  if (overallDirection !== 'نامشخص' || equalDirection !== 'نامشخص') {
+    parts.push(`شاخص کل ${overallDirection} و شاخص هم‌وزن ${equalDirection} هستند`);
+  }
+  if (breadthDirection !== 'نامشخص') {
+    parts.push(`عرض بازار ${breadthDirection} است`);
+  }
+
+  let text = parts.length
+    ? `${parts.join(' و ')}.`
+    : 'جهت شاخص‌ها یا عرض بازار از داده‌های موجود قابل تعیین نیست.';
+
+  if (overallDirection === 'منفی' && equalDirection === 'منفی' && breadthDirection === 'منفی') {
+    text += ' بنابراین فشار فروش در سطح شاخص‌ها و بدنه بازار هم‌جهت است.';
+  } else if (overallDirection === 'مثبت' && equalDirection === 'مثبت' && breadthDirection === 'مثبت') {
+    text += ' بنابراین حرکت شاخص‌ها از مشارکت گسترده بازار پشتیبانی می‌شود.';
+  } else if (overallDirection !== 'نامشخص' && breadthDirection !== 'نامشخص' && overallDirection !== breadthDirection) {
+    text += ' این اختلاف جهت، واگرایی بین حرکت شاخص و مشارکت بدنه بازار را نشان می‌دهد.';
+  }
+
+  if (liquidity?.interpretation) text += ` ${liquidity.interpretation}`;
+  if (flow?.net != null && Number(flow.net) < 0) text += ' خروج خالص پول حقیقی نیز یک هشدار نزولی است.';
+  if (flow?.net != null && Number(flow.net) > 0) text += ' ورود خالص پول حقیقی یک عامل حمایتی برای بازار است.';
+  return text;
+}
+
+function buildDeterministicScenarioText(indexes, breadth, flow) {
+  const overall = finiteOrNull(indexes.overall?.change);
+  const equal = finiteOrNull(indexes.equalWeight?.change);
+  const positive = finiteOrNull(breadth?.positive);
+  const negative = finiteOrNull(breadth?.negative);
+  const net = finiteOrNull(flow?.net);
+
+  if (overall !== null && overall < 0 && equal !== null && equal < 0 && positive !== null && negative !== null && negative > positive) {
+    return 'سناریوی پایه: متوسط رو به نزولی — هر دو شاخص منفی‌اند و برتری نمادهای منفی نشان‌دهنده فشار فروش گسترده است. | سناریوی صعودی: ضعیف — بهبود عرض بازار، توقف افت شاخص‌ها و برگشت نقدینگی حقیقی لازم است. | سناریوی نزولی: زیاد — تداوم فشار فروش، ضعف عرض بازار و خروج نقدینگی می‌تواند اصلاح را تشدید کند.';
+  }
+  if (overall !== null && overall > 0 && equal !== null && equal > 0 && positive !== null && negative !== null && positive > negative) {
+    return 'سناریوی پایه: متوسط رو به صعودی — هر دو شاخص مثبت‌اند و مشارکت گسترده نمادهای مثبت از حرکت حمایت می‌کند. | سناریوی صعودی: زیاد — حفظ عرض مثبت و ورود نقدینگی می‌تواند حرکت را تثبیت کند. | سناریوی نزولی: متوسط — افت عرض بازار یا خروج نقدینگی می‌تواند حرکت را تضعیف کند.';
+  }
+  const flowText = net === null ? '' : net < 0 ? ' خروج پول حقیقی ریسک نزولی را بیشتر می‌کند.' : net > 0 ? ' ورود پول حقیقی یک عامل حمایتی است.' : '';
+  return `سناریوی پایه: متوسط — جهت بعدی بازار به تأیید هم‌زمان شاخص‌ها و عرض بازار وابسته است. | سناریوی صعودی: متوسط — بهبود مشارکت نمادها و نقدینگی می‌تواند احتمال تثبیت حرکت را افزایش دهد. | سناریوی نزولی: متوسط — ضعف عرض بازار یا خروج نقدینگی می‌تواند بازار را به سمت اصلاح سوق دهد.${flowText}`;
+}
+
 function intelligenceText(i) {
   if (!i) return null;
   const regime=i.regime||{}, breadth=i.breadth||{}, liq=i.liquidity||{}, flow=i.moneyFlow||{}, mom=i.momentum||{}, risk=i.risk||{}, sectors=i.sectors||{}, indexes=i.indexes||{};
-  const divs=Array.isArray(i.divergences)?i.divergences:[], scenarios=Array.isArray(i.scenarios)?i.scenarios:[], action=i.action||{}, quality=i.dataQuality||{};
+  const action=i.action||{}, quality=i.dataQuality||{};
   const gainers=(i.leaders?.gainers||[]).slice(0,5).map(x=>x?.symbol).filter(Boolean).join('، ')||'نامشخص';
   const losers=(i.leaders?.losers||[]).slice(0,5).map(x=>x?.symbol).filter(Boolean).join('، ')||'نامشخص';
   const sectorLeaders=(sectors.leaders||[]).slice(0,3).map(x=>`${x.name}${x.changePercent==null?'':` (${signPct(x.changePercent)})`}`).join('، ')||'داده صنعت در دسترس نیست';
   const sectorLaggards=(sectors.laggards||[]).slice(0,3).map(x=>`${x.name}${x.changePercent==null?'':` (${signPct(x.changePercent)})`}`).join('، ')||'داده صنعت در دسترس نیست';
-  const divergenceText=divs.length?divs.map(x=>x.text).join(' '):'واگرایی مهمی بر اساس داده‌های موجود شناسایی نشد.';
-  const scenarioText=scenarios.length?scenarios.map(x=>`${x.title}: ${x.probability} — ${x.text}`).join(' | '):'سناریوی قابل اتکا به دلیل کمبود داده تعیین نشد.';
-  const confirmation=(action.confirmation||[]).join('، ')||'تأیید روند به داده‌های جلسه بعد وابسته است.';
+  const overallChange = finiteOrNull(indexes.overall?.change);
+  const equalChange = finiteOrNull(indexes.equalWeight?.change);
+  const overallDirection = directionFa(overallChange);
+  const equalDirection = directionFa(equalChange);
+  const breadthDirection = breadth?.positive != null && breadth?.negative != null
+    ? breadth.positive > breadth.negative ? 'مثبت' : breadth.negative > breadth.positive ? 'منفی' : 'خنثی'
+    : 'نامشخص';
+  const divergenceText = buildDeterministicDivergenceText(indexes, breadth, liq, flow);
+  const scenarioText = buildDeterministicScenarioText(indexes, breadth, flow);
+  const confirmation = overallDirection === 'منفی'
+    ? 'بهبود عرض بازار، کاهش فشار فروش، توقف افت هم‌زمان شاخص کل و هم‌وزن و بازگشت نقدینگی حقیقی.'
+    : overallDirection === 'مثبت'
+      ? 'حفظ عرض مثبت بازار، پایداری شاخص هم‌وزن و تداوم نقدینگی حقیقی.'
+      : 'تأیید جهت شاخص‌ها و عرض بازار در جلسه بعد.';
+  const operationalBias = overallDirection === 'منفی' && equalDirection === 'منفی' ? 'نزولی' : overallDirection === 'مثبت' && equalDirection === 'مثبت' ? 'صعودی' : 'خنثی';
+  const operationalRisk = operationalBias === 'نزولی' ? 'متوسط رو به زیاد' : operationalBias === 'صعودی' ? 'متوسط' : (action.risk || 'متوسط');
+  const suitableFor = operationalBias === 'نزولی' ? 'احتیاط، کاهش ریسک و انتظار برای تأیید برگشت' : operationalBias === 'صعودی' ? 'پیگیری روند با مدیریت ریسک' : (action.suitableFor || 'انتظار برای تأیید روند');
+
   return [
-    `۱) رژیم بازار و امتیاز: بازار در وضعیت «${regime.label||'نامشخص'}» با امتیاز ${fa(regime.score)} از ۱۰۰ قرار دارد.`,
+    `۱) رژیم بازار و امتیاز: بازار در وضعیت «${regime.label||'نامشخص'}» با امتیاز ${fa(regime.score)} از ۱۰۰ قرار دارد؛ جهت جلسه جاری بر اساس شاخص کل ${overallDirection} و شاخص هم‌وزن ${equalDirection} است.`,
     `۲) شاخص‌ها: شاخص کل ${fa(indexes.overall?.value)} واحد با تغییر ${signPct(indexes.overall?.changePercent)}؛ شاخص هم‌وزن ${fa(indexes.equalWeight?.value)} واحد با تغییر ${signPct(indexes.equalWeight?.changePercent)}.`,
-    `۳) پهنای بازار: ${fa(breadth.positive)} نماد مثبت، ${fa(breadth.negative)} نماد منفی و ${fa(breadth.neutral)} نماد خنثی؛ ارزیابی breadth: ${breadth.interpretation||'نامشخص'}.`,
+    `۳) پهنای بازار: ${fa(breadth.positive)} نماد مثبت، ${fa(breadth.negative)} نماد منفی و ${fa(breadth.neutral)} نماد خنثی؛ ارزیابی breadth: ${breadth.interpretation||`عرض بازار ${breadthDirection} است.`}.`,
     `۴) نقدشوندگی و معاملات: ارزش معاملات ${fa(liq.value)}، حجم معاملات ${fa(liq.volume)} و تعداد معاملات ${fa(liq.trades)}؛ وضعیت نقدشوندگی ${liq.interpretation||'نامشخص'} است.`,
     `۵) جریان پول: ${flow.interpretation||'داده جریان پول حقیقی در دسترس نیست'}${flow.net==null?'':`؛ خالص جریان ${fa(flow.net)}`}.`,
     `۶) چرخش صنایع: قوی‌ترین صنایع/گروه‌های قابل شناسایی: ${sectorLeaders}. ضعیف‌ترین‌ها: ${sectorLaggards}.`,
-    `۷) مومنتوم: وضعیت ${mom.state==='positive'?'مثبت':mom.state==='negative'?'منفی':mom.state==='neutral'?'خنثی':'نامشخص'}؛ تغییر تجمعی ۵ جلسه اخیر ${signPct(mom.fiveDayChangePct)} و ${fa(mom.positiveDays5)} جلسه مثبت از ۵ جلسه اخیر ثبت شده است.`,
+    `۷) مومنتوم: وضعیت جلسه جاری ${overallDirection}؛ مومنتوم ۵ جلسه اخیر ${mom.state==='positive'?'مثبت':mom.state==='negative'?'منفی':mom.state==='neutral'?'خنثی':'نامشخص'} است؛ تغییر تجمعی ۵ جلسه اخیر ${signPct(mom.fiveDayChangePct)} و ${fa(mom.positiveDays5)} جلسه مثبت از ۵ جلسه اخیر ثبت شده است.`,
     `۸) ریسک و نوسان: سطح ریسک ${risk.label||'نامشخص'} و وضعیت نوسان ${level(risk.volatilityState)} است${risk.volatility==null?'':`؛ انحراف معیار تغییرات روزانه حدود ${fa(risk.volatility)}%`}.`,
     `۹) واگرایی‌ها و هشدارها: ${divergenceText}`,
     `۱۰) نمادهای شاخص حرکت: برترین رشدهای موجود: ${gainers}؛ برترین افت‌ها: ${losers}.`,
     `۱۱) سناریوهای پیش‌رو: ${scenarioText}`,
-    `۱۲) نتیجه عملیاتی: سوگیری ${action.bias||'نامشخص'} و ریسک ${action.risk||'نامشخص'}؛ مناسب برای ${action.suitableFor||'تصمیم‌گیری پس از تأیید داده‌ها'}.`,
+    `۱۲) نتیجه عملیاتی: سوگیری ${operationalBias} و ریسک ${operationalRisk}؛ مناسب برای ${suitableFor}.`,
     `۱۳) شروط تأیید/ابطال: ${confirmation}.`,
     `۱۴) کیفیت داده و محدودیت تحلیل: کیفیت داده ${quality.level==='high'?'بالا':quality.level==='medium'?'متوسط':'پایین'} است؛ ${fa(quality.availableFields)} مورد از ${fa(quality.expectedFields)} مؤلفه اصلی در دسترس بوده و پوشش نمادها ${quality.symbolsCoverage==null?'نامشخص':`${quality.symbolsCoverage}%`} است. این گزارش فقط بر داده‌های موجود تکیه دارد و در صورت نبود داده، عدد یا نتیجه‌ای حدس زده نشده است.`
   ].join('\n\n');
