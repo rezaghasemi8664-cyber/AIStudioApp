@@ -93,7 +93,6 @@ router.post('/compare', authMiddleware, async function (req, res) {
     if (aiService && typeof aiService.compareStocks === 'function' && aiService.isAvailable) {
       const result = await aiService.compareStocks({
         symbols,
-        // Persian language is enforced server-side so the client cannot weaken it.
         criteria: PERSIAN_COMPARE_CRITERIA,
         data: body.data || null,
         model: body.model,
@@ -116,7 +115,6 @@ router.post('/compare', authMiddleware, async function (req, res) {
     return res.status(503).json({
       success: false,
       message: 'سرویس مقایسه در دسترس نیست.',
-      messageEn: 'Compare service is not available.',
       code: 'COMPARE_SERVICE_UNAVAILABLE',
       requestId: req.requestId,
     });
