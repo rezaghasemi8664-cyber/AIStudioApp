@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarDaysIcon } from './Icons';
 
-const TEHRAN_TIME_ZONE = 'Asia/Tehran';
+// Iran uses a fixed UTC+03:30 offset since DST was abolished.
+// We intentionally do not use the browser's local timezone or the IANA
+// Asia/Tehran timezone database here, so the displayed clock cannot drift
+// because of the user's OS/browser timezone rules.
+const TEHRAN_UTC_OFFSET_MS = (3 * 60 + 30) * 60 * 1000;
 
 const Clock: React.FC = () => {
     const [now, setNow] = useState(() => Date.now());
@@ -14,10 +18,14 @@ const Clock: React.FC = () => {
         return () => window.clearInterval(timerId);
     }, []);
 
-    const date = useMemo(() => new Date(now), [now]);
+    // Convert the current UTC instant to Tehran wall-clock time using the
+    // fixed +03:30 offset, then format that value explicitly as UTC. This
+    // removes every dependency on the client machine's timezone settings.
+    const tehranDate = useMemo(
+        () => new Date(now + TEHRAN_UTC_OFFSET_MS),
+        [now],
+    );
 
-    // All displayed date/time values are explicitly formatted in Tehran time.
-    // This makes the clock independent of the browser/OS local timezone.
     const shamsiDate = useMemo(
         () => new Intl.DateTimeFormat('fa-IR-u-nu-latn', {
             calendar: 'persian',
@@ -25,9 +33,9 @@ const Clock: React.FC = () => {
             month: 'long',
             day: 'numeric',
             weekday: 'long',
-            timeZone: TEHRAN_TIME_ZONE,
-        }).format(date),
-        [date],
+            timeZone: 'UTC',
+        }).format(tehranDate),
+        [tehranDate],
     );
 
     const gregorianDate = useMemo(
@@ -36,9 +44,9 @@ const Clock: React.FC = () => {
             year: 'numeric',
             month: 'short',
             day: 'numeric',
-            timeZone: TEHRAN_TIME_ZONE,
-        }).format(date),
-        [date],
+            timeZone: 'UTC',
+        }).format(tehranDate),
+        [tehranDate],
     );
 
     const currentTime = useMemo(
@@ -47,9 +55,9 @@ const Clock: React.FC = () => {
             minute: '2-digit',
             second: '2-digit',
             hour12: false,
-            timeZone: TEHRAN_TIME_ZONE,
-        }).format(date),
-        [date],
+            timeZone: 'UTC',
+        }).format(tehranDate),
+        [tehranDate],
     );
 
     return (
