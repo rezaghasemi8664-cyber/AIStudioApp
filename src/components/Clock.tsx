@@ -1,45 +1,56 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarDaysIcon } from './Icons';
 
+const TEHRAN_TIME_ZONE = 'Asia/Tehran';
+
 const Clock: React.FC = () => {
-    const [date, setDate] = useState(new Date());
+    const [now, setNow] = useState(() => Date.now());
 
     useEffect(() => {
-        const timerId = setInterval(() => {
-            setDate(new Date());
+        const timerId = window.setInterval(() => {
+            setNow(Date.now());
         }, 1000);
-        return () => clearInterval(timerId);
+
+        return () => window.clearInterval(timerId);
     }, []);
 
-    // Formatter for Shamsi date, using Tehran time zone and Latin numerals
-    const shamsiFormatter = new Intl.DateTimeFormat('fa-IR-u-nu-latn', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        weekday: 'long',
-        timeZone: 'Asia/Tehran',
-    });
+    const date = useMemo(() => new Date(now), [now]);
 
-    // Formatter for Gregorian date, using Tehran time zone
-    const gregorianFormatter = new Intl.DateTimeFormat('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        timeZone: 'Asia/Tehran',
-    });
+    // All displayed date/time values are explicitly formatted in Tehran time.
+    // This makes the clock independent of the browser/OS local timezone.
+    const shamsiDate = useMemo(
+        () => new Intl.DateTimeFormat('fa-IR-u-nu-latn', {
+            calendar: 'persian',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            weekday: 'long',
+            timeZone: TEHRAN_TIME_ZONE,
+        }).format(date),
+        [date],
+    );
 
-    // Formatter for time, using Tehran time zone
-    const timeFormatter = new Intl.DateTimeFormat('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-        timeZone: 'Asia/Tehran',
-    });
-    
-    const shamsiDate = shamsiFormatter.format(date);
-    const gregorianDate = gregorianFormatter.format(date);
-    const currentTime = timeFormatter.format(date);
+    const gregorianDate = useMemo(
+        () => new Intl.DateTimeFormat('en-US', {
+            calendar: 'gregory',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            timeZone: TEHRAN_TIME_ZONE,
+        }).format(date),
+        [date],
+    );
+
+    const currentTime = useMemo(
+        () => new Intl.DateTimeFormat('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+            timeZone: TEHRAN_TIME_ZONE,
+        }).format(date),
+        [date],
+    );
 
     return (
         <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
@@ -48,7 +59,7 @@ const Clock: React.FC = () => {
                 <p className="font-semibold text-gray-800 dark:text-gray-300 whitespace-nowrap font-mono">{shamsiDate}</p>
                 <div className="flex items-center justify-end gap-2">
                     <p className="font-mono text-xs">{gregorianDate}</p>
-                     <span className="text-gray-400 dark:text-gray-600">|</span>
+                    <span className="text-gray-400 dark:text-gray-600">|</span>
                     <p className="font-mono">{currentTime}</p>
                 </div>
             </div>
