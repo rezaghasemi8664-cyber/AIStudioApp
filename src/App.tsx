@@ -73,7 +73,7 @@ const socketService = (socketServiceModule || {}) as typeof socketServiceModule;
 
 const StockAnalysis = lazy(() => import('./components/StockAnalysis'));
 const Scalping = lazy(() => import('./components/Scalping'));
-const Portfolio = lazy(() => import('./components/Portfolio'));
+const Portfolio = lazy(() => import('./components/PortfolioEnhanced'));
 const StockComparison = lazy(() => import('./components/StockComparison'));
 const DailyFilters = lazy(() => import('./components/DailyFilters'));
 const UserProfile = lazy(() => import('./components/UserProfile'));
