@@ -15,13 +15,16 @@ function resolveSchedule() {
 }
 
 function shouldRunCron() {
-  const env = String(process.env.NODE_ENV || '').toLowerCase();
   const enabled = String(process.env.ENABLE_SCALPING_CRON || '').toLowerCase();
 
+  // Explicit configuration always wins. The cron must not be disabled merely
+  // because NODE_ENV is "development" on the production VPS.
   if (enabled === 'true' || enabled === '1') return true;
   if (enabled === 'false' || enabled === '0') return false;
 
-  return env === 'production';
+  // No explicit flag: enable by default. This keeps the VPS cron operational
+  // regardless of NODE_ENV while still allowing an explicit opt-out.
+  return true;
 }
 
 /*
@@ -114,7 +117,7 @@ async function executeScalpingJob() {
 
 function initScalpingCron() {
   if (!shouldRunCron()) {
-    console.log('[CRON] Scalping cron is disabled for current environment.');
+    console.log('[CRON] Scalping cron disabled explicitly by ENABLE_SCALPING_CRON.');
     return null;
   }
 
