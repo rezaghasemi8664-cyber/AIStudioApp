@@ -50,11 +50,9 @@ function normalizeSnapshot(symbol: string, raw: any): ComparisonMarketSnapshot {
     pick(data, ['fundamental.pe', 'fundamentals.pe', 'metrics.pe'])
   ));
 
-  // If the BRS payload does not provide P/E directly, calculate it only from
-  // the same authoritative price/EPS snapshot. Never use an AI-generated P/E.
-  if (pe === null && price !== null && eps !== null && eps !== 0) {
-    pe = price / eps;
-  }
+  // If BRS does not provide P/E directly, calculate it only from the same
+  // authoritative price/EPS snapshot. Never use an AI-generated P/E.
+  if (pe === null && price !== null && eps !== null && eps !== 0) pe = price / eps;
 
   return {
     symbol,
@@ -104,4 +102,27 @@ export function buildComparisonDataPayload(snapshots: Record<string, ComparisonM
     },
     source: 'BRS market/symbol snapshot',
   }]));
+}
+
+export async function compareStocksWithMarketData(
+  symbol1: string,
+  symbol2: string,
+  settings: { dailyCount: number; weeklyCount: number }
+) {
+  const symbols = [symbol1, symbol2];
+  const snapshots = await getComparisonMarketSnapshots(symbols);
+  const response = await appApiFetch<any>('/analyze/compare', {
+    method: 'POST',
+    body: JSON.stringify({
+      symbols,
+      dailyCount: settings.dailyCount,
+      weeklyCount: settings.weeklyCount,
+      data: buildComparisonDataPayload(snapshots),
+    }),
+  });
+
+  return {
+    result: unwrap(response),
+    snapshots,
+  };
 }
