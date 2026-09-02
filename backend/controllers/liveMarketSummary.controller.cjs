@@ -32,13 +32,6 @@ function signedPercent(current, change) {
   return (d / (c - d)) * 100;
 }
 
-function pick(obj, keys) {
-  for (const key of keys) {
-    if (obj && obj[key] !== undefined && obj[key] !== null && obj[key] !== '') return obj[key];
-  }
-  return null;
-}
-
 function listSymbols(items) {
   return Array.isArray(items)
     ? items.slice(0, 5).map(x => x?.symbol || x?.l18 || x?.ticker || x?.name).filter(Boolean).join('، ')
@@ -79,19 +72,22 @@ function makeText({ market, breadth }) {
       ? 'سناریوی پایه: تداوم حرکت صعودی مشروط به حفظ عرض مثبت و پایداری شاخص هم‌وزن.'
       : 'سناریوی پایه: بازار نیازمند تأیید جهت در داده‌های جلسه جاری است.';
   const fiveDay = 'برای جلوگیری از اختلاط Snapshot تاریخی با داده زنده، مومنتوم چندروزه از این endpoint حدس زده نمی‌شود.';
-  const liquidityText = market.totalValue != null || market.tval != null
-    ? `ارزش معاملات ${fa(market.totalValue ?? market.tval)}، حجم ${fa(market.totalVolume ?? market.tvol)} و تعداد معاملات ${fa(market.totalTrades ?? market.tno)} است.`
+  const totalTrades = n(market.totalTrades ?? market.tno);
+  const totalVolume = n(market.totalVolume ?? market.tvol);
+  const totalValue = n(market.totalValue ?? market.tval);
+  const liquidityText = totalValue !== null || totalVolume !== null || totalTrades !== null
+    ? `ارزش معاملات ${fa(totalValue)}، حجم ${fa(totalVolume)} و تعداد معاملات ${fa(totalTrades)} است.`
     : 'ارزش، حجم یا تعداد معاملات از Snapshot جاری قابل تعیین کامل نیست.';
 
   return [
     `۱) وضعیت کلی بازار: بازار در وضعیت «${status}» است و جهت فعلی بر اساس تغییر شاخص کل ${direction(overallChange)} و شاخص هم‌وزن ${direction(equalChange)} است؛ سوگیری عملیاتی فعلی «${currentBias}» است.`,
     `۲) شاخص‌ها: شاخص کل ${fa(overall)} واحد با تغییر ${pct(overallPct)} (${fa(overallChange)} واحد) و شاخص هم‌وزن ${fa(equal)} واحد با تغییر ${pct(equalPct)} (${fa(equalChange)} واحد) است.`,
     `۳) پهنای بازار: ${fa(positive)} نماد مثبت، ${fa(negative)} نماد منفی و ${fa(neutral)} نماد خنثی؛ جهت عرض بازار «${bd}» است.`,
-    `۴) نقدشوندگی و معاملات: ${liquidityText}`, 
+    `۴) نقدشوندگی و معاملات: ${liquidityText}`,
     `۵) جریان پول حقیقی: ${moneyNet === null ? 'داده خالص جریان پول حقیقی در Snapshot جاری قابل تعیین نیست.' : moneyNet < 0 ? `خروج خالص پول حقیقی به میزان ${fa(moneyNet)} مشاهده می‌شود و هشدار نزولی است.` : moneyNet > 0 ? `ورود خالص پول حقیقی به میزان ${fa(moneyNet)} مشاهده می‌شود و عامل حمایتی است.` : 'جریان خالص پول حقیقی متعادل است.'}`,
     `۶) چرخش صنایع: قوی‌ترین گروه‌های قابل شناسایی: ${sectorLeaders}؛ ضعیف‌ترین گروه‌ها: ${sectorLaggards}.`,
     `۷) مومنتوم: جهت جلسه جاری ${direction(overallChange)} است. ${fiveDay}`,
-    `۸) ریسک و نوسان: با توجه به جهت هم‌زمان شاخص‌ها، ریسک جاری ${currentBias === 'نزولی' ? 'متوسط رو به زیاد' : currentBias === 'صعودی' ? 'متوسط' : 'متوسط'} ارزیابی می‌شود؛ شاخص عددی نوسان از Snapshot جاری حدس زده نمی‌شود.`,
+    `۸) ریسک و نوسان: با توجه به جهت هم‌زمان شاخص‌ها، ریسک جاری ${currentBias === 'نزولی' ? 'متوسط رو به زیاد' : 'متوسط'} ارزیابی می‌شود؛ شاخص عددی نوسان از Snapshot جاری حدس زده نمی‌شود.`,
     `۹) واگرایی‌ها و هشدارها: شاخص کل ${direction(overallChange)} و شاخص هم‌وزن ${direction(equalChange)} هستند و عرض بازار ${bd} است. ${direction(overallChange) === 'منفی' && direction(equalChange) === 'منفی' && bd === 'منفی' ? 'بنابراین فشار فروش در سطح شاخص‌ها و بدنه بازار هم‌جهت است.' : direction(overallChange) === 'مثبت' && direction(equalChange) === 'مثبت' && bd === 'مثبت' ? 'بنابراین حرکت شاخص‌ها از مشارکت گسترده بازار پشتیبانی می‌شود.' : 'در صورت اختلاف جهت، باید آن را به‌عنوان واگرایی بین شاخص و بدنه بازار در نظر گرفت.'}`,
     `۱۰) نمادهای شاخص حرکت: برترین رشدهای جاری: ${gainers || 'نامشخص'}؛ برترین افت‌های جاری: ${losers || 'نامشخص'}.`,
     `۱۱) سناریوهای پیش‌رو: ${scenario}`,
@@ -118,7 +114,11 @@ exports.getLatestMarketSummary = async function getLatestMarketSummary(req, res)
     const overallPct = signedPercent(overall, overallChange);
     const equalPct = signedPercent(equal, equalChange);
     const now = new Date();
-    const date = market.date || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran' }).format(now);
+    const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', calendar: 'gregory' }).format(now);
+    const marketDateJalali = market.date || null;
+    const totalTrades = n(market.totalTrades ?? market.tno);
+    const totalVolume = n(market.totalVolume ?? market.tvol);
+    const totalValue = n(market.totalValue ?? market.tval);
 
     return res.status(200).json({
       success: true,
@@ -126,6 +126,7 @@ exports.getLatestMarketSummary = async function getLatestMarketSummary(req, res)
         id: 0,
         date,
         summaryDate: date,
+        marketDateJalali,
         createdAt: now.toISOString(),
         overallIndex: overall,
         overallChange,
@@ -138,9 +139,9 @@ exports.getLatestMarketSummary = async function getLatestMarketSummary(req, res)
         displayEqualIndex: fa(equal),
         displayEqualChange: fa(equalChange),
         marketStatus: market.isMarketOpen === true ? 'open' : String(market.marketState || '').includes('باز') ? 'open' : 'closed',
-        totalTrades: String(market.totalTrades ?? market.tno ?? ''),
-        totalVolume: String(market.totalVolume ?? market.tvol ?? ''),
-        totalValue: String(market.totalValue ?? market.tval ?? ''),
+        totalTrades: totalTrades === null ? '' : String(totalTrades),
+        totalVolume: totalVolume === null ? '' : String(totalVolume),
+        totalValue: totalValue === null ? '' : String(totalValue),
         positiveStocks: breadth.positive ?? breadth.positiveStocks ?? null,
         negativeStocks: breadth.negative ?? breadth.negativeStocks ?? null,
         neutralStocks: breadth.neutral ?? breadth.neutralStocks ?? null,
@@ -175,12 +176,11 @@ exports.getLatestMarketSummary = async function getLatestMarketSummary(req, res)
       }
     });
   } catch (error) {
-    console.error('[LiveMarketSummaryController]', error);
     return res.status(503).json({
       success: false,
-      message: 'داده زنده بازار در دسترس نیست',
-      error: error.message,
-      meta: { sourceType: 'live_brs_snapshot', reason: 'LIVE_SNAPSHOT_FAILED' }
+      error: 'LIVE_MARKET_DATA_UNAVAILABLE',
+      message: 'داده زنده بازار در دسترس نیست؛ برای جلوگیری از نمایش داده قدیمی، خلاصه بازار تولید نشد.',
+      details: process.env.NODE_ENV === 'production' ? undefined : error.message
     });
   }
 };
