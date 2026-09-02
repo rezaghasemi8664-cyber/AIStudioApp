@@ -25,6 +25,15 @@ try {
   console.error('[ANALYZE-ROUTES] AI service load failed:', error.message);
 }
 
+const PERSIAN_COMPARE_CRITERIA = [
+  'خروجی مقایسه باید از ابتدا و در تمام فیلدهای متنی فقط به زبان فارسی تولید شود.',
+  'تمام عنوان‌ها، خلاصه‌ها، تحلیل‌های تکنیکال و بنیادی، دلایل، نتیجه‌گیری‌ها، سطح ریسک و توصیه نهایی باید فارسی باشند.',
+  'هیچ واژه یا جمله انگلیسی در متن خروجی مجاز نیست.',
+  'مقادیر recommendation فقط «خرید قوی»، «خرید»، «نگهداری»، «فروش»، «فروش قوی» یا «خنثی» باشند.',
+  'نام نمادهای بورسی، EPS، P/E و اعداد مالی شناسه یا اصطلاح استاندارد هستند و نباید ترجمه شوند.',
+  'کلیدهای JSON داخلی را مطابق قرارداد API نگه دار، اما تمام مقادیر متنی را فارسی تولید کن.',
+].join('\n');
+
 const normalizeCompareResponse = (raw, symbols) => {
   const source = raw?.data && typeof raw.data === 'object' ? raw.data : raw || {};
   if (source.symbol1_analysis || source.symbol2_analysis) return source;
@@ -84,7 +93,8 @@ router.post('/compare', authMiddleware, async function (req, res) {
     if (aiService && typeof aiService.compareStocks === 'function' && aiService.isAvailable) {
       const result = await aiService.compareStocks({
         symbols,
-        criteria: body.criteria || 'عمومی',
+        // Persian language is enforced server-side so the client cannot weaken it.
+        criteria: PERSIAN_COMPARE_CRITERIA,
         data: body.data || null,
         model: body.model,
         maxTokens: body.maxTokens,
