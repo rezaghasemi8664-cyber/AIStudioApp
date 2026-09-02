@@ -1,26 +1,92 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarDaysIcon } from './Icons';
 
-// Iran uses a fixed UTC+03:30 offset since DST was abolished.
-// We intentionally do not use the browser's local timezone or the IANA
-// Asia/Tehran timezone database here, so the displayed clock cannot drift
-// because of the user's OS/browser timezone rules.
+const SERVER_SYNC_INTERVAL_MS = 60 * 1000;
 const TEHRAN_UTC_OFFSET_MS = (3 * 60 + 30) * 60 * 1000;
 
+type ServerClockState = {
+    serverNowMs: number;
+    syncedAtMs: number;
+};
+
+const getInitialClockState = (): ServerClockState => ({
+    serverNowMs: Date.now(),
+    syncedAtMs: Date.now(),
+});
+
+const readServerTime = async (): Promise<ServerClockState | null> => {
+    const startedAt = performance.now();
+
+    try {
+        // Same-origin HEAD request: the Date response header comes from the
+        // public server/Cloudflare edge, so the user's local system clock is
+        // not used as the source of truth.
+        const response = await fetch('/', {
+            method: 'HEAD',
+            cache: 'no-store',
+            credentials: 'same-origin',
+        });
+
+        const dateHeader = response.headers.get('date');
+        if (!dateHeader) return null;
+
+        const serverDateMs = Date.parse(dateHeader);
+        if (!Number.isFinite(serverDateMs)) return null;
+
+        // Compensate approximately for network round-trip time so the clock
+        // starts close to the instant represented by the server Date header.
+        const roundTripMs = performance.now() - startedAt;
+        return {
+            serverNowMs: serverDateMs + Math.max(0, roundTripMs / 2),
+            syncedAtMs: performance.now(),
+        };
+    } catch {
+        return null;
+    }
+};
+
 const Clock: React.FC = () => {
-    const [now, setNow] = useState(() => Date.now());
+    const [clockState, setClockState] = useState<ServerClockState>(getInitialClockState);
+    const [tick, setTick] = useState(() => performance.now());
 
     useEffect(() => {
-        const timerId = window.setInterval(() => {
-            setNow(Date.now());
+        let mounted = true;
+        let syncTimerId: number | undefined;
+        let tickTimerId: number | undefined;
+
+        const syncWithServer = async () => {
+            const synced = await readServerTime();
+            if (mounted && synced) {
+                setClockState(synced);
+                setTick(performance.now());
+            }
+        };
+
+        void syncWithServer();
+
+        tickTimerId = window.setInterval(() => {
+            if (mounted) setTick(performance.now());
         }, 1000);
 
-        return () => window.clearInterval(timerId);
+        syncTimerId = window.setInterval(() => {
+            void syncWithServer();
+        }, SERVER_SYNC_INTERVAL_MS);
+
+        return () => {
+            mounted = false;
+            if (tickTimerId !== undefined) window.clearInterval(tickTimerId);
+            if (syncTimerId !== undefined) window.clearInterval(syncTimerId);
+        };
     }, []);
 
-    // Convert the current UTC instant to Tehran wall-clock time using the
-    // fixed +03:30 offset, then format that value explicitly as UTC. This
-    // removes every dependency on the client machine's timezone settings.
+    // Advance from the last server-synchronised instant using elapsed
+    // monotonic browser time. The local wall-clock (Date.now()) is never used
+    // after synchronisation, so a one-hour client clock error cannot affect it.
+    const now = useMemo(
+        () => clockState.serverNowMs + (tick - clockState.syncedAtMs),
+        [clockState, tick],
+    );
+
     const tehranDate = useMemo(
         () => new Date(now + TEHRAN_UTC_OFFSET_MS),
         [now],
