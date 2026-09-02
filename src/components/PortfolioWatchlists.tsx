@@ -29,6 +29,38 @@ const percentClass = (value: number | null | undefined) =>
 
 const makeLocalId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+// برنامه معاملات بورس تهران: شنبه تا چهارشنبه، ۰۹:۰۰ تا ۱۲:۳۰.
+// زمان با timezone صریح تهران محاسبه می‌شود تا timezone دستگاه کاربر اثری نداشته باشد.
+const TEHRAN_TIME_ZONE = 'Asia/Tehran';
+const QUOTE_REFRESH_MS = 120_000;
+const CLOSED_CHECK_MS = 60_000;
+const TRADING_WEEKDAYS = new Set(['Sat', 'Sun', 'Mon', 'Tue', 'Wed']);
+
+const getTehranTimeParts = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: TEHRAN_TIME_ZONE,
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+
+  const get = (type: string) => parts.find(part => part.type === type)?.value || '';
+  return {
+    weekday: get('weekday'),
+    hour: Number(get('hour')),
+    minute: Number(get('minute')),
+    second: Number(get('second')),
+  };
+};
+
+const isTehranTradingSession = (date = new Date()) => {
+  const { weekday, hour, minute } = getTehranTimeParts(date);
+  const minutes = hour * 60 + minute;
+  return TRADING_WEEKDAYS.has(weekday) && minutes >= 9 * 60 && minutes <= 12 * 60 + 30;
+};
+
 const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, isOnline }) => {
   const { addNotification } = useNotification();
   const [watchlists, setWatchlists] = useState<watchlistService.Watchlist[]>([]);
@@ -72,10 +104,11 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
   useEffect(() => { loadWatchlists(); }, [loadWatchlists]);
 
   const refreshQuotes = useCallback(async () => {
-    if (!activeWatchlist || activeWatchlist.symbols.length === 0 || !isOnline) {
-      setQuotes({});
+    // خارج از جلسه معاملات هیچ درخواست قیمت ارسال نمی‌شود.
+    if (!isTehranTradingSession() || !activeWatchlist || activeWatchlist.symbols.length === 0 || !isOnline) {
       return;
     }
+
     setQuoteLoading(true);
     try {
       const results = await Promise.allSettled(activeWatchlist.symbols.map(item => watchlistService.getQuote(item.symbol)));
@@ -90,9 +123,28 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
   }, [activeWatchlist, isOnline]);
 
   useEffect(() => {
-    refreshQuotes();
-    const timer = window.setInterval(refreshQuotes, 120_000);
-    return () => window.clearInterval(timer);
+    let timer: number | undefined;
+    let disposed = false;
+
+    const schedule = () => {
+      if (disposed) return;
+
+      const marketOpen = isTehranTradingSession();
+      if (marketOpen) {
+        void refreshQuotes();
+        timer = window.setTimeout(schedule, QUOTE_REFRESH_MS);
+      } else {
+        // در روزها/ساعات تعطیل فقط وضعیت زمان بررسی می‌شود؛ هیچ API بازار فراخوانی نمی‌شود.
+        // این بررسی کوتاه کمک می‌کند شروع جلسه بعدی بدون refresh صفحه تشخیص داده شود.
+        timer = window.setTimeout(schedule, CLOSED_CHECK_MS);
+      }
+    };
+
+    schedule();
+    return () => {
+      disposed = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
   }, [refreshQuotes]);
 
   useEffect(() => {
@@ -258,13 +310,13 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
               <div className="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-[var(--color-border)]">
                 <div>
                   <h3 className="text-xl font-bold">{activeWatchlist.name}</h3>
-                  <p className="text-xs text-gray-500 mt-1">به‌روزرسانی خودکار اطلاعات بازار هر ۲ دقیقه</p>
+                  <p className="text-xs text-gray-500 mt-1">به‌روزرسانی خودکار فقط در ساعات معاملات (۹:۰۰ تا ۱۲:۳۰) و هر ۲ دقیقه</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => { setShowAddSymbol(true); setValidatedSymbol(null); }} disabled={!isOnline} className="px-4 py-2 rounded-lg bg-cyan-600 text-white font-bold inline-flex items-center gap-2 disabled:opacity-50"><PlusIcon /> افزودن نماد به دیده‌بان</button>
                   {activeWatchlist.symbols.length > 0 && <button onClick={() => { setEditMode(value => !value); setSelectedSymbols([]); }} className={`px-4 py-2 rounded-lg border font-semibold ${editMode ? 'border-cyan-500 text-cyan-600 bg-cyan-50 dark:bg-cyan-900/20' : 'border-[var(--color-border)]'}`}>ویرایش نمادها</button>}
                   {editMode && <button onClick={removeSelected} disabled={saving || selectedSymbols.length === 0} className="px-4 py-2 rounded-lg bg-red-600 text-white font-bold disabled:opacity-40 inline-flex items-center gap-2"><TrashIcon /> حذف انتخاب‌شده‌ها</button>}
-                  <button onClick={refreshQuotes} disabled={quoteLoading || !isOnline} className="px-4 py-2 rounded-lg border border-[var(--color-border)] text-sm font-semibold disabled:opacity-50">{quoteLoading ? 'در حال بروزرسانی…' : 'بروزرسانی اطلاعات'}</button>
+                  <button onClick={refreshQuotes} disabled={quoteLoading || !isOnline || !isTehranTradingSession()} className="px-4 py-2 rounded-lg border border-[var(--color-border)] text-sm font-semibold disabled:opacity-50">{quoteLoading ? 'در حال بروزرسانی…' : 'بروزرسانی اطلاعات'}</button>
                 </div>
               </div>
 
@@ -307,7 +359,7 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
               )}
               <div className="px-4 py-3 text-xs text-gray-500 border-t border-[var(--color-border)] flex items-center justify-between gap-3">
                 <span>{activeWatchlist.symbols.length.toLocaleString('fa-IR')} نماد در این دیده‌بان</span>
-                <span>{quoteLoading ? 'در حال دریافت آخرین اطلاعات بازار…' : 'آخرین بروزرسانی: اطلاعات بازار در شروع ورود و هر ۲ دقیقه دریافت می‌شود.'}</span>
+                <span>{quoteLoading ? 'در حال دریافت آخرین اطلاعات بازار…' : 'آخرین بروزرسانی: در ساعات معاملات هر ۲ دقیقه؛ خارج از ساعات معاملات بدون درخواست بازار.'}</span>
               </div>
             </div>
           )}
