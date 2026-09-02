@@ -14,6 +14,7 @@ model User {
   username              String                  @unique
   email                 String?                 @unique
   passwordHash          String
+  passwordEncrypted     String?                 @db.NVarChar(Max)
   name                  String?
   avatar                String?
   isActive              Boolean                 @default(true)
