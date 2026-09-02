@@ -50,8 +50,6 @@ function normalizeSnapshot(symbol: string, raw: any): ComparisonMarketSnapshot {
     pick(data, ['fundamental.pe', 'fundamentals.pe', 'metrics.pe'])
   ));
 
-  // If BRS does not provide P/E directly, calculate it only from the same
-  // authoritative price/EPS snapshot. Never use an AI-generated P/E.
   if (pe === null && price !== null && eps !== null && eps !== 0) pe = price / eps;
 
   return {
@@ -105,52 +103,20 @@ export function buildComparisonDataPayload(snapshots: Record<string, ComparisonM
 }
 
 const ENGLISH_TO_PERSIAN: Array<[RegExp, string]> = [
-  [/\bSTRONG\s+BUY\b/gi, 'خرید قوی'],
-  [/\bSTRONG\s+SELL\b/gi, 'فروش قوی'],
-  [/\bBUY\b/gi, 'خرید'],
-  [/\bSELL\b/gi, 'فروش'],
-  [/\bHOLD\b/gi, 'نگهداری'],
-  [/\bNEUTRAL\b/gi, 'خنثی'],
-  [/\bBULLISH\b/gi, 'صعودی'],
-  [/\bBEARISH\b/gi, 'نزولی'],
-  [/\bVERY\s+LOW\b/gi, 'خیلی کم'],
-  [/\bVERY\s+HIGH\b/gi, 'خیلی زیاد'],
-  [/\bLOW\s+RISK\b/gi, 'ریسک کم'],
-  [/\bMEDIUM\s+RISK\b/gi, 'ریسک متوسط'],
-  [/\bHIGH\s+RISK\b/gi, 'ریسک زیاد'],
-  [/\bLOW\b/gi, 'کم'],
-  [/\bMEDIUM\b/gi, 'متوسط'],
-  [/\bMODERATE\b/gi, 'متوسط'],
-  [/\bHIGH\b/gi, 'زیاد'],
-  [/\bYES\b/gi, 'بله'],
-  [/\bNO\b/gi, 'خیر'],
-  [/\bRECOMMENDATION\b/gi, 'توصیه'],
-  [/\bSUMMARY\b/gi, 'خلاصه'],
-  [/\bTECHNICAL\s+ANALYSIS\b/gi, 'تحلیل تکنیکال'],
-  [/\bFUNDAMENTAL\s+ANALYSIS\b/gi, 'تحلیل بنیادی'],
-  [/\bCOMPARISON\s+SUMMARY\b/gi, 'خلاصه مقایسه'],
-  [/\bFINAL\s+RECOMMENDATION\b/gi, 'توصیه نهایی'],
-  [/\bWINNER\b/gi, 'گزینه برتر'],
-  [/\bREASON\b/gi, 'دلیل'],
-  [/\bDETAILS\b/gi, 'جزئیات'],
-  [/\bRISK\s*LEVEL\b/gi, 'سطح ریسک'],
-  [/\bCONFIDENCE\b/gi, 'اطمینان'],
-  [/\bCURRENT\s+PRICE\b/gi, 'قیمت فعلی'],
-  [/\bTARGET\s+PRICE\b/gi, 'قیمت هدف'],
-  [/\bENTRY\s+PRICE\b/gi, 'قیمت ورود'],
-  [/\bSTOP\s*LOSS\b/gi, 'حد ضرر'],
-  [/\bPRICE\s+CHANGE\b/gi, 'تغییر قیمت'],
-  [/\bMARKET\s+CAP(?:ITALIZATION)?\b/gi, 'ارزش بازار'],
-  [/\bTECHNICAL\b/gi, 'تکنیکال'],
-  [/\bFUNDAMENTAL\b/gi, 'بنیادی'],
-  [/\bRISK\b/gi, 'ریسک'],
-  [/\bSCORE\b/gi, 'امتیاز'],
-  [/\bSCORES\b/gi, 'امتیازها'],
-  [/\bDETAIL\b/gi, 'جزئیات'],
-  [/\bANALYSIS\b/gi, 'تحلیل'],
-  [/\bCURRENT\b/gi, 'فعلی'],
-  [/\bTARGET\b/gi, 'هدف'],
-  [/\bENTRY\b/gi, 'ورود'],
+  [/\bSTRONG\s+BUY\b/gi, 'خرید قوی'], [/\bSTRONG\s+SELL\b/gi, 'فروش قوی'],
+  [/\bBUY\b/gi, 'خرید'], [/\bSELL\b/gi, 'فروش'], [/\bHOLD\b/gi, 'نگهداری'], [/\bNEUTRAL\b/gi, 'خنثی'],
+  [/\bBULLISH\b/gi, 'صعودی'], [/\bBEARISH\b/gi, 'نزولی'], [/\bVERY\s+LOW\b/gi, 'خیلی کم'], [/\bVERY\s+HIGH\b/gi, 'خیلی زیاد'],
+  [/\bLOW\s+RISK\b/gi, 'ریسک کم'], [/\bMEDIUM\s+RISK\b/gi, 'ریسک متوسط'], [/\bHIGH\s+RISK\b/gi, 'ریسک زیاد'],
+  [/\bLOW\b/gi, 'کم'], [/\bMEDIUM\b/gi, 'متوسط'], [/\bMODERATE\b/gi, 'متوسط'], [/\bHIGH\b/gi, 'زیاد'],
+  [/\bYES\b/gi, 'بله'], [/\bNO\b/gi, 'خیر'], [/\bRECOMMENDATION\b/gi, 'توصیه'], [/\bSUMMARY\b/gi, 'خلاصه'],
+  [/\bTECHNICAL\s+ANALYSIS\b/gi, 'تحلیل تکنیکال'], [/\bFUNDAMENTAL\s+ANALYSIS\b/gi, 'تحلیل بنیادی'],
+  [/\bCOMPARISON\s+SUMMARY\b/gi, 'خلاصه مقایسه'], [/\bFINAL\s+RECOMMENDATION\b/gi, 'توصیه نهایی'],
+  [/\bWINNER\b/gi, 'گزینه برتر'], [/\bREASON\b/gi, 'دلیل'], [/\bDETAILS\b/gi, 'جزئیات'], [/\bRISK\s*LEVEL\b/gi, 'سطح ریسک'],
+  [/\bCONFIDENCE\b/gi, 'اطمینان'], [/\bCURRENT\s+PRICE\b/gi, 'قیمت فعلی'], [/\bTARGET\s+PRICE\b/gi, 'قیمت هدف'],
+  [/\bENTRY\s+PRICE\b/gi, 'قیمت ورود'], [/\bSTOP\s*LOSS\b/gi, 'حد ضرر'], [/\bPRICE\s+CHANGE\b/gi, 'تغییر قیمت'],
+  [/\bMARKET\s+CAP(?:ITALIZATION)?\b/gi, 'ارزش بازار'], [/\bTECHNICAL\b/gi, 'تکنیکال'], [/\bFUNDAMENTAL\b/gi, 'بنیادی'],
+  [/\bRISK\b/gi, 'ریسک'], [/\bSCORE\b/gi, 'امتیاز'], [/\bSCORES\b/gi, 'امتیازها'], [/\bDETAIL\b/gi, 'جزئیات'],
+  [/\bANALYSIS\b/gi, 'تحلیل'], [/\bCURRENT\b/gi, 'فعلی'], [/\bTARGET\b/gi, 'هدف'], [/\bENTRY\b/gi, 'ورود'],
 ];
 
 function localizeComparisonText(value: unknown): unknown {
@@ -163,6 +129,15 @@ function localizeComparisonText(value: unknown): unknown {
   }
   return value;
 }
+
+const PERSIAN_COMPARISON_CRITERIA = `
+خروجی تحلیل مقایسه باید کاملاً و بدون استثنا به زبان فارسی باشد.
+تمام عنوان‌ها، توضیحات، خلاصه‌ها، تحلیل‌های تکنیکال و بنیادی، دلایل، نتیجه‌گیری‌ها، سطوح ریسک و توصیه‌ها باید فقط فارسی باشند.
+هیچ کلمه یا جمله انگلیسی در متن خروجی مجاز نیست؛ از ترجمه تحت‌اللفظی نامفهوم نیز خودداری کن و متن طبیعی و حرفه‌ای فارسی بنویس.
+مقادیر توصیه فقط یکی از این موارد باشد: «خرید قوی»، «خرید»، «نگهداری»، «فروش»، «فروش قوی» یا «خنثی».
+نام نمادهای بورسی، EPS، P/E و اعداد و مقادیر مالی را تغییر نده؛ این موارد شناسه یا اصطلاح استاندارد مالی هستند.
+کلیدهای JSON داخلی را دقیقاً مطابق ساختار مورد انتظار API نگه دار، اما مقدار تمام فیلدهای متنی را فارسی تولید کن.
+`;
 
 export async function compareStocksWithMarketData(
   symbol1: string,
@@ -179,6 +154,7 @@ export async function compareStocksWithMarketData(
       weeklyCount: settings.weeklyCount,
       language: 'fa',
       responseLanguage: 'Persian',
+      criteria: PERSIAN_COMPARISON_CRITERIA,
       data: buildComparisonDataPayload(snapshots),
     }),
   });
