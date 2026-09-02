@@ -10,9 +10,7 @@ function n(v) {
 }
 
 function fa(v) {
-  return v === null || v === undefined || !Number.isFinite(Number(v))
-    ? 'نامشخص'
-    : Number(v).toLocaleString('fa-IR', { maximumFractionDigits: 2 });
+  return v === null || v === undefined || !Number.isFinite(Number(v)) ? 'نامشخص' : Number(v).toLocaleString('fa-IR', { maximumFractionDigits: 2 });
 }
 
 function pct(v) {
@@ -33,9 +31,7 @@ function signedPercent(current, change) {
 }
 
 function listSymbols(items) {
-  return Array.isArray(items)
-    ? items.slice(0, 5).map(x => x?.symbol || x?.l18 || x?.ticker || x?.name).filter(Boolean).join('، ')
-    : '';
+  return Array.isArray(items) ? items.slice(0, 5).map(x => x?.symbol || x?.l18 || x?.ticker || x?.name).filter(Boolean).join('، ') : '';
 }
 
 function breadthDirection(b) {
@@ -46,10 +42,10 @@ function breadthDirection(b) {
 }
 
 function makeText({ market, breadth }) {
-  const overall = n(market.index ?? market.value);
-  const overallChange = n(market.index_change ?? market.indexChange ?? market.changeValue ?? market.change);
-  const equal = n(market.indexEqualWeight ?? market.index_equalWeight ?? market.equalWeightedValue ?? market.equalIndex);
-  const equalChange = n(market.indexEqualWeightChange ?? market.index_equalWeight_change ?? market.equalWeightedChangeValue ?? market.equalChange);
+  const overall = n(market.index ?? market.overallIndex ?? market.value);
+  const overallChange = n(market.index_change ?? market.indexChange ?? market.overallChange ?? market.changeValue ?? market.change);
+  const equal = n(market.indexEqualWeight ?? market.index_equalWeight ?? market.equalIndex ?? market.equalWeightedValue);
+  const equalChange = n(market.indexEqualWeightChange ?? market.index_equalWeight_change ?? market.equalChange ?? market.equalWeightedChangeValue);
   const overallPct = signedPercent(overall, overallChange);
   const equalPct = signedPercent(equal, equalChange);
   const bd = breadthDirection(breadth);
@@ -66,15 +62,12 @@ function makeText({ market, breadth }) {
   const status = market.isMarketOpen === true || String(market.marketState || '').includes('باز') ? 'باز' : 'بسته';
   const quality = breadth?.available === false ? 'متوسط رو به پایین؛ داده عرض بازار در دسترس نیست' : 'مناسب برای تحلیل جاری بر اساس Snapshot زنده BRS و عرض بازار جاری';
   const currentBias = overallChange == null || equalChange == null ? 'خنثی' : overallChange < 0 && equalChange < 0 ? 'نزولی' : overallChange > 0 && equalChange > 0 ? 'صعودی' : 'ترکیبی';
-  const scenario = currentBias === 'نزولی'
-    ? 'سناریوی پایه: ادامه احتیاط و فشار اصلاحی تا زمان بهبود هم‌زمان شاخص‌ها و عرض بازار؛ سناریوی صعودی فقط با توقف افت و بهبود مشارکت بازار تقویت می‌شود.'
-    : currentBias === 'صعودی'
-      ? 'سناریوی پایه: تداوم حرکت صعودی مشروط به حفظ عرض مثبت و پایداری شاخص هم‌وزن.'
-      : 'سناریوی پایه: بازار نیازمند تأیید جهت در داده‌های جلسه جاری است.';
+  const scenario = currentBias === 'نزولی' ? 'سناریوی پایه: ادامه احتیاط و فشار اصلاحی تا زمان بهبود هم‌زمان شاخص‌ها و عرض بازار؛ سناریوی صعودی فقط با توقف افت و بهبود مشارکت بازار تقویت می‌شود.' : currentBias === 'صعودی' ? 'سناریوی پایه: تداوم حرکت صعودی مشروط به حفظ عرض مثبت و پایداری شاخص هم‌وزن.' : 'سناریوی پایه: بازار نیازمند تأیید جهت در داده‌های جلسه جاری است.';
   const fiveDay = 'برای جلوگیری از اختلاط Snapshot تاریخی با داده زنده، مومنتوم چندروزه از این endpoint حدس زده نمی‌شود.';
-  const totalTrades = n(market.totalTrades ?? market.tno);
-  const totalVolume = n(market.totalVolume ?? market.tvol);
-  const totalValue = n(market.totalValue ?? market.tval);
+
+  const totalTrades = n(market.totalTrades ?? market.tradeCount ?? market.tno);
+  const totalVolume = n(market.totalVolume ?? market.tradeVolume ?? market.tvol);
+  const totalValue = n(market.totalValue ?? market.tradeValue ?? market.tval);
   const liquidityText = totalValue !== null || totalVolume !== null || totalTrades !== null
     ? `ارزش معاملات ${fa(totalValue)}، حجم ${fa(totalVolume)} و تعداد معاملات ${fa(totalTrades)} است.`
     : 'ارزش، حجم یا تعداد معاملات از Snapshot جاری قابل تعیین کامل نیست.';
@@ -104,21 +97,24 @@ exports.getLatestMarketSummary = async function getLatestMarketSummary(req, res)
       breadthService.getMarketBreadth().catch(error => ({ available: false, reason: error.message }))
     ]);
 
-    const market = marketResult?.data && typeof marketResult.data === 'object' ? marketResult.data : marketResult || {};
+    const marketRoot = marketResult && typeof marketResult === 'object' ? marketResult : {};
+    const marketData = marketRoot.data && typeof marketRoot.data === 'object' ? marketRoot.data : {};
+    const marketPayload = marketRoot.payload && typeof marketRoot.payload === 'object' ? marketRoot.payload : {};
+    const market = Object.assign({}, marketRoot, marketPayload, marketData, marketData.data && typeof marketData.data === 'object' ? marketData.data : {});
     const breadth = breadthResult || { available: false };
     const content = makeText({ market, breadth });
-    const overall = n(market.index ?? market.value);
-    const overallChange = n(market.index_change ?? market.indexChange ?? market.changeValue ?? market.change);
-    const equal = n(market.indexEqualWeight ?? market.index_equalWeight ?? market.equalWeightedValue ?? market.equalIndex);
-    const equalChange = n(market.indexEqualWeightChange ?? market.index_equalWeight_change ?? market.equalWeightedChangeValue ?? market.equalChange);
+    const overall = n(market.index ?? market.overallIndex ?? market.value);
+    const overallChange = n(market.index_change ?? market.indexChange ?? market.overallChange ?? market.changeValue ?? market.change);
+    const equal = n(market.indexEqualWeight ?? market.index_equalWeight ?? market.equalIndex ?? market.equalWeightedValue);
+    const equalChange = n(market.indexEqualWeightChange ?? market.index_equalWeight_change ?? market.equalChange ?? market.equalWeightedChangeValue);
     const overallPct = signedPercent(overall, overallChange);
     const equalPct = signedPercent(equal, equalChange);
     const now = new Date();
     const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', calendar: 'gregory' }).format(now);
     const marketDateJalali = market.date || null;
-    const totalTrades = n(market.totalTrades ?? market.tno);
-    const totalVolume = n(market.totalVolume ?? market.tvol);
-    const totalValue = n(market.totalValue ?? market.tval);
+    const totalTrades = n(market.totalTrades ?? market.tradeCount ?? market.tno);
+    const totalVolume = n(market.totalVolume ?? market.tradeVolume ?? market.tvol);
+    const totalValue = n(market.totalValue ?? market.tradeValue ?? market.tval);
 
     return res.status(200).json({
       success: true,
@@ -138,7 +134,7 @@ exports.getLatestMarketSummary = async function getLatestMarketSummary(req, res)
         displayOverallChange: fa(overallChange),
         displayEqualIndex: fa(equal),
         displayEqualChange: fa(equalChange),
-        marketStatus: market.isMarketOpen === true ? 'open' : String(market.marketState || '').includes('باز') ? 'open' : 'closed',
+        marketStatus: market.isMarketOpen === true || String(market.marketState || '').includes('باز') ? 'open' : 'closed',
         totalTrades: totalTrades === null ? '' : String(totalTrades),
         totalVolume: totalVolume === null ? '' : String(totalVolume),
         totalValue: totalValue === null ? '' : String(totalValue),
