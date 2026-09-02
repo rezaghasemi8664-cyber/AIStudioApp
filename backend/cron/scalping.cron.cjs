@@ -27,61 +27,15 @@ function shouldRunCron() {
   return true;
 }
 
-/*
- * Market-status compatibility bridge.
- *
- * brs.service.cjs returns the schedule result as `isOpenBySchedule`, while
- * the scalping service and cron consume `isOpen`/`available`.
- * Keep the BRS service contract explicit here so the cron and the scalping
- * engine cannot silently interpret a valid open market as closed/unavailable.
- */
-function installMarketStatusCompatibility() {
-  if (
-    !brsService ||
-    typeof brsService.getLocalMarketWindowStatus !== 'function' ||
-    brsService.getLocalMarketWindowStatus.__scalpingCompatibilityPatched
-  ) {
-    return;
-  }
-
-  const originalGetLocalMarketWindowStatus = brsService.getLocalMarketWindowStatus.bind(brsService);
-
-  const patchedGetLocalMarketWindowStatus = function patchedGetLocalMarketWindowStatus(now) {
-    const status = originalGetLocalMarketWindowStatus(now);
-
-    if (!status || typeof status !== 'object') {
-      return {
-        isOpen: false,
-        isOpenBySchedule: false,
-        available: false,
-        source: 'brs.getLocalMarketWindowStatus',
-        reason: 'invalid-market-window-status'
-      };
-    }
-
-    return {
-      ...status,
-      isOpen: status.isOpenBySchedule === true,
-      available: true,
-      source: 'brs.getLocalMarketWindowStatus',
-      reason: status.isOpenBySchedule === true ? 'market-open' : 'market-closed'
-    };
-  };
-
-  patchedGetLocalMarketWindowStatus.__scalpingCompatibilityPatched = true;
-  brsService.getLocalMarketWindowStatus = patchedGetLocalMarketWindowStatus;
-}
-
-installMarketStatusCompatibility();
-
 async function executeScalpingJob() {
   console.log('[CRON] Scalping job triggered');
 
   try {
-    const marketStatus = await brsService.getLocalMarketWindowStatus();
-    const marketIsOpen =
-      marketStatus &&
-      (marketStatus.isOpen === true || marketStatus.isOpenBySchedule === true);
+    // brs.service.cjs already owns the Tehran schedule calculation and exposes
+    // the normalized market status through getMarketStatus(). Using that
+    // public service API avoids depending on an internal/non-exported helper.
+    const marketStatus = await brsService.getMarketStatus();
+    const marketIsOpen = marketStatus && marketStatus.isOpen === true;
     const statusAvailable =
       marketStatus &&
       (marketStatus.available === undefined ? true : marketStatus.available === true);
