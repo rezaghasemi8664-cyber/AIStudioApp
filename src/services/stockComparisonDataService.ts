@@ -104,6 +104,66 @@ export function buildComparisonDataPayload(snapshots: Record<string, ComparisonM
   }]));
 }
 
+const ENGLISH_TO_PERSIAN: Array<[RegExp, string]> = [
+  [/\bSTRONG\s+BUY\b/gi, 'خرید قوی'],
+  [/\bSTRONG\s+SELL\b/gi, 'فروش قوی'],
+  [/\bBUY\b/gi, 'خرید'],
+  [/\bSELL\b/gi, 'فروش'],
+  [/\bHOLD\b/gi, 'نگهداری'],
+  [/\bNEUTRAL\b/gi, 'خنثی'],
+  [/\bBULLISH\b/gi, 'صعودی'],
+  [/\bBEARISH\b/gi, 'نزولی'],
+  [/\bVERY\s+LOW\b/gi, 'خیلی کم'],
+  [/\bVERY\s+HIGH\b/gi, 'خیلی زیاد'],
+  [/\bLOW\s+RISK\b/gi, 'ریسک کم'],
+  [/\bMEDIUM\s+RISK\b/gi, 'ریسک متوسط'],
+  [/\bHIGH\s+RISK\b/gi, 'ریسک زیاد'],
+  [/\bLOW\b/gi, 'کم'],
+  [/\bMEDIUM\b/gi, 'متوسط'],
+  [/\bMODERATE\b/gi, 'متوسط'],
+  [/\bHIGH\b/gi, 'زیاد'],
+  [/\bYES\b/gi, 'بله'],
+  [/\bNO\b/gi, 'خیر'],
+  [/\bRECOMMENDATION\b/gi, 'توصیه'],
+  [/\bSUMMARY\b/gi, 'خلاصه'],
+  [/\bTECHNICAL\s+ANALYSIS\b/gi, 'تحلیل تکنیکال'],
+  [/\bFUNDAMENTAL\s+ANALYSIS\b/gi, 'تحلیل بنیادی'],
+  [/\bCOMPARISON\s+SUMMARY\b/gi, 'خلاصه مقایسه'],
+  [/\bFINAL\s+RECOMMENDATION\b/gi, 'توصیه نهایی'],
+  [/\bWINNER\b/gi, 'گزینه برتر'],
+  [/\bREASON\b/gi, 'دلیل'],
+  [/\bDETAILS\b/gi, 'جزئیات'],
+  [/\bRISK\s*LEVEL\b/gi, 'سطح ریسک'],
+  [/\bCONFIDENCE\b/gi, 'اطمینان'],
+  [/\bCURRENT\s+PRICE\b/gi, 'قیمت فعلی'],
+  [/\bTARGET\s+PRICE\b/gi, 'قیمت هدف'],
+  [/\bENTRY\s+PRICE\b/gi, 'قیمت ورود'],
+  [/\bSTOP\s*LOSS\b/gi, 'حد ضرر'],
+  [/\bPRICE\s+CHANGE\b/gi, 'تغییر قیمت'],
+  [/\bMARKET\s+CAP(?:ITALIZATION)?\b/gi, 'ارزش بازار'],
+  [/\bTECHNICAL\b/gi, 'تکنیکال'],
+  [/\bFUNDAMENTAL\b/gi, 'بنیادی'],
+  [/\bRISK\b/gi, 'ریسک'],
+  [/\bSCORE\b/gi, 'امتیاز'],
+  [/\bSCORES\b/gi, 'امتیازها'],
+  [/\bDETAIL\b/gi, 'جزئیات'],
+  [/\bANALYSIS\b/gi, 'تحلیل'],
+  [/\bCURRENT\b/gi, 'فعلی'],
+  [/\bTARGET\b/gi, 'هدف'],
+  [/\bENTRY\b/gi, 'ورود'],
+];
+
+function localizeComparisonText(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return ENGLISH_TO_PERSIAN.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value).trim();
+  }
+  if (Array.isArray(value)) return value.map(localizeComparisonText);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, localizeComparisonText(item)]));
+  }
+  return value;
+}
+
 export async function compareStocksWithMarketData(
   symbol1: string,
   symbol2: string,
@@ -117,12 +177,14 @@ export async function compareStocksWithMarketData(
       symbols,
       dailyCount: settings.dailyCount,
       weeklyCount: settings.weeklyCount,
+      language: 'fa',
+      responseLanguage: 'Persian',
       data: buildComparisonDataPayload(snapshots),
     }),
   });
 
   return {
-    result: unwrap(response),
+    result: localizeComparisonText(unwrap(response)),
     snapshots,
   };
 }
