@@ -1027,7 +1027,7 @@ const App: React.FC = () => {
       console.log('[APP] Password changed successfully, forcing logout.');
       handleLogout();
     },
-    [buildSafeUser, currentUser, persistUser],
+    [buildSafeUser, currentUser, persistUser, handleLogout],
   );
 
   const handleProfileUpdate = useCallback(
