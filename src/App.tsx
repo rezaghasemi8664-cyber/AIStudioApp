@@ -211,7 +211,7 @@ const TabButton: React.FC<TabButtonProps> = React.memo(
     return (
       <button
         onClick={() => onTabClick(tab)}
-        disabled={disabled || locked}
+        disabled={disabled}
         data-style-id={styleId}
         data-style-name={`تب ${label}`}
         className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all duration-300 focus:outline-none ${alertClasses[alertType]} ${hoverBg} ${border} ${disabled || locked ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -978,6 +978,10 @@ const App: React.FC = () => {
 
   const handleTabClick = useCallback(
     (tab: Tab) => {
+      if (isExpired && !currentUser?.isAdmin && !['profile', 'settings', 'notifications'].includes(tab)) {
+        addNotification('مدت زمان اشتراک شما به پایان رسیده است لطفا جهت دسترسی به تمام امکانات نرم افزار نسبت به تمدید اشتراک خود اقدام نمایید', 'warning');
+        return;
+      }
       if (activeTab === 'settings' && tab !== 'settings') {
         setInitialSettingsTab(undefined);
       }
@@ -995,7 +999,7 @@ const App: React.FC = () => {
         setIsNotificationsOpen(false);
       }
     },
-    [activeTab],
+    [activeTab, addNotification, currentUser, isExpired],
   );
 
   const handlePasswordChange = useCallback(
