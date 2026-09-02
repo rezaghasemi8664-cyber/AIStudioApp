@@ -8,7 +8,6 @@ import {
   EyeIcon,
   EyeSlashIcon,
   XMarkIcon,
-  ClipboardDocumentIcon,
   CheckCircleIcon,
   UserPlusIcon,
   KeyIcon,
@@ -36,15 +35,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [guestSuccess, setGuestSuccess] = useState<{ email: string; password: string } | null>(null);
 
   const [forgotEmail, setForgotEmail] = useState('');
-  const [recoveredPassword, setRecoveredPassword] = useState<string | null>(null);
+  const [recoverySuccess, setRecoverySuccess] = useState(false);
 
   const [signupForm, setSignupForm] = useState({
     firstName: '',
     lastName: '',
     mobile: '',
     email: '',
-    password: '',
-    confirmPassword: '',
   });
   const [signupSuccess, setSignupSuccess] = useState(false);
 
@@ -57,14 +54,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setGuestEmail('');
     setGuestSuccess(null);
     setForgotEmail('');
-    setRecoveredPassword(null);
+    setRecoverySuccess(false);
     setSignupForm({
       firstName: '',
       lastName: '',
       mobile: '',
       email: '',
-      password: '',
-      confirmPassword: '',
     });
     setSignupSuccess(false);
   };
@@ -108,8 +103,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setError(null);
     setLoading(true);
     try {
-      const pass = await authService.recoverPassword(forgotEmail);
-      setRecoveredPassword(pass);
+      await authService.recoverPassword(forgotEmail);
+      setRecoverySuccess(true);
     } catch (err: any) {
       setError(err.message || 'خطای ناشناخته.');
     } finally {
@@ -120,15 +115,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const { password: pw, confirmPassword } = signupForm;
-    if (pw !== confirmPassword) {
-      setError('کلمه عبور و تکرار آن یکسان نیستند.');
-      return;
-    }
-    if (pw.length < 6) {
-      setError('کلمه عبور باید حداقل ۶ کاراکتر باشد.');
-      return;
-    }
     setLoading(true);
     try {
       await authService.registerUser(signupForm);
@@ -175,8 +161,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </div>
             <input type="text" value={signupForm.mobile} onChange={(e) => setSignupForm((f) => ({ ...f, mobile: e.target.value }))} required placeholder="شماره موبایل" className="w-full border rounded-md px-4 py-2" style={{ backgroundColor: 'var(--input-bg)', color: 'var(--input-color)', borderColor: 'var(--input-border)' }} />
             <input type="email" value={signupForm.email} onChange={(e) => setSignupForm((f) => ({ ...f, email: e.target.value }))} required placeholder="ایمیل (نام کاربری شما)" className="w-full border rounded-md px-4 py-2" style={{ backgroundColor: 'var(--input-bg)', color: 'var(--input-color)', borderColor: 'var(--input-border)' }} />
-            <input type="password" value={signupForm.password} onChange={(e) => setSignupForm((f) => ({ ...f, password: e.target.value }))} required placeholder="کلمه عبور" className="w-full border rounded-md px-4 py-2" style={{ backgroundColor: 'var(--input-bg)', color: 'var(--input-color)', borderColor: 'var(--input-border)' }} />
-            <input type="password" value={signupForm.confirmPassword} onChange={(e) => setSignupForm((f) => ({ ...f, confirmPassword: e.target.value }))} required placeholder="تکرار کلمه عبور" className="w-full border rounded-md px-4 py-2" style={{ backgroundColor: 'var(--input-bg)', color: 'var(--input-color)', borderColor: 'var(--input-border)' }} />
             {error && <p className="text-sm text-[var(--color-negative)] text-center">{error}</p>}
             <button type="submit" disabled={loading} className="w-full flex items-center justify-center gap-2 font-bold py-2 px-6 rounded-md" style={{ backgroundColor: 'var(--login-button-bg)', color: 'var(--login-button-color)' }}>
               {loading ? <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin"></div> : <><UserPlusIcon /><span>ثبت‌نام</span></>}
@@ -223,16 +207,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         );
 
       case 'forgot':
-        return recoveredPassword ? (
+        return recoverySuccess ? (
           <div className="p-6 text-center space-y-4">
-            <KeyIcon className="mx-auto" />
-            <h4 className="text-lg font-bold">کلمه عبور بازیابی شد!</h4>
-            <div className="flex items-center justify-center gap-2">
-              <code className="bg-gray-200 dark:bg-gray-700 px-3 py-2 rounded text-lg font-mono">{recoveredPassword}</code>
-              <button onClick={() => handleCopyToClipboard(recoveredPassword)} className="text-cyan-600 hover:text-cyan-800">
-                <ClipboardDocumentIcon />
-              </button>
-            </div>
+            <CheckCircleIcon className="mx-auto" />
+            <h4 className="text-lg font-bold">کلمه عبور به ایمیل شما ارسال گردید</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400">لطفا جهت مشاهده کلمه عبور ایمیل خود را بررسی نمایید.</p>
             <button
               onClick={() => handleViewChange('login')}
               className="w-full font-bold py-2 px-8 rounded-md"
