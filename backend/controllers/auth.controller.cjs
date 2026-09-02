@@ -1,569 +1,108 @@
-﻿// backend/controllers/auth.controller.cjs - Production v11.6 (registration Prisma payload fixed)
-// =====================================================================
-// FIXES (v11.6):
-//   1) Removed invalid nested `data` property from User.create/User.update
-//      in registration flow. This property is not part of the User Prisma model
-//      and caused registration to fail with a server error.
-//   2) Registration/restore now write only fields defined by schema.prisma.
-//   3) Preserve existing authentication, cookie and response behavior.
-// =====================================================================
+﻿// backend/controllers/auth.controller.cjs - authentication, registration and password recovery
 'use strict';
 
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-
-let prisma;
-try {
-  const prismaModule = require('../config/prisma.cjs');
-  prisma = prismaModule?.prisma || prismaModule;
-} catch (_) {
-  try {
-    const { PrismaClient } = require('@prisma/client');
-    prisma = new PrismaClient();
-    console.warn('[AUTH_CTRL] Using local PrismaClient (shared not available)');
-  } catch (_2) {
-    console.error('[AUTH_CTRL] FATAL: Prisma not available!');
-  }
-}
+const { prisma } = require('../config/prisma.cjs');
+const { validateEmail, sendPasswordEmail, normalizeEmail } = require('../services/email.service.cjs');
+const { encryptPassword, decryptPassword } = require('../services/passwordVault.service.cjs');
 
 let env = {};
-try {
-  env = require('../config/env.cjs');
-} catch (_) {
-  console.warn('[AUTH_CTRL] env.cjs not found, using process.env');
-}
+try { env = require('../config/env.cjs'); } catch (_) {}
 
-let MESSAGES = null;
-try {
-  MESSAGES = require('../constants/messages.cjs');
-} catch (_) {
-  console.warn('[AUTH_CTRL] messages.cjs not found, using inline messages');
-}
-
-function ensurePrisma(res) {
-  if (prisma && typeof prisma === 'object') return true;
-  res.status(503).json({ success: false, message: 'سرویس پایگاه‌داده در دسترس نیست' });
-  return false;
-}
-
-function getSecret(type) {
-  if (type === 'access') {
-    return (env && env.JWT_ACCESS_SECRET) || process.env.JWT_ACCESS_SECRET ||
-      (env && env.JWT_SECRET) || process.env.JWT_SECRET || 'fallback-access-secret';
-  }
-  if (type === 'refresh') {
-    return (env && env.JWT_REFRESH_SECRET) || process.env.JWT_REFRESH_SECRET ||
-      (env && env.JWT_SECRET) || process.env.JWT_SECRET || 'fallback-refresh-secret';
-  }
+function secret(type) {
+  if (type === 'access') return env.JWT_ACCESS_SECRET || process.env.JWT_ACCESS_SECRET || env.JWT_SECRET || process.env.JWT_SECRET || 'fallback-access-secret';
+  if (type === 'refresh') return env.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_SECRET || env.JWT_SECRET || process.env.JWT_SECRET || 'fallback-refresh-secret';
   return process.env.JWT_SECRET || 'fallback-secret';
 }
-
-function getExpiry(type) {
-  if (type === 'access') {
-    return (env && env.JWT_ACCESS_EXPIRY) || process.env.JWT_ACCESS_EXPIRY || '24h';
-  }
-  if (type === 'refresh') {
-    return (env && env.JWT_REFRESH_EXPIRY) || process.env.JWT_REFRESH_EXPIRY || '7d';
-  }
-  return '24h';
+function expiry(type) {
+  if (type === 'access') return env.JWT_ACCESS_EXPIRY || process.env.JWT_ACCESS_EXPIRY || '24h';
+  return env.JWT_REFRESH_EXPIRY || process.env.JWT_REFRESH_EXPIRY || '7d';
 }
-
-function msg(path, fallback) {
-  if (!MESSAGES) return fallback;
-  try {
-    const parts = path.split('.');
-    let obj = MESSAGES;
-    for (const p of parts) {
-      obj = obj[p];
-      if (obj === undefined) return fallback;
-    }
-    return obj || fallback;
-  } catch (_) {
-    return fallback;
-  }
+function getCookieOptions(req) {
+  const host=String(req.headers.host||'').toLowerCase();
+  const local=host.includes('localhost')||host.startsWith('127.0.0.1');
+  const https=req.secure===true||String(req.headers['x-forwarded-proto']||'').toLowerCase()==='https';
+  const secure=!local&&https;
+  return {httpOnly:true,secure,sameSite:secure?'none':'lax',path:'/'};
 }
-
-function getCookieBaseOptions(req) {
-  const host = String(req?.headers?.host || '').toLowerCase();
-  const isLocalHost = host.includes('localhost') || host.startsWith('127.0.0.1') || host.startsWith('0.0.0.0');
-  const isHttps = req?.secure === true || String(req?.headers?.['x-forwarded-proto'] || '').toLowerCase() === 'https';
-  const secure = !isLocalHost && isHttps;
-  return { httpOnly: true, secure, sameSite: secure ? 'none' : 'lax', path: '/' };
+function setCookies(req,res,a,r) {
+  const o=getCookieOptions(req);
+  res.cookie('accessToken',a,{...o,maxAge:86400000}); res.cookie('token',a,{...o,maxAge:86400000}); res.cookie('refreshToken',r,{...o,maxAge:604800000});
 }
-
-function setAuthCookies(req, res, accessToken, refreshToken) {
-  const base = getCookieBaseOptions(req);
-  res.cookie('accessToken', accessToken, { ...base, maxAge: 24 * 60 * 60 * 1000 });
-  res.cookie('token', accessToken, { ...base, maxAge: 24 * 60 * 60 * 1000 });
-  res.cookie('refreshToken', refreshToken, { ...base, maxAge: 7 * 24 * 60 * 60 * 1000 });
+function clearCookies(req,res){const o=getCookieOptions(req);res.clearCookie('accessToken',o);res.clearCookie('token',o);res.clearCookie('refreshToken',o);}
+function parseId(v){if(v===undefined||v===null||String(v).trim()==='')return null; return /^\d+$/.test(String(v).trim())?Number(v):String(v).trim();}
+function remainingDays(start,end,months){
+  let finish=end?new Date(end):null;
+  if(!finish&&start&&months>0){finish=new Date(start);finish.setMonth(finish.getMonth()+months);}
+  if(!finish||isNaN(finish.getTime())) return 0;
+  return Math.max(0,Math.ceil((finish.getTime()-Date.now())/86400000));
 }
-
-function clearAuthCookies(req, res) {
-  const base = getCookieBaseOptions(req);
-  res.clearCookie('accessToken', base);
-  res.clearCookie('token', base);
-  res.clearCookie('refreshToken', base);
-}
-
-const USER_SELECT = {
-  id: true, username: true, email: true, name: true, firstName: true, lastName: true,
-  phone: true, mobile: true, nationalId: true, bio: true, avatar: true,
-  isActive: true, isDeleted: true, roleId: true, passwordHash: true,
-  subscriptionStart: true, subscriptionEnd: true, subscriptionMonths: true,
-  subscriptionType: true, analysisLimit: true, analysisLimit24h: true,
-  lastLoginAt: true, createdAt: true, updatedAt: true,
-  Role: { select: { id: true, name: true, title: true } },
+const USER_SELECT={
+  id:true,username:true,email:true,passwordHash:true,passwordEncrypted:true,name:true,firstName:true,lastName:true,phone:true,mobile:true,nationalId:true,bio:true,avatar:true,
+  isActive:true,isDeleted:true,roleId:true,subscriptionStart:true,subscriptionEnd:true,subscriptionMonths:true,subscriptionType:true,
+  analysisLimit:true,analysisLimit24h:true,analysisUsed24h:true,lastAnalysisReset:true,lastLoginAt:true,loginCount:true,createdAt:true,updatedAt:true,
+  Role:{select:{id:true,name:true,title:true}}
 };
+const PUBLIC_SELECT={...USER_SELECT,passwordHash:false,passwordEncrypted:false};
+function formatUser(u){
+  const role=u.Role||u.role; const fn=u.firstName||''; const ln=u.lastName||'';
+  const days=remainingDays(u.subscriptionStart,u.subscriptionEnd,u.subscriptionMonths);
+  return {id:u.id,username:u.username,email:u.email||'',name:u.name||[fn,ln].filter(Boolean).join(' '),firstName:fn,lastName:ln,phone:u.phone||u.mobile||'',mobile:u.mobile||u.phone||'',nationalId:u.nationalId||'',bio:u.bio||'',avatar:u.avatar||'',isActive:u.isActive,isDeleted:u.isDeleted||false,role:role?.name||'USER',roleName:role?.name||'USER',roleTitle:role?.title||role?.name||'USER',roleId:u.roleId,isAdmin:role?.name==='ADMIN'||role?.name==='SUPERADMIN'||u.roleId===1,subscriptionStart:u.subscriptionStart||null,subscriptionEnd:u.subscriptionEnd||null,subscriptionMonths:u.subscriptionMonths||0,subscriptionType:u.subscriptionType||'free',analysisLimit:u.analysisLimit24h||u.analysisLimit||0,analysisLimit24h:u.analysisLimit24h||u.analysisLimit||0,remainingDays:days,isSubscriptionActive:days>0,lastLoginAt:u.lastLoginAt||null,createdAt:u.createdAt,updatedAt:u.updatedAt};
+}
+function tokens(u){const role=u.Role||u.role;const p={userId:u.id,sub:u.id,username:u.username,email:u.email||null,role:role?.name||'USER',isAdmin:role?.name==='ADMIN'||role?.name==='SUPERADMIN'||u.roleId===1};return{accessToken:jwt.sign(p,secret('access'),{expiresIn:expiry('access')}),refreshToken:jwt.sign({userId:u.id,sub:u.id,type:'refresh'},secret('refresh'),{expiresIn:expiry('refresh')})};}
+function required(v){return typeof v==='string'&&v.trim()!=='';}
 
-const USER_SELECT_PUBLIC = {
-  id: true, username: true, email: true, name: true, firstName: true, lastName: true,
-  phone: true, mobile: true, nationalId: true, bio: true, avatar: true,
-  isActive: true, roleId: true, subscriptionStart: true, subscriptionEnd: true,
-  subscriptionMonths: true, subscriptionType: true, analysisLimit: true,
-  analysisLimit24h: true, lastLoginAt: true, createdAt: true, updatedAt: true,
-  Role: { select: { id: true, name: true, title: true } },
-};
-
-function parseUserId(raw) {
-  if (raw === null || raw === undefined) return null;
-  const s = String(raw).trim();
-  if (!s) return null;
-  if (/^\d+$/.test(s)) return Number(s);
-  return s;
+async function login(req,res){
+ try{
+  const id=normalizeEmail(req.body?.email||req.body?.username), password=String(req.body?.password||'');
+  if(!required(id)||!password)return res.status(400).json({success:false,message:'ایمیل و کلمه عبور الزامی است'});
+  const u=await prisma.user.findFirst({where:{OR:[{email:id},{username:id}],isDeleted:false},select:USER_SELECT});
+  if(!u)return res.status(401).json({success:false,message:'ایمیل یا کلمه عبور اشتباه است'});
+  if(!u.isActive)return res.status(403).json({success:false,message:'حساب کاربری غیرفعال است'});
+  if(!(await bcrypt.compare(password,u.passwordHash)))return res.status(401).json({success:false,message:'ایمیل یا کلمه عبور اشتباه است'});
+  const t=tokens(u);setCookies(req,res,t.accessToken,t.refreshToken);
+  await prisma.user.update({where:{id:u.id},data:{lastLoginAt:new Date(),loginCount:{increment:1}}}).catch(()=>{});
+  return res.json({success:true,message:'ورود موفق',data:{user:formatUser({...u,lastLoginAt:new Date()}),token:t.accessToken,accessToken:t.accessToken,refreshToken:t.refreshToken}});
+ }catch(e){console.error('[AUTH] login',e);return res.status(500).json({success:false,message:'خطای سرور'});}
 }
 
-function calcRemainingDays(subscriptionStart, subscriptionMonths, subscriptionEnd) {
-  if (subscriptionEnd) {
-    const end = new Date(subscriptionEnd);
-    const diffDays = Math.ceil((end.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    return diffDays > 0 ? diffDays : 0;
-  }
-  if (!subscriptionStart || !subscriptionMonths || subscriptionMonths <= 0) return 0;
-  const start = new Date(subscriptionStart);
-  const end = new Date(start);
-  end.setMonth(end.getMonth() + subscriptionMonths);
-  const diffDays = Math.ceil((end.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-  return diffDays > 0 ? diffDays : 0;
+function generatePassword(){const letters='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz',digits='23456789';let out='';for(let i=0;i<8;i++)out+=letters[crypto.randomInt(letters.length)];for(let i=0;i<4;i++)out+=digits[crypto.randomInt(digits.length)];return out.split('').sort(()=>crypto.randomInt(3)-1).join('');}
+
+async function register(req,res){
+ let createdId=null;
+ try{
+  const email=normalizeEmail(req.body?.email);
+  const name=String(req.body?.name||[req.body?.firstName,req.body?.lastName].filter(Boolean).join(' ')).trim();
+  const phone=String(req.body?.phone||req.body?.mobile||'').trim()||null;
+  if(!required(email))return res.status(400).json({success:false,message:'ایمیل الزامی است'});
+  const valid=await validateEmail(email);
+  if(!valid.valid)return res.status(400).json({success:false,message:'ایمیل واردشده معتبر نیست'});
+  const existing=await prisma.user.findFirst({where:{OR:[{email:email},{username:email}]},select:{id:true,email:true,username:true,isDeleted:true}});
+  if(existing)return res.status(409).json({success:false,message:'شما قبلا با این ایمیل ثبت نام انجام داده اید'});
+  const role=await prisma.role.findFirst({where:{name:'USER'}});
+  const password=generatePassword(), passwordHash=await bcrypt.hash(password,12), passwordEncrypted=encryptPassword(password);
+  const start=new Date(), end=new Date(start.getTime()+2*86400000);
+  const u=await prisma.user.create({data:{username:email,email,passwordHash,passwordEncrypted,name:name||email,phone,mobile:phone,roleId:role?.id||1,isActive:true,isDeleted:false,subscriptionStart:start,subscriptionEnd:end,subscriptionMonths:0,subscriptionType:'free'},select:USER_SELECT});
+  createdId=u.id;
+  try{await sendPasswordEmail(email,password);}catch(mailError){await prisma.user.delete({where:{id:createdId}}).catch(()=>{});console.error('[AUTH] registration email failed',mailError);return res.status(502).json({success:false,message:'ارسال ایمیل انجام نشد. لطفا تنظیمات ایمیل را بررسی کرده و دوباره تلاش کنید'});}
+  return res.status(201).json({success:true,message:'کلمه عبور به ایمیل شما ارسال گردید لطفا جهت مشاهده کلمه عبور ایمیل خود را بررسی نمایید',data:{user:formatUser(u),emailSent:true}});
+ }catch(e){console.error('[AUTH] register',e);if(e.code==='P2002')return res.status(409).json({success:false,message:'شما قبلا با این ایمیل ثبت نام انجام داده اید'});return res.status(500).json({success:false,message:'خطای سرور در ثبت نام'});}
 }
 
-function formatUser(user) {
-  if (!user) return null;
-  const userRole = user.Role || user.role || null;
-  const firstName = user.firstName || '';
-  const lastName = user.lastName || '';
-  let fName = firstName;
-  let lName = lastName;
-  if (!fName && user.name) {
-    const nameParts = String(user.name).trim().split(/\s+/);
-    fName = nameParts[0] || '';
-    lName = nameParts.slice(1).join(' ') || lName;
-  }
-  const remainingDays = calcRemainingDays(user.subscriptionStart, user.subscriptionMonths, user.subscriptionEnd);
-  return {
-    id: user.id,
-    username: user.username,
-    email: user.email || '',
-    name: user.name || [fName, lName].filter(Boolean).join(' ') || '',
-    firstName: fName,
-    lastName: lName,
-    phone: user.phone || user.mobile || '',
-    mobile: user.mobile || user.phone || '',
-    nationalId: user.nationalId || '',
-    bio: user.bio || '',
-    avatar: user.avatar || '',
-    isActive: user.isActive,
-    role: userRole ? userRole.name : 'USER',
-    roleName: userRole ? userRole.name : 'USER',
-    roleTitle: userRole ? (userRole.title || userRole.name) : 'USER',
-    roleId: user.roleId,
-    isAdmin: (userRole ? userRole.name === 'ADMIN' : false) || user.roleId === 2,
-    subscriptionStart: user.subscriptionStart || null,
-    subscriptionEnd: user.subscriptionEnd || null,
-    subscriptionMonths: user.subscriptionMonths || 0,
-    subscriptionType: user.subscriptionType || null,
-    analysisLimit: user.analysisLimit24h || user.analysisLimit || 0,
-    analysisLimit24h: user.analysisLimit24h || user.analysisLimit || 0,
-    remainingDays,
-    isSubscriptionActive: remainingDays > 0,
-    lastLoginAt: user.lastLoginAt || null,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt,
-  };
-}
+async function verify(req,res){try{const auth=req.headers.authorization||'';const tok=auth.startsWith('Bearer ')?auth.slice(7):req.cookies?.accessToken||req.cookies?.token;if(!tok)return res.status(401).json({success:false,valid:false,message:'توکن ارائه نشده'});const d=jwt.verify(tok,secret('access'));const u=await prisma.user.findUnique({where:{id:parseId(d.userId||d.sub)},select:PUBLIC_SELECT});if(!u||!u.isActive||u.isDeleted)return res.status(401).json({success:false,valid:false,message:'کاربر یافت نشد یا غیرفعال است'});return res.json({success:true,valid:true,data:{user:formatUser(u)}});}catch(e){return res.status(401).json({success:false,valid:false,message:'توکن نامعتبر'});}}
 
-function generateTokens(user) {
-  const userRole = user.Role || user.role || null;
-  const payload = {
-    userId: user.id, sub: user.id, username: user.username, email: user.email || null,
-    role: userRole ? userRole.name : 'USER',
-    isAdmin: (userRole ? userRole.name === 'ADMIN' : false) || user.roleId === 2,
-  };
-  const accessToken = jwt.sign(payload, getSecret('access'), { expiresIn: getExpiry('access') });
-  const refreshToken = jwt.sign(
-    { userId: user.id, sub: user.id, type: 'refresh' },
-    getSecret('refresh'),
-    { expiresIn: getExpiry('refresh') }
-  );
-  return { accessToken, refreshToken };
-}
+async function me(req,res){try{const id=parseId(req.user?.userId||req.user?.id||req.user?.sub);if(!id)return res.status(401).json({success:false,message:'شناسه کاربر نامعتبر'});const u=await prisma.user.findUnique({where:{id},select:PUBLIC_SELECT});if(!u)return res.status(404).json({success:false,message:'کاربر یافت نشد'});return res.json({success:true,data:{user:formatUser(u)}});}catch(e){return res.status(500).json({success:false,message:'خطای سرور'});}}
 
-function extractToken(req) {
-  const authHeader = req.headers.authorization || req.headers['Authorization'];
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7).trim();
-    if (token && token !== 'null' && token !== 'undefined') return token;
-  }
-  if (req.body && (req.body.token || req.body.accessToken || req.body.refreshToken)) {
-    return req.body.token || req.body.accessToken || req.body.refreshToken;
-  }
-  if (req.query && (req.query.token || req.query.accessToken || req.query.refreshToken)) {
-    return req.query.token || req.query.accessToken || req.query.refreshToken;
-  }
-  if (req.cookies) {
-    return req.cookies.token || req.cookies.accessToken || req.cookies.access_token || req.cookies.refreshToken || null;
-  }
-  return null;
-}
+async function updateProfile(req,res){try{const id=parseId(req.user?.userId||req.user?.id||req.user?.sub);if(!id)return res.status(401).json({success:false,message:'شناسه کاربر نامعتبر'});const b=req.body||{},d={};for(const k of ['firstName','lastName','phone','mobile','nationalId','bio','avatar'])if(b[k]!==undefined)d[k]=(typeof b[k]==='string'?b[k].trim():b[k])||null;if(b.name!==undefined)d.name=String(b.name||'').trim()||null;else if(b.firstName!==undefined||b.lastName!==undefined)d.name=[b.firstName,b.lastName].filter(Boolean).join(' ').trim()||null;if(b.email!==undefined)d.email=normalizeEmail(b.email)||null;if(!Object.keys(d).length)return res.status(400).json({success:false,message:'داده‌ای برای به‌روزرسانی ارسال نشده'});const u=await prisma.user.update({where:{id},data:d,select:PUBLIC_SELECT});return res.json({success:true,message:'پروفایل به‌روزرسانی شد',data:{user:formatUser(u)}});}catch(e){return res.status(e.code==='P2002'?409:500).json({success:false,message:e.code==='P2002'?'ایمیل تکراری است':'خطا در به‌روزرسانی پروفایل'});}}
 
-async function login(req, res) {
-  try {
-    if (!ensurePrisma(res)) return;
-    const { username, password, email } = req.body || {};
-    const loginIdentifier = (username || email || '').trim();
-    if (!loginIdentifier || !password) {
-      return res.status(400).json({ success: false, message: msg('AUTH.REQUIRED_FIELDS', 'نام کاربری و رمز عبور الزامی است') });
-    }
-    let user = null;
-    try {
-      user = await prisma.user.findFirst({
-        where: { OR: [{ username: loginIdentifier }, { email: loginIdentifier }], isDeleted: false },
-        select: USER_SELECT,
-      });
-    } catch (dbErr) {
-      user = await prisma.user.findFirst({
-        where: { OR: [{ username: loginIdentifier }, { email: loginIdentifier }] },
-        select: USER_SELECT,
-      });
-    }
-    if (!user) return res.status(401).json({ success: false, message: msg('AUTH.INVALID_CREDENTIALS', 'نام کاربری یا رمز عبور اشتباه است') });
-    if (user.isActive === false) return res.status(403).json({ success: false, message: msg('AUTH.ACCOUNT_DISABLED', 'حساب کاربری غیرفعال است') });
-    if (!user.passwordHash) return res.status(500).json({ success: false, message: msg('GENERAL.SERVER_ERROR', 'خطای داخلی سرور') });
-    const isValidPassword = await bcrypt.compare(password, user.passwordHash);
-    if (!isValidPassword) return res.status(401).json({ success: false, message: msg('AUTH.INVALID_CREDENTIALS', 'نام کاربری یا رمز عبور اشتباه است') });
-    const tokens = generateTokens(user);
-    setAuthCookies(req, res, tokens.accessToken, tokens.refreshToken);
-    prisma.user.update({ where: { id: user.id }, data: { updatedAt: new Date() } }).catch(e => console.warn('[AUTH] Failed to update login audit:', e.message));
-    const responseUser = { ...user, lastLoginAt: new Date() };
-    return res.json({ success: true, message: msg('AUTH.LOGIN_SUCCESS', 'ورود موفق'), data: { user: formatUser(responseUser), token: tokens.accessToken, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken } });
-  } catch (error) {
-    console.error('[AUTH] Login error:', error);
-    return res.status(500).json({ success: false, message: msg('GENERAL.SERVER_ERROR', 'خطای سرور') });
-  }
-}
+async function changePassword(req,res){try{const id=parseId(req.user?.userId||req.user?.id||req.user?.sub),current=String(req.body?.currentPassword||''),next=String(req.body?.newPassword||'');if(!id)return res.status(401).json({success:false,message:'شناسه کاربر نامعتبر است'});if(current.length<1||next.length<6)return res.status(400).json({success:false,message:'رمز عبور فعلی و کلمه عبور جدید الزامی است و کلمه عبور جدید باید حداقل ۶ کاراکتر باشد'});const u=await prisma.user.findUnique({where:{id},select:{id:true,passwordHash:true}});if(!u||!(await bcrypt.compare(current,u.passwordHash)))return res.status(401).json({success:false,message:'کلمه عبور فعلی اشتباه است'});const hash=await bcrypt.hash(next,12);await prisma.user.update({where:{id},data:{passwordHash:hash,passwordEncrypted:encryptPassword(next),updatedAt:new Date()}});await prisma.session.deleteMany({where:{userId:id}}).catch(()=>{});clearCookies(req,res);return res.json({success:true,forceLogout:true,message:'کلمه عبور با موفقیت تغییر کرد'});}catch(e){console.error('[AUTH] changePassword',e);return res.status(500).json({success:false,message:'خطا در تغییر کلمه عبور'});}}
 
-async function register(req, res) {
-  try {
-    if (!ensurePrisma(res)) return;
+async function getSubscription(req,res){try{const id=parseId(req.user?.userId||req.user?.id||req.user?.sub);const u=await prisma.user.findUnique({where:{id},select:{subscriptionStart:true,subscriptionEnd:true,subscriptionMonths:true,subscriptionType:true,analysisLimit:true,analysisLimit24h:true}});if(!u)return res.status(404).json({success:false,message:'کاربر یافت نشد'});const days=remainingDays(u.subscriptionStart,u.subscriptionEnd,u.subscriptionMonths);return res.json({success:true,data:{subscriptionStart:u.subscriptionStart,subscriptionEnd:u.subscriptionEnd,subscriptionMonths:u.subscriptionMonths||0,subscriptionType:u.subscriptionType||'free',analysisLimit:u.analysisLimit24h||u.analysisLimit||0,analysisLimit24h:u.analysisLimit24h||u.analysisLimit||0,remainingDays:days,isActive:days>0,isSubscriptionActive:days>0}});}catch(e){return res.status(500).json({success:false,message:'خطا در دریافت اطلاعات اشتراک'});}}
 
-    const rawUsername = req.body?.username;
-    const rawPassword = req.body?.password;
-    const rawEmail = req.body?.email;
-    const rawName = req.body?.name;
-    const rawPhone = req.body?.phone;
-
-    const username = typeof rawUsername === 'string' ? rawUsername.trim() : '';
-    const password = typeof rawPassword === 'string' ? rawPassword : '';
-    const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : null;
-    const name = typeof rawName === 'string' ? rawName.trim() : '';
-    const phone = typeof rawPhone === 'string' ? rawPhone.trim() : null;
-
-    if (!username || !password) return res.status(400).json({ success: false, message: msg('AUTH.REQUIRED_FIELDS', 'نام کاربری و رمز عبور الزامی است') });
-    if (username.length < 3) return res.status(400).json({ success: false, message: msg('AUTH.USERNAME_SHORT', 'نام کاربری باید حداقل ۳ کاراکتر باشد') });
-    if (password.length < 6) return res.status(400).json({ success: false, message: msg('AUTH.PASSWORD_WEAK', 'رمز عبور باید حداقل ۶ کاراکتر باشد') });
-
-    const existingUser = await prisma.user.findFirst({
-      where: { OR: [{ username }, ...(email ? [{ email }] : [])] },
-      select: { id: true, username: true, email: true, isDeleted: true, isActive: true },
-    });
-
-    if (existingUser && !existingUser.isDeleted && existingUser.isActive) {
-      if (existingUser.username === username) return res.status(409).json({ success: false, message: msg('AUTH.USERNAME_EXISTS', 'نام کاربری تکراری است') });
-      if (email && existingUser.email === email) return res.status(409).json({ success: false, message: msg('USER.EMAIL_EXISTS', 'ایمیل تکراری است') });
-      return res.status(409).json({ success: false, message: msg('AUTH.USERNAME_EXISTS', 'نام کاربری یا ایمیل تکراری است') });
-    }
-
-    const passwordHash = await bcrypt.hash(password, 12);
-    let defaultRoleId = 1;
-    try {
-      const userRole = await prisma.role.findFirst({ where: { name: 'USER' } });
-      if (userRole) defaultRoleId = userRole.id;
-    } catch (_) {}
-
-    if (existingUser && (existingUser.isDeleted || !existingUser.isActive)) {
-      const activeConflict = await prisma.user.findFirst({
-        where: {
-          id: { not: existingUser.id },
-          isDeleted: false,
-          isActive: true,
-          OR: [{ username }, ...(email ? [{ email }] : [])],
-        },
-        select: { id: true, username: true, email: true },
-      });
-      if (activeConflict) {
-        if (activeConflict.username === username) return res.status(409).json({ success: false, message: msg('AUTH.USERNAME_EXISTS', 'نام کاربری تکراری است') });
-        if (email && activeConflict.email === email) return res.status(409).json({ success: false, message: msg('USER.EMAIL_EXISTS', 'ایمیل تکراری است') });
-        return res.status(409).json({ success: false, message: msg('AUTH.USERNAME_EXISTS', 'نام کاربری یا ایمیل تکراری است') });
-      }
-
-      const restoredUser = await prisma.user.update({
-        where: { id: existingUser.id },
-        data: {
-          username,
-          passwordHash,
-          email,
-          name: name || username,
-          phone,
-          isDeleted: false,
-          isActive: true,
-          roleId: defaultRoleId,
-          updatedAt: new Date(),
-        },
-        select: USER_SELECT,
-      });
-
-      const tokens = generateTokens(restoredUser);
-      setAuthCookies(req, res, tokens.accessToken, tokens.refreshToken);
-      return res.status(200).json({
-        success: true,
-        message: msg('USER.RESTORED', 'کاربر حذف‌شده/غیرفعال با موفقیت بازیابی شد'),
-        data: { user: formatUser(restoredUser), restored: true, token: tokens.accessToken, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken },
-      });
-    }
-
-    const newUser = await prisma.user.create({
-      data: {
-        username,
-        passwordHash,
-        email,
-        name: (name || username).trim(),
-        firstName: null,
-        lastName: null,
-        phone,
-        mobile: null,
-        roleId: defaultRoleId,
-        isActive: true,
-      },
-      select: USER_SELECT,
-    });
-
-    const tokens = generateTokens(newUser);
-    setAuthCookies(req, res, tokens.accessToken, tokens.refreshToken);
-    return res.status(201).json({
-      success: true,
-      message: msg('AUTH.REGISTER_SUCCESS', 'ثبت‌نام موفق'),
-      data: { user: formatUser(newUser), restored: false, token: tokens.accessToken, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken },
-    });
-  } catch (error) {
-    console.error('[AUTH] Register error:', error);
-    if (error.code === 'P2002') return res.status(409).json({ success: false, message: msg('AUTH.USERNAME_EXISTS', 'نام کاربری یا ایمیل تکراری است') });
-    return res.status(500).json({ success: false, message: msg('GENERAL.SERVER_ERROR', 'خطای سرور') });
-  }
-}
-
-async function verify(req, res) {
-  try {
-    if (!ensurePrisma(res)) return;
-    const token = extractToken(req);
-    if (!token) return res.status(401).json({ success: false, valid: false, message: msg('AUTH.TOKEN_MISSING', 'توکن ارائه نشده') });
-    const decoded = jwt.verify(token, getSecret('access'));
-    const userId = parseUserId(decoded.userId || decoded.sub || decoded.id);
-    if (!userId) return res.status(401).json({ success: false, valid: false, message: 'توکن نامعتبر' });
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: USER_SELECT_PUBLIC });
-    if (!user || user.isActive === false) return res.status(401).json({ success: false, valid: false, message: 'کاربر یافت نشد یا غیرفعال است' });
-    return res.json({ success: true, valid: true, data: { user: formatUser(user) } });
-  } catch (error) {
-    if (error.name === 'TokenExpiredError') return res.status(401).json({ success: false, valid: false, expired: true, message: 'توکن منقضی شده' });
-    return res.status(401).json({ success: false, valid: false, message: 'توکن نامعتبر' });
-  }
-}
-
-async function refreshToken(req, res) {
-  try {
-    if (!ensurePrisma(res)) return;
-    const token = req.body?.refreshToken || req.cookies?.refreshToken || req.body?.token || extractToken(req);
-    if (!token) return res.status(401).json({ success: false, message: 'توکن ارائه نشده' });
-    let decoded;
-    try { decoded = jwt.verify(token, getSecret('refresh')); } catch (_) { decoded = jwt.verify(token, getSecret('access')); }
-    const userId = parseUserId(decoded.userId || decoded.sub || decoded.id);
-    if (!userId) return res.status(401).json({ success: false, message: 'توکن نامعتبر' });
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: USER_SELECT });
-    if (!user || user.isActive === false) return res.status(401).json({ success: false, message: 'کاربر یافت نشد' });
-    const tokens = generateTokens(user);
-    setAuthCookies(req, res, tokens.accessToken, tokens.refreshToken);
-    prisma.user.update({ where: { id: user.id }, data: { updatedAt: new Date() } }).catch(e => console.warn('[AUTH] Failed to update refresh audit:', e.message));
-    const responseUser = { ...user, lastLoginAt: new Date() };
-    return res.json({ success: true, message: 'توکن به‌روزرسانی شد', data: { user: formatUser(responseUser), token: tokens.accessToken, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken } });
-  } catch (error) {
-    console.error('[AUTH] refreshToken error:', error.message);
-    return res.status(401).json({ success: false, message: 'توکن نامعتبر یا منقضی' });
-  }
-}
-
-async function logout(req, res) {
-  clearAuthCookies(req, res);
-  return res.json({ success: true, message: msg('AUTH.LOGOUT_SUCCESS', 'خروج موفق') });
-}
-
-async function me(req, res) {
-  try {
-    if (!ensurePrisma(res)) return;
-    const userId = parseUserId(req.user?.userId || req.user?.id || req.user?.sub);
-    if (!userId) return res.status(401).json({ success: false, message: 'شناسه کاربر نامعتبر' });
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: USER_SELECT_PUBLIC });
-    if (!user) return res.status(404).json({ success: false, message: 'کاربر یافت نشد' });
-    return res.json({ success: true, data: { user: formatUser(user) } });
-  } catch (error) {
-    console.error('[AUTH] me error:', error.message);
-    return res.status(500).json({ success: false, message: 'خطای سرور' });
-  }
-}
-
-async function updateProfile(req, res) {
-  try {
-    if (!ensurePrisma(res)) return;
-    const userId = parseUserId(req.user?.userId || req.user?.id || req.user?.sub);
-    if (!userId) return res.status(401).json({ success: false, message: 'شناسه کاربر نامعتبر' });
-    const { name, firstName, lastName, email, phone, mobile, nationalId, bio, avatar } = req.body || {};
-    const updateData = {};
-    if (name !== undefined) updateData.name = typeof name === 'string' ? name.trim() : '';
-    else if (firstName !== undefined || lastName !== undefined) {
-      const fn = typeof firstName === 'string' ? firstName.trim() : '';
-      const ln = typeof lastName === 'string' ? lastName.trim() : '';
-      updateData.name = [fn, ln].filter(Boolean).join(' ');
-    }
-    if (firstName !== undefined) updateData.firstName = (typeof firstName === 'string' ? firstName.trim() : '') || null;
-    if (lastName !== undefined) updateData.lastName = (typeof lastName === 'string' ? lastName.trim() : '') || null;
-    if (email !== undefined) updateData.email = (typeof email === 'string' ? email.trim() : '') || null;
-    if (phone !== undefined) updateData.phone = (typeof phone === 'string' ? phone.trim() : '') || null;
-    if (mobile !== undefined) updateData.mobile = (typeof mobile === 'string' ? mobile.trim() : '') || null;
-    if (nationalId !== undefined) updateData.nationalId = (typeof nationalId === 'string' ? nationalId.trim() : '') || null;
-    if (bio !== undefined) updateData.bio = (typeof bio === 'string' ? bio.trim() : '') || null;
-    if (avatar !== undefined) updateData.avatar = avatar || null;
-    if (Object.keys(updateData).length === 0) return res.status(400).json({ success: false, message: 'داده‌ای برای به‌روزرسانی ارسال نشده' });
-    updateData.updatedAt = new Date();
-    const updatedUser = await prisma.user.update({ where: { id: userId }, data: updateData, select: USER_SELECT_PUBLIC });
-    return res.json({ success: true, message: 'پروفایل به‌روزرسانی شد', data: { user: formatUser(updatedUser) } });
-  } catch (error) {
-    console.error('[AUTH] updateProfile error:', error.message);
-    if (error.code === 'P2002') return res.status(409).json({ success: false, message: 'ایمیل یا شماره تلفن تکراری است' });
-    return res.status(500).json({ success: false, message: 'خطا در به‌روزرسانی پروفایل' });
-  }
-}
-
-async function changePassword(req, res) {
-  try {
-    if (!ensurePrisma(res)) return;
-    const userId = parseUserId(req.user?.userId || req.user?.id || req.user?.sub);
-    if (!userId) return res.status(401).json({ success: false, message: 'شناسه کاربر نامعتبر' });
-    const { currentPassword, newPassword } = req.body || {};
-    if (!currentPassword || !newPassword) return res.status(400).json({ success: false, message: 'رمز عبور فعلی و جدید الزامی است' });
-    if (newPassword.length < 6) return res.status(400).json({ success: false, message: 'رمز عبور جدید باید حداقل ۶ کاراکتر باشد' });
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, passwordHash: true } });
-    if (!user) return res.status(404).json({ success: false, message: 'کاربر یافت نشد' });
-    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
-    if (!isMatch) return res.status(401).json({ success: false, message: 'رمز عبور فعلی اشتباه است' });
-    const newHash = await bcrypt.hash(newPassword, 12);
-    await prisma.user.update({ where: { id: userId }, data: { passwordHash: newHash, updatedAt: new Date() } });
-    return res.json({ success: true, message: 'رمز عبور با موفقیت تغییر کرد' });
-  } catch (error) {
-    console.error('[AUTH] changePassword error:', error.message);
-    return res.status(500).json({ success: false, message: 'خطا در تغییر رمز عبور' });
-  }
-}
-
-async function getSubscription(req, res) {
-  try {
-    if (!ensurePrisma(res)) return;
-    const userId = parseUserId(req.user?.userId || req.user?.id || req.user?.sub);
-    if (!userId) return res.status(401).json({ success: false, message: 'شناسه کاربر نامعتبر' });
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { subscriptionStart: true, subscriptionEnd: true, subscriptionMonths: true, subscriptionType: true, analysisLimit: true, analysisLimit24h: true } });
-    if (!user) return res.status(404).json({ success: false, message: 'کاربر یافت نشد' });
-    const remainingDays = calcRemainingDays(user.subscriptionStart, user.subscriptionMonths, user.subscriptionEnd);
-    return res.json({ success: true, data: { subscriptionStart: user.subscriptionStart || null, subscriptionEnd: user.subscriptionEnd || null, subscriptionMonths: user.subscriptionMonths || 0, subscriptionType: user.subscriptionType || null, analysisLimit: user.analysisLimit24h || user.analysisLimit || 0, analysisLimit24h: user.analysisLimit24h || user.analysisLimit || 0, remainingDays, isActive: remainingDays > 0 } });
-  } catch (error) {
-    console.error('[AUTH] getSubscription error:', error.message);
-    return res.status(500).json({ success: false, message: 'خطا در دریافت اطلاعات اشتراک' });
-  }
-}
-
-async function recoverPassword(req, res) {
-  try {
-    if (!ensurePrisma(res)) return;
-    const { email, username } = req.body || {};
-    const identifier = (email || username || '').trim();
-    if (!identifier) return res.status(400).json({ success: false, message: msg('AUTH.EMAIL_REQUIRED', 'ایمیل یا نام کاربری الزامی است') });
-    let user = null;
-    try {
-      user = await prisma.user.findFirst({ where: { OR: [{ email: identifier }, { username: identifier }] }, select: { id: true, email: true, username: true } });
-    } catch (dbErr) {
-      console.warn('[AUTH] recoverPassword lookup error:', dbErr.message);
-    }
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
-    if (user) {
-      try {
-        await prisma.user.update({ where: { id: user.id }, data: { resetToken, resetTokenExpiry } });
-      } catch (updateErr) {
-        console.warn('[AUTH] Could not store resetToken:', updateErr.message);
-      }
-    }
-    return res.json({ success: true, message: msg('AUTH.RECOVER_SENT', 'در صورت وجود حساب، دستورالعمل بازیابی رمز عبور ارسال شد'), data: { sent: true, ...(process.env.NODE_ENV !== 'production' && user ? { resetToken } : {}) } });
-  } catch (error) {
-    console.error('[AUTH] recoverPassword error:', error);
-    return res.status(500).json({ success: false, message: msg('GENERAL.SERVER_ERROR', 'خطای سرور') });
-  }
-}
-
-async function resetPassword(req, res) {
-  try {
-    if (!ensurePrisma(res)) return;
-    const { token, resetToken: bodyResetToken, newPassword } = req.body || {};
-    const actualToken = (token || bodyResetToken || '').trim();
-    if (!actualToken || !newPassword) return res.status(400).json({ success: false, message: msg('AUTH.RESET_REQUIRED', 'توکن و رمز عبور جدید الزامی است') });
-    if (newPassword.length < 6) return res.status(400).json({ success: false, message: msg('AUTH.PASSWORD_WEAK', 'رمز عبور باید حداقل ۶ کاراکتر باشد') });
-    let user = null;
-    try {
-      user = await prisma.user.findFirst({ where: { resetToken: actualToken, resetTokenExpiry: { gte: new Date() } }, select: { id: true, username: true } });
-    } catch (dbErr) {
-      console.warn('[AUTH] resetPassword lookup error:', dbErr.message);
-      return res.status(400).json({ success: false, message: msg('AUTH.RESET_INVALID', 'توکن نامعتبر یا منقضی شده') });
-    }
-    if (!user) return res.status(400).json({ success: false, message: msg('AUTH.RESET_INVALID', 'توکن نامعتبر یا منقضی شده') });
-    const passwordHash = await bcrypt.hash(newPassword, 12);
-    await prisma.user.update({ where: { id: user.id }, data: { passwordHash, resetToken: null, resetTokenExpiry: null, updatedAt: new Date() } });
-    return res.json({ success: true, message: msg('AUTH.RESET_SUCCESS', 'رمز عبور با موفقیت بازیابی شد') });
-  } catch (error) {
-    console.error('[AUTH] resetPassword error:', error);
-    return res.status(500).json({ success: false, message: msg('GENERAL.SERVER_ERROR', 'خطای سرور') });
-  }
-}
-
-module.exports = {
-  login,
-  register,
-  verify,
-  refreshToken,
-  logout,
-  me,
-  updateProfile,
-  changePassword,
-  getSubscription,
-  recoverPassword,
-  resetPassword,
-  refresh: refreshToken,
-  getMe: me,
-  getProfile: me,
-};
-
-console.log('[AUTH_CTRL] Exported methods:', Object.keys(module.exports));
+async function recoverPassword(req,res){try{const email=normalizeEmail(req.body?.email);if(!required(email))return res.status(400).json({success:false,message:'ایمیل الزامی است'});const u=await prisma.user.findFirst({where:{OR:[{email},{username:email}],isDeleted:false},select:{id:true,email:true,username:true,passwordEncrypted:true,passwordHash:true}});if(!u)return res.status(404).json({success:false,message:'شما قبلا با این ایمیل ثبت نام انجام نداده اید'});let password=null;try{password=decryptPassword(u.passwordEncrypted);}catch(_){}if(!password){password=generatePassword();await prisma.user.update({where:{id:u.id},data:{passwordHash:await bcrypt.hash(password,12),passwordEncrypted:encryptPassword(password),updatedAt:new Date()}});}await sendPasswordEmail(email,password,'بازیابی کلمه عبور - تحلیلگر هوشمند بورس رونیا');return res.json({success:true,message:'کلمه عبور به ایمیل شما ارسال گردید لطفا جهت مشاهده کلمه عبور ایمیل خود را بررسی نمایید',data:{emailSent:true}});}catch(e){console.error('[AUTH] recoverPassword',e);return res.status(502).json({success:false,message:'ارسال ایمیل انجام نشد. لطفا دوباره تلاش کنید'});}}
+async function resetPassword(req,res){return res.status(400).json({success:false,message:'برای بازیابی کلمه عبور از گزینه ارسال کلمه عبور به ایمیل استفاده کنید'});}
+async function refreshToken(req,res){try{const tok=req.body?.refreshToken||req.cookies?.refreshToken;if(!tok)return res.status(401).json({success:false,message:'توکن ارائه نشده'});const d=jwt.verify(tok,secret('refresh'));const u=await prisma.user.findUnique({where:{id:parseId(d.userId||d.sub)},select:USER_SELECT});if(!u||!u.isActive)return res.status(401).json({success:false,message:'کاربر یافت نشد'});const t=tokens(u);setCookies(req,res,t.accessToken,t.refreshToken);return res.json({success:true,data:{user:formatUser(u),token:t.accessToken,accessToken:t.accessToken,refreshToken:t.refreshToken}});}catch(e){return res.status(401).json({success:false,message:'توکن نامعتبر یا منقضی'});}}
+async function logout(req,res){clearCookies(req,res);return res.json({success:true,message:'خروج موفق'});}
+module.exports={login,register,verify,refreshToken,logout,me,updateProfile,changePassword,getSubscription,recoverPassword,resetPassword,refresh:refreshToken,getMe:me,getProfile:me};
