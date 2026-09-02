@@ -439,6 +439,14 @@ const App: React.FC = () => {
   }, [handleLogout, addNotification]);
 
   useEffect(() => {
+    if (!currentUser || currentUser.isAdmin) return;
+    const check = () => setIsExpired(typeof authService.isAccountExpired === 'function' ? authService.isAccountExpired(currentUser) : false);
+    check();
+    const timer = window.setInterval(check, 60000);
+    return () => window.clearInterval(timer);
+  }, [currentUser]);
+
+  useEffect(() => {
     let mounted = true;
 
     const setUserState = (user: StoredUser | null) => {
