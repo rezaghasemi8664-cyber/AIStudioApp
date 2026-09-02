@@ -226,6 +226,45 @@ function parseAIResponse(raw) {
   }
 }
 
+function mergeTrustedMarketData(aiResult, input) {
+  const result = asPlainObject(aiResult);
+  const source = asPlainObject(input);
+  const trusted = source && asPlainObject(source.marketData);
+
+  if (!result || !trusted) return result;
+
+  const existingMarketData = asPlainObject(result.marketData) || {};
+  const mergedMarketData = Object.assign({}, existingMarketData, trusted);
+
+  const trustedFields = [
+    'closingPrice',
+    'tradedVolume',
+    'volume',
+    'moneyFlow',
+    'realMoneyFlow',
+    'legalMoneyFlow',
+    'dailySummary',
+    'dailyCandles',
+    'weeklyCandles',
+    'priceHistory'
+  ];
+
+  for (let i = 0; i < trustedFields.length; i += 1) {
+    const field = trustedFields[i];
+    if (trusted[field] !== undefined && trusted[field] !== null) {
+      mergedMarketData[field] = trusted[field];
+      result[field] = trusted[field];
+    }
+  }
+
+  result.marketData = mergedMarketData;
+
+  const symbol = source.symbol || result.symbol;
+  if (symbol) result.symbol = symbol;
+
+  return result;
+}
+
 function pruneRateLimitEntries(userId) {
   const now = Date.now();
   const userRequests = analysisQueue.get(userId) || [];
@@ -493,6 +532,8 @@ async function runAnalysis(input, userId) {
     });
 
     const parsedResult = parseAIResponse(rawContent);
+    parsedResult.data = mergeTrustedMarketData(parsedResult.data, input);
+
     let validated;
 
     try {
