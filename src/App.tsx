@@ -1008,7 +1008,7 @@ const App: React.FC = () => {
         throw new Error('سرویس تغییر رمز عبور در دسترس نیست.');
       }
 
-      await authService.changePassword(currentUser.id, currentPass, newPass);
+      await authService.changePassword(currentPass, newPass);
 
       const freshUser =
         typeof authService.getCurrentUser === 'function' ? authService.getCurrentUser() : null;
@@ -1024,7 +1024,8 @@ const App: React.FC = () => {
         }
       }
 
-      console.log('[APP] Password changed successfully, session preserved.');
+      console.log('[APP] Password changed successfully, forcing logout.');
+      handleLogout();
     },
     [buildSafeUser, currentUser, persistUser],
   );
