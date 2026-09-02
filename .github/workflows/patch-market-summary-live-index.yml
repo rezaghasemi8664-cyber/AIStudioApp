@@ -50,23 +50,15 @@ jobs:
   const change = toNumber(changeValue);
 
   // درصد صریح فقط وقتی معتبر است که با علامت change همان Snapshot سازگار باشد.
-  // این جلوی ترکیب درصد مثبتِ کش قدیمی با change منفیِ Snapshot جدید را می‌گیرد.
   if (direct !== null && Number.isFinite(direct)) {
-    if (
-      change === null ||
-      direct === 0 ||
-      change === 0 ||
-      Math.sign(direct) === Math.sign(change)
-    ) {
+    if (change === null || direct === 0 || change === 0 || Math.sign(direct) === Math.sign(change)) {
       return Number(direct.toFixed(2));
     }
   }
 
   if (current === null || change === null) return null;
-
   const previous = current - change;
   if (!Number.isFinite(previous) || previous === 0) return null;
-
   const calculated = (change / previous) * 100;
   return Number.isFinite(calculated) ? Number(calculated.toFixed(2)) : null;
 }
@@ -77,28 +69,22 @@ jobs:
 
           marker = '''/* ================================
  * Payload Builder
- * ================================ */
+ * ================================
 '''
           helper = '''/* ================================
  * Live BRS index source of truth
  * ================================ */
 async function getLiveMarketIndexSnapshot() {
   if (!brsService || typeof brsService.getMarketIndex !== 'function') return null;
-
   try {
     const response = await brsService.getMarketIndex();
     const live = response?.data || response?.marketIndex || response;
     if (!live || typeof live !== 'object') return null;
-
     const index = pickValue(live, FIELD_KEYS.index, toNumber);
     const indexChange = pickValue(live, FIELD_KEYS.changeIndex, toNumber);
     const equalIndex = pickValue(live, FIELD_KEYS.equalIndex, toNumber);
     const equalChange = pickValue(live, FIELD_KEYS.equalChange, toNumber);
-
-    if (index === null || indexChange === null || equalIndex === null || equalChange === null) {
-      return null;
-    }
-
+    if (index === null || indexChange === null || equalIndex === null || equalChange === null) return null;
     return {
       ...live,
       index,
@@ -112,15 +98,12 @@ async function getLiveMarketIndexSnapshot() {
       index_equalWeight_change: equalChange,
       equalWeightedValue: equalIndex,
       equalWeightedChangeValue: equalChange,
-      // این درصدها فقط برای همان Snapshot زنده نگهداری می‌شوند.
       changePercent: calculateIndexChangePercent(index, indexChange, live.changePercent),
       equalWeightedChangePercent: calculateIndexChangePercent(equalIndex, equalChange, live.equalWeightedChangePercent),
       snapshotCreatedAt: live.lastUpdate || live._timestamp || new Date().toISOString()
     };
   } catch (error) {
-    logWarn('Live BRS market index unavailable; falling back to stored snapshot', {
-      message: error?.message || String(error)
-    });
+    logWarn('Live BRS market index unavailable; falling back to stored snapshot', { message: error?.message || String(error) });
     return null;
   }
 }
@@ -138,131 +121,72 @@ async function getLiveMarketIndexSnapshot() {
 
           new_find = '''exports.findOrGenerateLatest = async () => {
   const MarketSummary = getMarketSummaryModel();
-
   try {
-    // برای خلاصه «آخرین وضعیت»، منبع اصلی باید Snapshot زنده BRS باشد.
-    // MarketSummary/MarketHistory فقط fallback هستند و نباید روی داده زنده overwrite شوند.
+    // آخرین خلاصه همیشه از Snapshot زنده BRS تغذیه می‌شود؛ کش/DB فقط fallback است.
     const liveMarketData = await getLiveMarketIndexSnapshot();
-
     if (liveMarketData) {
       const fallbackDate = resolveBestDate(liveMarketData, new Date());
       const targetDay = getTehranDayStart(fallbackDate);
       const existing = await findBySummaryDateSafe(targetDay);
       const { payload } = buildSummaryPayload(liveMarketData, fallbackDate, existing);
-
       let finalRecord;
       if (existing) {
         const patch = buildPatchDataIfNeeded(existing, payload);
-        finalRecord = patch
-          ? await MarketSummary.update({ where: { id: existing.id }, data: patch })
-          : existing;
+        finalRecord = patch ? await MarketSummary.update({ where: { id: existing.id }, data: patch }) : existing;
       } else {
         finalRecord = await MarketSummary.create({ data: payload });
       }
-
       await retainOnlyLastNSummaries(SUMMARY_RETENTION_COUNT);
-
-      if (!hasFinalAiText(finalRecord) || isWeakAiText(extractAiText(finalRecord))) {
-        scheduleEnrichment(finalRecord, liveMarketData);
-      }
-
+      if (!hasFinalAiText(finalRecord) || isWeakAiText(extractAiText(finalRecord))) scheduleEnrichment(finalRecord, liveMarketData);
       return buildResult({
-        data: normalizeSummaryRecord(finalRecord, {
-          source: 'BRS_LIVE',
-          targetDate: toDateOnlyISO(targetDay),
-          sourceDate: fallbackDate.toISOString()
-        }),
+        data: normalizeSummaryRecord(finalRecord, { source: 'BRS_LIVE', targetDate: toDateOnlyISO(targetDay), sourceDate: fallbackDate.toISOString() }),
         sourceType: 'brs_live',
         cached: false,
         generated: !existing,
         reason: existing ? 'LIVE_BRS_SUMMARY_REFRESHED' : 'LIVE_BRS_SUMMARY_CREATED',
-        diagnostics: {
-          source: 'BRS_LIVE',
-          targetDate: toDateOnlyISO(targetDay),
-          sourceDate: fallbackDate.toISOString()
-        }
+        diagnostics: { source: 'BRS_LIVE', targetDate: toDateOnlyISO(targetDay), sourceDate: fallbackDate.toISOString() }
       });
     }
 
-    // اگر BRS در دسترس نبود، منطق قبلیِ snapshot ذخیره‌شده فقط به‌عنوان fallback اجرا می‌شود.
     const [inspection, latestSummary] = await Promise.all([
       inspectLatestMarketHistoryRows({ take: 30 }),
-      MarketSummary.findFirst({
-        orderBy: [{ summaryDate: 'desc' }, { id: 'desc' }],
-      }),
+      MarketSummary.findFirst({ orderBy: [{ summaryDate: 'desc' }, { id: 'desc' }] })
     ]);
-
     if (inspection.candidate) {
       const { row } = inspection.candidate;
       const dayMerged = await buildMergedMarketDataForDay(row.createdAt, { take: 80 });
       const marketData = dayMerged.merged || inspection.candidate.marketData;
-
       if (!isLikelySyntheticMarketData(marketData)) {
         const existingTarget = buildSummaryPayload(marketData, row.createdAt);
         const existing = await findBySummaryDateSafe(existingTarget.targetDay);
-
         if (existing) {
           const rebuilt = buildSummaryPayload(marketData, row.createdAt, existing);
           const patch = buildPatchDataIfNeeded(existing, rebuilt.payload);
-          let finalRecord = existing;
-          if (patch) finalRecord = await MarketSummary.update({ where: { id: existing.id }, data: patch });
+          const finalRecord = patch ? await MarketSummary.update({ where: { id: existing.id }, data: patch }) : existing;
           await retainOnlyLastNSummaries(SUMMARY_RETENTION_COUNT);
           if (!hasFinalAiText(finalRecord) || isWeakAiText(extractAiText(finalRecord))) scheduleEnrichment(finalRecord, marketData);
-          return buildResult({
-            data: normalizeSummaryRecord(finalRecord, inspection.diagnostics || null),
-            sourceType: 'db_current_fallback',
-            cached: !patch,
-            generated: Boolean(patch),
-            reason: patch ? 'CURRENT_DAY_SUMMARY_PATCHED_FALLBACK' : 'CURRENT_DAY_SUMMARY_EXISTS_FALLBACK',
-            diagnostics: { ...(inspection.diagnostics || {}), mergeRowsUsed: dayMerged.rowsUsed, mergeRowsInspected: dayMerged.inspected }
-          });
+          return buildResult({ data: normalizeSummaryRecord(finalRecord, inspection.diagnostics || null), sourceType: 'db_current_fallback', cached: !patch, generated: Boolean(patch), reason: patch ? 'CURRENT_DAY_SUMMARY_PATCHED_FALLBACK' : 'CURRENT_DAY_SUMMARY_EXISTS_FALLBACK', diagnostics: inspection.diagnostics || null });
         }
-
         if (!(isTehranToday(existingTarget.targetDay) && isBeforeTodaysGenerationWindow())) {
           const generated = await exports.generateMarketSummary({ marketData, fallbackDate: row.createdAt });
-          return buildResult({
-            data: generated.data,
-            sourceType: 'generated_from_history_fallback',
-            generated: true,
-            reason: 'GENERATED_FROM_LATEST_MARKET_HISTORY_FALLBACK',
-            diagnostics: inspection.diagnostics || null
-          });
+          return buildResult({ data: generated.data, sourceType: 'generated_from_history_fallback', generated: true, reason: 'GENERATED_FROM_LATEST_MARKET_HISTORY_FALLBACK', diagnostics: inspection.diagnostics || null });
         }
       }
     }
-
     const catchUp = await runCatchUpForMissingSummary();
     if (catchUp?.data) return catchUp;
-
-    if (latestSummary) {
-      return buildResult({
-        data: normalizeSummaryRecord(latestSummary, inspection?.diagnostics || null),
-        sourceType: 'db_last_available_fallback',
-        cached: true,
-        reason: 'LAST_AVAILABLE_FALLBACK',
-        message: 'آخرین خلاصه ذخیره‌شده به‌عنوان fallback بازگردانده شد',
-        diagnostics: inspection?.diagnostics || null
-      });
-    }
-
+    if (latestSummary) return buildResult({ data: normalizeSummaryRecord(latestSummary, inspection?.diagnostics || null), sourceType: 'db_last_available_fallback', cached: true, reason: 'LAST_AVAILABLE_FALLBACK', message: 'آخرین خلاصه ذخیره‌شده به‌عنوان fallback بازگردانده شد', diagnostics: inspection?.diagnostics || null });
     return buildResult({ data: null, sourceType: 'none', reason: 'NO_DATA_AVAILABLE' });
   } catch (error) {
     logError('findOrGenerateLatest failed', { message: error.message });
     const lastDitch = await MarketSummary.findFirst({ orderBy: [{ summaryDate: 'desc' }, { id: 'desc' }] }).catch(() => null);
-    return buildResult({
-      data: normalizeSummaryRecord(lastDitch),
-      sourceType: lastDitch ? 'db_last_available_fallback' : 'none',
-      error: true,
-      reason: 'CRITICAL_ERROR',
-      message: error.message
-    });
+    return buildResult({ data: normalizeSummaryRecord(lastDitch), sourceType: lastDitch ? 'db_last_available_fallback' : 'none', error: true, reason: 'CRITICAL_ERROR', message: error.message });
   }
 };
 '''
           s = s[:start] + new_find + s[end:]
-
           p.write_text(s, encoding='utf-8-sig')
-          print('patched', p)
+          print('patched')
       - name: Commit patch
         shell: bash
         run: |
@@ -272,3 +196,5 @@ async function getLiveMarketIndexSnapshot() {
           git diff --cached --quiet && exit 0
           git commit -m "fix: use live BRS index in market summary"
           git push
+
+# trigger second run
