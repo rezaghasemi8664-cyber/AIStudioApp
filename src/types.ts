@@ -55,17 +55,22 @@ export type PortfolioAlertType = 'none' | 'buy' | 'sell';
 export interface User {
   id: string; username: string; firstName: string; lastName: string; mobile: string; isAdmin: boolean; isActive: boolean; registrationDate: string;
   activationDate: string; validityDays: number; email?: string; isGuest?: boolean; analysisIntervalMinutes: number; analysisLimit24h: number; isDeleted?: boolean;
-  name?: string; phone?: string; role?: string; subscriptionStart?: string | null; subscriptionEnd?: string | null; subscriptionMonths?: number;
+  name?: string; phone?: string; role?: string; subscriptionStart?: string | null; subscriptionEnd?: string | null; subscriptionDays?: number;
+  subscriptionMonths?: number;
   analysisLimit?: number; isSubscriptionActive?: boolean; remainingDays?: number; createdAt?: string; validityDate?: string | null; expiresAt?: string | null; analysisUsed?: number;
 }
 export interface StoredUser extends User { passwordHash: string; password?: string; }
 export interface ValidityInfo { isExpired: boolean; daysRemaining: number | null; expiryDate: string | null; statusText: string; statusColor: string; }
-export interface UserProfile { id: string; username: string; name: string; email: string | null; phone: string | null; mobile: string | null; role: string; isActive: boolean; isSubscriptionActive: boolean; subscriptionStart: string | null; subscriptionEnd: string | null; subscriptionMonths: number; analysisLimit: number; remainingDays: number; analysisCount: number; createdAt: string; updatedAt: string; }
+export interface UserProfile { id: string; username: string; name: string; email: string | null; phone: string | null; mobile: string | null; role: string; isActive: boolean; isSubscriptionActive: boolean; subscriptionStart: string | null; subscriptionEnd: string | null; subscriptionDays: number;
+  subscriptionMonths: number; analysisLimit: number; remainingDays: number; analysisCount: number; createdAt: string; updatedAt: string; }
 export interface UpdateProfileData { name?: string; email?: string; phone?: string; mobile?: string; }
-export interface SubscriptionInfo { isSubscriptionActive: boolean; subscriptionStart: string | null; subscriptionEnd: string | null; subscriptionMonths: number; analysisLimit: number; remainingDays: number; analysisCount: number; }
+export interface SubscriptionInfo { isSubscriptionActive: boolean; subscriptionStart: string | null; subscriptionEnd: string | null; subscriptionDays: number;
+  subscriptionMonths: number; analysisLimit: number; remainingDays: number; analysisCount: number; }
 export interface AdminDashboardStats { totalUsers: number; activeSubscriptions: number; totalAnalyses: number; totalApiKeys: number; recentUsers?: AdminUserListItem[]; }
-export interface AdminUserListItem { id: string; username: string; name: string | null; email: string | null; phone: string | null; mobile: string | null; role: string; isActive: boolean; isSubscriptionActive: boolean; subscriptionStart: string | null; subscriptionEnd: string | null; subscriptionMonths: number; analysisLimit: number; remainingDays: number; analysisCount: number; createdAt: string; updatedAt: string; }
-export interface AdminUpdateSubscriptionData { userId: string; isSubscriptionActive: boolean; subscriptionStart: string; subscriptionEnd: string; subscriptionMonths: number; analysisLimit: number; }
+export interface AdminUserListItem { id: string; username: string; name: string | null; email: string | null; phone: string | null; mobile: string | null; role: string; isActive: boolean; isSubscriptionActive: boolean; subscriptionStart: string | null; subscriptionEnd: string | null; subscriptionDays: number;
+  subscriptionMonths: number; analysisLimit: number; remainingDays: number; analysisCount: number; createdAt: string; updatedAt: string; }
+export interface AdminUpdateSubscriptionData { userId: string; isSubscriptionActive: boolean; subscriptionStart: string; subscriptionEnd: string; subscriptionDays: number;
+  subscriptionMonths: number; analysisLimit: number; }
 export interface SystemRole { id: string; name: string; description?: string; }
 export interface ApiResponse<T = unknown> { success: boolean; data?: T; error?: string; message?: string; }
 export interface LoginResponse { user: UserProfile; accessToken: string; refreshToken?: string; }
