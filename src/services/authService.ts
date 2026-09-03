@@ -63,9 +63,12 @@ function normalizeUser(raw: any, fallbackEmail?: string): StoredUser {
   const subscriptionMonths = raw?.subscriptionMonths ?? 0;
   const calculatedRemainingDays = getRemainingDaysFromSubscription(subscriptionStart, subscriptionEnd, subscriptionDays, subscriptionMonths);
   const serverRemainingDays = raw?.remainingDays ?? raw?.daysRemaining;
+  const fallbackSubscriptionDays = Number(subscriptionDays);
   const remainingDays = calculatedRemainingDays !== undefined
     ? calculatedRemainingDays
-    : (serverRemainingDays ?? raw?.validityDays ?? undefined);
+    : (serverRemainingDays !== undefined && serverRemainingDays !== null
+        ? Number(serverRemainingDays)
+        : (Number.isFinite(fallbackSubscriptionDays) && fallbackSubscriptionDays > 0 ? fallbackSubscriptionDays : (raw?.validityDays ?? undefined)));
 
   return {
     id: raw?.id || raw?._id || '',
@@ -319,8 +322,6 @@ export function isAccountExpired(user: StoredUser): boolean {
 }
 
 export function getUserValidityInfo(user: StoredUser): ValidityInfo {
-  if (user.isAdmin) return { isExpired: false, daysRemaining: null, expiryDate: null, statusText: 'Administrator account', statusColor: 'green' };
-
   const expiryDate = getExpiryDate(user);
   let daysRemaining: number | null = null;
   let isExpired = false;
@@ -331,7 +332,10 @@ export function getUserValidityInfo(user: StoredUser): ValidityInfo {
     isExpired = diffMs <= 0;
   } else if (typeof user.remainingDays === 'number') {
     daysRemaining = Math.max(0, user.remainingDays);
-    isExpired = user.isSubscriptionActive === false || daysRemaining <= 0;
+    isExpired = !user.isAdmin && (user.isSubscriptionActive === false || daysRemaining <= 0);
+  } else if (Number(user.subscriptionDays) > 0) {
+    daysRemaining = Number(user.subscriptionDays);
+    isExpired = false;
   }
 
   return {
