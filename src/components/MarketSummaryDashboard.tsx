@@ -412,8 +412,7 @@ export default function MarketSummaryDashboard({
   const intelligence =
     suppliedIntelligence ?? fetchedIntelligence;
 
-  const canonicalContent =
-    content || null;
+  const canonicalContent = fetchedContent ?? content ?? null;
 
   if (loading || fetching) {
     return (
