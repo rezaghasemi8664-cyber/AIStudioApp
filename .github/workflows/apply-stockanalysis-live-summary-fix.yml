@@ -1,0 +1,111 @@
+name: Apply StockAnalysis live summary fix
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch StockAnalysis
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/components/StockAnalysis.tsx')
+          s = p.read_text(encoding='utf-8-sig')
+          start_marker = "  useEffect(() => {\n    if (activeTab !== 'marketSummary') return;"
+          end_marker = "\n\n\n\n  const removeHistoryItem"
+          start = s.find(start_marker)
+          end = s.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit('StockAnalysis market summary effect block not found')
+
+          new_block = r'''  useEffect(() => {
+    if (activeTab !== 'marketSummary') return;
+
+    let isMounted = true;
+
+    const loadMarketSummary = async () => {
+      setIsLoadingMarketSummary(true);
+      setIsLoadingMarketSummaryHistory(true);
+
+      try {
+        // خلاصه فعلی باید همیشه از endpoint زنده /latest خوانده شود.
+        // تاریخچه فقط برای انتخاب روزهای قبلی است و نباید جایگزین خلاصه فعلی شود.
+        const [latest, history] = await Promise.all([
+          fetchMarketSummary(),
+          fetchMarketSummaryHistory(),
+        ]);
+
+        if (!isMounted) return;
+
+        setMarketSummaryHistory(history);
+
+        if (latest) {
+          setMarketSummary(latest);
+          // null یعنی هیچ رکورد تاریخی انتخاب نشده و نمایش مربوط به /latest است.
+          setSelectedMarketSummaryId(null);
+          setHasUnreadMarketSummary(false);
+          return;
+        }
+
+        // فقط در صورت در دسترس نبودن endpoint زنده، آخرین رکورد ذخیره‌شده
+        // به‌عنوان fallback نمایش داده می‌شود.
+        if (history.length > 0) {
+          const fallback = history[0];
+          setSelectedMarketSummaryId(fallback.id);
+          setMarketSummary(fallback);
+        } else {
+          setSelectedMarketSummaryId(null);
+          setMarketSummary(null);
+        }
+
+        setHasUnreadMarketSummary(false);
+      } catch (error) {
+        console.error('[MarketSummary] failed to load latest summary:', error);
+      } finally {
+        if (isMounted) {
+          setIsLoadingMarketSummary(false);
+          setIsLoadingMarketSummaryHistory(false);
+        }
+      }
+    };
+
+    void loadMarketSummary();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab]);'''
+
+          p.write_text(s[:start] + new_block + s[end:], encoding='utf-8')
+
+      - name: Build frontend
+        shell: bash
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/StockAnalysis.tsx
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "fix: load live market summary by default"
+          git push origin main
