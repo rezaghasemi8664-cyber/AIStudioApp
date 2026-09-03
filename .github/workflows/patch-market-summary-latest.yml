@@ -1,0 +1,52 @@
+name: Patch persisted market summary latest
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-market-summary-latest.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch service
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/services/marketSummaryService.ts')
+          s = p.read_text(encoding='utf-8-sig')
+          old = '''// backward compatible
+export const getLatestSummary = async (): Promise<MarketSummaryData | null> => {
+  const env = await getLatestSummaryEnvelope();
+  return env.summary;
+};'''
+          new = '''// برای رابط کاربری، «آخرین خلاصه» باید آخرین رکورد ذخیره‌شده روزانه باشد.
+// endpoint /latest یک snapshot زنده با id=0 و createdAt=now برمی‌گرداند و نباید
+// باعث ایجاد/نمایش خلاصه ششم در زمان باز شدن صفحه شود.
+export const getLatestSummary = async (): Promise<MarketSummaryData | null> => {
+  const history = await getSummaryHistory(1, 1);
+  return history?.data?.[0] ?? null;
+};'''
+          if old not in s:
+              raise SystemExit('target getLatestSummary block not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+
+      - name: Commit source patch
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/services/marketSummaryService.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: use persisted daily summary in market summary UI'
+          git push origin main
