@@ -1,4 +1,4 @@
-﻿"use strict";
+"use strict";
 
 const { PrismaClient } = require("@prisma/client");
 const env = require("../config/env.cjs");
@@ -451,15 +451,17 @@ function normalizeMarketSnapshot(input) {
       ? input.data
       : input;
 
+  // Never treat generic `value` as the overall index. In BRS/TSETMC
+  // payloads `value` may represent market/trade value and can produce
+  // completely invalid multi-session momentum percentages.
   const hasIndexField =
     raw.index != null ||
     raw.marketIndex != null ||
     raw.indexValue != null ||
-    raw.value != null ||
     raw.lastIndex != null;
 
   const index = toFiniteNumber(
-    raw.index ?? raw.marketIndex ?? raw.indexValue ?? raw.value ?? raw.lastIndex,
+    raw.index ?? raw.marketIndex ?? raw.indexValue ?? raw.lastIndex,
     NaN
   );
 
