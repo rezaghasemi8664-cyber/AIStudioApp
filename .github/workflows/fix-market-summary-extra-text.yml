@@ -1,0 +1,36 @@
+name: Fix market summary extra line
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-market-summary-extra-text.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove generated compact fallback
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/services/marketSummaryService.ts')
+          s = p.read_text(encoding='utf-8-sig')
+          old = "  const content = coalesceStringValue(candidate.content, candidate.summary, rawData?.content, rawData?.summary) ?? buildSummaryText(candidate);"
+          new = "  const content = coalesceStringValue(candidate.content, candidate.summary, rawData?.content, rawData?.summary);"
+          if old not in s:
+              raise SystemExit('target content fallback line not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+          print('Removed compact generated fallback from marketSummaryService.ts')
+      - name: Commit
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/services/marketSummaryService.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: remove compact market summary fallback"
+          git push origin main
