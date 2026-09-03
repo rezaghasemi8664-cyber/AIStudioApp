@@ -526,14 +526,9 @@ const App: React.FC = () => {
     };
 
     const restoreSessionUserQuickly = () => {
-      const sessionUser = getCurrentSessionUser();
-
-      if (!sessionUser || !sessionUser.isActive || sessionUser.isDeleted) {
-        setUserState(null);
-        return;
-      }
-
-      setUserState(sessionUser);
+      // ورود فقط باید با اقدام صریح کاربر و اجرای handleLogin انجام شود.
+      // وجود currentUser در localStorage به‌تنهایی مجوز ورود خودکار نیست.
+      setUserState(null);
     };
 
     const reconcileSessionUserInBackground = async () => {
@@ -600,12 +595,8 @@ const App: React.FC = () => {
         logAsyncError('initializeTseLinks failed', error);
       }
 
-      try {
-        if (!mounted) return;
-        await reconcileSessionUserInBackground();
-      } catch (error) {
-        logAsyncError('reconcileSessionUserInBackground failed', error);
-      }
+      // از اعتبارسنجی خودکار نشست برای ورود خودکار جلوگیری می‌کنیم.
+      // وضعیت کاربر فقط پس از فشردن دکمه ورود توسط Login تعیین می‌شود.
     };
 
     const initializeApp = async () => {
