@@ -30,18 +30,16 @@ jobs:
           if "import { appApiFetch } from '../services/apiConfigService';" not in s:
               s = s.replace(
                   "import { getLatestSummary } from '../services/marketSummaryService';",
-                  "import { getLatestSummary, getMarketSummaryHistory } from '../services/marketSummaryService';\nimport { appApiFetch } from '../services/apiConfigService';",
+                  "import { getLatestSummary } from '../services/marketSummaryService';\nimport { appApiFetch } from '../services/apiConfigService';",
                   1,
               )
 
-          # Rename the existing full 14-section renderer once.
           s = s.replace(
               'export default function MarketSummaryDashboard({',
               'function MarketSummaryDetail({',
               1,
           )
 
-          # Remove an earlier generated wrapper if present, so the final implementation is deterministic.
           marker = '/* FINAL MARKET SUMMARY HISTORY CONTAINER */'
           if marker in s:
               s = s.split(marker, 1)[0].rstrip() + '\n'
@@ -76,23 +74,36 @@ const fullSummary = (payload: any): any | null => {
 
 function MarketSummaryHistoryContainer(props: MarketSummaryDashboardProps) {
   const [rows, setRows] = useState<any[]>([]);
-  const [selectedKey, setSelectedKey] = useState('');
+  const [selectedKey, setSelectedKey] = useState('live-latest');
   const [selected, setSelected] = useState<any | null>(null);
   const [busy, setBusy] = useState(true);
 
   const load = async () => {
     try {
       setBusy(true);
-      const payload = await appApiFetch<any>(`/market-summary/history?page=1&limit=5&t=${Date.now()}`, {
-        method: 'GET',
-        headers: { 'Cache-Control': 'no-cache' },
-      });
-      const normalized = historyRows(payload)
+
+      const [historyPayload, latestPayload] = await Promise.all([
+        appApiFetch<any>(`/market-summary/history?page=1&limit=5&t=${Date.now()}`, {
+          method: 'GET',
+          headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+        }).catch(() => null),
+        appApiFetch<any>(`/market-summary/latest?t=${Date.now()}`, {
+          method: 'GET',
+          headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+        }).catch(() => null),
+      ]);
+
+      const normalized = historyRows(historyPayload)
         .filter((x) => x && (x.id != null || x.createdAt || x.updatedAt || x.date))
         .sort((a, b) => new Date(String(b.createdAt || b.updatedAt || 0)).getTime() - new Date(String(a.createdAt || a.updatedAt || 0)).getTime())
         .slice(0, 5);
       setRows(normalized);
-      if (normalized.length) {
+
+      const latest = fullSummary(latestPayload);
+      if (latest) {
+        setSelectedKey('live-latest');
+        setSelected(latest);
+      } else if (normalized.length) {
         const first = normalized[0];
         const key = String(first.id ?? first.createdAt ?? first.date);
         setSelectedKey(key);
@@ -102,7 +113,7 @@ function MarketSummaryHistoryContainer(props: MarketSummaryDashboardProps) {
         setSelected(null);
       }
     } catch (e) {
-      console.error('[MarketSummaryHistory] history load failed', e);
+      console.error('[MarketSummaryHistory] market summary load failed', e);
       setRows([]);
       setSelected(null);
     } finally {
@@ -122,17 +133,15 @@ function MarketSummaryHistoryContainer(props: MarketSummaryDashboardProps) {
     setSelectedKey(key);
     setSelected(row);
 
-    // تاریخ فقط برای پیدا کردن رکورد است؛ زمان نمایش همیشه از createdAt دیتابیس می‌آید.
     const date = String(row.date || row.summaryDate || row.createdAt || '').slice(0, 10);
     if (!date) return;
     try {
       const payload = await appApiFetch<any>(`/market-summary/by-date/${encodeURIComponent(date)}?t=${Date.now()}`, {
         method: 'GET',
-        headers: { 'Cache-Control': 'no-cache' },
+        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
       });
       const full = fullSummary(payload);
       if (full) {
-        // اگر endpoint by-date رکورد روز را برگرداند، timestamp ذخیره‌شده history را حفظ کن.
         if (!full.createdAt && row.createdAt) full.createdAt = row.createdAt;
         setSelected(full);
       }
@@ -145,7 +154,7 @@ function MarketSummaryHistoryContainer(props: MarketSummaryDashboardProps) {
   const content = selected?.content ?? selected?.summary ?? selected?.rawJson?.content ?? selected?.rawJson?.summary ?? props.content;
 
   if (busy) {
-    return <div dir="rtl" className="rounded-[20px] border border-white/10 bg-slate-950/70 p-6 text-center text-slate-300">در حال دریافت ۵ خلاصه بازار آخر…</div>;
+    return <div dir="rtl" className="rounded-[20px] border border-white/10 bg-slate-950/70 p-6 text-center text-slate-300">در حال دریافت آخرین خلاصه بازار…</div>;
   }
 
   return (
@@ -153,8 +162,15 @@ function MarketSummaryHistoryContainer(props: MarketSummaryDashboardProps) {
       <section className="rounded-[20px] border border-white/[0.09] bg-slate-950/80 p-4 md:p-5">
         <div className="mb-3">
           <h2 className="text-[18px] font-extrabold text-white">خلاصه بازار</h2>
-          <p className="mt-1 text-[13px] text-slate-400">انتخاب خلاصه بر اساس تاریخ و زمان ثبت‌شده در پایگاه داده</p>
+          <p className="mt-1 text-[13px] text-slate-400">آخرین وضعیت زنده بازار از منبع اصلی؛ سوابق در ادامه قابل انتخاب هستند.</p>
         </div>
+
+        {selected && selectedKey === 'live-latest' && (
+          <div className="mb-3 rounded-xl border border-emerald-400/10 bg-emerald-500/[0.04] px-4 py-3 text-[13px] text-slate-300">
+            نمایش: <span className="font-bold text-emerald-300">آخرین وضعیت بازار</span>
+            {selected.marketDateJalali ? <> — تاریخ بازار: <span className="font-bold text-sky-300">{selected.marketDateJalali}</span></> : null}
+          </div>
+        )}
 
         {rows.length > 0 ? (
           <>
@@ -163,21 +179,29 @@ function MarketSummaryHistoryContainer(props: MarketSummaryDashboardProps) {
                 const key = String(row.id ?? row.createdAt ?? row.date);
                 const active = key === selectedKey;
                 return <button key={key} type="button" onClick={() => void choose(row)} className={`min-w-[210px] rounded-xl border px-4 py-3 text-right ${active ? 'border-sky-400/50 bg-sky-500/10' : 'border-white/10 bg-white/[0.025]'}`}>
-                  <div className="text-[13px] font-bold text-white">خلاصه روز {String(row.date || row.summaryDate || '').slice(0,10)}</div>
+                  <div className="text-[13px] font-bold text-white">خلاصه ثبت‌شده {String(row.date || row.summaryDate || '').slice(0,10)}</div>
                   <div className="mt-1 text-[12px] text-slate-400">زمان ثبت: {storedDateTime(row.createdAt)}</div>
                 </button>;
               })}
             </div>
-            <select value={selectedKey} onChange={(e) => { const row = rows.find((x) => String(x.id ?? x.createdAt ?? x.date) === e.target.value); if (row) void choose(row); }} className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white md:hidden">
+            <select value={selectedKey === 'live-latest' ? '' : selectedKey} onChange={(e) => { const row = rows.find((x) => String(x.id ?? x.createdAt ?? x.date) === e.target.value); if (row) void choose(row); }} className="w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white md:hidden">
+              <option value="">آخرین وضعیت بازار</option>
               {rows.map((row) => { const key = String(row.id ?? row.createdAt ?? row.date); return <option key={key} value={key}>{storedDateTime(row.createdAt)}</option>; })}
             </select>
           </>
-        ) : <div className="rounded-xl border border-white/10 p-4 text-sm text-slate-400">خلاصه ثبت‌شده‌ای وجود ندارد.</div>}
+        ) : null}
 
-        {selected && <div className="mt-3 rounded-xl border border-sky-400/10 bg-sky-500/[0.04] px-4 py-3 text-[13px] text-slate-300">زمان ثبت در پایگاه داده: <span className="font-bold text-sky-300">{storedDateTime(selected.createdAt)}</span></div>}
+        {selected && selected.createdAt && selectedKey !== 'live-latest' && <div className="mt-3 rounded-xl border border-sky-400/10 bg-sky-500/[0.04] px-4 py-3 text-[13px] text-slate-300">زمان ثبت در پایگاه داده: <span className="font-bold text-sky-300">{storedDateTime(selected.createdAt)}</span></div>}
       </section>
 
-      <MarketSummaryDetail {...props} intelligence={intelligence} content={content} loading={false} />
+      {/* content is canonical: do not let an old marketIntelligence object override it. */}
+      {content ? (
+        <section dir="rtl" className="rounded-[20px] border border-white/[0.09] bg-slate-950/80 p-5 md:p-6">
+          <div className="whitespace-pre-wrap text-[15px] leading-[2.15] text-slate-200">{content}</div>
+        </section>
+      ) : (
+        <MarketSummaryDetail {...props} intelligence={intelligence} content={content} loading={false} />
+      )}
     </div>
   );
 }
@@ -187,17 +211,21 @@ export default MarketSummaryHistoryContainer;
           s = s.rstrip() + wrapper
           p.write_text(s, encoding='utf-8')
 
-          # Never synthesize createdAt in the service when the server didn't provide one.
           p = Path('src/services/marketSummaryService.ts')
           s = p.read_text(encoding='utf-8-sig')
-          s = re.sub(r"const createdAtValue =\s*toNullableString\(candidate\.createdAt\) \?\?\s*toNullableString\(candidate\.updatedAt\) \?\?\s*toNullableString\(rawTopLevel\?\.snapshotCreatedAt\) \?\?\s*toNullableString\(rawTopLevel\?\.cachedAt\) \?\?\s*toNullableString\(candidate\.date\) \?\?\s*toNullableString\(candidate\.summaryDate\) \?\?\s*new Date\(\)\.toISOString\(\);", "const createdAtValue = toNullableString(candidate.createdAt) ?? toNullableString(candidate.updatedAt) ?? toNullableString(rawTopLevel?.snapshotCreatedAt) ?? toNullableString(rawTopLevel?.cachedAt) ?? toNullableString(candidate.date) ?? toNullableString(candidate.summaryDate) ?? '';", s)
+          s = re.sub(
+              r"const createdAtValue =\s*toNullableString\(candidate\.createdAt\) \?\?\s*toNullableString\(candidate\.updatedAt\) \?\?\s*toNullableString\(rawTopLevel\?\.snapshotCreatedAt\) \?\?\s*toNullableString\(rawTopLevel\?\.cachedAt\) \?\?\s*toNullableString\(candidate\.date\) \?\?\s*toNullableString\(candidate\.summaryDate\) \?\?\s*new Date\(\)\.toISOString\(\);",
+              "const createdAtValue = toNullableString(candidate.createdAt) ?? toNullableString(candidate.updatedAt) ?? toNullableString(rawTopLevel?.snapshotCreatedAt) ?? toNullableString(rawTopLevel?.cachedAt) ?? toNullableString(candidate.date) ?? toNullableString(candidate.summaryDate) ?? '';",
+              s,
+          )
           p.write_text(s, encoding='utf-8')
 
       - name: Validate TypeScript source
         shell: bash
         run: |
           grep -n "FINAL MARKET SUMMARY HISTORY CONTAINER" src/components/MarketSummaryDashboard.tsx
-          grep -n "export default function MarketSummaryHistoryContainer\|export default MarketSummaryHistoryContainer" src/components/MarketSummaryDashboard.tsx || true
+          grep -n "export default MarketSummaryHistoryContainer" src/components/MarketSummaryDashboard.tsx
+          grep -n "const content = selected" src/components/MarketSummaryDashboard.tsx
 
       - name: Commit and push
         shell: bash
@@ -206,5 +234,5 @@ export default MarketSummaryHistoryContainer;
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/components/MarketSummaryDashboard.tsx src/services/marketSummaryService.ts
           if git diff --cached --quiet; then echo 'No frontend changes'; exit 0; fi
-          git commit -m 'fix: use database timestamp and selectable market summary history'
+          git commit -m 'fix: render canonical latest market summary content'
           git push origin main
