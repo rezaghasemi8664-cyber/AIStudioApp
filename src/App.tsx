@@ -446,6 +446,44 @@ const App: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [currentUser]);
 
+  // اعتبار صفحه اصلی باید همیشه از رکورد به‌روز کاربر در سرور خوانده شود
+  // تا تغییرات اعمال‌شده در جدول کاربران ادمین بدون نیاز به خروج/ورود مجدد نمایش داده شود.
+  useEffect(() => {
+    if (!currentUser || currentUser.isAdmin) return;
+
+    let mounted = true;
+
+    const refreshUserValidity = async () => {
+      try {
+        if (typeof authService.getMe !== 'function') return;
+        const result = await authService.getMe();
+
+        if (!mounted || !result?.success || !result.data) return;
+
+        const freshUser = result.data;
+
+        setCurrentUser((previous) => {
+          if (!previous) return freshUser;
+          return { ...previous, ...freshUser };
+        });
+
+        if (typeof authService.isAccountExpired === 'function') {
+          setIsExpired(authService.isAccountExpired(freshUser));
+        }
+      } catch (error) {
+        console.warn('[App] دریافت اعتبار به‌روز کاربر ناموفق بود:', error);
+      }
+    };
+
+    refreshUserValidity();
+    const timer = window.setInterval(refreshUserValidity, 60000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(timer);
+    };
+  }, [currentUser?.id, currentUser?.isAdmin]);
+
   useEffect(() => {
     let mounted = true;
 
