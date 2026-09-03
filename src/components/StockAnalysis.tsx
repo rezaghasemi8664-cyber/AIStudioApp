@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChartBarIcon, ClockIcon, MarketIcon, TrashIcon } from './Icons';
 import api from '../api/apiClient';
 import { getLatestSummary, getSummaryHistory } from '../services/marketSummaryService';
@@ -1336,33 +1336,47 @@ const clearCurrentAnalysis = () => {
 
     const loadMarketSummary = async () => {
       setIsLoadingMarketSummaryHistory(true);
+
       try {
-        const history = await fetchMarketSummaryHistory();
+        const [latest, history] = await Promise.all([
+          fetchMarketSummary(),
+          fetchMarketSummaryHistory(),
+        ]);
+
         if (!isMounted) return;
 
         setMarketSummaryHistory(history);
 
-        if (history.length === 0) {
+        // ????? ???? ????? ????? ???? ???? ?? ????? ?????.
+        // ??????? ??? ?? ?????? ???? ????? ????? ???? ?????.
+        if (latest?.content?.trim()) {
+          setMarketSummary(latest);
           setSelectedMarketSummaryId(null);
+        } else if (selectedMarketSummaryId !== null) {
+          const selected = history.find(
+            (item) => item.id === selectedMarketSummaryId
+          );
+
+          if (selected) {
+            setMarketSummary(selected);
+          } else {
+            setSelectedMarketSummaryId(null);
+            setMarketSummary(null);
+          }
+        } else {
           setMarketSummary(null);
-          return;
         }
 
-        const currentId =
-          selectedMarketSummaryId !== null &&
-          history.some((item) => item.id === selectedMarketSummaryId)
-            ? selectedMarketSummaryId
-            : history[0].id;
-
-        setSelectedMarketSummaryId(currentId);
-
-        const selected = history.find((item) => item.id === currentId) ?? history[0];
-        setMarketSummary(selected);
         setHasUnreadMarketSummary(false);
       } catch (error) {
-        console.error('[MarketSummary] failed to load history:', error);
+        console.error(
+          '[MarketSummary] failed to load latest/history:',
+          error
+        );
       } finally {
-        if (isMounted) setIsLoadingMarketSummaryHistory(false);
+        if (isMounted) {
+          setIsLoadingMarketSummaryHistory(false);
+        }
       }
     };
 

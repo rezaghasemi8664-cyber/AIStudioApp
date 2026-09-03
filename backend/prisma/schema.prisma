@@ -146,7 +146,7 @@ model MarketDaily {
 }
 
 model MarketSummary {
-  id             Int      @id(map: "PK__MarketSu__3213E83FFABFB5FF")
+  id             Int      @id(map: "PK__MarketSu__3213E83FFABFB5FF") @default(autoincrement())
   date           DateTime @default(dbgenerated("sysdatetime()"), map: "DF__MarketSumm__date__6CC31A31")
   summaryDate    DateTime @unique(map: "UQ_MarketSummary_summaryDate") @db.Date
   overallIndex   Float?
