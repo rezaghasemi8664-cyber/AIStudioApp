@@ -22,6 +22,14 @@ function normalizeWatchlist(item) {
   const symbols = Array.isArray(item.symbols) ? item.symbols.map(symbol => ({
     symbol: normalizeSymbol(symbol?.symbol),
     name: String(symbol?.name || symbol?.symbol || '').trim(),
+    quote: symbol?.quote && typeof symbol.quote === 'object' ? {
+      volume: Number.isFinite(Number(symbol.quote.volume)) ? Number(symbol.quote.volume) : null,
+      lastPrice: Number.isFinite(Number(symbol.quote.lastPrice)) ? Number(symbol.quote.lastPrice) : null,
+      lastChangePercent: Number.isFinite(Number(symbol.quote.lastChangePercent)) ? Number(symbol.quote.lastChangePercent) : null,
+      closePrice: Number.isFinite(Number(symbol.quote.closePrice)) ? Number(symbol.quote.closePrice) : null,
+      closeChangePercent: Number.isFinite(Number(symbol.quote.closeChangePercent)) ? Number(symbol.quote.closeChangePercent) : null,
+      updatedAt: String(symbol.quote.updatedAt || ''),
+    } : null,
   })).filter(symbol => symbol.symbol) : [];
   return { id, name, symbols, createdAt: item.createdAt, updatedAt: item.updatedAt };
 }
@@ -109,6 +117,46 @@ router.put('/:id', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('[WATCHLIST] PUT failed:', error);
     return res.status(500).json({ success: false, message: 'خطا در ویرایش دیده‌بان.' });
+  }
+});
+
+router.put('/:id/quotes', authMiddleware, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
+    const id = String(req.params.id);
+    const incoming = Array.isArray(req.body?.quotes) ? req.body.quotes : [];
+    const watchlists = await readWatchlists(userId);
+    const index = watchlists.findIndex(item => item.id === id);
+    if (index < 0) return res.status(404).json({ success: false, message: 'دیده‌بان پیدا نشد.' });
+
+    const bySymbol = new Map();
+    for (const quote of incoming) {
+      const symbol = normalizeSymbol(quote?.symbol);
+      if (!symbol) continue;
+      bySymbol.set(symbol, {
+        volume: Number.isFinite(Number(quote?.volume)) ? Number(quote.volume) : null,
+        lastPrice: Number.isFinite(Number(quote?.lastPrice)) ? Number(quote.lastPrice) : null,
+        lastChangePercent: Number.isFinite(Number(quote?.lastChangePercent)) ? Number(quote.lastChangePercent) : null,
+        closePrice: Number.isFinite(Number(quote?.closePrice)) ? Number(quote.closePrice) : null,
+        closeChangePercent: Number.isFinite(Number(quote?.closeChangePercent)) ? Number(quote.closeChangePercent) : null,
+        updatedAt: String(quote?.updatedAt || new Date().toISOString()),
+      });
+    }
+
+    watchlists[index] = {
+      ...watchlists[index],
+      symbols: watchlists[index].symbols.map(item => ({
+        ...item,
+        quote: bySymbol.has(item.symbol) ? bySymbol.get(item.symbol) : item.quote || null,
+      })),
+      updatedAt: new Date().toISOString(),
+    };
+    await writeWatchlists(userId, watchlists);
+    return res.json({ success: true, data: watchlists[index] });
+  } catch (error) {
+    console.error('[WATCHLIST] SAVE QUOTES failed:', error);
+    return res.status(500).json({ success: false, message: 'خطا در ذخیره اطلاعات بازار دیده‌بان.' });
   }
 });
 
