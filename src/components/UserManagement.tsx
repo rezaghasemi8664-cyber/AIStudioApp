@@ -45,7 +45,8 @@ interface ManagedUser {
   updatedAt?: string | null;
   subscriptionStart?: string | null;
   subscriptionEnd?: string | null;
-  subscriptionMonths?: number | null;
+  subscriptionDays?: number | null;
+  subscriptionDays?: number | null;
   isSubscriptionActive?: boolean;
   analysisLimit?: number | null;
   analysisLimit24h?: number | null;
@@ -124,7 +125,7 @@ const getSubscriptionStatus = (
     return { text: 'منقضی شده', color: 'bg-red-500' };
   }
 
-  if (user.subscriptionStart || user.subscriptionEnd || user.subscriptionMonths) {
+  if (user.subscriptionStart || user.subscriptionEnd || user.subscriptionDays) {
     return { text: 'اعتبار دارد', color: 'bg-green-500' };
   }
 
@@ -134,59 +135,14 @@ const getSubscriptionStatus = (
 const getRemainingValidityInfo = (
   user: ManagedUser
 ): { remainingDaysText: string; badgeColor: string } => {
-  const startValue = user.subscriptionStart;
-  const monthsValue = Number(user.subscriptionMonths ?? 0);
-
-  if (!startValue || !monthsValue || monthsValue <= 0) {
-    return {
-      remainingDaysText: 'نامشخص',
-      badgeColor: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200',
-    };
+  const remainingDays = Number(user.subscriptionDays ?? user.remainingDays ?? 0);
+  if (!Number.isFinite(remainingDays) || remainingDays <= 0) {
+    return { remainingDaysText: 'منقضی شده', badgeColor: 'bg-red-100 text-red-700 dark:bg-red-900\/40 dark:text-red-300' };
   }
-
-  const startDate = new Date(startValue);
-
-  if (isNaN(startDate.getTime())) {
-    return {
-      remainingDaysText: 'نامشخص',
-      badgeColor: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200',
-    };
-  }
-
-  const now = new Date();
-
-  // تعداد روزهای گذشته از شروع اشتراک تا این لحظه
-  const elapsedMs = now.getTime() - startDate.getTime();
-  const elapsedDays = Math.floor(elapsedMs / (1000 * 60 * 60 * 24));
-
-  // محاسبه تاریخ پایان واقعی بر اساس تعداد ماه اشتراک
-  const endDate = new Date(startDate);
-  endDate.setMonth(endDate.getMonth() + monthsValue);
-
-  // کل روزهای اعتبار از تاریخ شروع تا پایان
-  const totalValidityMs = endDate.getTime() - startDate.getTime();
-  const totalValidityDays = Math.ceil(totalValidityMs / (1000 * 60 * 60 * 24));
-
-  const remainingDays = totalValidityDays - Math.max(elapsedDays, 0);
-
-  if (remainingDays <= 0) {
-    return {
-      remainingDaysText: 'منقضی شده',
-      badgeColor: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
-    };
-  }
-
   if (remainingDays <= 7) {
-    return {
-      remainingDaysText: `${remainingDays} روز`,
-      badgeColor: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
-    };
+    return { remainingDaysText: `${remainingDays} روز`, badgeColor: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900\/40 dark:text-yellow-300' };
   }
-
-  return {
-    remainingDaysText: `${remainingDays} روز`,
-    badgeColor: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
-  };
+  return { remainingDaysText: `${remainingDays} روز`, badgeColor: 'bg-green-100 text-green-700 dark:bg-green-900\/40 dark:text-green-300' };
 };
 
 
@@ -215,7 +171,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
   const [nationalId, setNationalId] = useState('');
   const [bio, setBio] = useState('');
   const [selectedRole, setSelectedRole] = useState<UserRole>('USER');
-  const [subscriptionMonths, setSubscriptionMonths] = useState('1');
+  const [subscriptionDays, setSubscriptionDays] = useState('30');
   const [analysisLimit, setAnalysisLimit] = useState('20');
   const [analysisLimit24h, setAnalysisLimit24h] = useState('20');
 
@@ -227,7 +183,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
   // Inline editing
   const [editingMobile, setEditingMobile] = useState<{ userId: string; value: string } | null>(null);
   const [editingSubscriptionStart, setEditingSubscriptionStart] = useState<{ userId: string; value: string } | null>(null);
-  const [editingSubscriptionMonths, setEditingSubscriptionMonths] = useState<{ userId: string; value: string } | null>(null);
+  const [editingSubscriptionDays, setEditingSubscriptionDays] = useState<{ userId: string; value: string } | null>(null);
   const [editingAnalysisSettings, setEditingAnalysisSettings] = useState<{
     userId: string;
     analysisLimit: string;
@@ -311,7 +267,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
     setNationalId('');
     setBio('');
     setSelectedRole('USER');
-    setSubscriptionMonths('1');
+    setSubscriptionDays('30');
     setAnalysisLimit('20');
     setAnalysisLimit24h('20');
   };
@@ -343,7 +299,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
         bio: emptyToNull(bio),
         roleId: selectedRole === 'ADMIN' ? ROLE_ADMIN_ID : ROLE_USER_ID,
         isActive: true,
-        subscriptionMonths: Number(subscriptionMonths) || null,
+        subscriptionDays: Number(subscriptionDays) || 0,
         isSubscriptionActive: true,
         analysisLimit: Number(analysisLimit) || null,
         analysisLimit24h: Number(analysisLimit24h) || null,
@@ -416,17 +372,17 @@ const UserManagement: React.FC<UserManagementProps> = ({
     }
   };
 
-  const handleSaveSubscriptionMonths = async () => {
-    if (!editingSubscriptionMonths) return;
+  const handleSaveSubscriptionDays = async () => {
+    if (!editingSubscriptionDays) return;
 
     try {
       await adminService.updateSubscription({
-        userId: editingSubscriptionMonths.userId,
-        subscriptionMonths: Number(editingSubscriptionMonths.value) || 0,
+        userId: editingSubscriptionDays.userId,
+        subscriptionDays: Number(editingSubscriptionDays.value) || 0,
       });
 
       await fetchAllData();
-      setEditingSubscriptionMonths(null);
+      setEditingSubscriptionDays(null);
       addNotification('مدت اشتراک با موفقیت به‌روزرسانی شد.', 'success');
     } catch (err: any) {
       addNotification(err?.message || 'به‌روزرسانی مدت اشتراک با خطا مواجه شد.', 'error');
@@ -747,7 +703,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
                 <label className="block text-sm font-medium mb-1">مدت اشتراک (ماه)</label>
                 <input
                   type="number"
-                  value={subscriptionMonths}
+                  value={subscriptionDays}
                   onChange={(e) => setSubscriptionMonths(e.target.value)}
                   min="0"
                   className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2"
@@ -1043,14 +999,14 @@ const UserManagement: React.FC<UserManagementProps> = ({
                       </td>
 
                       <td className="px-6 py-4">
-                        {editingSubscriptionMonths?.userId === String(user.id) ? (
+                        {editingSubscriptionDays?.userId === String(user.id) ? (
                           <div className="flex items-center gap-2">
                             <input
                               type="number"
-                              value={editingSubscriptionMonths.value}
+                              value={editingSubscriptionDays.value}
                               onChange={(e) =>
-                                setEditingSubscriptionMonths({
-                                  ...editingSubscriptionMonths,
+                                setEditingSubscriptionDays({
+                                  ...editingSubscriptionDays,
                                   value: e.target.value,
                                 })
                               }
@@ -1065,13 +1021,13 @@ const UserManagement: React.FC<UserManagementProps> = ({
                               autoFocus
                             />
                             <button
-                              onClick={handleSaveSubscriptionMonths}
+                              onClick={handleSaveSubscriptionDays}
                               className="p-1 text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
                             >
                               <CheckIcon className="h-5 w-5" />
                             </button>
                             <button
-                              onClick={() => setEditingSubscriptionMonths(null)}
+                              onClick={() => setEditingSubscriptionDays(null)}
                               className="p-1 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
                             >
                               <XMarkIcon className="h-5 w-5" />
@@ -1079,12 +1035,12 @@ const UserManagement: React.FC<UserManagementProps> = ({
                           </div>
                         ) : (
                           <div className="flex items-center justify-between group">
-                            <span>{user.subscriptionMonths ?? 0} ماه</span>
+                            <span>{user.subscriptionDays ?? 0} ماه</span>
                             <button
                               onClick={() =>
-                                setEditingSubscriptionMonths({
+                                setEditingSubscriptionDays({
                                   userId: String(user.id),
-                                  value: String(user.subscriptionMonths ?? 0),
+                                  value: String(user.subscriptionDays ?? 0),
                                 })
                               }
                               className="p-1 text-gray-400 dark:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity hover:text-cyan-600 dark:hover:text-cyan-400"
