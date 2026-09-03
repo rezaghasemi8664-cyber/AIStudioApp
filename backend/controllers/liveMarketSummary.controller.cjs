@@ -93,7 +93,41 @@ function buildTradingSessions(snapshots, liveMarket) {
 }
 
 function calculateMomentum(sessions) {
-  const valid = Array.isArray(sessions) ? sessions.filter(x => snapshotIndex(x.snapshot) !== null && snapshotIndex(x.snapshot, true) !== null) : [];
+  const candidates = Array.isArray(sessions)
+    ? sessions.filter(x => snapshotIndex(x.snapshot) !== null && snapshotIndex(x.snapshot, true) !== null)
+    : [];
+
+  // Historical snapshots created by older versions of the market mapper may
+  // contain an invalid index scale. Such records can produce impossible
+  // one-/three-/five-session returns (for example -60% to -70%) even when the
+  // current daily index move is around -1%. Keep only sessions that are within
+  // a conservative day-over-day bound from the most recent accepted session.
+  // A 25% one-session index move is far beyond the normal index range and is
+  // therefore a safe data-quality guard, while still leaving ample headroom.
+  const MAX_SESSION_MOVE_PERCENT = 25;
+  const relativeMove = (current, previous) => {
+    if (!Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) return null;
+    return Math.abs(((current - previous) / previous) * 100);
+  };
+
+  const valid = [];
+  for (const candidate of candidates) {
+    if (valid.length === 0) {
+      valid.push(candidate);
+      continue;
+    }
+
+    const previous = valid[valid.length - 1].snapshot;
+    const overallMove = relativeMove(snapshotIndex(candidate.snapshot), snapshotIndex(previous));
+    const equalMove = relativeMove(snapshotIndex(candidate.snapshot, true), snapshotIndex(previous, true));
+
+    if (overallMove !== null && equalMove !== null &&
+        overallMove <= MAX_SESSION_MOVE_PERCENT &&
+        equalMove <= MAX_SESSION_MOVE_PERCENT) {
+      valid.push(candidate);
+    }
+  }
+
   if (valid.length < 2) {
     return { available: false, sessions: valid.length, oneDay: null, threeDay: null, fiveDay: null, bias: 'خنثی' };
   }
