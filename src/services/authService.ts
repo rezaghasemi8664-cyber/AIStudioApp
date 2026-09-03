@@ -188,6 +188,25 @@ function extractUserFromResponse(response: any): any {
   );
 }
 
+export function getStoredCurrentUser(): StoredUser | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(USER_STORAGE_KEY);
+    if (!raw) return null;
+    return normalizeUser(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+export function setCurrentUser(user: StoredUser | null): void {
+  if (!user) {
+    removeStoredUser();
+    return;
+  }
+  setStoredUser(user);
+}
+
 export function getToken(): string | null {
   return (
     getStorageToken() ||
@@ -458,6 +477,8 @@ export function getOnlineUserCount(): number {
 
 const authService = {
   getToken,
+  getStoredCurrentUser,
+  setCurrentUser,
   getRefreshToken,
   getCurrentUser,
   getMe,
