@@ -15,11 +15,12 @@ if (!rootElement) {
   );
 }
 
-const isPublicAboutPage = window.location.pathname.replace(/\/+$/, '') === '/about';
+const normalizedPath = window.location.pathname.replace(/\/+$/, '') || '/';
+const isPublicLandingPage = normalizedPath === '/' || normalizedPath === '/about';
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-    {isPublicAboutPage ? (
+    {isPublicLandingPage ? (
       <PublicLandingPage />
     ) : (
       <NotificationProvider>
