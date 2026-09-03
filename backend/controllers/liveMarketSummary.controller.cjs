@@ -73,10 +73,6 @@ function snapshotIndex(snapshot, equal = false) {
   return n(snapshotValue(snapshot, ...(equal ? ['indexEqualWeight', 'index_equalWeight', 'equalIndex', 'equalWeightedValue'] : ['index', 'overallIndex', 'value'])));
 }
 
-function snapshotChange(snapshot, equal = false) {
-  return n(snapshotValue(snapshot, ...(equal ? ['indexEqualWeightChange', 'index_equalWeight_change', 'equalChange', 'equalWeightedChangeValue'] : ['index_change', 'indexChange', 'overallChange', 'changeValue', 'change'])));
-}
-
 function buildTradingSessions(snapshots, liveMarket) {
   const byDate = new Map();
   for (const snapshot of Array.isArray(snapshots) ? snapshots : []) {
@@ -190,7 +186,7 @@ exports.getLatestMarketSummary = async function getLatestMarketSummary(req, res)
     const [marketResult, breadthResult, historyResult] = await Promise.all([
       brsService.getMarketIndex(),
       breadthService.getMarketBreadth().catch(error => ({ available: false, reason: error.message })),
-      marketHistoryService.getMarketHistory(300).catch(error => [])
+      marketHistoryService.getMarketHistory(3000).catch(error => [])
     ]);
 
     const marketRoot = marketResult && typeof marketResult === 'object' ? marketResult : {};
