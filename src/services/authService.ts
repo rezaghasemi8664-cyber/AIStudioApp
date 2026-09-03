@@ -57,6 +57,7 @@ function normalizeUser(raw: any, fallbackEmail?: string): StoredUser {
     isDeleted: raw?.isDeleted === true,
     subscriptionStart: raw?.subscriptionStart || null,
     subscriptionEnd: raw?.subscriptionEnd || null,
+    subscriptionDays: raw?.subscriptionDays ?? raw?.remainingDays ?? raw?.daysRemaining ?? 0,
     subscriptionMonths: raw?.subscriptionMonths ?? 0,
     analysisLimit: raw?.analysisLimit ?? raw?.analysisLimit24h ?? null,
     isSubscriptionActive: raw?.isSubscriptionActive ?? raw?.isActive ?? true,
