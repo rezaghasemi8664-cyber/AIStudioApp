@@ -10,6 +10,7 @@ const express = require('express');
 const router = express.Router();
 
 const marketSummaryController = require('../controllers/marketSummary.controller.cjs');
+const liveMarketSummaryController = require('../controllers/liveMarketSummary.controller.cjs');
 const prismaModule = require('../config/prisma.cjs');
 
 function resolvePrismaClient(mod) {
@@ -144,6 +145,10 @@ router.get('/_ping', (req, res) => res.json({ success: true, status: 'ok', servi
 // latest/current برای UI باید آخرین خلاصه روزانه ذخیره‌شده باشد، نه تحلیل زنده.
 router.get('/', optionalAuth, getPersistedLatestMarketSummary);
 router.get('/latest', optionalAuth, getPersistedLatestMarketSummary);
+
+// فقط سرویس داخلی تولید روزانه می‌تواند تحلیل زنده ۱۴بخشی را برای ذخیره‌سازی دریافت کند.
+// این endpoint عمداً از UI استفاده نمی‌شود.
+router.get('/live', requireInternalKey, safeHandler(liveMarketSummaryController, 'getLatestMarketSummary'));
 
 router.get('/history', optionalAuth, safeHandler(marketSummaryController, 'getMarketSummaryHistory'));
 router.get('/dates', optionalAuth, safeHandler(marketSummaryController, 'getAvailableDates'));
