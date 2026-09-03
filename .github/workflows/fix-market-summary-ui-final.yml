@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Patch canonical latest market summary
+      - name: Patch frontend
         shell: bash
         run: |
           python - <<'PY'
@@ -32,27 +32,29 @@ jobs:
                   1,
               )
 
-          if "summary?.content ?? summary?.summary" not in s:
+          if "setFetchedContent(" not in s:
+              marker = "          setFetchedIntelligence(\n            summary?.marketIntelligence ?? null\n          );"
               s = s.replace(
-                  "          setFetchedIntelligence(\n            summary?.marketIntelligence ?? null\n          );",
-                  "          setFetchedIntelligence(\n            summary?.marketIntelligence ?? null\n          );\n          setFetchedContent(\n            summary?.content ?? summary?.summary ?? null\n          );",
+                  marker,
+                  marker + "\n          setFetchedContent(summary?.content ?? summary?.summary ?? null);",
                   1,
               )
 
-          s = s.replace(
-              "  const canonicalContent =\n    content || null;",
-              "  // Latest API content is canonical and must override stale parent/intelligence text.\n  const canonicalContent =\n    fetchedContent ?? content ?? null;",
-              1,
+          s = re.sub(
+              r"const canonicalContent =\s*content \|\| null;",
+              "const canonicalContent = fetchedContent ?? content ?? null;",
+              s,
+              count=1,
           )
 
           p.write_text(s, encoding='utf-8')
           PY
 
-      - name: Validate source
+      - name: Verify
         shell: bash
         run: |
           grep -n "fetchedContent" src/components/MarketSummaryDashboard.tsx
-          grep -n "canonicalContent" src/components/MarketSummaryDashboard.tsx
+          grep -n "const canonicalContent = fetchedContent" src/components/MarketSummaryDashboard.tsx
 
       - name: Commit repair
         shell: bash
@@ -60,6 +62,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/components/MarketSummaryDashboard.tsx
-          if git diff --cached --quiet; then echo 'No frontend repair needed'; exit 0; fi
-          git commit -m 'fix: use fetched latest market summary content'
+          if git diff --cached --quiet; then echo 'No frontend changes'; exit 0; fi
+          git commit -m 'fix: prefer canonical latest market summary content'
           git push origin main
