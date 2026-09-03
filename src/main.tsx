@@ -21,7 +21,10 @@ const isPublicLandingPage = normalizedPath === '/' || normalizedPath === '/about
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     {isPublicLandingPage ? (
-      <PublicLandingPage />
+      <>
+        <style>{`.roniya-public-page .public-brand img { display: none !important; } .roniya-public-page .public-brand { gap: 0 !important; }`}</style>
+        <PublicLandingPage />
+      </>
     ) : (
       <NotificationProvider>
         <App />
