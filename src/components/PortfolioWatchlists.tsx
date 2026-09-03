@@ -109,14 +109,23 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
   useEffect(() => { loadWatchlists(); }, [loadWatchlists]);
 
   const refreshQuotes = useCallback(async () => {
-    // خارج از جلسه معاملات هیچ درخواست قیمت ارسال نمی‌شود.
-    if (!isTehranTradingSession() || !activeWatchlist || activeWatchlist.symbols.length === 0 || !isOnline) return;
+    if (!activeWatchlist || activeWatchlist.symbols.length === 0 || !isOnline) return;
+
+    const tradingSession = isTehranTradingSession();
+    // در زمان بازار همه نمادها هر ۲ دقیقه تازه می‌شوند.
+    // خارج از بازار فقط نمادهایی که هنوز Quote ندارند یک‌بار برای دریافت آخرین
+    // اطلاعات موجود از بازار درخواست می‌شوند؛ Quote ذخیره‌شده هرگز خالی نمی‌شود.
+    const symbolsToFetch = tradingSession
+      ? activeWatchlist.symbols
+      : activeWatchlist.symbols.filter(item => !quotes[item.symbol]);
+
+    if (symbolsToFetch.length === 0) return;
 
     setQuoteLoading(true);
     try {
-      const results = await Promise.allSettled(activeWatchlist.symbols.map(item => watchlistService.getQuote(item.symbol)));
+      const results = await Promise.allSettled(symbolsToFetch.map(item => watchlistService.getQuote(item.symbol)));
       const fresh: watchlistService.WatchlistQuote[] = [];
-      results.forEach((result, index) => {
+      results.forEach(result => {
         if (result.status === 'fulfilled') fresh.push(result.value);
       });
       if (fresh.length > 0) {
@@ -131,7 +140,7 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
     } finally {
       setQuoteLoading(false);
     }
-  }, [activeWatchlist, isOnline]);
+  }, [activeWatchlist, isOnline, quotes]);
 
   useEffect(() => {
     let timer: number | undefined;
@@ -222,7 +231,7 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
         return addNotification(`نماد «${result.symbol}» قبلاً در این دیده‌بان وجود دارد.`, 'error');
       }
       setValidatedSymbol(result);
-      addNotification(`نماد «${result.symbol}» با بازار مطابقت دارد.`, 'info');
+      addNotification(`نماد «${validatedSymbol.symbol}» در دیده‌بان ذخیره شد و آخرین اطلاعات آن دریافت شد.`, 'info');
     } catch (error: any) {
       addNotification(error?.response?.data?.message || `بررسی نماد «${symbol}» ناموفق بود.`, 'error');
     } finally { setValidatingSymbol(false); }
@@ -234,7 +243,17 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
     setSaving(true);
     try {
       const updated = await watchlistService.addSymbolToWatchlist(activeWatchlist.id, validatedSymbol.symbol, validatedSymbol.name);
-      setWatchlists(previous => previous.map(item => item.id === updated.id ? updated : item));
+      // بلافاصله پس از افزودن نماد، حتی اگر بازار بسته باشد، آخرین اطلاعات
+      // موجود نماد از API دریافت و در همان دیده‌بان ذخیره می‌شود.
+      let finalWatchlist = updated;
+      try {
+        const latestQuote = await watchlistService.getQuote(validatedSymbol.symbol);
+        finalWatchlist = await watchlistService.saveQuotes(updated.id, [latestQuote]);
+        setQuotes(previous => ({ ...previous, [latestQuote.symbol]: latestQuote }));
+      } catch (quoteError) {
+        console.warn('[WATCHLIST] initial quote fetch failed:', quoteError);
+      }
+      setWatchlists(previous => previous.map(item => item.id === finalWatchlist.id ? finalWatchlist : item));
       setSymbolInput(''); setValidatedSymbol(null); setShowAddSymbol(false);
       addNotification(`نماد «${updated.symbols[updated.symbols.length - 1]?.symbol || validatedSymbol.symbol}» در دیده‌بان ذخیره شد.`, 'info');
     } catch (error: any) {
