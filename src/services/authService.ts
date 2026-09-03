@@ -23,11 +23,32 @@ function extractRole(raw: any): string {
   return 'user';
 }
 
-function getRemainingDaysFromEnd(end: any): number | undefined {
-  if (!end) return undefined;
-  const date = new Date(end);
-  if (Number.isNaN(date.getTime())) return undefined;
-  return Math.max(0, Math.ceil((date.getTime() - Date.now()) / 86400000));
+function getRemainingDaysFromSubscription(start: any, end: any, subscriptionDays: any, subscriptionMonths: any): number | undefined {
+  const now = Date.now();
+  if (end) {
+    const date = new Date(end);
+    if (!Number.isNaN(date.getTime())) return Math.max(0, Math.ceil((date.getTime() - now) / 86400000));
+  }
+
+  if (start) {
+    const startDate = new Date(start);
+    if (!Number.isNaN(startDate.getTime())) {
+      const days = Number(subscriptionDays);
+      if (Number.isFinite(days) && days > 0) {
+        const calculatedEnd = new Date(startDate.getTime() + days * 86400000);
+        return Math.max(0, Math.ceil((calculatedEnd.getTime() - now) / 86400000));
+      }
+
+      const months = Number(subscriptionMonths);
+      if (Number.isFinite(months) && months > 0) {
+        const calculatedEnd = new Date(startDate);
+        calculatedEnd.setMonth(calculatedEnd.getMonth() + months);
+        return Math.max(0, Math.ceil((calculatedEnd.getTime() - now) / 86400000));
+      }
+    }
+  }
+
+  return undefined;
 }
 
 function normalizeUser(raw: any, fallbackEmail?: string): StoredUser {
@@ -36,8 +57,11 @@ function normalizeUser(raw: any, fallbackEmail?: string): StoredUser {
   const lastName = raw?.lastName || raw?.name?.split?.(' ')?.slice?.(1)?.join?.(' ') || '';
   const role = extractRole(raw);
   const isAdmin = role === 'admin' || raw?.isAdmin === true;
+  const subscriptionStart = raw?.subscriptionStart || null;
   const subscriptionEnd = raw?.subscriptionEnd || null;
-  const calculatedRemainingDays = getRemainingDaysFromEnd(subscriptionEnd);
+  const subscriptionDays = raw?.subscriptionDays ?? 0;
+  const subscriptionMonths = raw?.subscriptionMonths ?? 0;
+  const calculatedRemainingDays = getRemainingDaysFromSubscription(subscriptionStart, subscriptionEnd, subscriptionDays, subscriptionMonths);
   const serverRemainingDays = raw?.remainingDays ?? raw?.daysRemaining;
   const remainingDays = calculatedRemainingDays !== undefined
     ? calculatedRemainingDays
@@ -60,10 +84,10 @@ function normalizeUser(raw: any, fallbackEmail?: string): StoredUser {
     analysisIntervalMinutes: raw?.analysisIntervalMinutes ?? 5,
     analysisLimit24h: raw?.analysisLimit24h ?? raw?.analysisLimit ?? 100,
     isDeleted: raw?.isDeleted === true,
-    subscriptionStart: raw?.subscriptionStart || null,
+    subscriptionStart,
     subscriptionEnd,
-    subscriptionDays: raw?.subscriptionDays ?? 0,
-    subscriptionMonths: raw?.subscriptionMonths ?? 0,
+    subscriptionDays,
+    subscriptionMonths,
     analysisLimit: raw?.analysisLimit ?? raw?.analysisLimit24h ?? null,
     isSubscriptionActive: raw?.isSubscriptionActive ?? (remainingDays === undefined ? (raw?.isActive ?? true) : remainingDays > 0),
     remainingDays,
