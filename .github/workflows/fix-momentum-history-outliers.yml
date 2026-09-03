@@ -1,6 +1,9 @@
 name: Fix momentum history outliers
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
