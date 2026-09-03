@@ -18,6 +18,22 @@ if (!rootElement) {
 const normalizedPath = window.location.pathname.replace(/\/+$/, '') || '/';
 const isPublicLandingPage = normalizedPath === '/' || normalizedPath === '/about';
 
+// امنیت نشست: بازشدن/رفرش صفحه نباید به‌تنهایی باعث ورود کاربر شود.
+// نشست قبلی فقط در همان اجرای فعلی برنامه معتبر است و کاربر باید دوباره
+// با فرم ورود و کلیک روی دکمه «ورود» احراز هویت شود.
+if (!isPublicLandingPage) {
+  try {
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('user');
+    localStorage.removeItem('auth_user');
+    localStorage.removeItem('token');
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+  } catch {
+    // در محیط‌هایی که localStorage در دسترس نیست، App بدون نشست اجرا می‌شود.
+  }
+}
+
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     {isPublicLandingPage ? (
