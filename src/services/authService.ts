@@ -57,7 +57,7 @@ function normalizeUser(raw: any, fallbackEmail?: string): StoredUser {
     isDeleted: raw?.isDeleted === true,
     subscriptionStart: raw?.subscriptionStart || null,
     subscriptionEnd: raw?.subscriptionEnd || null,
-    subscriptionDays: raw?.subscriptionDays ?? raw?.remainingDays ?? raw?.daysRemaining ?? 0,
+    subscriptionDays: raw?.subscriptionDays ?? 0,
     subscriptionMonths: raw?.subscriptionMonths ?? 0,
     analysisLimit: raw?.analysisLimit ?? raw?.analysisLimit24h ?? null,
     isSubscriptionActive: raw?.isSubscriptionActive ?? raw?.isActive ?? true,
@@ -199,6 +199,18 @@ export function getToken(): string | null {
 
 export function getRefreshToken(): string | null {
   return getStoredRefreshToken() || getCookieValue('refreshToken');
+}
+
+export async function getMe(): Promise<{ success: boolean; data?: StoredUser; message?: string }> {
+  try {
+    const res = await get<any>('/auth/me');
+    if (!res.success || !res.data) return { success: false, message: res.message || 'دریافت اطلاعات کاربر ناموفق بود' };
+    const user = normalizeUser(res.data.user || res.data);
+    setStoredUser(user);
+    return { success: true, data: user };
+  } catch (error: any) {
+    return { success: false, message: error?.message || 'خطا در دریافت اطلاعات کاربر' };
+  }
 }
 
 export async function getCurrentUser(): Promise<StoredUser | null> {
@@ -448,6 +460,7 @@ const authService = {
   getToken,
   getRefreshToken,
   getCurrentUser,
+  getMe,
   getUsers,
   getGuestUsers,
   login,
