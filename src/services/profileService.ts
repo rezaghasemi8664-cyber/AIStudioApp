@@ -21,7 +21,7 @@ export interface SendMessageInput {
 
 /** ?????? ????? ?????? */
 export async function getSubscriptionStatus(userId?: string): Promise<ApiResult<SubscriptionInfo>> {
-  const endpoint = userId ? `/profile/subscription/${encodeURIComponent(userId)}` : '/profile/subscription';
+  const endpoint = '/auth/subscription';
   return safeApi<SubscriptionInfo>(endpoint, { method: 'GET' });
 }
 
