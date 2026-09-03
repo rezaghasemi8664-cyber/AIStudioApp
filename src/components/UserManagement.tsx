@@ -46,7 +46,7 @@ interface ManagedUser {
   subscriptionStart?: string | null;
   subscriptionEnd?: string | null;
   subscriptionDays?: number | null;
-  subscriptionDays?: number | null;
+  remainingDays?: number | null;
   isSubscriptionActive?: boolean;
   analysisLimit?: number | null;
   analysisLimit24h?: number | null;
@@ -700,11 +700,11 @@ const UserManagement: React.FC<UserManagementProps> = ({
 
             <div className="border-t border-[var(--card-border-color)] pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">مدت اشتراک (ماه)</label>
+                <label className="block text-sm font-medium mb-1">مدت اشتراک (روز)</label>
                 <input
                   type="number"
                   value={subscriptionDays}
-                  onChange={(e) => setSubscriptionMonths(e.target.value)}
+                  onChange={(e) => setSubscriptionDays(e.target.value)}
                   min="0"
                   className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2"
                   style={{
@@ -1035,7 +1035,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
                           </div>
                         ) : (
                           <div className="flex items-center justify-between group">
-                            <span>{user.subscriptionDays ?? 0} ماه</span>
+                            <span>{user.subscriptionDays ?? 0} روز</span>
                             <button
                               onClick={() =>
                                 setEditingSubscriptionDays({
