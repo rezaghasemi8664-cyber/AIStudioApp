@@ -1,0 +1,88 @@
+name: Fix daily persisted market summary UI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-daily-market-summary-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Remove live latest from the market-summary display path
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('src/services/marketSummaryService.ts')
+          s = p.read_text(encoding='utf-8-sig')
+
+          pattern = re.compile(
+              r"export const getLatestSummary = async \(\): Promise<MarketSummaryData \| null> => \{.*?\n\};",
+              re.S,
+          )
+
+          replacement = '''export const getLatestSummary = async (): Promise<MarketSummaryData | null> => {
+  // «آخرین خلاصه» در رابط کاربری باید آخرین رکورد ذخیره‌شده روزانه باشد،
+  // نه snapshot زنده‌ای که با باز شدن تب timestamp جدید تولید می‌کند.
+  const history = await getSummaryHistory(1, 1);
+  return history?.data?.[0] ?? null;
+};'''
+
+          s, count = pattern.subn(replacement, s, count=1)
+          if count != 1:
+              raise SystemExit('getLatestSummary function was not found exactly once')
+
+          p.write_text(s, encoding='utf-8')
+
+      - name: Expose the real database creation timestamp in history
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('backend/services/marketSummary.service.cjs')
+          s = p.read_text(encoding='utf-8-sig')
+
+          old = '''    id: record.id,
+    date: toDateOnlyISO(record.summaryDate),'''
+          new = '''    id: record.id,
+    createdAt: record.createdAt ? new Date(record.createdAt).toISOString() : null,
+    date: toDateOnlyISO(record.summaryDate),'''
+
+          if old not in s:
+              raise SystemExit('normalizeSummaryRecord target was not found')
+
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+
+      - name: Validate source
+        run: |
+          node --check backend/services/dailyMarketSummary.service.cjs
+          node --check backend/cron/marketSummaryCron.cjs
+          npm ci
+          npm run build
+
+      - name: Commit source fixes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/services/marketSummaryService.ts backend/services/marketSummary.service.cjs
+          if git diff --cached --quiet; then
+            echo "No source changes"
+            exit 0
+          fi
+          git commit -m "fix: use persisted daily market summary instead of live snapshot"
+          git push origin main
