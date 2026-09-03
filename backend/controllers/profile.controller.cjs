@@ -60,6 +60,20 @@ function parseUserId(raw) {
   return s;
 }
 
+
+function calcSubscriptionDurationDays(subscriptionStart, subscriptionEnd, subscriptionMonths) {
+  const start = subscriptionStart ? new Date(subscriptionStart) : null;
+  const end = subscriptionEnd ? new Date(subscriptionEnd) : null;
+  if (start && !Number.isNaN(start.getTime()) && end && !Number.isNaN(end.getTime())) {
+    return Math.max(0, Math.ceil((end.getTime() - start.getTime()) / 86400000));
+  }
+  if (start && !Number.isNaN(start.getTime()) && subscriptionMonths > 0) {
+    const legacyEnd = new Date(start);
+    legacyEnd.setMonth(legacyEnd.getMonth() + subscriptionMonths);
+    return Math.max(0, Math.ceil((legacyEnd.getTime() - start.getTime()) / 86400000));
+  }
+  return 0;
+}
 function calcRemainingDays(subscriptionStart, subscriptionMonths, subscriptionEnd) {
   // Prefer subscriptionEnd if available
   if (subscriptionEnd) {
@@ -120,6 +134,7 @@ function formatUser(user) {
     isAdmin: (userRole ? userRole.name === 'ADMIN' : false) || user.roleId === 2,
     subscriptionStart: user.subscriptionStart || null,
     subscriptionEnd: user.subscriptionEnd || null,
+    subscriptionDays: calcSubscriptionDurationDays(user.subscriptionStart, user.subscriptionEnd, user.subscriptionMonths),
     subscriptionMonths: user.subscriptionMonths || 0,
     subscriptionType: user.subscriptionType || null,
     analysisLimit: user.analysisLimit24h || user.analysisLimit || 0,
