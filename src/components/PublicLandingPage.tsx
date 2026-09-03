@@ -1,36 +1,12 @@
 import React from 'react';
 
 const features = [
-  {
-    title: 'تحلیل حرفه‌ای سهم',
-    description: 'بررسی داده‌های بازار و ارائه تصویری یکپارچه برای تصمیم‌گیری آگاهانه‌تر درباره نمادها.',
-    icon: '◈',
-  },
-  {
-    title: 'تحلیل بنیادی',
-    description: 'بررسی شاخص‌های کلیدی و اطلاعات بنیادی برای شناخت بهتر وضعیت شرکت‌ها.',
-    icon: '▣',
-  },
-  {
-    title: 'مقایسه نمادها',
-    description: 'مقایسه چند سهم در یک نگاه و مشاهده نتایج تحلیلی در قالبی ساختاریافته.',
-    icon: '⇄',
-  },
-  {
-    title: 'تحلیل بازار',
-    description: 'نمایش تصویری وضعیت بازار و داده‌های مهم برای داشتن دیدی سریع‌تر نسبت به روند بازار.',
-    icon: '◫',
-  },
-  {
-    title: 'نوسان‌گیری',
-    description: 'شناسایی و بررسی فرصت‌های کوتاه‌مدت بازار با استفاده از داده‌های به‌روز.',
-    icon: '↗',
-  },
-  {
-    title: 'سبد سهام',
-    description: 'مدیریت و بررسی وضعیت سبد سهام در یک محیط یکپارچه و کاربردی.',
-    icon: '▤',
-  },
+  { title: 'تحلیل حرفه‌ای سهم', description: 'بررسی داده‌های بازار و ارائه تصویری یکپارچه برای تصمیم‌گیری آگاهانه‌تر درباره نمادها.', icon: '◈' },
+  { title: 'تحلیل بنیادی', description: 'بررسی شاخص‌های کلیدی و اطلاعات بنیادی برای شناخت بهتر وضعیت شرکت‌ها.', icon: '▣' },
+  { title: 'مقایسه نمادها', description: 'مقایسه چند سهم در یک نگاه و مشاهده نتایج تحلیلی در قالبی ساختاریافته.', icon: '⇄' },
+  { title: 'تحلیل بازار', description: 'نمایش تصویری وضعیت بازار و داده‌های مهم برای داشتن دیدی سریع‌تر نسبت به روند بازار.', icon: '◫' },
+  { title: 'نوسان‌گیری', description: 'شناسایی و بررسی فرصت‌های کوتاه‌مدت بازار با استفاده از داده‌های به‌روز.', icon: '↗' },
+  { title: 'سبد سهام', description: 'مدیریت و بررسی وضعیت سبد سهام در یک محیط یکپارچه و کاربردی.', icon: '▤' },
 ];
 
 const steps = [
@@ -41,7 +17,7 @@ const steps = [
 
 const PublicLandingPage: React.FC = () => {
   const goToLogin = () => {
-    window.location.href = '/';
+    window.location.href = '/login';
   };
 
   return (
@@ -49,7 +25,6 @@ const PublicLandingPage: React.FC = () => {
       <style>{`
         .roniya-public-page {
           --navy: #071426;
-          --navy-2: #0b1d34;
           --cyan: #22d3ee;
           --cyan-2: #06b6d4;
           --text: #e8f1fb;
@@ -65,17 +40,19 @@ const PublicLandingPage: React.FC = () => {
           overflow-x: hidden;
         }
         .roniya-public-page * { box-sizing: border-box; }
-        .roniya-public-page a { color: inherit; text-decoration: none; }
+        .roniya-public-page button { appearance: none; }
         .public-wrap { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
-        .public-nav { position: relative; z-index: 5; display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
-        .public-brand { display: flex; align-items: center; gap: 12px; font-weight: 900; font-size: 18px; }
-        .public-brand img { width: 48px; height: 48px; object-fit: contain; filter: drop-shadow(0 8px 18px rgba(34,211,238,.18)); }
+        .public-nav { position: relative; z-index: 5; display: flex; align-items: center; justify-content: space-between; padding: 20px 0; }
+        .public-brand { display: flex; align-items: center; gap: 16px; font-weight: 900; font-size: 20px; min-width: 0; }
+        .public-brand img { width: 88px; height: 88px; object-fit: contain; flex: 0 0 88px; filter: drop-shadow(0 10px 24px rgba(34,211,238,.28)); }
+        .public-brand span { white-space: nowrap; }
         .public-nav-actions { display: flex; gap: 10px; align-items: center; }
         .public-btn { border: 1px solid var(--line); border-radius: 12px; padding: 11px 18px; cursor: pointer; font: inherit; font-weight: 800; transition: .2s ease; }
         .public-btn:hover { transform: translateY(-2px); }
         .public-btn-ghost { background: rgba(255,255,255,.035); color: var(--text); }
         .public-btn-primary { border-color: rgba(34,211,238,.35); background: linear-gradient(135deg, var(--cyan), var(--cyan-2)); color: #04202a; box-shadow: 0 10px 30px rgba(6,182,212,.18); }
         .public-hero { position: relative; padding: 72px 0 88px; text-align: center; }
+        .public-hero-logo { width: 132px; height: 132px; object-fit: contain; margin: 0 auto 18px; display: block; filter: drop-shadow(0 14px 30px rgba(34,211,238,.25)); }
         .public-badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid rgba(34,211,238,.22); border-radius: 999px; background: rgba(34,211,238,.07); color: #8be9f6; font-size: 13px; font-weight: 800; }
         .public-badge span { width: 7px; height: 7px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 14px var(--cyan); }
         .public-hero h1 { max-width: 850px; margin: 22px auto 18px; font-size: clamp(34px, 6vw, 64px); line-height: 1.15; letter-spacing: -.8px; font-weight: 950; }
@@ -108,15 +85,19 @@ const PublicLandingPage: React.FC = () => {
         @media (max-width: 820px) {
           .public-feature-grid, .public-process { grid-template-columns: 1fr 1fr; }
           .public-hero { padding-top: 48px; }
+          .public-brand img { width: 72px; height: 72px; flex-basis: 72px; }
+          .public-brand { font-size: 18px; }
         }
         @media (max-width: 560px) {
           .public-wrap { width: min(100% - 24px, 1180px); }
-          .public-nav { align-items: flex-start; }
-          .public-brand { font-size: 15px; }
-          .public-brand img { width: 40px; height: 40px; }
+          .public-nav { align-items: flex-start; gap: 12px; }
+          .public-brand { font-size: 15px; gap: 10px; }
+          .public-brand img { width: 64px; height: 64px; flex-basis: 64px; }
+          .public-brand span { white-space: normal; max-width: 150px; line-height: 1.5; }
           .public-nav-actions .public-btn-ghost { display: none; }
           .public-feature-grid, .public-process { grid-template-columns: 1fr; }
-          .public-hero { padding: 42px 0 55px; }
+          .public-hero { padding: 38px 0 55px; }
+          .public-hero-logo { width: 112px; height: 112px; }
           .public-cta { padding: 28px 18px; }
         }
       `}</style>
@@ -135,6 +116,7 @@ const PublicLandingPage: React.FC = () => {
       <main>
         <section className="public-hero">
           <div className="public-wrap">
+            <img className="public-hero-logo" src="/1.png" alt="تحلیلگر هوشمند بورس رونیا" />
             <div className="public-badge"><span /> سامانه تحلیل و بررسی بازار سرمایه</div>
             <h1><span className="public-gradient-text">تحلیل هوشمند بازار</span><br />برای تصمیم‌گیری دقیق‌تر</h1>
             <p>
