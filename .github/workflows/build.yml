@@ -14,7 +14,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   frontend-build:
@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -33,5 +35,97 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Apply market summary latest-source fix
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('src/components/StockAnalysis.tsx')
+          s = p.read_text(encoding='utf-8-sig')
+
+          pattern = re.compile(
+              r"  useEffect\(\(\) => \{\n"
+              r"    if \(activeTab !== 'marketSummary'\) return;\n\n"
+              r"    let isMounted = true;\n\n"
+              r"    const loadMarketSummary = async \(\) => \{.*?\n    \};\n\n"
+              r"    void loadMarketSummary\(\);\n\n"
+              r"    return \(\) => \{\n"
+              r"      isMounted = false;\n"
+              r"    \};\n"
+              r"  \}, \[activeTab\]\);",
+              re.S,
+          )
+
+          replacement = '''  useEffect(() => {
+    if (activeTab !== 'marketSummary') return;
+
+    let isMounted = true;
+
+    const loadMarketSummary = async () => {
+      setIsLoadingMarketSummaryHistory(true);
+      try {
+        const [history, latest] = await Promise.all([
+          fetchMarketSummaryHistory(),
+          fetchMarketSummary(),
+        ]);
+
+        if (!isMounted) return;
+
+        setMarketSummaryHistory(history);
+
+        // Main tab always starts from the live/latest summary. A historical
+        // row is shown only after the user explicitly selects a history card.
+        if (latest?.content?.trim()) {
+          setMarketSummary(latest);
+          setSelectedMarketSummaryId(null);
+        } else if (history.length > 0) {
+          setMarketSummary(history[0]);
+          setSelectedMarketSummaryId(history[0].id);
+        } else {
+          setSelectedMarketSummaryId(null);
+          setMarketSummary(null);
+        }
+
+        setHasUnreadMarketSummary(false);
+      } catch (error) {
+        console.error('[MarketSummary] failed to load latest/history:', error);
+      } finally {
+        if (isMounted) setIsLoadingMarketSummaryHistory(false);
+      }
+    };
+
+    void loadMarketSummary();
+
+    const interval = window.setInterval(() => {
+      void loadMarketSummary();
+    }, 30000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(interval);
+    };
+  }, [activeTab]);'''
+
+          s, count = pattern.subn(replacement, s, count=1)
+          if count == 0:
+              print('Market summary effect already patched or target not found; leaving source unchanged')
+          else:
+              p.write_text(s, encoding='utf-8')
+              print('Market summary latest-source fix applied')
+
       - name: Build frontend
         run: npm run build
+
+      - name: Commit source fix if changed
+        shell: bash
+        run: |
+          if git diff --quiet -- src/components/StockAnalysis.tsx; then
+            echo "No source change to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/StockAnalysis.tsx
+          git commit -m "fix: prefer live latest market summary in main tab"
+          git push origin main
