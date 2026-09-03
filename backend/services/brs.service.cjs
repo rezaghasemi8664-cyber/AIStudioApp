@@ -1371,16 +1371,16 @@ async function getMarketSummary(options) {
   }
 }
 
-function getSymbolData(symbol) {
+async function getSymbolData(symbol) {
   var symbolClean;
   try {
+    symbolClean = normalizeSymbolInput(symbol);
     ensureEndpointConfig('BRS_SYMBOL', endpoints && endpoints.BRS_SYMBOL, {
-      symbol: normalizeSymbolInput(symbol),
+      symbol: symbolClean,
       includeSymbolParam: true,
       includeCountParam: false,
       includeTypeParam: false
     });
-    symbolClean = normalizeSymbolInput(symbol);
   } catch (error) {
     return Promise.reject(error);
   }
@@ -1399,43 +1399,99 @@ function getSymbolData(symbol) {
       fetchedAt: cacheEntry.fetchedAt,
       baseSource: 'brs-live'
     });
-
     return Promise.resolve(buildEnvelope(cacheEntry.data, cacheMeta));
   }
 
   var url;
   try {
-    url = buildSymbolEndpointUrl(endpoints.BRS_SYMBOL, symbolClean, {
-      removeParams: []
-    });
+    url = buildSymbolEndpointUrl(endpoints.BRS_SYMBOL, symbolClean, { removeParams: [] });
   } catch (error) {
     return Promise.reject(error);
   }
 
-  return fetchBRS(url, 'Symbol: ' + symbolClean).then(function (response) {
+  try {
+    var response = await fetchBRS(url, 'Symbol: ' + symbolClean);
     var raw = getPayloadBody(response.payload);
 
-    if (!hasMeaningfulSymbolPayload(raw)) {
-      throw new Error('BRS Symbol returned empty payload for ' + symbolClean);
+    if (hasMeaningfulSymbolPayload(raw)) {
+      var result = mapSymbolData(raw);
+      setCache(cacheKey, result, CACHE_TTL.symbol, { fetchedAt: response.transportMeta.fetchedAt });
+
+      var liveMeta = buildMeta('symbol', {
+        source: 'live',
+        cacheHit: false,
+        cacheKey: cacheKey,
+        ageMs: 0,
+        ttlMs: CACHE_TTL.symbol,
+        fetchedAt: response.transportMeta.fetchedAt,
+        endpoint: response.transportMeta.endpoint,
+        elapsedMs: response.transportMeta.elapsedMs
+      });
+      return buildEnvelope(result, liveMeta, { raw: raw });
     }
 
-    var result = mapSymbolData(raw);
+    throw new Error('BRS Symbol returned empty payload for ' + symbolClean);
+  } catch (symbolError) {
+    // خارج از ساعت بازار ممکن است endpoint لحظه‌ای داده ندهد.
+    // در این حالت آخرین رکورد تاریخی معتبر همان نماد را برمی‌گردانیم.
+    try {
+      var historyResult = await getSymbolHistory(symbolClean, 1);
+      var history = historyResult && Array.isArray(historyResult.data) ? historyResult.data : [];
+      var latest = history.length ? history[0] : null;
 
-    setCache(cacheKey, result, CACHE_TTL.symbol, { fetchedAt: response.transportMeta.fetchedAt });
+      if (latest && (latest.last != null || latest.close != null || latest.volume != null)) {
+        var fallback = {
+          symbol: symbolClean,
+          name: symbolClean,
+          pl: latest.last,
+          pDrCotVal: latest.last,
+          lastPrice: latest.last,
+          plp: latest.lastChangePercent,
+          lastChangePercent: latest.lastChangePercent,
+          pc: latest.close,
+          pClosing: latest.close,
+          closingPrice: latest.close,
+          pcp: latest.closeChangePercent,
+          closeChangePercent: latest.closeChangePercent,
+          py: latest.yesterday,
+          tvol: latest.volume,
+          volume: latest.volume,
+          tval: latest.value,
+          tno: latest.count,
+          date: latest.date,
+          time: latest.time
+        };
 
-    var liveMeta = buildMeta('symbol', {
-      source: 'live',
-      cacheHit: false,
-      cacheKey: cacheKey,
-      ageMs: 0,
-      ttlMs: CACHE_TTL.symbol,
-      fetchedAt: response.transportMeta.fetchedAt,
-      endpoint: response.transportMeta.endpoint,
-      elapsedMs: response.transportMeta.elapsedMs
-    });
+        var fallbackResult = mapSymbolData(fallback);
+        var fallbackFetchedAt = historyResult && historyResult._meta && historyResult._meta.fetchedAt
+          ? historyResult._meta.fetchedAt
+          : isoNow();
 
-    return buildEnvelope(result, liveMeta, { raw: raw });
-  });
+        setCache(cacheKey, fallbackResult, CACHE_TTL.symbol, { fetchedAt: fallbackFetchedAt });
+
+        var fallbackMeta = buildMeta('symbol', {
+          source: 'history-last-known',
+          cacheHit: false,
+          cacheKey: cacheKey,
+          ageMs: 0,
+          ttlMs: CACHE_TTL.symbol,
+          fetchedAt: fallbackFetchedAt,
+          fallbackUsed: true,
+          fallbackReason: symbolError.message,
+          baseSource: 'history',
+          endpoint: historyResult && historyResult._meta && historyResult._meta.endpoint
+            ? historyResult._meta.endpoint
+            : ''
+        });
+
+        return buildEnvelope(fallbackResult, fallbackMeta, { raw: latest });
+      }
+    } catch (historyError) {
+      console.error('[BRS SERVICE] Symbol history fallback failed for ' + symbolClean + ': ' + historyError.message);
+    }
+
+    throw symbolError;
+  }
 }
 
 async function getMoneyFlow(symbol) {
