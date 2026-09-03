@@ -231,7 +231,7 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
         return addNotification(`نماد «${result.symbol}» قبلاً در این دیده‌بان وجود دارد.`, 'error');
       }
       setValidatedSymbol(result);
-      addNotification(`نماد «${validatedSymbol.symbol}» در دیده‌بان ذخیره شد و آخرین اطلاعات آن دریافت شد.`, 'info');
+      addNotification(`بررسی نماد «${result.symbol}» با موفقیت انجام شد. نماد معتبر است و می‌توانید آن را در دیده‌بان ذخیره کنید.`, 'info');
     } catch (error: any) {
       addNotification(error?.response?.data?.message || `بررسی نماد «${symbol}» ناموفق بود.`, 'error');
     } finally { setValidatingSymbol(false); }
