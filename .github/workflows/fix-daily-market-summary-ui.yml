@@ -15,52 +15,36 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Remove live latest from the market-summary display path
+      - name: Patch source files
         shell: python
         run: |
           from pathlib import Path
           import re
+
           p = Path('src/services/marketSummaryService.ts')
           s = p.read_text(encoding='utf-8-sig')
           pattern = re.compile(r"export const getLatestSummary = async \(\): Promise<MarketSummaryData \| null> => \{.*?\n\};", re.S)
           replacement = '''export const getLatestSummary = async (): Promise<MarketSummaryData | null> => {
-  // آخرین خلاصه رابط کاربری باید آخرین رکورد ذخیره‌شده روزانه باشد، نه snapshot زنده.
+  // آخرین خلاصه UI فقط از آخرین رکورد ذخیره‌شده روزانه خوانده می‌شود.
   const history = await getSummaryHistory(1, 1);
   return history?.data?.[0] ?? null;
 };'''
           s, count = pattern.subn(replacement, s, count=1)
-          if count != 1:
-              raise SystemExit('getLatestSummary function was not found exactly once')
+          if count != 1: raise SystemExit('getLatestSummary target not found')
           p.write_text(s, encoding='utf-8')
 
-      - name: Expose the real database creation timestamp in history
-        shell: python
-        run: |
-          from pathlib import Path
           p = Path('backend/services/marketSummary.service.cjs')
           s = p.read_text(encoding='utf-8-sig')
-          old = '''    id: record.id,
-    date: toDateOnlyISO(record.summaryDate),'''
-          new = '''    id: record.id,
-    createdAt: record.createdAt ? new Date(record.createdAt).toISOString() : null,
-    date: toDateOnlyISO(record.summaryDate),'''
-          if old not in s:
-              raise SystemExit('normalizeSummaryRecord target was not found')
+          old = '    id: record.id,\n    date: toDateOnlyISO(record.summaryDate),'
+          new = '    id: record.id,\n    createdAt: record.createdAt ? new Date(record.createdAt).toISOString() : null,\n    date: toDateOnlyISO(record.summaryDate),'
+          if old not in s: raise SystemExit('normalizeSummaryRecord target not found')
           p.write_text(s.replace(old, new, 1), encoding='utf-8')
 
-      - name: Validate source
-        run: |
-          node --check backend/services/dailyMarketSummary.service.cjs
-          node --check backend/cron/marketSummaryCron.cjs
-          npm ci
-          npm run build
-
-      - name: Commit source fixes
+      - name: Commit source files
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
@@ -70,4 +54,4 @@ jobs:
           git commit -m "fix: use persisted daily market summary instead of live snapshot"
           git push origin main
 
-# trigger patch workflow
+# trigger source patch
