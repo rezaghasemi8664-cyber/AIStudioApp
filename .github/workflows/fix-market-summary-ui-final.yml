@@ -20,9 +20,11 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           p = Path('src/components/MarketSummaryDashboard.tsx')
           s = p.read_text(encoding='utf-8-sig')
+          s = s.replace('```tsx\n', '').replace('\n```\n', '\n').replace('\n```', '\n')
 
           if "const [fetchedContent, setFetchedContent]" not in s:
               needle = "  const [fetching, setFetching] = useState(false);"
@@ -35,23 +37,34 @@ jobs:
           new = """          setFetchedIntelligence(\n            summary?.marketIntelligence ?? null\n          );\n          setFetchedContent(\n            summary?.content ?? summary?.summary ?? null\n          );"""
           s = s.replace(old, new, 1)
 
-          old = """  const intelligence =\n    suppliedIntelligence ?? fetchedIntelligence;\n\n  if (loading || fetching) {"""
-          new = """  const intelligence =\n    suppliedIntelligence ?? fetchedIntelligence;\n\n  // The latest endpoint is the canonical source. Never let a stale\n  // marketIntelligence object override the current Persian summary text.\n  const canonicalContent = fetchedContent ?? content ?? null;\n\n  if (loading || fetching) {"""
-          s = s.replace(old, new, 1)
-
-          old = """  if (!intelligence) {\n    return ("""
-          new = """  if (canonicalContent) {\n    return (\n      <div\n        dir=\"rtl\"\n        className=\"rounded-[20px] border border-white/10 bg-slate-950/70 p-6\"\n        style={{ fontFamily: 'Vazirmatn, IRANSans, Tahoma, Arial, sans-serif' }}\n      >\n        <div className=\"text-[18px] font-extrabold text-white\">خلاصه بازار</div>\n        <div className=\"mt-4 whitespace-pre-wrap rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 text-[15px] leading-[2] text-slate-200\">\n          {canonicalContent}\n        </div>\n      </div>\n    );\n  }\n\n  if (!intelligence) {\n    return ("""
+          old = """  const intelligence =\n    suppliedIntelligence ?? fetchedIntelligence;\n\n  const canonicalContent =\n    content || null;"""
+          new = """  const intelligence =\n    suppliedIntelligence ?? fetchedIntelligence;\n\n  // The latest API response is the single source of truth for the visible summary.\n  const canonicalContent =\n    fetchedContent ?? content ?? null;"""
           s = s.replace(old, new, 1)
 
           p.write_text(s, encoding='utf-8')
+
+          # Keep the service from inventing a fake database timestamp.\n          p = Path('src/services/marketSummaryService.ts')
+          s = p.read_text(encoding='utf-8-sig')
+          s = re.sub(
+              r"const createdAtValue =\s*toNullableString\(candidate\.createdAt\) \?\?\s*toNullableString\(candidate\.updatedAt\) \?\?\s*toNullableString\(rawTopLevel\?\.snapshotCreatedAt\) \?\?\s*toNullableString\(rawTopLevel\?\.cachedAt\) \?\?\s*toNullableString\(candidate\.date\) \?\?\s*toNullableString\(candidate\.summaryDate\) \?\?\s*new Date\(\)\.toISOString\(\);",
+              "const createdAtValue = toNullableString(candidate.createdAt) ?? toNullableString(candidate.updatedAt) ?? toNullableString(rawTopLevel?.snapshotCreatedAt) ?? toNullableString(rawTopLevel?.cachedAt) ?? toNullableString(candidate.date) ?? toNullableString(candidate.summaryDate) ?? '';",
+              s,
+          )
+          p.write_text(s, encoding='utf-8')
           PY
+
+      - name: Validate source patch
+        shell: bash
+        run: |
+          grep -n "fetchedContent" src/components/MarketSummaryDashboard.tsx
+          grep -n "canonicalContent" src/components/MarketSummaryDashboard.tsx
 
       - name: Commit frontend repair
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/components/MarketSummaryDashboard.tsx
+          git add src/components/MarketSummaryDashboard.tsx src/services/marketSummaryService.ts
           if git diff --cached --quiet; then echo 'No frontend repair needed'; exit 0; fi
-          git commit -m 'fix: use canonical latest market summary text'
+          git commit -m 'fix: render canonical latest market summary content'
           git push origin main
