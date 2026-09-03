@@ -1,0 +1,117 @@
+name: One-time fix StockAnalysis latest market summary
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-fix-stockanalysis-latest.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fix latest market summary source
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path('src/components/StockAnalysis.tsx')
+          text = path.read_text(encoding='utf-8-sig')
+
+          pattern = re.compile(
+              r"  useEffect\(\(\) => \{\n"
+              r"    if \(activeTab !== 'marketSummary'\) return;\n\n"
+              r"    let isMounted = true;\n\n"
+              r"    const loadMarketSummary = async \(\) => \{.*?"
+              r"    return \(\) => \{\n"
+              r"      isMounted = false;\n"
+              r"    \};\n"
+              r"  \}, \[activeTab\]\);",
+              re.S,
+          )
+
+          replacement = '''  useEffect(() => {
+    if (activeTab !== 'marketSummary') return;
+
+    let isMounted = true;
+
+    const loadMarketSummary = async () => {
+      setIsLoadingMarketSummaryHistory(true);
+
+      try {
+        const [latest, history] = await Promise.all([
+          fetchMarketSummary(),
+          fetchMarketSummaryHistory(),
+        ]);
+
+        if (!isMounted) return;
+
+        setMarketSummaryHistory(history);
+
+        // The main tab always uses the live/latest summary. A historical
+        // snapshot is shown only after the user explicitly selects it.
+        if (latest?.content?.trim()) {
+          setMarketSummary(latest);
+          setSelectedMarketSummaryId(null);
+        } else if (selectedMarketSummaryId !== null) {
+          const selected = history.find((item) => item.id === selectedMarketSummaryId);
+          if (selected) {
+            setMarketSummary(selected);
+          } else {
+            setSelectedMarketSummaryId(null);
+            setMarketSummary(null);
+          }
+        } else {
+          setMarketSummary(null);
+        }
+
+        setHasUnreadMarketSummary(false);
+      } catch (error) {
+        console.error('[MarketSummary] failed to load latest/history:', error);
+      } finally {
+        if (isMounted) setIsLoadingMarketSummaryHistory(false);
+      }
+    };
+
+    void loadMarketSummary();
+
+    const interval = window.setInterval(() => {
+      void loadMarketSummary();
+    }, 30000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(interval);
+    };
+  }, [activeTab]);'''
+
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('Target market summary effect was not found exactly once')
+
+          path.write_text(text, encoding='utf-8')
+          print('StockAnalysis.tsx patched successfully')
+
+      - name: Build frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit source fix and remove one-time workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/one-time-fix-stockanalysis-latest.yml
+          git add src/components/StockAnalysis.tsx
+          git commit -m "fix: show live latest market summary in main tab"
+          git push origin main
