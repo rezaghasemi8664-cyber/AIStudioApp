@@ -34,6 +34,7 @@ export interface AdminCreateUserPayload {
   analysisLimit24h?: number | null;
   subscriptionStart?: string | null;
   subscriptionEnd?: string | null;
+  subscriptionDays?: number | null;
   subscriptionMonths?: number | null;
   isSubscriptionActive?: boolean;
 }
@@ -56,6 +57,7 @@ export interface AdminUpdateUserPayload {
   analysisLimit24h?: number | null;
   subscriptionStart?: string | null;
   subscriptionEnd?: string | null;
+  subscriptionDays?: number | null;
   subscriptionMonths?: number | null;
   isSubscriptionActive?: boolean;
 }
@@ -65,6 +67,7 @@ export interface AdminUpdateSubscriptionData {
   isSubscriptionActive?: boolean;
   subscriptionStart?: string | null;
   subscriptionEnd?: string | null;
+  subscriptionDays?: number | null;
   subscriptionMonths?: number | null;
   analysisLimit?: number | null;
   analysisLimit24h?: number | null;
@@ -160,6 +163,10 @@ function sanitizeCreateUserPayload(
       undefined,
     subscriptionStart: normalizeNullableString(payload.subscriptionStart),
     subscriptionEnd: normalizeNullableString(payload.subscriptionEnd),
+    subscriptionDays:
+      normalizeNumber(payload.subscriptionDays) ??
+      payload.subscriptionDays ??
+      undefined,
     subscriptionMonths:
       normalizeNumber(payload.subscriptionMonths) ??
       payload.subscriptionMonths ??
@@ -193,6 +200,10 @@ function sanitizeUpdateUserPayload(
       undefined,
     subscriptionStart: normalizeNullableString(payload.subscriptionStart),
     subscriptionEnd: normalizeNullableString(payload.subscriptionEnd),
+    subscriptionDays:
+      normalizeNumber(payload.subscriptionDays) ??
+      payload.subscriptionDays ??
+      undefined,
     subscriptionMonths:
       normalizeNumber(payload.subscriptionMonths) ??
       payload.subscriptionMonths ??
@@ -398,6 +409,10 @@ export async function updateSubscription(
         isSubscriptionActive: normalizeBoolean(data.isSubscriptionActive),
         subscriptionStart: normalizeNullableString(data.subscriptionStart),
         subscriptionEnd: normalizeNullableString(data.subscriptionEnd),
+        subscriptionDays:
+          normalizeNumber(data.subscriptionDays) ??
+          data.subscriptionDays ??
+          undefined,
         subscriptionMonths:
           normalizeNumber(data.subscriptionMonths) ??
           data.subscriptionMonths ??
