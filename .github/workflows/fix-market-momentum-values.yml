@@ -1,0 +1,47 @@
+name: Fix market momentum index values
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-market-momentum-values.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch market history normalization
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('backend/services/marketHistory.service.cjs')
+          s = p.read_text(encoding='utf-8-sig')
+
+          old = '''  const hasIndexField =\n    raw.index != null ||\n    raw.marketIndex != null ||\n    raw.indexValue != null ||\n    raw.value != null ||\n    raw.lastIndex != null;\n\n  const index = toFiniteNumber(\n    raw.index ?? raw.marketIndex ?? raw.indexValue ?? raw.value ?? raw.lastIndex,\n    NaN\n  );'''
+          new = '''  // Never treat generic `value` as the overall index. In BRS/TSETMC\n  // payloads `value` may represent market/trade value and can produce\n  // completely invalid multi-session momentum percentages.\n  const hasIndexField =\n    raw.index != null ||\n    raw.marketIndex != null ||\n    raw.indexValue != null ||\n    raw.lastIndex != null;\n\n  const index = toFiniteNumber(\n    raw.index ?? raw.marketIndex ?? raw.indexValue ?? raw.lastIndex,\n    NaN\n  );'''
+          if old not in s:
+              raise SystemExit('Expected normalization block was not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/services/marketHistory.service.cjs
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "fix: prevent market value from being used as index history"
+            git push origin main
+          fi
