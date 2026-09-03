@@ -135,9 +135,9 @@ const getSubscriptionStatus = (
 const getRemainingValidityInfo = (
   user: ManagedUser
 ): { remainingDaysText: string; badgeColor: string } => {
-  const remainingDays = Number(user.subscriptionDays ?? user.remainingDays ?? 0);
+  const remainingDays = Number(user.remainingDays ?? 0);
   if (!Number.isFinite(remainingDays) || remainingDays <= 0) {
-    return { remainingDaysText: 'منقضی شده', badgeColor: 'bg-red-100 text-red-700 dark:bg-red-900\/40 dark:text-red-300' };
+    return { remainingDaysText: 'منقضی شده', badgeColor: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' };
   }
   if (remainingDays <= 7) {
     return { remainingDaysText: `${remainingDays} روز`, badgeColor: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900\/40 dark:text-yellow-300' };
