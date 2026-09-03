@@ -3,6 +3,7 @@ import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import PublicLandingPage from './components/PublicLandingPage';
 import { NotificationProvider } from './components/NotificationSystem';
 
 const rootElement = document.getElementById('root');
@@ -14,10 +15,16 @@ if (!rootElement) {
   );
 }
 
+const isPublicAboutPage = window.location.pathname.replace(/\/+$/, '') === '/about';
+
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-    <NotificationProvider>
-      <App />
-    </NotificationProvider>
+    {isPublicAboutPage ? (
+      <PublicLandingPage />
+    ) : (
+      <NotificationProvider>
+        <App />
+      </NotificationProvider>
+    )}
   </React.StrictMode>
 );
