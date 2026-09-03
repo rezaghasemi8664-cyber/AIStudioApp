@@ -15,7 +15,8 @@ const formatNumber = (value: number | null | undefined) =>
 const formatPercent = (value: number | null | undefined) => {
   if (value == null || !Number.isFinite(Number(value))) return '—';
   const n = Number(value);
-  return `${n > 0 ? '+' : ''}${n.toFixed(2)}٪`;
+  const localized = n.toLocaleString('fa-IR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${n > 0 ? '+' : ''}${localized}٪`;
 };
 
 const percentClass = (value: number | null | undefined) =>
@@ -112,9 +113,6 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
     if (!activeWatchlist || activeWatchlist.symbols.length === 0 || !isOnline) return;
 
     const tradingSession = isTehranTradingSession();
-    // در زمان بازار همه نمادها هر ۲ دقیقه تازه می‌شوند.
-    // خارج از بازار فقط نمادهایی که هنوز Quote ندارند یک‌بار برای دریافت آخرین
-    // اطلاعات موجود از بازار درخواست می‌شوند؛ Quote ذخیره‌شده هرگز خالی نمی‌شود.
     const symbolsToFetch = tradingSession
       ? activeWatchlist.symbols
       : activeWatchlist.symbols.filter(item => !quotes[item.symbol]);
@@ -152,7 +150,6 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
         void refreshQuotes();
         timer = window.setTimeout(schedule, QUOTE_REFRESH_MS);
       } else {
-        // خارج از بازار فقط زمان شروع جلسه بررسی می‌شود و هیچ API بازار فراخوانی نمی‌شود.
         timer = window.setTimeout(schedule, CLOSED_CHECK_MS);
       }
     };
@@ -243,8 +240,6 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
     setSaving(true);
     try {
       const updated = await watchlistService.addSymbolToWatchlist(activeWatchlist.id, validatedSymbol.symbol, validatedSymbol.name);
-      // بلافاصله پس از افزودن نماد، حتی اگر بازار بسته باشد، آخرین اطلاعات
-      // موجود نماد از API دریافت و در همان دیده‌بان ذخیره می‌شود.
       let finalWatchlist = updated;
       try {
         const latestQuote = await watchlistService.getQuote(validatedSymbol.symbol);
