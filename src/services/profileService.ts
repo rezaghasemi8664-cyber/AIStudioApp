@@ -19,13 +19,71 @@ export interface SendMessageInput {
   attachment?: { name: string; data: string; type?: string };
 }
 
+/**
+ * محاسبه تاریخ پایان وقتی سرور تاریخ پایان را ذخیره/ارسال نکرده است.
+ * تاریخ پایان واقعی از «تاریخ شروع + زمان سپری‌شده + روزهای باقیمانده» به دست می‌آید.
+ */
+function calculateSubscriptionEnd(
+  subscriptionStart: unknown,
+  remainingDays: unknown,
+): string | null {
+  const remaining = Number(remainingDays);
+  if (!Number.isFinite(remaining) || remaining < 0) return null;
+
+  const start = subscriptionStart ? new Date(String(subscriptionStart)) : null;
+  if (!start || Number.isNaN(start.getTime())) {
+    if (remaining === 0) return new Date().toISOString();
+    return new Date(Date.now() + remaining * 86400000).toISOString();
+  }
+
+  // با احتساب روزهای سپری‌شده، نتیجه همان تاریخ سررسید واقعی اشتراک است.
+  const elapsedDays = Math.max(
+    0,
+    Math.ceil((Date.now() - start.getTime()) / 86400000),
+  );
+  const end = new Date(start);
+  end.setDate(end.getDate() + elapsedDays + Math.ceil(remaining));
+  return end.toISOString();
+}
+
 /** دریافت وضعیت اشتراک از رکورد واقعی کاربر در دیتابیس */
 export async function getSubscriptionStatus(): Promise<SubscriptionInfo> {
   const res = await get<any>('/auth/subscription');
   if (!res?.success) {
     throw new Error(res?.message || 'دریافت وضعیت اشتراک ناموفق بود');
   }
-  return (res.data || {}) as SubscriptionInfo;
+
+  const data = { ...(res.data || {}) } as SubscriptionInfo & Record<string, any>;
+
+  // اگر API تاریخ پایان را خالی برگرداند، آن را از تاریخ شروع و روزهای
+  // باقیمانده محاسبه می‌کنیم تا در تب پروفایل همیشه تاریخ پایان نمایش داده شود.
+  if (!data.subscriptionEnd) {
+    const calculatedEnd = calculateSubscriptionEnd(
+      data.subscriptionStart,
+      data.remainingDays,
+    );
+    if (calculatedEnd) {
+      data.subscriptionEnd = calculatedEnd;
+    }
+  }
+
+  // در صورت نبود مدت اشتراک، از تاریخ شروع تا تاریخ پایان محاسبه‌شده استفاده کن.
+  if (
+    (!Number.isFinite(Number(data.subscriptionDays)) || Number(data.subscriptionDays) <= 0) &&
+    data.subscriptionStart &&
+    data.subscriptionEnd
+  ) {
+    const start = new Date(data.subscriptionStart);
+    const end = new Date(data.subscriptionEnd);
+    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+      data.subscriptionDays = Math.max(
+        0,
+        Math.ceil((end.getTime() - start.getTime()) / 86400000),
+      );
+    }
+  }
+
+  return data as SubscriptionInfo;
 }
 
 /** alias */
