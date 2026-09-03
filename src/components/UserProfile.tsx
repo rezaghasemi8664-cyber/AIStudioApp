@@ -364,21 +364,31 @@ const UserProfile: React.FC<UserProfileProps> = ({
   const fetchSubscription = async () => {
     setSubscriptionLoading(true);
     try {
+      // منبع اصلی وضعیت اشتراک همان رکورد کاربر در دیتابیس است
+      // که در پنل ادمین نیز برای محاسبه اعتبار استفاده می‌شود.
       const sub = await profileService.getSubscriptionStatus();
       setServerSubscription(sub);
-    } catch (error: any) {
-      // 🔧 v10.1: 404 را به عنوان خطای بحرانی در نظر نگیر
-      const is404 =
-        error?.status === 404 ||
-        error?.response?.status === 404 ||
-        (error?.message && error.message.includes('404'));
-
-      if (is404) {
-        console.warn('[UserProfile] /profile/subscription endpoint not found (404). Using local data.');
-      } else {
-        console.warn('[UserProfile] Could not fetch subscription from server:', error);
+    } catch (error) {
+      console.warn('[UserProfile] دریافت وضعیت اشتراک از سرور ناموفق بود:', error);
+      try {
+        // در صورت خطای endpoint، /auth/me همان رکورد به‌روز کاربر را برمی‌گرداند.
+        const freshUser = await authService.getCurrentUser();
+        if (freshUser) {
+          setServerSubscription({
+            isSubscriptionActive: freshUser.isSubscriptionActive ?? false,
+            subscriptionStart: freshUser.subscriptionStart || null,
+            subscriptionEnd: freshUser.subscriptionEnd || null,
+            subscriptionDays: freshUser.subscriptionDays ?? 0,
+            subscriptionMonths: freshUser.subscriptionMonths ?? 0,
+            analysisLimit: freshUser.analysisLimit ?? freshUser.analysisLimit24h ?? 0,
+            remainingDays: freshUser.remainingDays ?? 0,
+            analysisCount: freshUser.analysisUsed ?? 0,
+          });
+        }
+      } catch (fallbackError) {
+        console.warn('[UserProfile] دریافت اطلاعات جایگزین اشتراک ناموفق بود:', fallbackError);
+        setServerSubscription(null);
       }
-      // Fallback: از داده‌های محلی استفاده می‌شود (serverSubscription = null)
     } finally {
       setSubscriptionLoading(false);
     }
