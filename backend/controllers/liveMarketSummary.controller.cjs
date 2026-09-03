@@ -70,7 +70,7 @@ function snapshotTime(snapshot) {
 }
 
 function snapshotIndex(snapshot, equal = false) {
-  return n(snapshotValue(snapshot, ...(equal ? ['indexEqualWeight', 'index_equalWeight', 'equalIndex', 'equalWeightedValue'] : ['index', 'overallIndex', 'value'])));
+  return n(snapshotValue(snapshot, ...(equal ? ['indexEqualWeight', 'index_equalWeight', 'equalIndex', 'equalWeightedValue'] : ['index', 'overallIndex'])));
 }
 
 function buildTradingSessions(snapshots, liveMarket) {
@@ -93,7 +93,7 @@ function buildTradingSessions(snapshots, liveMarket) {
 }
 
 function calculateMomentum(sessions) {
-  const valid = Array.isArray(sessions) ? sessions.filter(x => snapshotIndex(x.snapshot) !== null || snapshotIndex(x.snapshot, true) !== null) : [];
+  const valid = Array.isArray(sessions) ? sessions.filter(x => snapshotIndex(x.snapshot) !== null && snapshotIndex(x.snapshot, true) !== null) : [];
   if (valid.length < 2) {
     return { available: false, sessions: valid.length, oneDay: null, threeDay: null, fiveDay: null, bias: 'خنثی' };
   }
