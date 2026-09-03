@@ -91,6 +91,7 @@ const SubscriptionCard: React.FC<{
     isSubscriptionActive: currentUser.isSubscriptionActive || false,
     subscriptionStart: currentUser.subscriptionStart || null,
     subscriptionEnd: currentUser.subscriptionEnd || null,
+    subscriptionDays: currentUser.subscriptionDays || currentUser.remainingDays || 0,
     subscriptionMonths: currentUser.subscriptionMonths || 0,
     analysisLimit: currentUser.analysisLimit || currentUser.analysisLimit24h || 0,
     remainingDays: currentUser.remainingDays || 0,
@@ -98,6 +99,7 @@ const SubscriptionCard: React.FC<{
   };
 
   const isActive = subData.isSubscriptionActive;
+  const subscriptionDurationDays = Number((subData as any).subscriptionDays ?? 0) || 0;
 
   const formatDate = (dateStr: string | null): string => {
     if (!dateStr) return '—';
@@ -170,9 +172,7 @@ const SubscriptionCard: React.FC<{
             مدت اشتراک
           </dt>
           <dd className="text-sm">
-            {subData.subscriptionMonths > 0
-              ? `${subData.subscriptionMonths} ماه`
-              : '—'}
+            {subscriptionDurationDays > 0 ? `${subscriptionDurationDays} روز` : '—'}
           </dd>
         </div>
         <div className="flex justify-between py-3 border-b border-[var(--card-border-color)]">
