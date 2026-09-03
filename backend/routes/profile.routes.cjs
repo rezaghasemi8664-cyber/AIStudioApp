@@ -36,6 +36,7 @@ const USER_SELECT = {
   isActive: true,
   roleId: true,
   subscriptionStart: true,
+  subscriptionEnd: true,
   subscriptionMonths: true,
   analysisLimit: true,
   createdAt: true,
@@ -52,21 +53,30 @@ function parseUserId(raw) {
   return s;
 }
 
-function calcRemainingDays(subscriptionStart, subscriptionMonths) {
-  if (!subscriptionStart || !subscriptionMonths || subscriptionMonths <= 0) return 0;
-  var start = new Date(subscriptionStart);
-  var end = new Date(start);
-  end.setMonth(end.getMonth() + subscriptionMonths);
-  var now = new Date();
-  var diffMs = end.getTime() - now.getTime();
-  var diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+function calcRemainingDays(subscriptionStart, subscriptionMonths, subscriptionEnd) {
+  var end = subscriptionEnd ? new Date(subscriptionEnd) : null;
+  if (!end && subscriptionStart && subscriptionMonths > 0) {
+    var startLegacy = new Date(subscriptionStart);
+    end = new Date(startLegacy);
+    end.setMonth(end.getMonth() + subscriptionMonths);
+  }
+  if (!end || isNaN(end.getTime())) return 0;
+  var diffDays = Math.ceil((end.getTime() - Date.now()) / 86400000);
   return diffDays > 0 ? diffDays : 0;
+}
+
+function calcSubscriptionDurationDays(subscriptionStart, subscriptionEnd, subscriptionMonths) {
+  var start = subscriptionStart ? new Date(subscriptionStart) : null;
+  var end = subscriptionEnd ? new Date(subscriptionEnd) : null;
+  if (start && !isNaN(start.getTime()) && end && !isNaN(end.getTime())) return Math.max(0, Math.ceil((end.getTime() - start.getTime()) / 86400000));
+  if (start && !isNaN(start.getTime()) && subscriptionMonths > 0) { var legacyEnd = new Date(start); legacyEnd.setMonth(legacyEnd.getMonth() + subscriptionMonths); return Math.max(0, Math.ceil((legacyEnd.getTime() - start.getTime()) / 86400000)); }
+  return 0;
 }
 
 function formatUserResponse(user) {
   if (!user) return null;
   var nameParts = (user.name || '').trim().split(/\s+/);
-  var remainingDays = calcRemainingDays(user.subscriptionStart, user.subscriptionMonths);
+  var remainingDays = calcRemainingDays(user.subscriptionStart, user.subscriptionMonths, user.subscriptionEnd);
   return {
     id: user.id,
     username: user.username,
@@ -81,6 +91,8 @@ function formatUserResponse(user) {
     roleId: user.roleId,
     isAdmin: (user.Role && user.Role.name === 'ADMIN') || user.roleId === 2,
     subscriptionStart: user.subscriptionStart || null,
+    subscriptionEnd: user.subscriptionEnd || null,
+    subscriptionDays: calcSubscriptionDurationDays(user.subscriptionStart, user.subscriptionEnd, user.subscriptionMonths),
     subscriptionMonths: user.subscriptionMonths || 0,
     analysisLimit: user.analysisLimit || 0,
     remainingDays: remainingDays,
