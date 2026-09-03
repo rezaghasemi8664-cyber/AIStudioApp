@@ -471,6 +471,26 @@ export default function MarketSummaryDashboard({
     );
   }
 
+  if (canonicalContent) {
+    return (
+      <div
+        dir="rtl"
+        className="rounded-[20px] border border-white/10 bg-slate-950/70 p-6"
+        style={{
+          fontFamily:
+            'Vazirmatn, IRANSans, Tahoma, Arial, sans-serif',
+        }}
+      >
+        <div className="text-[18px] font-extrabold text-white">
+          خلاصه بازار
+        </div>
+        <div className="mt-4 whitespace-pre-wrap rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 text-[15px] leading-[2] text-slate-200">
+          {canonicalContent}
+        </div>
+      </div>
+    );
+  }
+
   if (!intelligence) {
     return (
       <div
