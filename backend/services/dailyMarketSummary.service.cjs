@@ -5,7 +5,7 @@ const prisma = require('../config/prisma.cjs');
 
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
 const INTERNAL_PORT = Number(process.env.PORT || 3001);
-const LIVE_ENDPOINT = `http://127.0.0.1:${INTERNAL_PORT}/api/v1/market-summary/latest`;
+const LIVE_ENDPOINT = `http://127.0.0.1:${INTERNAL_PORT}/api/v1/market-summary/live`;
 
 function tehranParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -67,6 +67,42 @@ function toDateOnly(value) {
   return null;
 }
 
+function datePart(value) {
+  const text = String(value || '').trim().replace(/\//g, '-');
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
+}
+
+function isLiveDataForToday(live, expectedGregorian, expectedJalali) {
+  const explicitJalali = normalizeJalali(live.marketDateJalali);
+  if (explicitJalali && explicitJalali !== expectedJalali) return false;
+
+  const candidates = [live.date, live.summaryDate, live.tradingDate, live.marketDate]
+    .map(datePart)
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    // تاریخ ۱۴۰۵-... جلالی است؛ تاریخ ۲۰۲۶-... میلادی است.
+    if (/^1[34]\d{2}-/.test(candidate)) return candidate === expectedJalali;
+    if (/^20\d{2}-/.test(candidate)) return candidate === expectedGregorian;
+  }
+
+  if (explicitJalali) return true;
+
+  const lastUpdate = live.lastUpdate || live.timestamp || live.updatedAt;
+  if (lastUpdate) {
+    const lastUpdateDate = datePart(new Intl.DateTimeFormat('en-CA', {
+      timeZone: TEHRAN_TIMEZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date(lastUpdate)));
+    if (lastUpdateDate === expectedGregorian) return true;
+  }
+
+  return false;
+}
+
 async function generateDailyMarketSummary() {
   const now = new Date();
   const p = tehranParts(now);
@@ -81,9 +117,16 @@ async function generateDailyMarketSummary() {
     return { success: false, generated: false, skipped: true, reason: 'NON_TRADING_DAY' };
   }
 
+  const internalKey = process.env.INTERNAL_API_KEY || process.env.ADMIN_SECRET;
+  if (!internalKey) throw new Error('INTERNAL_API_KEY_NOT_CONFIGURED');
+
   const response = await axios.get(LIVE_ENDPOINT, {
     timeout: 60000,
-    headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
+    headers: {
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+      'x-internal-key': internalKey
+    }
   });
 
   const payload = response?.data;
@@ -94,55 +137,71 @@ async function generateDailyMarketSummary() {
   const live = payload.data;
   const expectedGregorian = todayGregorian();
   const expectedJalali = todayJalali();
-  const liveGregorian = String(live.date || live.summaryDate || '').slice(0, 10);
-  const liveJalali = normalizeJalali(live.marketDateJalali);
 
-  if (liveGregorian !== expectedGregorian || (liveJalali && liveJalali !== expectedJalali)) {
+  if (!isLiveDataForToday(live, expectedGregorian, expectedJalali)) {
     return {
       success: false,
       generated: false,
       skipped: true,
       reason: 'MARKET_DATA_NOT_FOR_TODAY',
-      diagnostics: { expectedGregorian, liveGregorian, expectedJalali, liveJalali }
+      diagnostics: {
+        expectedGregorian,
+        expectedJalali,
+        liveDate: live.date || null,
+        liveSummaryDate: live.summaryDate || null,
+        liveMarketDateJalali: live.marketDateJalali || null
+      }
     };
   }
 
-  const trades = n(live.totalTrades);
-  const volume = n(live.totalVolume);
-  const value = n(live.totalValue);
+  const trades = n(live.totalTrades ?? live.tradeCount ?? live.tno);
+  const volume = n(live.totalVolume ?? live.tradeVolume ?? live.tvol ?? live.volume);
+  const value = n(live.totalValue ?? live.tradeValue ?? live.tval);
   if (!(trades > 0) || !(volume > 0) || !(value > 0)) {
     return { success: false, generated: false, skipped: true, reason: 'NO_TRADING_ACTIVITY' };
   }
 
-  const summaryDate = toDateOnly(live.date || live.summaryDate);
+  // summaryDate همیشه از تاریخ میلادی امروز ساخته می‌شود؛ date موجود در BRS ممکن است جلالی باشد.
+  const summaryDate = toDateOnly(expectedGregorian);
   if (!summaryDate) throw new Error('INVALID_SUMMARY_DATE');
+
+  const content = typeof live.content === 'string' && live.content.trim()
+    ? live.content
+    : typeof live.summary === 'string' && live.summary.trim()
+      ? live.summary
+      : null;
+
+  if (!content) throw new Error('LIVE_MARKET_SUMMARY_CONTENT_UNAVAILABLE');
 
   const dataForDb = {
     date: now,
     summaryDate,
-    overallIndex: n(live.overallIndex),
-    overallChange: n(live.overallChange),
-    equalIndex: n(live.equalIndex),
-    equalChange: n(live.equalChange),
-    marketStatus: String(live.marketStatus || 'closed'),
-    totalTrades: trades === null ? null : BigInt(Math.trunc(trades)),
-    totalVolume: volume === null ? null : BigInt(Math.trunc(volume)),
-    totalValue: value === null ? null : BigInt(Math.trunc(value)),
-    positiveStocks: n(live.positiveStocks),
-    negativeStocks: n(live.negativeStocks),
-    neutralStocks: n(live.neutralStocks),
+    overallIndex: n(live.overallIndex ?? live.index ?? live.value),
+    overallChange: n(live.overallChange ?? live.indexChange ?? live.index_change ?? live.changeValue ?? live.change),
+    equalIndex: n(live.equalIndex ?? live.indexEqualWeight ?? live.index_equalWeight ?? live.equalWeightedValue),
+    equalChange: n(live.equalChange ?? live.indexEqualWeightChange ?? live.index_equalWeight_change ?? live.equalWeightedChangeValue),
+    marketStatus: String(live.marketStatus ?? live.marketState ?? live.state ?? 'closed'),
+    totalTrades: BigInt(Math.trunc(trades)),
+    totalVolume: BigInt(Math.trunc(volume)),
+    totalValue: BigInt(Math.trunc(value)),
+    positiveStocks: n(live.positiveStocks ?? live.positive),
+    negativeStocks: n(live.negativeStocks ?? live.negative),
+    neutralStocks: n(live.neutralStocks ?? live.neutral),
     topGainers: JSON.stringify(live.topGainers || []),
     topLosers: JSON.stringify(live.topLosers || []),
     topVolumes: JSON.stringify(live.topVolumes || []),
-    content: typeof live.content === 'string' ? live.content : typeof live.summary === 'string' ? live.summary : null,
-    summary: typeof live.summary === 'string' ? live.summary : typeof live.content === 'string' ? live.content : null,
+    // همان متن واقعی ۱۴بخشی تولیدشده توسط liveMarketSummary.controller.cjs ذخیره می‌شود.
+    content,
+    summary: content,
     rawJson: JSON.stringify({
       data: live,
       meta: {
-        source: 'daily-market-summary',
+        source: 'live-market-summary-controller',
         generatedAt: now.toISOString(),
         generatedAtTehran: `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`,
-        sourceEndpoint: LIVE_ENDPOINT
+        sourceEndpoint: LIVE_ENDPOINT,
+        jalaliDate: expectedJalali,
+        gregorianDate: expectedGregorian
       }
     })
   };
