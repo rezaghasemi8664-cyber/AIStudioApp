@@ -1,4 +1,4 @@
-﻿import { appApiFetch } from './apiConfigService';
+import { appApiFetch } from './apiConfigService';
 
 type JsonObject = Record<string, unknown>;
 
@@ -369,7 +369,7 @@ const createdAtValue =
   toNullableString(candidate.summaryDate) ??
   new Date().toISOString();
 
-  const content = coalesceStringValue(candidate.content, candidate.summary, rawData?.content, rawData?.summary) ?? buildSummaryText(candidate);
+  const content = coalesceStringValue(candidate.content, candidate.summary, rawData?.content, rawData?.summary);
 
   if (!dateValue || !createdAtValue) return null;
 
