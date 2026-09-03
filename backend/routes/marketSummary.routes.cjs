@@ -1,7 +1,7 @@
 ﻿/**
  * Market Summary Routes
  * Path: routes/marketSummary.routes.cjs
- * Updated: 2026-09-02
+ * Updated: 2026-09-03
  */
 
 'use strict';
@@ -10,7 +10,13 @@ const express = require('express');
 const router = express.Router();
 
 const marketSummaryController = require('../controllers/marketSummary.controller.cjs');
-const liveMarketSummaryController = require('../controllers/liveMarketSummary.controller.cjs');
+const prismaModule = require('../config/prisma.cjs');
+
+function resolvePrismaClient(mod) {
+  return mod?.prisma || mod?.db || mod?.client || mod?.default || mod;
+}
+
+const prisma = resolvePrismaClient(prismaModule);
 
 function resolveMiddleware(mod, names = [], required = true, label = 'middleware') {
   if (typeof mod === 'function') return mod;
@@ -36,6 +42,48 @@ function safeHandler(controller, methodName) {
       return next(err);
     }
   };
+}
+
+function jsonSafe(value) {
+  return JSON.parse(JSON.stringify(value, (_, current) =>
+    typeof current === 'bigint' ? current.toString() : current
+  ));
+}
+
+/**
+ * برای مصرف UI، latest باید آخرین رکورد ذخیره‌شده روزانه باشد؛ نه snapshot زنده.
+ * این endpoint عمداً به liveMarketSummaryController متصل نیست.
+ */
+async function getPersistedLatestMarketSummary(req, res, next) {
+  try {
+    if (!prisma) throw new Error('Prisma client is unavailable.');
+
+    const model = prisma.MarketSummary || prisma.marketSummary;
+    if (!model) throw new Error('MarketSummary model is unavailable.');
+
+    const record = await model.findFirst({
+      orderBy: [{ summaryDate: 'desc' }, { id: 'desc' }]
+    });
+
+    if (!record) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        message: 'هیچ خلاصه بازار ذخیره‌شده‌ای وجود ندارد.'
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: jsonSafe(record),
+      cached: true,
+      sourceType: 'persisted_daily_summary',
+      isStale: false,
+      generatedAt: record.createdAt ? new Date(record.createdAt).toISOString() : null
+    });
+  } catch (err) {
+    return next(err);
+  }
 }
 
 const authenticateModule = require('../middlewares/authenticate.middleware.cjs');
@@ -93,9 +141,9 @@ if (!isFunction(authenticate) || !isFunction(requireAdmin) || !isFunction(option
 
 router.get('/_ping', (req, res) => res.json({ success: true, status: 'ok', service: 'Market Summary Service', timestamp: new Date().toISOString() }));
 
-// IMPORTANT: latest/current must use the live BRS snapshot. Historical routes remain on the original controller.
-router.get('/', optionalAuth, safeHandler(liveMarketSummaryController, 'getLatestMarketSummary'));
-router.get('/latest', optionalAuth, safeHandler(liveMarketSummaryController, 'getLatestMarketSummary'));
+// latest/current برای UI باید آخرین خلاصه روزانه ذخیره‌شده باشد، نه تحلیل زنده.
+router.get('/', optionalAuth, getPersistedLatestMarketSummary);
+router.get('/latest', optionalAuth, getPersistedLatestMarketSummary);
 
 router.get('/history', optionalAuth, safeHandler(marketSummaryController, 'getMarketSummaryHistory'));
 router.get('/dates', optionalAuth, safeHandler(marketSummaryController, 'getAvailableDates'));
