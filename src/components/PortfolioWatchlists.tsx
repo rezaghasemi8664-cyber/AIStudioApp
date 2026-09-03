@@ -93,6 +93,11 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
     try {
       const items = await watchlistService.getWatchlists();
       setWatchlists(items);
+      const cached: Record<string, watchlistService.WatchlistQuote> = {};
+      items.forEach(list => list.symbols.forEach(item => {
+        if (item.quote) cached[item.symbol] = { ...item.quote, symbol: item.symbol, name: item.name };
+      }));
+      setQuotes(cached);
       setActiveId(previous => items.some(item => item.id === previous) ? previous : items[0]?.id || null);
     } catch (error: any) {
       addNotification(error?.response?.data?.message || 'دریافت دیده‌بان‌ها ناموفق بود.', 'error');
@@ -110,11 +115,19 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
     setQuoteLoading(true);
     try {
       const results = await Promise.allSettled(activeWatchlist.symbols.map(item => watchlistService.getQuote(item.symbol)));
-      const next: Record<string, watchlistService.WatchlistQuote> = {};
+      const fresh: watchlistService.WatchlistQuote[] = [];
       results.forEach((result, index) => {
-        if (result.status === 'fulfilled') next[activeWatchlist.symbols[index].symbol] = result.value;
+        if (result.status === 'fulfilled') fresh.push(result.value);
       });
-      setQuotes(next);
+      if (fresh.length > 0) {
+        setQuotes(previous => {
+          const next = { ...previous };
+          fresh.forEach(quote => { next[quote.symbol] = quote; });
+          return next;
+        });
+        const updated = await watchlistService.saveQuotes(activeWatchlist.id, fresh);
+        setWatchlists(previous => previous.map(item => item.id === updated.id ? updated : item));
+      }
     } finally {
       setQuoteLoading(false);
     }
