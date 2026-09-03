@@ -4,6 +4,7 @@ import api from '../api/apiClient';
 export interface WatchlistSymbol {
   symbol: string;
   name: string;
+  quote?: WatchlistQuote | null;
 }
 
 export interface Watchlist {
@@ -99,4 +100,9 @@ export async function getQuote(symbol: string): Promise<WatchlistQuote> {
     closeChangePercent: closeChangePercent ?? (closePrice != null && yesterday ? ((closePrice - yesterday) / yesterday) * 100 : null),
     updatedAt: new Date().toISOString(),
   };
+}
+
+export async function saveQuotes(id: string, quotes: WatchlistQuote[]): Promise<Watchlist> {
+  const response = await api.put(`/watchlist/${encodeURIComponent(id)}/quotes`, { quotes });
+  return unwrap<Watchlist>(response);
 }
