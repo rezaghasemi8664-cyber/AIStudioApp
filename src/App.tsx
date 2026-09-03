@@ -394,7 +394,7 @@ const App: React.FC = () => {
   const handleLogout = useCallback(() => {
     try {
       const user =
-        typeof authService.getCurrentUser === 'function' ? authService.getCurrentUser() : null;
+        typeof authService.getStoredCurrentUser === 'function' ? authService.getStoredCurrentUser() : null;
 
       if (user && typeof authService.removeUserPresence === 'function') {
         authService.removeUserPresence(user.id);
