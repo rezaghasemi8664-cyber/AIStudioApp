@@ -450,7 +450,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
     setViewingMessage(message);
 
     if (!message.readByAdmin) {
-      const updatedMessages = messageService.markAsReadByAdmin(message.id);
+      const updatedMessage = await messageService.markAsReadByAdmin(message.id); const updatedMessages = messages.map(m => m.id === updatedMessage.id ? updatedMessage : m);
       setMessages(updatedMessages);
       onMessageUpdate();
     }
@@ -462,7 +462,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
 
     setReplyLoading(true);
     try {
-      const updatedMessages = messageService.sendReplyToUser(viewingMessage.id, replyText.trim());
+      const updatedMessage = await messageService.sendReplyToUser(viewingMessage.id, replyText.trim()); const updatedMessages = messages.map(m => m.id === updatedMessage.id ? updatedMessage : m);
       setMessages(updatedMessages);
       addNotification('پاسخ با موفقیت برای کاربر ارسال شد.', 'success');
       setViewingMessage(null);
@@ -476,7 +476,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
 
   const handleDeleteAttachment = async (messageId: string) => {
     try {
-      const updatedMessages = messageService.deleteAttachment(messageId);
+      const updatedMessage = await messageService.deleteAttachment(messageId); const updatedMessages = messages.map(m => m.id === updatedMessage.id ? updatedMessage : m);
       setMessages(updatedMessages);
 
       if (viewingMessage) {
