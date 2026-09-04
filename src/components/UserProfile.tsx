@@ -482,8 +482,6 @@ const UserProfile: React.FC<UserProfileProps> = ({
     try {
       if (typeof authService.createGuestUser === 'function') {
         await authService.createGuestUser({
-          username: newGuestUsername.trim(),
-          password: newGuestPassword.trim(),
           validityDays: guestValidityDays,
           firstName: newGuestFirstName.trim() || 'کاربر',
           lastName: newGuestLastName.trim() || 'میهمان',
