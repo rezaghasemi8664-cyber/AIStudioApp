@@ -17,3 +17,8 @@ export async function executeAction<T = unknown>(moduleKey: AdminModuleKey, acti
   const response = await apiClient.post<T>(`/admin-actions/${moduleKey}/${action}`, payload);
   return unwrap(response, 'اجرای عملیات مدیریتی ناموفق بود.');
 }
+
+export async function getMyPermissions(): Promise<string[]> {
+  const response = await apiClient.get<string[]>('/admin-rbac/me/permissions');
+  return unwrap(response, 'دریافت سطح دسترسی کاربر ناموفق بود.');
+}
