@@ -6,50 +6,27 @@ export const getAdminLinks = () => { return []; };
 export const setAdminLinks = (links: any) => { void links; };
 export const publishLinks = () => { /* legacy module-level shim */ };
 
-export interface TseLink { id: string; title: string; url: string; category?: string; }
+export interface TseLink { id: string; title: string; url: string; label: string; href: string; category?: string; }
 const GLOBAL_TSE_LINKS_KEY = 'global_app_tse_links';
 const DEFAULT_TSE_LINKS: TseLink[] = [
-  { id: '1', title: 'شاخص بازار', url: 'http://www.tsetmc.com/service/market/indicator', category: 'market' },
-  { id: '2', title: 'دیده‌بان بازار', url: 'http://www.tsetmc.com/Loader.aspx?ParTree=15', category: 'market' },
-  { id: '3', title: 'کدال', url: 'https://codal.ir', category: 'reports' },
+  { id: '1', title: 'شاخص بازار', label: 'شاخص بازار', url: 'http://www.tsetmc.com/service/market/indicator', href: 'http://www.tsetmc.com/service/market/indicator', category: 'market' },
+  { id: '2', title: 'دیده‌بان بازار', label: 'دیده‌بان بازار', url: 'http://www.tsetmc.com/Loader.aspx?ParTree=15', href: 'http://www.tsetmc.com/Loader.aspx?ParTree=15', category: 'market' },
+  { id: '3', title: 'کدال', label: 'کدال', url: 'https://codal.ir', href: 'https://codal.ir', category: 'reports' },
 ];
 function normalizeLinks(input: any): TseLink[] {
   if (!Array.isArray(input)) return [];
-  return input.map((item, index) => ({ id: String(item?.id ?? `${Date.now()}-${index}`), title: String(item?.title ?? item?.label ?? '').trim(), url: String(item?.url ?? item?.href ?? '').trim(), category: item?.category ? String(item.category) : undefined })).filter(x => x.title && x.url);
+  return input.map((item, index) => { const url = String(item?.url ?? item?.href ?? '').trim(); const title = String(item?.title ?? item?.label ?? '').trim(); return { id: String(item?.id ?? `${Date.now()}-${index}`), title, label: String(item?.label ?? title), url, href: String(item?.href ?? url), category: item?.category ? String(item.category) : undefined }; }).filter(x => x.title && x.url);
 }
-function withDefaultIds(links: TseLink[]): TseLink[] { return links.map((l, i) => ({ ...l, id: l.id || `${Date.now()}-${i}` })); }
+function withDefaultIds(links: TseLink[]): TseLink[] { return links.map((l, i) => ({ ...l, id: l.id || `${Date.now()}-${i}`, label: l.label || l.title, href: l.href || l.url })); }
 async function getGlobalLinksSetting(): Promise<TseLink[] | null> {
-  try {
-    const res = await apiClient.get<any>(`/settings/global/links/${GLOBAL_TSE_LINKS_KEY}`);
-    const responseData: any = res?.data;
-    const payload = responseData?.value ?? responseData?.data ?? responseData ?? null;
-    const links = withDefaultIds(normalizeLinks(payload));
-    return links.length ? links : null;
-  } catch { return null; }
+  try { const res = await apiClient.get<any>(`/settings/global/links/${GLOBAL_TSE_LINKS_KEY}`); const responseData: any = res?.data; const payload = responseData?.value ?? responseData?.data ?? responseData ?? null; const links = withDefaultIds(normalizeLinks(payload)); return links.length ? links : null; } catch { return null; }
 }
-async function setGlobalLinksSetting(links: TseLink[]): Promise<TseLink[]> {
-  const normalized = withDefaultIds(normalizeLinks(links));
-  await apiClient.put(`/settings/global/links/${GLOBAL_TSE_LINKS_KEY}`, { value: normalized });
-  return normalized;
-}
+async function setGlobalLinksSetting(links: TseLink[]): Promise<TseLink[]> { const normalized = withDefaultIds(normalizeLinks(links)); await apiClient.put(`/settings/global/links/${GLOBAL_TSE_LINKS_KEY}`, { value: normalized }); return normalized; }
 class UIConfigService {
-  private adminLinksCache: TseLink[] | null = null;
-  private published = false;
-  async initializeTseLinks(): Promise<void> {
-    const serverLinks = await getGlobalLinksSetting();
-    if (serverLinks?.length) { this.adminLinksCache = serverLinks; this.published = true; }
-    else { this.adminLinksCache = [...DEFAULT_TSE_LINKS]; this.published = false; }
-  }
-  async getLinksForDisplay(): Promise<TseLink[]> {
-    const serverLinks = await getGlobalLinksSetting();
-    return serverLinks?.length ? serverLinks : [...DEFAULT_TSE_LINKS];
-  }
-  async getAdminLinks(): Promise<TseLink[]> {
-    if (this.adminLinksCache?.length) return this.adminLinksCache;
-    const serverLinks = await getGlobalLinksSetting();
-    if (serverLinks?.length) { this.adminLinksCache = serverLinks; this.published = true; return serverLinks; }
-    this.adminLinksCache = [...DEFAULT_TSE_LINKS]; this.published = false; return this.adminLinksCache;
-  }
+  private adminLinksCache: TseLink[] | null = null; private published = false;
+  async initializeTseLinks(): Promise<void> { const serverLinks = await getGlobalLinksSetting(); if (serverLinks?.length) { this.adminLinksCache = serverLinks; this.published = true; } else { this.adminLinksCache = [...DEFAULT_TSE_LINKS]; this.published = false; } }
+  async getLinksForDisplay(): Promise<TseLink[]> { const serverLinks = await getGlobalLinksSetting(); return serverLinks?.length ? serverLinks : [...DEFAULT_TSE_LINKS]; }
+  async getAdminLinks(): Promise<TseLink[]> { if (this.adminLinksCache?.length) return this.adminLinksCache; const serverLinks = await getGlobalLinksSetting(); if (serverLinks?.length) { this.adminLinksCache = serverLinks; this.published = true; return serverLinks; } this.adminLinksCache = [...DEFAULT_TSE_LINKS]; this.published = false; return this.adminLinksCache; }
   async setAdminLinks(links: TseLink[]): Promise<TseLink[]> { const normalized = withDefaultIds(normalizeLinks(links)); this.adminLinksCache = normalized; this.published = false; return normalized; }
   async publishLinks(): Promise<{ success: boolean; links: TseLink[] }> { const toPublish = this.adminLinksCache?.length ? this.adminLinksCache : [...DEFAULT_TSE_LINKS]; const saved = await setGlobalLinksSetting(toPublish); this.adminLinksCache = saved; this.published = true; return { success: true, links: saved }; }
   async revertGlobalLinks(): Promise<TseLink[]> { const serverLinks = await getGlobalLinksSetting(); if (serverLinks?.length) { this.adminLinksCache = serverLinks; this.published = true; return serverLinks; } this.adminLinksCache = [...DEFAULT_TSE_LINKS]; this.published = false; return this.adminLinksCache; }
