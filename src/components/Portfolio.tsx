@@ -269,7 +269,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onAlertChange, currentUser, isOnl
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl p-6 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
           <div className="flex justify-between items-center mb-5"><h3 className="font-bold text-lg">تحلیل و بهینه‌سازی سبد</h3><button onClick={() => setOptimizationResult(null)}><XMarkIcon className="h-5 w-5" /></button></div>
           <p className="leading-7 mb-5 whitespace-pre-wrap">{optimizationResult.summary}</p>
-          <div className="space-y-3">{optimizationResult.suggestions.map(s => <div key={`${s.symbol}-${s.action}`} className="p-3 border-r-4 border-cyan-500 rounded bg-gray-50 dark:bg-gray-700/40"><div className="flex justify-between"><span className="font-bold text-cyan-600">{s.symbol}</span><span className="font-semibold">{s.action === 'INCREASE' ? 'افزایش' : s.action === 'DECREASE' ? 'کاهش' : s.action === 'SELL' ? 'فروش کامل' : 'نگهداری'}</span></div><p className="text-sm mt-1">{s.reason}</p></div>)}</div>
+          <div className="space-y-3">{(optimizationResult.suggestions ?? []).map(s => <div key={`${s.symbol}-${s.action}`} className="p-3 border-r-4 border-cyan-500 rounded bg-gray-50 dark:bg-gray-700/40"><div className="flex justify-between"><span className="font-bold text-cyan-600">{s.symbol}</span><span className="font-semibold">{s.action === 'INCREASE' ? 'افزایش' : s.action === 'DECREASE' ? 'کاهش' : s.action === 'SELL' ? 'فروش کامل' : 'نگهداری'}</span></div><p className="text-sm mt-1">{s.reason}</p></div>)}</div>
         </div>
       </div>}
     </div>
