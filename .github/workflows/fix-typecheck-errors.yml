@@ -42,7 +42,8 @@ jobs:
 
           def market(s):
               s = s.replace("${valueColor[tone]}", "${valueColor[tone ?? 'default']}", 1)
-              s = s.replace("tone={regimeTone}", "tone={regimeTone === 'default' ? 'neutral' : regimeTone}", 1)
+              # regimeTone is already narrowed to the StatusBadge-supported tones;
+              # do not compare it with the removed 'default' tone.
               return s
 
           def stock(s):
