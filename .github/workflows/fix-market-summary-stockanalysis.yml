@@ -20,103 +20,86 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Patch StockAnalysis
+      - name: Patch remaining TypeScript errors
         shell: python
         run: |
           from pathlib import Path
-          import re
 
+          # MarketSummaryDashboard: keep toneFromValue's neutral value compatible
+          # with StatusBadge/KpiCard instead of asserting an invalid default tone.
+          p = Path('src/components/MarketSummaryDashboard.tsx')
+          s = p.read_text(encoding='utf-8-sig')
+          s = s.replace(
+              "const currentTone = tone ?? toneFromValue(value) as 'info' | 'warning' | 'default' | 'positive' | 'negative';",
+              "const currentTone: 'positive' | 'negative' | 'warning' | 'neutral' | 'info' = tone ?? toneFromValue(value);",
+          )
+          s = s.replace(
+              "const regimeTone = toneFromValue(r.state) as 'info' | 'warning' | 'default' | 'positive' | 'negative';",
+              "const regimeTone: 'info' | 'warning' | 'neutral' | 'positive' | 'negative' = toneFromValue(r.state);",
+          )
+          s = s.replace(
+              "tone={toneFromValue(l.label) as 'info' | 'warning' | 'default' | 'positive' | 'negative'}",
+              "tone={toneFromValue(l.label)}",
+          )
+          s = s.replace(
+              "tone={toneFromValue(f.state) as 'info' | 'warning' | 'default' | 'positive' | 'negative'}",
+              "tone={toneFromValue(f.state)}",
+          )
+          s = s.replace(
+              "tone={toneFromValue(m.state) as 'info' | 'warning' | 'default' | 'positive' | 'negative'}",
+              "tone={toneFromValue(m.state)}",
+          )
+          s = s.replace(
+              "tone={toneFromValue(risk.state) as 'info' | 'warning' | 'default' | 'positive' | 'negative'}",
+              "tone={toneFromValue(risk.state)}",
+          )
+          s = s.replace(
+              "tone={toneFromValue(actionBias) as 'info' | 'warning' | 'default' | 'positive' | 'negative'}",
+              "tone={toneFromValue(actionBias)}",
+          )
+          s = s.replace(
+              "tone={toneFromValue(action.risk) as 'info' | 'warning' | 'default' | 'positive' | 'negative'}",
+              "tone={toneFromValue(action.risk)}",
+          )
+          p.write_text(s, encoding='utf-8')
+
+          # StockAnalysis: normalize nullable breakdown values, use the supported
+          # MarketIcon prop, and stop reading a non-existent history item summary.
           p = Path('src/components/StockAnalysis.tsx')
           s = p.read_text(encoding='utf-8-sig')
-
-          pattern = re.compile(
-              r"  useEffect\(\(\) => \{\n"
-              r"    if \(activeTab !== 'marketSummary'\) return;\n\n"
-              r"    let isMounted = true;\n\n"
-              r"    const loadMarketSummary = async \(\) => \{.*?"
-              r"    return \(\) => \{\n"
-              r"      isMounted = false;\n"
-              r"    \};\n"
-              r"  \}, \[activeTab\]\);",
-              re.S,
+          s = s.replace(
+              "return { inflow, outflow, net };",
+              "return { inflow: inflow ?? 0, outflow: outflow ?? 0, net: net ?? 0 };",
           )
-
-          replacement = '''  useEffect(() => {
-    if (activeTab !== 'marketSummary') return;
-
-    let isMounted = true;
-
-    const loadMarketSummary = async () => {
-      setIsLoadingMarketSummaryHistory(true);
-
-      try {
-        const [latest, history] = await Promise.all([
-          fetchMarketSummary(),
-          fetchMarketSummaryHistory(),
-        ]);
-
-        if (!isMounted) return;
-
-        setMarketSummaryHistory(history);
-
-        // The main tab must show the live/latest summary. Historical
-        // snapshots are shown only after the user explicitly selects one.
-        if (latest?.content?.trim()) {
-          setMarketSummary(latest);
-          setSelectedMarketSummaryId(null);
-        } else if (selectedMarketSummaryId !== null) {
-          const selected = history.find((item) => item.id === selectedMarketSummaryId);
-          if (selected) {
-            setMarketSummary(selected);
-          } else {
-            setSelectedMarketSummaryId(null);
-            setMarketSummary(null);
-          }
-        } else {
-          setMarketSummary(null);
-        }
-
-        setHasUnreadMarketSummary(false);
-      } catch (error) {
-        console.error('[MarketSummary] failed to load latest/history:', error);
-      } finally {
-        if (isMounted) setIsLoadingMarketSummaryHistory(false);
-      }
-    };
-
-    void loadMarketSummary();
-
-    const interval = window.setInterval(() => {
-      void loadMarketSummary();
-    }, 30000);
-
-    return () => {
-      isMounted = false;
-      window.clearInterval(interval);
-    };
-  }, [activeTab]);'''
-
-          s, count = pattern.subn(replacement, s, count=1)
-          if count != 1:
-              raise SystemExit('Target market summary effect not found exactly once')
-
+          s = s.replace('<MarketIcon className="h-4 w-4" />', '<MarketIcon size={16} />')
+          s = s.replace(
+              "item.result?.summary ??\n                        item.summary ??\n                        'تحلیل ذخیره شده'",
+              "item.result?.summary ?? 'تحلیل ذخیره شده'",
+          )
           p.write_text(s, encoding='utf-8')
-          print('StockAnalysis.tsx patched')
 
-      - name: Verify frontend build
+          # adminService already normalizes create/update passwords to a required string.
+          p = Path('src/services/adminService.ts')
+          s = p.read_text(encoding='utf-8-sig')
+          s = s.replace("password: normalizeString(payload.password),", "password: normalizeString(payload.password) || '',")
+          p.write_text(s, encoding='utf-8')
+          print('Targeted TypeScript fixes applied')
+
+      - name: Verify typecheck and frontend build
         run: |
           npm ci
+          npm run typecheck
           npm run build
 
-      - name: Commit frontend fix
+      - name: Commit frontend fixes
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/components/StockAnalysis.tsx
+          git add src/components/MarketSummaryDashboard.tsx src/components/StockAnalysis.tsx src/services/adminService.ts
           if git diff --cached --quiet; then
             echo "No source changes"
             exit 0
           fi
-          git commit -m "fix: show live latest market summary in main tab"
+          git commit -m "fix: resolve remaining TypeScript errors"
           git push origin main
