@@ -1,5 +1,5 @@
 import React from 'react';
-import AdminPanel from './AdminPanel';
+import AdminPanelV2 from './AdminPanelV2';
 
 interface UserManagementProps {
   isOnline: boolean;
@@ -7,13 +7,7 @@ interface UserManagementProps {
   onlineCount: number;
 }
 
-/**
- * Backward-compatible entry point for the existing admin tab.
- * The old user-management implementation lives in UserManagementLegacy
- * and is embedded by the new centralized administration panel.
- */
-const UserManagement: React.FC<UserManagementProps> = (props) => {
-  return <AdminPanel {...props} />;
-};
+/** Centralized administration entry point. */
+const UserManagement: React.FC<UserManagementProps> = (props) => <AdminPanelV2 {...props} />;
 
 export default UserManagement;
