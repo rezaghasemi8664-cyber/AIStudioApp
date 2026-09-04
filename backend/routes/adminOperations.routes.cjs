@@ -1,96 +1,172 @@
-'use strict';
-
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
-const auth = require('../middlewares/auth.middleware.cjs');
+const { prisma } = require('../config/prisma.cjs');
+const authMiddleware = require('../middlewares/auth.middleware.cjs');
+
 const router = express.Router();
-const prisma = new PrismaClient();
 
-const MODULES = {
-  dashboard: 'داشبورد مدیریتی', users: 'مدیریت کاربران', subscriptions: 'اشتراک‌ها و اعتبار', analysis: 'مدیریت تحلیل‌ها',
-  market: 'مدیریت بازار', scalping: 'نوسان‌گیری', ai: 'هوش مصنوعی', prompts: 'مدیریت پرامپت‌ها', history: 'تاریخچه تحلیل‌ها',
-  notifications: 'اطلاع‌رسانی', monitoring: 'مانیتورینگ سیستم', reports: 'گزارش‌ها', security: 'امنیت و دسترسی', settings: 'تنظیمات سامانه',
-  maintenance: 'حالت تعمیرات', updates: 'بروزرسانی و استقرار', backup: 'پشتیبان‌گیری و بازیابی', payments: 'پرداخت‌ها و تراکنش‌ها',
-  roles: 'نقش‌ها و مجوزها', audit: 'گزارش Audit Log', sessions: 'مدیریت نشست‌ها', api: 'سرویس‌ها و APIها', infrastructure: 'سلامت زیرساخت'
-};
+const MODULES = [
+  ['dashboard','داشبورد مدیریتی'],['users','مدیریت کاربران'],['subscriptions','اشتراک‌ها و اعتبار'],['analysis','مدیریت تحلیل‌ها'],['market','مدیریت بازار'],['scalping','نوسان‌گیری'],['ai','هوش مصنوعی'],['prompts','مدیریت پرامپت‌ها'],['history','تاریخچه تحلیل‌ها'],['notifications','اطلاع‌رسانی'],['monitoring','مانیتورینگ سیستم'],['reports','گزارش‌ها'],['security','امنیت و دسترسی'],['settings','تنظیمات سامانه'],['maintenance','حالت تعمیرات'],['updates','بروزرسانی و استقرار'],['backup','پشتیبان‌گیری و بازیابی'],['payments','پرداخت‌ها و تراکنش‌ها'],['roles','نقش‌ها و مجوزها'],['audit','گزارش Audit Log'],['sessions','مدیریت نشست‌ها'],['api','سرویس‌ها و APIها'],['infrastructure','سلامت زیرساخت']
+].map(([key,title]) => ({ key, title }));
 
-const uid = (req) => Number(req.user?.id || req.user?.userId) || null;
-const fail = (res, status, message) => res.status(status).json({ success: false, message });
+let tablesReady = false;
 
 async function ensureTables() {
-  await prisma.$executeRawUnsafe(`IF OBJECT_ID(N'dbo.AdminControlRecord', N'U') IS NULL CREATE TABLE dbo.AdminControlRecord (id INT IDENTITY(1,1) PRIMARY KEY,moduleKey NVARCHAR(50) NOT NULL UNIQUE,title NVARCHAR(200) NOT NULL,enabled BIT NOT NULL DEFAULT 1,configJson NVARCHAR(MAX) NULL,version INT NOT NULL DEFAULT 1,updatedBy INT NULL,createdAt DATETIME2 NOT NULL DEFAULT SYSDATETIME(),updatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME());`);
-  await prisma.$executeRawUnsafe(`IF OBJECT_ID(N'dbo.AdminAuditLog', N'U') IS NULL CREATE TABLE dbo.AdminAuditLog (id BIGINT IDENTITY(1,1) PRIMARY KEY,adminUserId INT NULL,action NVARCHAR(100) NOT NULL,moduleKey NVARCHAR(50) NULL,targetId NVARCHAR(100) NULL,method NVARCHAR(10) NULL,path NVARCHAR(500) NULL,statusCode INT NULL,ipAddress NVARCHAR(100) NULL,userAgent NVARCHAR(500) NULL,detailsJson NVARCHAR(MAX) NULL,createdAt DATETIME2 NOT NULL DEFAULT SYSDATETIME());`);
+  if (tablesReady) return;
+  await prisma.$executeRawUnsafe(`
+    IF OBJECT_ID(N'dbo.AdminControlRecord', N'U') IS NULL
+    BEGIN
+      CREATE TABLE dbo.AdminControlRecord (
+        id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        moduleKey NVARCHAR(80) NOT NULL UNIQUE,
+        enabled BIT NOT NULL CONSTRAINT DF_AdminControlRecord_enabled DEFAULT 1,
+        version INT NOT NULL CONSTRAINT DF_AdminControlRecord_version DEFAULT 1,
+        config NVARCHAR(MAX) NOT NULL CONSTRAINT DF_AdminControlRecord_config DEFAULT N'{}',
+        createdAt DATETIME2 NOT NULL CONSTRAINT DF_AdminControlRecord_createdAt DEFAULT SYSUTCDATETIME(),
+        updatedAt DATETIME2 NOT NULL CONSTRAINT DF_AdminControlRecord_updatedAt DEFAULT SYSUTCDATETIME()
+      );
+    END
+  `);
+  await prisma.$executeRawUnsafe(`
+    IF OBJECT_ID(N'dbo.AdminAuditLog', N'U') IS NULL
+    BEGIN
+      CREATE TABLE dbo.AdminAuditLog (
+        id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        adminUserId INT NULL,
+        action NVARCHAR(120) NOT NULL,
+        moduleKey NVARCHAR(80) NULL,
+        method NVARCHAR(12) NULL,
+        path NVARCHAR(500) NULL,
+        statusCode INT NULL,
+        ip NVARCHAR(80) NULL,
+        userAgent NVARCHAR(500) NULL,
+        details NVARCHAR(MAX) NULL,
+        createdAt DATETIME2 NOT NULL CONSTRAINT DF_AdminAuditLog_createdAt DEFAULT SYSUTCDATETIME()
+      );
+    END
+  `);
+  tablesReady = true;
 }
 
-async function audit(req, action, moduleKey, details, statusCode = 200) {
+function getUserId(req) {
+  return Number(req.user?.id ?? req.user?.userId ?? 0) || null;
+}
+
+function isAdmin(req) {
+  const u = req.user || {};
+  if (u.isAdmin === true || u.role === 'admin' || u.role === 'ADMIN') return true;
+  const roles = Array.isArray(u.roles) ? u.roles : [];
+  return roles.some((r) => String(typeof r === 'string' ? r : r?.name).toLowerCase() === 'admin');
+}
+
+function requireAdmin(req, res, next) {
+  if (!isAdmin(req)) return res.status(403).json({ success: false, message: 'دسترسی فقط برای مدیر سامانه مجاز است.' });
+  next();
+}
+
+async function audit(req, action, moduleKey, statusCode, details = null) {
   try {
-    await ensureTables();
-    await prisma.$executeRawUnsafe(`INSERT INTO dbo.AdminAuditLog(adminUserId,action,moduleKey,method,path,statusCode,ipAddress,userAgent,detailsJson) VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9)`, uid(req), action, moduleKey, req.method, req.originalUrl, statusCode, req.ip || null, String(req.get('user-agent') || '').slice(0,500), details ? JSON.stringify(details) : null);
-  } catch (e) { console.error('[ADMIN-OPS-AUDIT]', e.message); }
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO dbo.AdminAuditLog (adminUserId, action, moduleKey, method, path, statusCode, ip, userAgent, details) VALUES (@p0,@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8)`,
+      getUserId(req), action, moduleKey, req.method, req.originalUrl, statusCode,
+      req.ip || null, String(req.get('user-agent') || '').slice(0, 500), details ? JSON.stringify(details) : null
+    );
+  } catch (e) {
+    console.error('[admin-ops] audit failed:', e.message);
+  }
 }
 
-async function requireAdmin(req, res, next) {
-  const id = uid(req);
-  if (!id) return fail(res, 401, 'احراز هویت الزامی است.');
-  try {
-    const user = await prisma.user.findUnique({ where: { id }, include: { Role: true } });
-    const role = String(user?.Role?.name || '').toLowerCase();
-    if (!user || (!user.Role) || (role !== 'admin' && role !== 'superadmin' && user.roleId !== 1)) return fail(res, 403, 'این عملیات فقط برای ادمین مجاز است.');
-    req.adminUser = user;
-    next();
-  } catch (e) { console.error('[ADMIN-OPS-AUTH]', e.message); return fail(res, 500, 'خطا در بررسی دسترسی ادمین.'); }
+function validConfig(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-router.use(auth, requireAdmin);
-
-async function getControl(key) {
+async function getControl(moduleKey) {
   await ensureTables();
-  const rows = await prisma.$queryRawUnsafe(`SELECT TOP 1 id,moduleKey,title,enabled,configJson,version,updatedBy,createdAt,updatedAt FROM dbo.AdminControlRecord WHERE moduleKey=@p1`, key);
-  if (!rows.length) return null;
-  const r = rows[0];
-  let config = {};
-  try { config = r.configJson ? JSON.parse(r.configJson) : {}; } catch { config = {}; }
-  return { ...r, config };
+  const rows = await prisma.$queryRawUnsafe(`SELECT TOP 1 id,moduleKey,enabled,version,config,createdAt,updatedAt FROM dbo.AdminControlRecord WHERE moduleKey=@p0`, moduleKey);
+  if (rows[0]) {
+    let config = {};
+    try { config = JSON.parse(rows[0].config || '{}'); } catch (_) {}
+    return { ...rows[0], enabled: Boolean(rows[0].enabled), config };
+  }
+  await prisma.$executeRawUnsafe(`INSERT INTO dbo.AdminControlRecord (moduleKey) VALUES (@p0)`, moduleKey);
+  return { id: null, moduleKey, enabled: true, version: 1, config: {}, createdAt: null, updatedAt: null };
 }
 
-async function overview(key) {
-  const control = await getControl(key);
+async function countModel(model, where) {
+  try { return await prisma[model].count(where ? { where } : undefined); } catch (_) { return 0; }
+}
+
+async function countsFor(moduleKey) {
   const counts = {};
-  if (key === 'users') counts.total = await prisma.user.count({ where: { isDeleted: false } });
-  if (key === 'subscriptions') counts.active = await prisma.user.count({ where: { isDeleted: false, isActive: true, subscriptionEnd: { gt: new Date() } } });
-  if (key === 'analysis' || key === 'history') counts.total = await prisma.analysisHistory.count();
-  if (key === 'market') { counts.marketHistory = await prisma.marketHistory.count(); counts.daily = await prisma.marketDaily.count(); counts.summary = await prisma.marketSummary.count(); }
-  if (key === 'scalping') { counts.runs = await prisma.scalpingRun.count(); counts.opportunities = await prisma.scalpingOpportunity.count(); }
-  if (key === 'notifications') counts.total = await prisma.notification.count();
-  if (key === 'sessions' || key === 'security') counts.total = await prisma.session.count();
-  if (key === 'roles') { counts.roles = await prisma.role.count(); counts.permissions = await prisma.permission.count(); }
-  if (key === 'api') counts.keys = await prisma.apiKey.count({ where: { isRevoked: false } });
-  if (key === 'audit') { await ensureTables(); const r = await prisma.$queryRawUnsafe(`SELECT COUNT_BIG(*) AS total FROM dbo.AdminAuditLog`); counts.total = Number(r[0]?.total || 0); }
-  return { moduleKey: key, title: MODULES[key], enabled: control?.enabled ?? true, version: control?.version ?? 1, config: control?.config ?? {}, counts };
-}
-
-for (const key of Object.keys(MODULES)) {
-  router.get(`/${key}`, async (req, res) => {
-    try { return res.json({ success: true, data: await overview(key) }); }
-    catch (e) { console.error(`[ADMIN-OPS] GET /${key}`, e.message); await audit(req, 'READ_MODULE', key, { error: e.message }, 500); return fail(res, 500, `خطا در دریافت ${MODULES[key]}.`); }
-  });
-
-  router.put(`/${key}/config`, async (req, res) => {
-    const body = req.body || {};
-    if (body.enabled !== undefined && typeof body.enabled !== 'boolean') return fail(res, 400, 'فیلد فعال باید boolean باشد.');
-    if (body.config !== undefined && (!body.config || typeof body.config !== 'object' || Array.isArray(body.config))) return fail(res, 400, 'تنظیمات باید یک شیء JSON معتبر باشد.');
+  if (moduleKey === 'users' || moduleKey === 'subscriptions' || moduleKey === 'dashboard') {
+    counts.users = await countModel('user');
+  }
+  if (moduleKey === 'subscriptions' || moduleKey === 'dashboard') {
     try {
-      const current = await getControl(key);
-      if (!current) return fail(res, 404, 'ماژول یافت نشد.');
-      const enabled = body.enabled === undefined ? current.enabled : body.enabled;
-      const config = body.config === undefined ? current.config : body.config;
-      await prisma.$executeRawUnsafe(`UPDATE dbo.AdminControlRecord SET enabled=@p1,configJson=@p2,version=version+1,updatedBy=@p3,updatedAt=SYSDATETIME() WHERE moduleKey=@p4`, enabled, JSON.stringify(config), uid(req), key);
-      await audit(req, 'UPDATE_MODULE_CONFIG', key, { enabled, config });
-      return res.json({ success: true, message: 'تنظیمات با موفقیت ذخیره شد.', data: await overview(key) });
-    } catch (e) { console.error(`[ADMIN-OPS] PUT /${key}/config`, e.message); await audit(req, 'UPDATE_MODULE_CONFIG', key, { error: e.message }, 500); return fail(res, 500, 'ذخیره تنظیمات ناموفق بود.'); }
-  });
+      counts.activeSubscriptions = await prisma.user.count({ where: { isActive: true, subscriptionEnd: { gte: new Date() } } });
+    } catch (_) { counts.activeSubscriptions = 0; }
+  }
+  if (moduleKey === 'analysis' || moduleKey === 'history' || moduleKey === 'dashboard') counts.analyses = await countModel('analysisHistory');
+  if (moduleKey === 'market') {
+    counts.marketHistory = await countModel('marketHistory');
+    counts.marketDaily = await countModel('marketDaily');
+    counts.marketSummary = await countModel('marketSummary');
+  }
+  if (moduleKey === 'scalping') {
+    counts.scalpingRuns = await countModel('scalpingRun');
+    counts.opportunities = await countModel('scalpingOpportunity');
+  }
+  if (moduleKey === 'notifications') counts.notifications = await countModel('notification');
+  if (moduleKey === 'sessions' || moduleKey === 'security') counts.sessions = await countModel('session');
+  if (moduleKey === 'roles') {
+    counts.roles = await countModel('role');
+    counts.permissions = await countModel('permission');
+  }
+  if (moduleKey === 'api') counts.apiKeys = await countModel('apiKey');
+  if (moduleKey === 'audit') {
+    await ensureTables();
+    const rows = await prisma.$queryRawUnsafe(`SELECT COUNT_BIG(*) AS total FROM dbo.AdminAuditLog`);
+    counts.total = Number(rows[0]?.total || 0);
+  }
+  return counts;
 }
 
-router.get('/_catalog/list', async (req, res) => res.json({ success: true, data: Object.entries(MODULES).map(([key, title]) => ({ key, title, endpoint: `/api/v1/admin-ops/${key}` })) }));
+async function overview(req, res) {
+  const moduleKey = req.params.key;
+  const item = MODULES.find((m) => m.key === moduleKey);
+  if (!item) return res.status(404).json({ success: false, message: 'ماژول مدیریتی پیدا نشد.' });
+  try {
+    const control = await getControl(moduleKey);
+    const counts = await countsFor(moduleKey);
+    return res.json({ success: true, data: { moduleKey, title: item.title, enabled: control.enabled, version: control.version, config: control.config, counts } });
+  } catch (error) {
+    await audit(req, 'VIEW_MODULE_ERROR', moduleKey, 500, { error: error.message });
+    return res.status(500).json({ success: false, message: 'دریافت اطلاعات ماژول ناموفق بود.' });
+  }
+}
+
+async function saveConfig(req, res) {
+  const moduleKey = req.params.key;
+  const item = MODULES.find((m) => m.key === moduleKey);
+  if (!item) return res.status(404).json({ success: false, message: 'ماژول مدیریتی پیدا نشد.' });
+  const { enabled, config } = req.body || {};
+  if (typeof enabled !== 'boolean') return res.status(400).json({ success: false, message: 'مقدار فعال/غیرفعال نامعتبر است.' });
+  if (!validConfig(config)) return res.status(400).json({ success: false, message: 'تنظیمات باید یک شیء JSON معتبر باشد.' });
+  try {
+    const current = await getControl(moduleKey);
+    const version = Number(current.version || 0) + 1;
+    await prisma.$executeRawUnsafe(`UPDATE dbo.AdminControlRecord SET enabled=@p0,version=@p1,config=@p2,updatedAt=SYSUTCDATETIME() WHERE moduleKey=@p3`, enabled ? 1 : 0, version, JSON.stringify(config), moduleKey);
+    await audit(req, 'UPDATE_MODULE_CONFIG', moduleKey, 200, { enabled, version });
+    return overview(req, res);
+  } catch (error) {
+    await audit(req, 'UPDATE_MODULE_CONFIG_ERROR', moduleKey, 500, { error: error.message });
+    return res.status(500).json({ success: false, message: 'ذخیره تنظیمات ماژول ناموفق بود.' });
+  }
+}
+
+router.use(authMiddleware);
+router.use(requireAdmin);
+router.get('/_catalog/list', async (_req, res) => res.json({ success: true, data: MODULES }));
+router.get('/:key', overview);
+router.put('/:key/config', saveConfig);
 
 module.exports = router;
