@@ -10,135 +10,27 @@ const MODULES = [
   'dashboard','users','subscriptions','analysis','market','scalping','ai','prompts','history','notifications',
   'monitoring','reports','security','settings','maintenance','updates','backup','payments','roles','audit','sessions','api','infrastructure'
 ];
-
 const MODULE_TITLES = {
-  dashboard:'داشبورد مدیریتی', users:'مدیریت کاربران', subscriptions:'اشتراک‌ها و اعتبار', analysis:'مدیریت تحلیل‌ها',
-  market:'مدیریت بازار', scalping:'نوسان‌گیری', ai:'هوش مصنوعی', prompts:'مدیریت پرامپت‌ها', history:'تاریخچه تحلیل‌ها',
-  notifications:'اطلاع‌رسانی', monitoring:'مانیتورینگ سیستم', reports:'گزارش‌ها', security:'امنیت و دسترسی', settings:'تنظیمات سامانه',
-  maintenance:'حالت تعمیرات', updates:'بروزرسانی و استقرار', backup:'پشتیبان‌گیری و بازیابی', payments:'پرداخت‌ها و تراکنش‌ها',
-  roles:'نقش‌ها و مجوزها', audit:'گزارش Audit Log', sessions:'مدیریت نشست‌ها', api:'سرویس‌ها و APIها', infrastructure:'سلامت زیرساخت'
+  dashboard:'داشبورد مدیریتی', users:'مدیریت کاربران', subscriptions:'اشتراک‌ها و اعتبار', analysis:'مدیریت تحلیل‌ها', market:'مدیریت بازار',
+  scalping:'نوسان‌گیری', ai:'هوش مصنوعی', prompts:'مدیریت پرامپت‌ها', history:'تاریخچه تحلیل‌ها', notifications:'اطلاع‌رسانی', monitoring:'مانیتورینگ سیستم',
+  reports:'گزارش‌ها', security:'امنیت و دسترسی', settings:'تنظیمات سامانه', maintenance:'حالت تعمیرات', updates:'بروزرسانی و استقرار',
+  backup:'پشتیبان‌گیری و بازیابی', payments:'پرداخت‌ها و تراکنش‌ها', roles:'نقش‌ها و مجوزها', audit:'گزارش Audit Log', sessions:'مدیریت نشست‌ها', api:'سرویس‌ها و APIها', infrastructure:'سلامت زیرساخت'
 };
-
 function uid(req) { return Number(req.user && (req.user.id || req.user.userId)); }
-function fail(res, status, message, details) { return res.status(status).json({ success:false, message, ...(details ? {details} : {}) }); }
-function validateModule(value) { return typeof value === 'string' && MODULES.includes(value); }
-
-async function ensureTables() {
-  await prisma.$executeRawUnsafe(`
-    IF OBJECT_ID(N'dbo.AdminControlRecord', N'U') IS NULL
-    BEGIN
-      CREATE TABLE dbo.AdminControlRecord (
-        id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        moduleKey NVARCHAR(50) NOT NULL UNIQUE,
-        title NVARCHAR(200) NOT NULL,
-        enabled BIT NOT NULL CONSTRAINT DF_AdminControlRecord_enabled DEFAULT 1,
-        configJson NVARCHAR(MAX) NULL,
-        version INT NOT NULL CONSTRAINT DF_AdminControlRecord_version DEFAULT 1,
-        updatedBy INT NULL,
-        createdAt DATETIME2 NOT NULL CONSTRAINT DF_AdminControlRecord_createdAt DEFAULT SYSDATETIME(),
-        updatedAt DATETIME2 NOT NULL CONSTRAINT DF_AdminControlRecord_updatedAt DEFAULT SYSDATETIME()
-      );
-    END;
-    IF OBJECT_ID(N'dbo.AdminAuditLog', N'U') IS NULL
-    BEGIN
-      CREATE TABLE dbo.AdminAuditLog (
-        id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        adminUserId INT NULL,
-        action NVARCHAR(100) NOT NULL,
-        moduleKey NVARCHAR(50) NULL,
-        targetId NVARCHAR(100) NULL,
-        method NVARCHAR(10) NULL,
-        path NVARCHAR(500) NULL,
-        statusCode INT NULL,
-        ipAddress NVARCHAR(100) NULL,
-        userAgent NVARCHAR(500) NULL,
-        detailsJson NVARCHAR(MAX) NULL,
-        createdAt DATETIME2 NOT NULL CONSTRAINT DF_AdminAuditLog_createdAt DEFAULT SYSDATETIME()
-      );
-      CREATE INDEX IX_AdminAuditLog_createdAt ON dbo.AdminAuditLog(createdAt);
-      CREATE INDEX IX_AdminAuditLog_moduleKey ON dbo.AdminAuditLog(moduleKey);
-    END;
-  `);
-  for (const key of MODULES) {
-    await prisma.$executeRawUnsafe(
-      `IF NOT EXISTS (SELECT 1 FROM dbo.AdminControlRecord WHERE moduleKey = @p1) INSERT INTO dbo.AdminControlRecord(moduleKey,title,enabled,configJson,version) VALUES(@p1,@p2,1,@p3,1);`,
-      key, MODULE_TITLES[key], JSON.stringify({ description: MODULE_TITLES[key], updatedFrom: 'admin-control' })
-    );
-  }
+function fail(res,status,message,details){return res.status(status).json({success:false,message,...(details?{details}:{})});}
+function validateModule(value){return typeof value==='string'&&MODULES.includes(value);}
+async function ensureTables(){
+ await prisma.$executeRawUnsafe(`
+ IF OBJECT_ID(N'dbo.AdminControlRecord',N'U') IS NULL BEGIN CREATE TABLE dbo.AdminControlRecord(id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,moduleKey NVARCHAR(50) NOT NULL UNIQUE,title NVARCHAR(200) NOT NULL,enabled BIT NOT NULL CONSTRAINT DF_AdminControlRecord_enabled DEFAULT 1,configJson NVARCHAR(MAX) NULL,version INT NOT NULL CONSTRAINT DF_AdminControlRecord_version DEFAULT 1,updatedBy INT NULL,createdAt DATETIME2 NOT NULL CONSTRAINT DF_AdminControlRecord_createdAt DEFAULT SYSDATETIME(),updatedAt DATETIME2 NOT NULL CONSTRAINT DF_AdminControlRecord_updatedAt DEFAULT SYSDATETIME()); END;
+ IF OBJECT_ID(N'dbo.AdminAuditLog',N'U') IS NULL BEGIN CREATE TABLE dbo.AdminAuditLog(id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,adminUserId INT NULL,action NVARCHAR(100) NOT NULL,moduleKey NVARCHAR(50) NULL,targetId NVARCHAR(100) NULL,method NVARCHAR(10) NULL,path NVARCHAR(500) NULL,statusCode INT NULL,ipAddress NVARCHAR(100) NULL,userAgent NVARCHAR(500) NULL,detailsJson NVARCHAR(MAX) NULL,createdAt DATETIME2 NOT NULL CONSTRAINT DF_AdminAuditLog_createdAt DEFAULT SYSDATETIME()); CREATE INDEX IX_AdminAuditLog_createdAt ON dbo.AdminAuditLog(createdAt); CREATE INDEX IX_AdminAuditLog_moduleKey ON dbo.AdminAuditLog(moduleKey); END;`);
+ for(const key of MODULES) await prisma.$executeRawUnsafe(`IF NOT EXISTS(SELECT 1 FROM dbo.AdminControlRecord WHERE moduleKey=@p1) INSERT INTO dbo.AdminControlRecord(moduleKey,title,enabled,configJson,version) VALUES(@p1,@p2,1,@p3,1);`,key,MODULE_TITLES[key],JSON.stringify({description:MODULE_TITLES[key],updatedFrom:'admin-control'}));
 }
-
-async function writeAudit(req, action, moduleKey, targetId, statusCode, details) {
-  try {
-    await ensureTables();
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO dbo.AdminAuditLog(adminUserId,action,moduleKey,targetId,method,path,statusCode,ipAddress,userAgent,detailsJson) VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10)`,
-      uid(req) || null, action, moduleKey || null, targetId == null ? null : String(targetId), req.method, req.originalUrl, statusCode || null,
-      req.ip || null, String(req.get('user-agent') || '').slice(0,500), details ? JSON.stringify(details) : null
-    );
-  } catch (e) { console.error('[ADMIN-AUDIT]', e.message); }
-}
-
-async function requireAdmin(req, res, next) {
-  const id = uid(req);
-  if (!id) return fail(res, 401, 'احراز هویت الزامی است.');
-  try {
-    const user = await prisma.user.findUnique({ where:{id}, include:{Role:{include:{permissions:{include:{permission:true}}}}} });
-    if (!user || !user.Role) return fail(res, 403, 'دسترسی مدیریت مجاز نیست.');
-    const role = String(user.Role.name || '').toLowerCase();
-    if (role !== 'admin' && role !== 'superadmin' && user.roleId !== 1) return fail(res, 403, 'این عملیات فقط برای ادمین مجاز است.');
-    req.adminUser = user;
-    req.adminPermissions = (user.Role.permissions || []).map(x => x.permission && x.permission.key).filter(Boolean);
-    next();
-  } catch (e) { console.error('[ADMIN-CONTROL] auth:', e.message); return fail(res, 500, 'خطا در بررسی دسترسی ادمین.'); }
-}
-
-router.use(authMiddleware, requireAdmin);
-
-router.get('/modules', async (req,res) => {
-  try {
-    await ensureTables();
-    const rows = await prisma.$queryRawUnsafe(`SELECT id,moduleKey,title,enabled,configJson,version,updatedBy,createdAt,updatedAt FROM dbo.AdminControlRecord ORDER BY id`);
-    return res.json({success:true,data:rows.map(r=>({...r,config:r.configJson ? JSON.parse(r.configJson) : {}}))});
-  } catch(e) { console.error('[ADMIN-CONTROL] modules:',e.message); return fail(res,500,'خطا در دریافت تنظیمات پنل مدیریت.'); }
-});
-
-router.get('/modules/:moduleKey', async (req,res) => {
-  const key=req.params.moduleKey;
-  if(!validateModule(key)) return fail(res,400,'ماژول مدیریت نامعتبر است.');
-  try { await ensureTables(); const rows=await prisma.$queryRawUnsafe(`SELECT TOP 1 id,moduleKey,title,enabled,configJson,version,updatedBy,createdAt,updatedAt FROM dbo.AdminControlRecord WHERE moduleKey=@p1`,key); if(!rows.length)return fail(res,404,'ماژول یافت نشد.'); const r=rows[0]; return res.json({success:true,data:{...r,config:r.configJson?JSON.parse(r.configJson):{}}}); }
-  catch(e){ console.error('[ADMIN-CONTROL] get:',e.message); return fail(res,500,'خطا در دریافت ماژول.'); }
-});
-
-router.put('/modules/:moduleKey', async (req,res) => {
-  const key=req.params.moduleKey, body=req.body||{};
-  if(!validateModule(key)) return fail(res,400,'ماژول مدیریت نامعتبر است.');
-  if(typeof body.enabled !== 'boolean') return fail(res,400,'فیلد فعال/غیرفعال باید از نوع boolean باشد.');
-  if(body.config !== undefined && (body.config === null || typeof body.config !== 'object' || Array.isArray(body.config))) return fail(res,400,'تنظیمات ماژول باید یک شیء JSON معتبر باشد.');
-  try {
-    await ensureTables();
-    const old=await prisma.$queryRawUnsafe(`SELECT TOP 1 enabled,configJson,version FROM dbo.AdminControlRecord WHERE moduleKey=@p1`,key);
-    if(!old.length)return fail(res,404,'ماژول یافت نشد.');
-    const config=body.config===undefined?(old[0].configJson?JSON.parse(old[0].configJson):{}):body.config;
-    await prisma.$executeRawUnsafe(`UPDATE dbo.AdminControlRecord SET enabled=@p1,configJson=@p2,version=version+1,updatedBy=@p3,updatedAt=SYSDATETIME() WHERE moduleKey=@p4`,body.enabled,JSON.stringify(config),uid(req),key);
-    await writeAudit(req,'UPDATE_MODULE',key,null,200,{enabled:body.enabled,config});
-    return res.json({success:true,message:'تنظیمات ماژول با موفقیت ذخیره شد.',data:{moduleKey:key,enabled:body.enabled,config}});
-  } catch(e){ console.error('[ADMIN-CONTROL] update:',e.message); await writeAudit(req,'UPDATE_MODULE',key,null,500,{error:e.message}); return fail(res,500,'ذخیره تنظیمات ماژول ناموفق بود.'); }
-});
-
-router.get('/audit', async (req,res) => {
-  try { await ensureTables(); const limit=Math.min(Math.max(Number(req.query.limit)||50,1),200); const rows=await prisma.$queryRawUnsafe(`SELECT TOP ${limit} id,adminUserId,action,moduleKey,targetId,method,path,statusCode,ipAddress,detailsJson,createdAt FROM dbo.AdminAuditLog ORDER BY id DESC`); return res.json({success:true,data:rows.map(r=>({...r,details:r.detailsJson?JSON.parse(r.detailsJson):null}))}); }
-  catch(e){console.error('[ADMIN-CONTROL] audit:',e.message);return fail(res,500,'خطا در دریافت Audit Log.');}
-});
-
-router.get('/summary', async (req,res) => {
-  try {
-    await ensureTables();
-    const [users,active,analyses,apiKeys,notifications,sessions,audits]=await Promise.all([
-      prisma.user.count({where:{isDeleted:false}}), prisma.user.count({where:{isDeleted:false,isActive:true}}), prisma.analysisHistory.count(), prisma.apiKey.count({where:{isRevoked:false}}),
-      prisma.notification.count(), prisma.session.count(), prisma.$queryRawUnsafe(`SELECT COUNT_BIG(*) AS total FROM dbo.AdminAuditLog`)
-    ]);
-    return res.json({success:true,data:{users,activeUsers:active,analyses,apiKeys,notifications,sessions,auditEvents:Number(audits[0].total||0),moduleCount:MODULES.length}});
-  } catch(e){console.error('[ADMIN-CONTROL] summary:',e.message);return fail(res,500,'خطا در دریافت آمار مدیریتی.');}
-});
-
+async function writeAudit(req,action,moduleKey,targetId,statusCode,details){try{await ensureTables();await prisma.$executeRawUnsafe(`INSERT INTO dbo.AdminAuditLog(adminUserId,action,moduleKey,targetId,method,path,statusCode,ipAddress,userAgent,detailsJson) VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10)`,uid(req)||null,action,moduleKey||null,targetId==null?null:String(targetId),req.method,req.originalUrl,statusCode||null,req.ip||null,String(req.get('user-agent')||'').slice(0,500),details?JSON.stringify(details):null);}catch(e){console.error('[ADMIN-AUDIT]',e.message);}}
+async function requireAdmin(req,res,next){const id=uid(req);if(!id)return fail(res,401,'احراز هویت الزامی است.');try{const user=await prisma.user.findUnique({where:{id},include:{Role:{include:{permissions:{include:{permission:true}}}}}});if(!user||!user.Role)return fail(res,403,'دسترسی مدیریت مجاز نیست.');const role=String(user.Role.name||'').toLowerCase();if(role!=='admin'&&role!=='superadmin'&&user.roleId!==1)return fail(res,403,'این عملیات فقط برای ادمین مجاز است.');req.adminUser=user;req.adminPermissions=(user.Role.permissions||[]).map(x=>x.permission&&x.permission.key).filter(Boolean);next();}catch(e){console.error('[ADMIN-CONTROL] auth:',e.message);return fail(res,500,'خطا در بررسی دسترسی ادمین.');}}
+router.use(authMiddleware,requireAdmin);
+router.get('/modules',async(req,res)=>{try{await ensureTables();const rows=await prisma.$queryRawUnsafe(`SELECT id,moduleKey,title,enabled,configJson,version,updatedBy,createdAt,updatedAt FROM dbo.AdminControlRecord ORDER BY id`);return res.json({success:true,data:rows.map(r=>({...r,config:r.configJson?JSON.parse(r.configJson):{}}))});}catch(e){console.error('[ADMIN-CONTROL] modules:',e.message);return fail(res,500,'خطا در دریافت تنظیمات پنل مدیریت.');}});
+router.get('/modules/:moduleKey',async(req,res)=>{const key=req.params.moduleKey;if(!validateModule(key))return fail(res,400,'ماژول مدیریت نامعتبر است.');try{await ensureTables();const rows=await prisma.$queryRawUnsafe(`SELECT TOP 1 id,moduleKey,title,enabled,configJson,version,updatedBy,createdAt,updatedAt FROM dbo.AdminControlRecord WHERE moduleKey=@p1`,key);if(!rows.length)return fail(res,404,'ماژول یافت نشد.');const r=rows[0];return res.json({success:true,data:{...r,config:r.configJson?JSON.parse(r.configJson):{}}});}catch(e){console.error('[ADMIN-CONTROL] get:',e.message);return fail(res,500,'خطا در دریافت ماژول.');}});
+router.put('/modules/:moduleKey',async(req,res)=>{const key=req.params.moduleKey,body=req.body||{};if(!validateModule(key))return fail(res,400,'ماژول مدیریت نامعتبر است.');if(typeof body.enabled!=='boolean')return fail(res,400,'فیلد فعال/غیرفعال باید از نوع boolean باشد.');if(body.config!==undefined&&(body.config===null||typeof body.config!=='object'||Array.isArray(body.config)))return fail(res,400,'تنظیمات ماژول باید یک شیء JSON معتبر باشد.');try{await ensureTables();const old=await prisma.$queryRawUnsafe(`SELECT TOP 1 enabled,configJson,version FROM dbo.AdminControlRecord WHERE moduleKey=@p1`,key);if(!old.length)return fail(res,404,'ماژول یافت نشد.');const config=body.config===undefined?(old[0].configJson?JSON.parse(old[0].configJson):{}):body.config;await prisma.$executeRawUnsafe(`UPDATE dbo.AdminControlRecord SET enabled=@p1,configJson=@p2,version=version+1,updatedBy=@p3,updatedAt=SYSDATETIME() WHERE moduleKey=@p4`,body.enabled,JSON.stringify(config),uid(req),key);await writeAudit(req,'UPDATE_MODULE',key,null,200,{enabled:body.enabled,config});return res.json({success:true,message:'تنظیمات ماژول با موفقیت ذخیره شد.',data:{moduleKey:key,enabled:body.enabled,config}});}catch(e){console.error('[ADMIN-CONTROL] update:',e.message);await writeAudit(req,'UPDATE_MODULE',key,null,500,{error:e.message});return fail(res,500,'ذخیره تنظیمات ماژول ناموفق بود.');}});
+router.get('/audit',async(req,res)=>{try{await ensureTables();const limit=Math.min(Math.max(Number(req.query.limit)||50,1),200);const offset=Math.max(Number(req.query.offset)||0,0);const moduleKey=String(req.query.moduleKey||'').trim();const action=String(req.query.action||'').trim();const status=String(req.query.status||'').trim();const adminUserId=Number(req.query.adminUserId)||0;const from=req.query.from?new Date(String(req.query.from)):null;const to=req.query.to?new Date(String(req.query.to)):null;const params=[];const where=[];if(moduleKey){params.push(moduleKey);where.push(`a.moduleKey=@p${params.length}`);}if(action){params.push(`%${action}%`);where.push(`a.action LIKE @p${params.length}`);}if(status){const n=Number(status);if(Number.isFinite(n)){params.push(n);where.push(`a.statusCode=@p${params.length}`);}}if(adminUserId){params.push(adminUserId);where.push(`a.adminUserId=@p${params.length}`);}if(from&&!Number.isNaN(from.getTime())){params.push(from);where.push(`a.createdAt>=@p${params.length}`);}if(to&&!Number.isNaN(to.getTime())){params.push(to);where.push(`a.createdAt<=@p${params.length}`);}params.push(offset,limit);const oidx=params.length-1,lidx=params.length;const sql=`SELECT a.id,a.adminUserId,u.username,u.email,a.action,a.moduleKey,a.targetId,a.method,a.path,a.statusCode,a.ipAddress,a.detailsJson,a.createdAt FROM dbo.AdminAuditLog a LEFT JOIN dbo.[User] u ON u.id=a.adminUserId ${where.length?`WHERE ${where.join(' AND ')}`:''} ORDER BY a.id DESC OFFSET @p${oidx} ROWS FETCH NEXT @p${lidx} ROWS ONLY`;const rows=await prisma.$queryRawUnsafe(sql,...params);const countParams=params.slice(0,-2);const countSql=`SELECT COUNT_BIG(*) AS total FROM dbo.AdminAuditLog a ${where.length?`WHERE ${where.join(' AND ')}`:''}`;const countRows=await prisma.$queryRawUnsafe(countSql,...countParams);return res.json({success:true,data:rows.map(r=>({...r,details:r.detailsJson?JSON.parse(r.detailsJson):null})),pagination:{limit,offset,total:Number(countRows[0]?.total||0)}});}catch(e){console.error('[ADMIN-CONTROL] audit:',e.message);return fail(res,500,'خطا در دریافت Audit Log.');}});
+router.get('/summary',async(req,res)=>{try{await ensureTables();const [users,active,analyses,apiKeys,notifications,sessions,audits]=await Promise.all([prisma.user.count({where:{isDeleted:false}}),prisma.user.count({where:{isDeleted:false,isActive:true}}),prisma.analysisHistory.count(),prisma.apiKey.count({where:{isRevoked:false}}),prisma.notification.count(),prisma.session.count(),prisma.$queryRawUnsafe(`SELECT COUNT_BIG(*) AS total FROM dbo.AdminAuditLog`)]);return res.json({success:true,data:{users,activeUsers:active,analyses,apiKeys,notifications,sessions,auditEvents:Number(audits[0].total||0),moduleCount:MODULES.length}});}catch(e){console.error('[ADMIN-CONTROL] summary:',e.message);return fail(res,500,'خطا در دریافت آمار مدیریتی.');}});
 module.exports=router;
