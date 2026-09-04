@@ -113,6 +113,15 @@ function unwrapData<T>(response: unknown, fallback: T): T {
 
 const getCacheBuster = () => `t=${Date.now()}`;
 
+const DEFAULT_SCALPING_SETTINGS: ScalpingSettings = {
+  isEnabled: false,
+  startTime: '09:00',
+  endTime: '12:30',
+  days: [],
+  interval: 2,
+  symbols: []
+};
+
 const normalizeMarketStatus = (raw: UnknownRecord | undefined): ScalpingStatus['marketStatus'] => {
   const market = raw ?? {};
 
@@ -356,20 +365,20 @@ export const scalpingService = {
   async getScalpingSettings(): Promise<ScalpingSettings> {
     try {
       const response = await apiClient.get(`/api/scalping/settings?${getCacheBuster()}`);
-      return unwrapData<ScalpingSettings>(response, { symbols: [] } as ScalpingSettings);
+      return unwrapData<ScalpingSettings>(response, DEFAULT_SCALPING_SETTINGS);
     } catch (error) {
       console.error('Settings API Error:', error);
-      return { symbols: [] } as ScalpingSettings;
+      return { ...DEFAULT_SCALPING_SETTINGS };
     }
   },
 
   async updateScalpingSettings(payload: Partial<ScalpingSettings>): Promise<ScalpingSettings> {
     try {
       const response = await apiClient.put('/api/scalping/settings', payload);
-      return unwrapData<ScalpingSettings>(response, { symbols: [] } as ScalpingSettings);
+      return unwrapData<ScalpingSettings>(response, DEFAULT_SCALPING_SETTINGS);
     } catch (error) {
       console.error('Update Settings API Error:', error);
-      return { symbols: [] } as ScalpingSettings;
+      return { ...DEFAULT_SCALPING_SETTINGS };
     }
   },
 
