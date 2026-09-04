@@ -1,0 +1,193 @@
+'use strict';
+
+const express = require('express');
+const { prisma } = require('../config/prisma.cjs');
+const authMiddleware = require('../middlewares/auth.middleware.cjs');
+
+const router = express.Router();
+
+const MODULE_ACTIONS = {
+  users: ['activate-user', 'deactivate-user'],
+  subscriptions: ['set-subscription'],
+  analysis: ['delete-analysis'],
+  history: ['delete-history-item'],
+  notifications: ['broadcast'],
+  sessions: ['revoke-session', 'revoke-all-user-sessions'],
+  api: ['revoke-api-key'],
+  roles: ['assign-role'],
+  security: ['set-policy'],
+  settings: ['set-setting'],
+  maintenance: ['enable', 'disable'],
+  ai: ['set-config'],
+  prompts: ['set-prompt'],
+  market: ['health-check'],
+  scalping: ['health-check'],
+  monitoring: ['health-check'],
+  reports: ['snapshot'],
+  infrastructure: ['health-check'],
+  updates: ['set-channel'],
+  backup: ['set-policy'],
+  payments: [],
+  audit: [],
+  dashboard: [],
+};
+
+function userId(req) {
+  return Number(req.user?.id ?? req.user?.userId ?? 0) || null;
+}
+
+function isAdmin(req) {
+  const u = req.user || {};
+  if (u.isAdmin === true || ['admin', 'superadmin'].includes(String(u.role || '').toLowerCase())) return true;
+  return (Array.isArray(u.roles) ? u.roles : []).some((r) => String(typeof r === 'string' ? r : r?.name).toLowerCase() === 'admin');
+}
+
+function fail(res, status, message) {
+  return res.status(status).json({ success: false, message });
+}
+
+async function audit(req, moduleKey, action, statusCode, details) {
+  try {
+    await prisma.$executeRawUnsafe(`
+      IF OBJECT_ID(N'dbo.AdminAuditLog', N'U') IS NOT NULL
+      INSERT INTO dbo.AdminAuditLog(adminUserId,action,moduleKey,targetId,method,path,statusCode,ipAddress,userAgent,detailsJson)
+      VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10)
+    `, userId(req), action, moduleKey, details?.targetId == null ? null : String(details.targetId), req.method,
+      req.originalUrl, statusCode, req.ip || null, String(req.get('user-agent') || '').slice(0, 500), details ? JSON.stringify(details) : null);
+  } catch (_) {}
+}
+
+async function setGlobalSetting(key, value, category = 'admin') {
+  const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+  await prisma.$executeRawUnsafe(`
+    MERGE dbo.GlobalSetting AS target
+    USING (SELECT @p1 AS [key], @p2 AS [value], @p3 AS [category]) AS source
+    ON target.[key] = source.[key]
+    WHEN MATCHED THEN UPDATE SET [value]=source.[value], category=source.[category], version=target.version+1, updatedAt=SYSDATETIME()
+    WHEN NOT MATCHED THEN INSERT ([category],[key],[value],[version],[isPublic],[updatedAt]) VALUES(source.[category],source.[key],source.[value],1,0,SYSDATETIME());
+  `, key, serialized, category);
+}
+
+router.use(authMiddleware, (req, res, next) => isAdmin(req) ? next() : fail(res, 403, 'این عملیات فقط برای ادمین مجاز است.'));
+
+router.get('/capabilities/:moduleKey', async (req, res) => {
+  const key = req.params.moduleKey;
+  if (!(key in MODULE_ACTIONS)) return fail(res, 404, 'ماژول مدیریتی پیدا نشد.');
+  return res.json({ success: true, data: { moduleKey: key, actions: MODULE_ACTIONS[key], transactional: MODULE_ACTIONS[key].length > 0 } });
+});
+
+router.post('/:moduleKey/:action', async (req, res) => {
+  const { moduleKey, action } = req.params;
+  if (!(keyIn(moduleKey) && MODULE_ACTIONS[moduleKey].includes(action))) return fail(res, 404, 'عملیات مدیریتی پشتیبانی نمی‌شود.');
+  const body = req.body || {};
+  try {
+    let data;
+    switch (`${moduleKey}:${action}`) {
+      case 'users:activate-user':
+      case 'users:deactivate-user': {
+        const id = Number(body.userId);
+        if (!id) return fail(res, 400, 'شناسه کاربر الزامی است.');
+        data = await prisma.user.update({ where: { id }, data: { isActive: action === 'activate-user', isDeleted: false } });
+        break;
+      }
+      case 'subscriptions:set-subscription': {
+        const id = Number(body.userId);
+        if (!id) return fail(res, 400, 'شناسه کاربر الزامی است.');
+        const months = Math.max(0, Number(body.subscriptionMonths ?? 0) || 0);
+        const end = body.subscriptionEnd ? new Date(body.subscriptionEnd) : null;
+        if (end && Number.isNaN(end.getTime())) return fail(res, 400, 'تاریخ پایان اشتراک نامعتبر است.');
+        data = await prisma.user.update({ where: { id }, data: {
+          subscriptionType: body.subscriptionType == null ? undefined : String(body.subscriptionType).slice(0, 50),
+          subscriptionMonths: months,
+          subscriptionStart: body.subscriptionStart ? new Date(body.subscriptionStart) : undefined,
+          subscriptionEnd: end,
+          analysisLimit: Math.max(0, Number(body.analysisLimit ?? 0) || 0),
+        } });
+        break;
+      }
+      case 'analysis:delete-analysis':
+      case 'history:delete-history-item': {
+        const id = Number(body.id);
+        if (!id) return fail(res, 400, 'شناسه تحلیل الزامی است.');
+        data = await prisma.analysisHistory.delete({ where: { id } });
+        break;
+      }
+      case 'notifications:broadcast': {
+        const title = String(body.title || '').trim();
+        const message = String(body.message || '').trim();
+        if (!title || !message) return fail(res, 400, 'عنوان و متن اعلان الزامی است.');
+        const users = await prisma.user.findMany({ where: { isDeleted: false, isActive: true }, select: { id: true } });
+        if (users.length) await prisma.notification.createMany({ data: users.map((u) => ({ userId: u.id, title, message, type: String(body.type || 'info').slice(0, 50) })) });
+        data = { recipients: users.length };
+        break;
+      }
+      case 'sessions:revoke-session': {
+        const id = Number(body.sessionId);
+        if (!id) return fail(res, 400, 'شناسه نشست الزامی است.');
+        await prisma.session.delete({ where: { id } });
+        data = { revoked: true, sessionId: id };
+        break;
+      }
+      case 'sessions:revoke-all-user-sessions': {
+        const id = Number(body.userId);
+        if (!id) return fail(res, 400, 'شناسه کاربر الزامی است.');
+        const result = await prisma.session.deleteMany({ where: { userId: id } });
+        data = { revoked: result.count, userId: id };
+        break;
+      }
+      case 'api:revoke-api-key': {
+        const id = Number(body.apiKeyId);
+        if (!id) return fail(res, 400, 'شناسه API Key الزامی است.');
+        data = await prisma.apiKey.update({ where: { id }, data: { isRevoked: true } });
+        break;
+      }
+      case 'roles:assign-role': {
+        const id = Number(body.userId); const roleId = Number(body.roleId);
+        if (!id || !roleId) return fail(res, 400, 'شناسه کاربر و نقش الزامی است.');
+        await prisma.role.findUniqueOrThrow({ where: { id: roleId } });
+        data = await prisma.user.update({ where: { id }, data: { roleId } });
+        break;
+      }
+      case 'security:set-policy':
+        await setGlobalSetting(`security.${String(body.key || 'policy')}`, body.value ?? {}, 'security'); data = { saved: true }; break;
+      case 'settings:set-setting':
+        if (!body.key) return fail(res, 400, 'کلید تنظیمات الزامی است.');
+        await setGlobalSetting(String(body.key).slice(0, 100), body.value ?? '', 'settings'); data = { saved: true, key: body.key }; break;
+      case 'maintenance:enable':
+      case 'maintenance:disable':
+        await setGlobalSetting('maintenance.enabled', action === 'enable', 'maintenance'); data = { enabled: action === 'enable' }; break;
+      case 'ai:set-config':
+        await setGlobalSetting(`ai.${String(body.key || 'config')}`, body.value ?? {}, 'ai'); data = { saved: true }; break;
+      case 'prompts:set-prompt':
+        if (!body.name) return fail(res, 400, 'نام پرامپت الزامی است.');
+        await setGlobalSetting(`prompt.${String(body.name).slice(0, 90)}`, String(body.value || ''), 'prompts'); data = { saved: true, name: body.name }; break;
+      case 'updates:set-channel':
+        await setGlobalSetting('updates.channel', String(body.channel || 'stable'), 'updates'); data = { channel: String(body.channel || 'stable') }; break;
+      case 'backup:set-policy':
+        await setGlobalSetting('backup.policy', body.value ?? {}, 'backup'); data = { saved: true }; break;
+      case 'market:health-check':
+      case 'scalping:health-check':
+      case 'monitoring:health-check':
+      case 'infrastructure:health-check': {
+        await prisma.$queryRawUnsafe('SELECT 1 AS ok');
+        data = { database: 'ok', checkedAt: new Date().toISOString() };
+        break;
+      }
+      case 'reports:snapshot': {
+        const [users, analyses, market] = await Promise.all([prisma.user.count({ where: { isDeleted: false } }), prisma.analysisHistory.count(), prisma.marketSummary.count()]);
+        data = { users, analyses, marketSummaries: market, generatedAt: new Date().toISOString() };
+        break;
+      }
+      default: return fail(res, 404, 'عملیات مدیریتی تعریف نشده است.');
+    }
+    await audit(req, moduleKey, `ADMIN_${moduleKey.toUpperCase()}_${action.replaceAll('-', '_').toUpperCase()}`, 200, { targetId: body.id || body.userId || body.sessionId || body.apiKeyId });
+    return res.json({ success: true, message: 'عملیات با موفقیت انجام شد.', data });
+  } catch (error) {
+    await audit(req, moduleKey, `ADMIN_${moduleKey.toUpperCase()}_${action.replaceAll('-', '_').toUpperCase()}_ERROR`, 500, { error: error.message, targetId: body.id || body.userId || body.sessionId || body.apiKeyId });
+    return fail(res, 500, error?.code === 'P2025' ? 'رکورد موردنظر پیدا نشد.' : 'اجرای عملیات مدیریتی ناموفق بود.');
+  }
+});
+
+function keyIn(key) { return Object.prototype.hasOwnProperty.call(MODULE_ACTIONS, key); }
+
+module.exports = router;
