@@ -11,6 +11,23 @@ function message<T>(response:{success?:boolean;message?:string;data?:T},fallback
 export async function getModules():Promise<AdminModuleRecord[]> { return message(await apiClient.get<AdminModuleRecord[]>('/admin-control/modules'),'دریافت ماژول‌های مدیریت ناموفق بود.'); }
 export async function getModule(moduleKey:AdminModuleKey):Promise<AdminModuleRecord> { return message(await apiClient.get<AdminModuleRecord>(`/admin-control/modules/${moduleKey}`),'دریافت تنظیمات ماژول ناموفق بود.'); }
 export async function updateModule(moduleKey:AdminModuleKey,enabled:boolean,config:Record<string,unknown>):Promise<AdminModuleRecord> { return message(await apiClient.put<AdminModuleRecord>(`/admin-control/modules/${moduleKey}`,{enabled,config}),'ذخیره تنظیمات ماژول ناموفق بود.'); }
-export async function getAudit(limit=100,offset=0,filters:AdminAuditFilters={}):Promise<AdminAuditPage> { const params=new URLSearchParams({limit:String(Math.min(Math.max(limit,1),200)),offset:String(Math.max(offset,0))}); Object.entries(filters).forEach(([k,v])=>{if(v!==undefined&&v!==null&&String(v).trim()!=='')params.set(k,String(v));}); const r=await apiClient.get<AdminAuditRecord[]>(`/admin-control/audit?${params.toString()}`); if(!r.success||r.data===undefined)throw new Error(r.message||'دریافت Audit Log ناموفق بود.'); const raw=r as typeof r & {pagination?:AdminAuditPage['pagination']}; return {data:r.data,pagination:raw.pagination||{limit,offset,total:r.data.length}}; }
+
+export async function getAuditPage(limit=100,offset=0,filters:AdminAuditFilters={}):Promise<AdminAuditPage> {
+ const safeLimit=Math.min(Math.max(limit,1),200);
+ const safeOffset=Math.max(offset,0);
+ const params=new URLSearchParams({limit:String(safeLimit),offset:String(safeOffset)});
+ Object.entries(filters).forEach(([k,v])=>{if(v!==undefined&&v!==null&&String(v).trim()!=='')params.set(k,String(v));});
+ const r=await apiClient.get<AdminAuditRecord[]>(`/admin-control/audit?${params.toString()}`);
+ if(!r.success||r.data===undefined)throw new Error(r.message||'دریافت Audit Log ناموفق بود.');
+ const raw=r as typeof r & {pagination?:AdminAuditPage['pagination']};
+ return {data:r.data,pagination:raw.pagination||{limit:safeLimit,offset:safeOffset,total:r.data.length}};
+}
+
+/** سازگاری با مصرف‌کننده‌های قدیمی؛ برای Pagination از getAuditPage استفاده کنید. */
+export async function getAudit(limit=100,offset=0,filters:AdminAuditFilters={}):Promise<AdminAuditRecord[]> {
+ const page=await getAuditPage(limit,offset,filters);
+ return page.data;
+}
+
 export async function getSummary():Promise<AdminSummary> { return message(await apiClient.get<AdminSummary>('/admin-control/summary'),'دریافت آمار مدیریتی ناموفق بود.'); }
-export default {getModules,getModule,updateModule,getAudit,getSummary};
+export default {getModules,getModule,updateModule,getAudit,getAuditPage,getSummary};
