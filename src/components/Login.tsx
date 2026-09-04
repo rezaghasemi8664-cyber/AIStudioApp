@@ -178,7 +178,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 <strong>کلمه عبور:</strong>
                 <code className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">{guestSuccess.password}</code>
                 <button onClick={() => handleCopyToClipboard(guestSuccess.password)} className="text-cyan-600 hover:text-cyan-800">
-                  <ClipboardDocumentIcon />
+                  <span aria-hidden="true">📋</span>
                 </button>
               </div>
             </div>
