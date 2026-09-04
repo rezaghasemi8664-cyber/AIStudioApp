@@ -1,195 +1,149 @@
-﻿// backend/routes/roles.routes.cjs
-'use strict';
-
 const express = require('express');
+const { prisma } = require('../config/prisma.cjs');
+const authMiddleware = require('../middlewares/auth.middleware.cjs');
+
 const router = express.Router();
-const prisma = require('../config/prisma.cjs').prisma || require('../config/prisma.cjs');
-const auth = require('../middlewares/auth.middleware.cjs');
 
-const authenticate = auth.authenticate || auth;
-const requireAdmin = auth.requireAdmin;
-
-async function ensureAuditTable() {
-  await prisma.$executeRawUnsafe(`
-    IF OBJECT_ID(N'dbo.AdminAuditLog', N'U') IS NULL
-    BEGIN
-      CREATE TABLE dbo.AdminAuditLog (
-        id INT IDENTITY(1,1) PRIMARY KEY,
-        adminUserId INT NULL,
-        action NVARCHAR(100) NOT NULL,
-        moduleKey NVARCHAR(100) NULL,
-        method NVARCHAR(20) NULL,
-        path NVARCHAR(500) NULL,
-        statusCode INT NULL,
-        ip NVARCHAR(100) NULL,
-        userAgent NVARCHAR(500) NULL,
-        details NVARCHAR(MAX) NULL,
-        createdAt DATETIME2 NOT NULL DEFAULT SYSDATETIME()
-      )
-    END
-  `);
+function isAdmin(req) {
+  const u = req.user || {};
+  if (u.isAdmin === true || ['admin', 'ADMIN', 'SUPERADMIN'].includes(String(u.role || ''))) return true;
+  return Array.isArray(u.roles) && u.roles.some((r) => String(typeof r === 'string' ? r : r?.name).toLowerCase() === 'admin');
 }
-
-async function audit(req, action, statusCode, details) {
-  try {
-    await ensureAuditTable();
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO dbo.AdminAuditLog (adminUserId, action, moduleKey, method, path, statusCode, ip, userAgent, details)
-       VALUES (@p0,@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8)`,
-      Number(req.user?.id || 0) || null,
-      action,
-      'roles',
-      req.method,
-      req.originalUrl,
-      statusCode,
-      req.ip || null,
-      String(req.get('user-agent') || '').slice(0, 500),
-      details ? JSON.stringify(details) : null
-    );
-  } catch (e) {
-    console.error('[ROLES] audit error:', e.message);
-  }
+function requireAdmin(req, res, next) {
+  if (!isAdmin(req)) return res.status(403).json({ success: false, message: 'دسترسی فقط برای مدیر سامانه مجاز است.' });
+  next();
 }
-
+function idOf(value) {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 function cleanText(value, max = 100) {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
 }
-
-function parseId(value) {
-  const id = Number(value);
-  return Number.isInteger(id) && id > 0 ? id : null;
+async function audit(req, action, details) {
+  try {
+    await prisma.$executeRawUnsafe(
+      `IF OBJECT_ID(N'dbo.AdminAuditLog', N'U') IS NOT NULL INSERT INTO dbo.AdminAuditLog (adminUserId, action, moduleKey, method, path, statusCode, ip, userAgent, details) VALUES (@p0,@p1,N'roles',@p2,@p3,@p4,@p5,@p6,@p7)`,
+      Number(req.user?.id ?? req.user?.userId ?? 0) || null, action, req.method, req.originalUrl, 200, req.ip || null, String(req.get('user-agent') || '').slice(0, 500), JSON.stringify(details || {})
+    );
+  } catch (_) {}
 }
 
-router.use(authenticate, requireAdmin);
+router.use(authMiddleware);
+router.use(requireAdmin);
 
-// GET /api/v1/roles/permissions - همه مجوزهای قابل تخصیص
-router.get('/permissions', async (req, res) => {
+router.get('/', async (_req, res) => {
   try {
-    const permissions = await prisma.permission.findMany({ orderBy: { id: 'asc' }, select: { id: true, key: true } });
-    await audit(req, 'roles.permissions.list', 200, { count: permissions.length });
+    const roles = await prisma.role.findMany({ orderBy: { id: 'asc' }, include: { users: { select: { id: true } }, permissions: { include: { permission: true } } } });
+    return res.json({ success: true, data: roles.map((r) => ({ id: r.id, name: r.name, title: r.title, userCount: r.users.length, permissions: r.permissions.map((rp) => ({ id: rp.permission.id, key: rp.permission.key })) })) });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'دریافت نقش‌ها ناموفق بود.', error: error.message });
+  }
+});
+
+router.get('/permissions', async (_req, res) => {
+  try {
+    const permissions = await prisma.permission.findMany({ orderBy: { key: 'asc' } });
     return res.json({ success: true, data: permissions });
   } catch (error) {
-    await audit(req, 'roles.permissions.list', 500, { error: error.message });
-    return res.status(500).json({ success: false, message: 'خطا در دریافت مجوزها.' });
+    return res.status(500).json({ success: false, message: 'دریافت مجوزها ناموفق بود.', error: error.message });
   }
 });
 
-// GET /api/v1/roles - نقش‌ها همراه مجوزهایشان
-router.get('/', async (req, res) => {
-  try {
-    const roles = await prisma.role.findMany({
-      orderBy: { id: 'asc' },
-      select: {
-        id: true, name: true, title: true,
-        permissions: { select: { permission: { select: { id: true, key: true } } } },
-        _count: { select: { users: true } }
-      }
-    });
-    const data = roles.map(r => ({
-      id: r.id,
-      name: r.name,
-      title: r.title || r.name,
-      userCount: r._count.users,
-      permissions: (r.permissions || []).map(x => x.permission).filter(Boolean)
-    }));
-    await audit(req, 'roles.list', 200, { count: data.length });
-    return res.json({ success: true, data });
-  } catch (error) {
-    await audit(req, 'roles.list', 500, { error: error.message });
-    return res.status(500).json({ success: false, message: 'خطا در دریافت نقش‌ها.' });
-  }
-});
-
-// GET /api/v1/roles/:id
 router.get('/:id', async (req, res) => {
-  const id = parseId(req.params.id);
+  const id = idOf(req.params.id);
   if (!id) return res.status(400).json({ success: false, message: 'شناسه نقش نامعتبر است.' });
   try {
-    const role = await prisma.role.findUnique({
-      where: { id },
-      select: { id: true, name: true, title: true, permissions: { select: { permission: { select: { id: true, key: true } } } }, _count: { select: { users: true } } }
-    });
-    if (!role) return res.status(404).json({ success: false, message: 'نقش یافت نشد.' });
-    await audit(req, 'roles.get', 200, { roleId: id });
-    return res.json({ success: true, data: { id: role.id, name: role.name, title: role.title || role.name, userCount: role._count.users, permissions: role.permissions.map(x => x.permission).filter(Boolean) } });
+    const role = await prisma.role.findUnique({ where: { id }, include: { users: { select: { id: true, username: true, email: true } }, permissions: { include: { permission: true } } } });
+    if (!role) return res.status(404).json({ success: false, message: 'نقش پیدا نشد.' });
+    return res.json({ success: true, data: { id: role.id, name: role.name, title: role.title, userCount: role.users.length, users: role.users, permissions: role.permissions.map((rp) => rp.permission) } });
   } catch (error) {
-    await audit(req, 'roles.get', 500, { roleId: id, error: error.message });
-    return res.status(500).json({ success: false, message: 'خطا در دریافت نقش.' });
+    return res.status(500).json({ success: false, message: 'دریافت نقش ناموفق بود.', error: error.message });
   }
 });
 
-// POST /api/v1/roles - ایجاد نقش
 router.post('/', async (req, res) => {
   const name = cleanText(req.body?.name, 80);
-  const title = cleanText(req.body?.title, 100) || name;
-  if (!name) return res.status(400).json({ success: false, message: 'نام نقش الزامی است.' });
-  if (!/^[A-Za-z0-9_.-]+$/.test(name)) return res.status(400).json({ success: false, message: 'نام فنی نقش فقط می‌تواند شامل حروف انگلیسی، عدد، نقطه، خط تیره و زیرخط باشد.' });
+  const title = cleanText(req.body?.title, 120) || name;
+  const permissionIds = Array.isArray(req.body?.permissionIds) ? req.body.permissionIds.map(idOf).filter(Boolean) : [];
+  if (!name || !/^[A-Za-z0-9_-]+$/.test(name)) return res.status(400).json({ success: false, message: 'نام نقش باید شامل حروف لاتین، عدد، خط تیره یا زیرخط باشد.' });
   try {
     const role = await prisma.role.create({ data: { name, title } });
-    await audit(req, 'roles.create', 201, { roleId: role.id, name });
-    return res.status(201).json({ success: true, data: { ...role, permissions: [], userCount: 0 }, message: 'نقش با موفقیت ایجاد شد.' });
+    if (permissionIds.length) await prisma.rolePermission.createMany({ data: [...new Set(permissionIds)].map((permissionId) => ({ roleId: role.id, permissionId })), skipDuplicates: true });
+    await audit(req, 'CREATE_ROLE', { roleId: role.id, name, permissionIds });
+    return res.status(201).json({ success: true, data: role });
   } catch (error) {
-    const duplicate = String(error?.code) === 'P2002';
-    await audit(req, 'roles.create', duplicate ? 409 : 500, { name, error: error.message });
-    return res.status(duplicate ? 409 : 500).json({ success: false, message: duplicate ? 'این نام نقش قبلاً استفاده شده است.' : 'خطا در ایجاد نقش.' });
+    if (error.code === 'P2002') return res.status(409).json({ success: false, message: 'این نام نقش قبلاً ثبت شده است.' });
+    return res.status(500).json({ success: false, message: 'ایجاد نقش ناموفق بود.', error: error.message });
   }
 });
 
-// PUT /api/v1/roles/:id - ویرایش مشخصات و/یا مجوزها
 router.put('/:id', async (req, res) => {
-  const id = parseId(req.params.id);
+  const id = idOf(req.params.id);
   if (!id) return res.status(400).json({ success: false, message: 'شناسه نقش نامعتبر است.' });
+  const title = cleanText(req.body?.title, 120);
+  const name = req.body?.name === undefined ? undefined : cleanText(req.body.name, 80);
+  const permissionIds = req.body?.permissionIds === undefined ? undefined : (Array.isArray(req.body.permissionIds) ? req.body.permissionIds.map(idOf).filter(Boolean) : null);
+  if (name !== undefined && (!name || !/^[A-Za-z0-9_-]+$/.test(name))) return res.status(400).json({ success: false, message: 'نام نقش نامعتبر است.' });
+  if (permissionIds === null) return res.status(400).json({ success: false, message: 'فهرست مجوزها نامعتبر است.' });
   try {
-    const existing = await prisma.role.findUnique({ where: { id }, select: { id: true, name: true } });
-    if (!existing) return res.status(404).json({ success: false, message: 'نقش یافت نشد.' });
-
-    const name = req.body?.name !== undefined ? cleanText(req.body.name, 80) : undefined;
-    const title = req.body?.title !== undefined ? cleanText(req.body.title, 100) : undefined;
-    if (name !== undefined && (!name || !/^[A-Za-z0-9_.-]+$/.test(name))) return res.status(400).json({ success: false, message: 'نام فنی نقش نامعتبر است.' });
-    if (existing.name.toUpperCase() === 'ADMIN' && name && name.toUpperCase() !== 'ADMIN') return res.status(400).json({ success: false, message: 'نام نقش مدیر اصلی قابل تغییر نیست.' });
-
-    const permissionIds = req.body?.permissionIds;
-    if (permissionIds !== undefined && (!Array.isArray(permissionIds) || permissionIds.some(x => !parseId(x)))) {
-      return res.status(400).json({ success: false, message: 'فهرست مجوزها نامعتبر است.' });
+    const existing = await prisma.role.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, message: 'نقش پیدا نشد.' });
+    const role = await prisma.role.update({ where: { id }, data: { ...(name !== undefined ? { name } : {}), ...(title ? { title } : {}) } });
+    if (permissionIds !== undefined) {
+      await prisma.rolePermission.deleteMany({ where: { roleId: id } });
+      if (permissionIds.length) await prisma.rolePermission.createMany({ data: [...new Set(permissionIds)].map((permissionId) => ({ roleId: id, permissionId })), skipDuplicates: true });
     }
-
-    const result = await prisma.$transaction(async tx => {
-      const updated = await tx.role.update({ where: { id }, data: { ...(name !== undefined ? { name } : {}), ...(title !== undefined ? { title } : {}) } });
-      if (permissionIds !== undefined) {
-        const ids = [...new Set(permissionIds.map(parseId))];
-        const valid = ids.length ? await tx.permission.findMany({ where: { id: { in: ids } }, select: { id: true } }) : [];
-        if (valid.length !== ids.length) throw new Error('یکی از مجوزهای انتخاب‌شده وجود ندارد.');
-        await tx.rolePermission.deleteMany({ where: { roleId: id } });
-        if (ids.length) await tx.rolePermission.createMany({ data: ids.map(permissionId => ({ roleId: id, permissionId })) });
-      }
-      return updated;
-    });
-
-    await audit(req, 'roles.update', 200, { roleId: id, permissionIds: permissionIds === undefined ? undefined : [...new Set(permissionIds.map(parseId))] });
-    return res.json({ success: true, data: result, message: 'نقش و مجوزهای آن به‌روزرسانی شد.' });
+    await audit(req, 'UPDATE_ROLE', { roleId: id, name, title, permissionIds });
+    return res.json({ success: true, data: role });
   } catch (error) {
-    const duplicate = String(error?.code) === 'P2002';
-    await audit(req, 'roles.update', duplicate ? 409 : 500, { roleId: id, error: error.message });
-    return res.status(duplicate ? 409 : 500).json({ success: false, message: duplicate ? 'این نام نقش قبلاً استفاده شده است.' : (error.message || 'خطا در به‌روزرسانی نقش.') });
+    if (error.code === 'P2002') return res.status(409).json({ success: false, message: 'این نام نقش قبلاً ثبت شده است.' });
+    return res.status(500).json({ success: false, message: 'ویرایش نقش ناموفق بود.', error: error.message });
   }
 });
 
-// DELETE /api/v1/roles/:id - حذف فقط نقش بدون کاربر و غیرسیستمی
 router.delete('/:id', async (req, res) => {
-  const id = parseId(req.params.id);
+  const id = idOf(req.params.id);
   if (!id) return res.status(400).json({ success: false, message: 'شناسه نقش نامعتبر است.' });
   try {
-    const role = await prisma.role.findUnique({ where: { id }, select: { id: true, name: true, _count: { select: { users: true } } } });
-    if (!role) return res.status(404).json({ success: false, message: 'نقش یافت نشد.' });
-    if (['ADMIN', 'USER'].includes(String(role.name).toUpperCase())) return res.status(400).json({ success: false, message: 'نقش‌های سیستمی ADMIN و USER قابل حذف نیستند.' });
-    if (role._count.users > 0) return res.status(409).json({ success: false, message: 'این نقش به کاربر اختصاص دارد و قابل حذف نیست.' });
+    const role = await prisma.role.findUnique({ where: { id }, include: { users: { select: { id: true } } } });
+    if (!role) return res.status(404).json({ success: false, message: 'نقش پیدا نشد.' });
+    if (['admin', 'ADMIN', 'superadmin', 'SUPERADMIN'].includes(String(role.name))) return res.status(409).json({ success: false, message: 'نقش‌های سیستمی قابل حذف نیستند.' });
+    if (role.users.length) return res.status(409).json({ success: false, message: 'این نقش به کاربر متصل است و قابل حذف نیست.' });
     await prisma.rolePermission.deleteMany({ where: { roleId: id } });
     await prisma.role.delete({ where: { id } });
-    await audit(req, 'roles.delete', 200, { roleId: id, name: role.name });
-    return res.json({ success: true, message: 'نقش حذف شد.' });
+    await audit(req, 'DELETE_ROLE', { roleId: id, name: role.name });
+    return res.json({ success: true, message: 'نقش با موفقیت حذف شد.' });
   } catch (error) {
-    await audit(req, 'roles.delete', 500, { roleId: id, error: error.message });
-    return res.status(500).json({ success: false, message: 'خطا در حذف نقش.' });
+    return res.status(500).json({ success: false, message: 'حذف نقش ناموفق بود.', error: error.message });
+  }
+});
+
+router.post('/permissions', async (req, res) => {
+  const key = cleanText(req.body?.key, 120);
+  if (!key || !/^[A-Za-z0-9_.:-]+$/.test(key)) return res.status(400).json({ success: false, message: 'کلید مجوز نامعتبر است.' });
+  try {
+    const permission = await prisma.permission.create({ data: { key } });
+    await audit(req, 'CREATE_PERMISSION', { permissionId: permission.id, key });
+    return res.status(201).json({ success: true, data: permission });
+  } catch (error) {
+    if (error.code === 'P2002') return res.status(409).json({ success: false, message: 'این مجوز قبلاً ثبت شده است.' });
+    return res.status(500).json({ success: false, message: 'ایجاد مجوز ناموفق بود.', error: error.message });
+  }
+});
+
+router.delete('/permissions/:id', async (req, res) => {
+  const id = idOf(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: 'شناسه مجوز نامعتبر است.' });
+  try {
+    const permission = await prisma.permission.findUnique({ where: { id }, include: { roles: true } });
+    if (!permission) return res.status(404).json({ success: false, message: 'مجوز پیدا نشد.' });
+    if (permission.roles.length) return res.status(409).json({ success: false, message: 'این مجوز به نقش متصل است و قابل حذف نیست.' });
+    await prisma.permission.delete({ where: { id } });
+    await audit(req, 'DELETE_PERMISSION', { permissionId: id, key: permission.key });
+    return res.json({ success: true, message: 'مجوز با موفقیت حذف شد.' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'حذف مجوز ناموفق بود.', error: error.message });
   }
 });
 
