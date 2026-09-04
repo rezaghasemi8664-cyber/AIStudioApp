@@ -26,13 +26,13 @@ const OperationalPanels: React.FC<Props> = ({ moduleKey, onComplete }) => {
   const [version, setVersion] = useState('');
   const [commitSha, setCommitSha] = useState('');
   const [deploymentStatus, setDeploymentStatus] = useState('success');
-  const [backupResult, setBackupResult] = useState<Record<string, unknown> | null>(null);
+  const [backupResult, setBackupResult] = useState<unknown>(null);
 
   const run = async (action: string, payload: Record<string, unknown> = {}) => {
     setBusy(true); setMessage(null); setError(null);
     try {
       const result = await adminActionsService.executeAction(moduleKey, action, payload);
-      if (moduleKey === 'backup' && action === 'get-status') setBackupResult((result?.data as Record<string, unknown>) || result || null);
+      if (moduleKey === 'backup' && action === 'get-status') setBackupResult(result);
       setMessage('عملیات با موفقیت انجام شد و در گزارش Audit ثبت شد.');
       await onComplete();
     } catch (e) {
