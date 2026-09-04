@@ -48,3 +48,5 @@ jobs:
           git add src/components/StockAnalysis.tsx
           git commit -m "fix: type history summary field"
           git push origin main
+
+# trigger workflow after creation
