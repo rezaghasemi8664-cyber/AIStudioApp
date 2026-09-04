@@ -57,6 +57,7 @@ mount('/global-settings', './globalSettings.routes.cjs', 'Global Settings');
 mount('/health', './health.routes.cjs', 'Health');
 mount('/admin', './admin.routes.cjs', 'Admin');
 mount('/admin-control', './adminControl.routes.cjs', 'Admin Control');
+mount('/admin-actions', './adminActions.routes.cjs', 'Admin Actions');
 mount('/api-keys', './apiKey.routes.cjs', 'API Keys');
 mount('/roles', './roles.routes.cjs', 'Roles');
 mount('/watchlist', './watchlist.routes.cjs', 'Watchlist');
