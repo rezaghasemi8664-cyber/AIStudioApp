@@ -1,0 +1,56 @@
+name: Fix remaining type errors
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply targeted TypeScript fixes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('src/components/MarketSummaryDashboard.tsx')
+          s = p.read_text(encoding='utf-8-sig')
+          s = s.replace("const currentTone = tone ?? toneFromValue(value) as 'info' | 'warning' | 'default' | 'positive' | 'negative';", "const currentTone: 'positive' | 'negative' | 'warning' | 'neutral' | 'info' = tone ?? toneFromValue(value);")
+          s = s.replace("const regimeTone = toneFromValue(r.state) as 'info' | 'warning' | 'default' | 'positive' | 'negative';", "const regimeTone: 'info' | 'warning' | 'neutral' | 'positive' | 'negative' = toneFromValue(r.state);")
+          p.write_text(s, encoding='utf-8')
+
+          p = Path('src/components/StockAnalysis.tsx')
+          s = p.read_text(encoding='utf-8-sig')
+          s = s.replace("return { inflow, outflow, net };", "return { inflow: inflow ?? 0, outflow: outflow ?? 0, net: net ?? 0 };")
+          s = s.replace('<MarketIcon className="h-4 w-4" />', '<MarketIcon size={16} />')
+          s = s.replace("item.result?.summary ??\n    item.summary ??\n    'تحلیل ذخیره شده'", "item.result?.summary ?? 'تحلیل ذخیره شده'")
+          p.write_text(s, encoding='utf-8')
+
+          p = Path('src/services/adminService.ts')
+          s = p.read_text(encoding='utf-8-sig')
+          s = s.replace("password: normalizeString(payload.password),", "password: normalizeString(payload.password) || '',")
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Remove one-time fixer
+        run: rm -f .github/workflows/fix-remaining-type-errors.yml
+
+      - name: Commit fixes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/MarketSummaryDashboard.tsx src/components/StockAnalysis.tsx src/services/adminService.ts .github/workflows/fix-remaining-type-errors.yml
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "fix: resolve remaining TypeScript errors"
+          git push
