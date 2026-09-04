@@ -1,355 +1,45 @@
 import type { StoredUser, ValidityInfo } from '../types';
 import { get, post, put, del } from './apiClient';
-
 export type { StoredUser, ValidityInfo };
-
-export interface RegisterUserData {
-  firstName: string;
-  lastName: string;
-  mobile: string;
-  email: string;
-}
-
-const ACCESS_TOKEN_KEY = 'token';
-const REFRESH_TOKEN_KEY = 'refreshToken';
-const USER_STORAGE_KEY = 'currentUser';
-
-function extractRole(raw: any): string {
-  if (raw?.role && typeof raw.role === 'object' && raw.role.name) return String(raw.role.name).toLowerCase();
-  if (typeof raw?.role === 'string') return raw.role.toLowerCase();
-  if (raw?.roleName) return String(raw.roleName).toLowerCase();
-  if (raw?.isAdmin === true) return 'admin';
-  if (raw?.isGuest === true) return 'guest';
-  return 'user';
-}
-
-function getRemainingDaysFromSubscription(start: any, end: any, subscriptionDays: any, subscriptionMonths: any): number | undefined {
-  const now = Date.now();
-  if (end) {
-    const date = new Date(end);
-    if (!Number.isNaN(date.getTime())) return Math.max(0, Math.ceil((date.getTime() - now) / 86400000));
-  }
-
-  if (start) {
-    const startDate = new Date(start);
-    if (!Number.isNaN(startDate.getTime())) {
-      const days = Number(subscriptionDays);
-      if (Number.isFinite(days) && days > 0) {
-        const calculatedEnd = new Date(startDate.getTime() + days * 86400000);
-        return Math.max(0, Math.ceil((calculatedEnd.getTime() - now) / 86400000));
-      }
-
-      const months = Number(subscriptionMonths);
-      if (Number.isFinite(months) && months > 0) {
-        const calculatedEnd = new Date(startDate);
-        calculatedEnd.setMonth(calculatedEnd.getMonth() + months);
-        return Math.max(0, Math.ceil((calculatedEnd.getTime() - now) / 86400000));
-      }
-    }
-  }
-
-  return undefined;
-}
-
-function normalizeUser(raw: any, fallbackEmail?: string): StoredUser {
-  const email = raw?.email || raw?.username || fallbackEmail || '';
-  const firstName = raw?.firstName || raw?.name?.split?.(' ')?.[0] || '';
-  const lastName = raw?.lastName || raw?.name?.split?.(' ')?.slice?.(1)?.join?.(' ') || '';
-  const role = extractRole(raw);
-  const isAdmin = role === 'admin' || raw?.isAdmin === true;
-  const subscriptionStart = raw?.subscriptionStart || null;
-  const subscriptionEnd = raw?.subscriptionEnd || null;
-  const subscriptionDays = raw?.subscriptionDays ?? 0;
-  const subscriptionMonths = raw?.subscriptionMonths ?? 0;
-  const calculatedRemainingDays = getRemainingDaysFromSubscription(subscriptionStart, subscriptionEnd, subscriptionDays, subscriptionMonths);
-  const serverRemainingDays = raw?.remainingDays ?? raw?.daysRemaining;
-  const fallbackSubscriptionDays = Number(subscriptionDays);
-  const remainingDays = calculatedRemainingDays !== undefined
-    ? calculatedRemainingDays
-    : (serverRemainingDays !== undefined && serverRemainingDays !== null
-        ? Number(serverRemainingDays)
-        : (Number.isFinite(fallbackSubscriptionDays) && fallbackSubscriptionDays > 0 ? fallbackSubscriptionDays : (raw?.validityDays ?? undefined)));
-
-  return {
-    id: raw?.id || raw?._id || '',
-    username: raw?.username || email,
-    firstName,
-    lastName,
-    mobile: raw?.mobile || raw?.phone || '',
-    email,
-    isAdmin,
-    isActive: raw?.isActive !== false,
-    isGuest: role === 'guest' || raw?.isGuest === true,
-    role,
-    registrationDate: raw?.registrationDate || raw?.createdAt || new Date().toISOString(),
-    activationDate: raw?.activationDate || raw?.createdAt || new Date().toISOString(),
-    validityDays: remainingDays ?? 0,
-    analysisIntervalMinutes: raw?.analysisIntervalMinutes ?? 5,
-    analysisLimit24h: raw?.analysisLimit24h ?? raw?.analysisLimit ?? 100,
-    isDeleted: raw?.isDeleted === true,
-    subscriptionStart,
-    subscriptionEnd,
-    subscriptionDays,
-    subscriptionMonths,
-    analysisLimit: raw?.analysisLimit ?? raw?.analysisLimit24h ?? null,
-    isSubscriptionActive: raw?.isSubscriptionActive ?? (remainingDays === undefined ? (raw?.isActive ?? true) : remainingDays > 0),
-    remainingDays,
-    createdAt: raw?.createdAt || raw?.registrationDate || new Date().toISOString(),
-    validityDate: raw?.validityDate || null,
-    expiresAt: raw?.expiresAt || null,
-    analysisUsed: raw?.analysisUsed ?? raw?.analysisCount ?? 0,
-  } as StoredUser;
-}
-
-function getExpiryDate(user: StoredUser): Date | null {
-  const dateStr = user.subscriptionEnd || (user as any).validityDate || (user as any).expiresAt || (user as any).expiry || (user as any).subscription_end || (user as any).validity_date || (user as any).expires_at;
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function getCookieValue(name: string): string | null {
-  if (typeof document === 'undefined' || !document.cookie) return null;
-  const prefix = `${encodeURIComponent(name)}=`;
-  for (const rawCookie of document.cookie.split(';')) {
-    const cookie = rawCookie.trim();
-    if (cookie.startsWith(prefix)) {
-      const value = cookie.slice(prefix.length);
-      return value ? decodeURIComponent(value) : null;
-    }
-  }
-  return null;
-}
-
-function getStorageToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(ACCESS_TOKEN_KEY) || localStorage.getItem('accessToken');
-}
-
-function setStoredToken(token: string): void {
-  if (typeof window === 'undefined' || !token) return;
-  localStorage.setItem(ACCESS_TOKEN_KEY, token);
-  localStorage.setItem('accessToken', token);
-}
-
-function removeStoredToken(): void {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem('accessToken');
-}
-
-function getStoredRefreshToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(REFRESH_TOKEN_KEY);
-}
-
-function setStoredRefreshToken(token: string): void {
-  if (typeof window === 'undefined' || !token) return;
-  localStorage.setItem(REFRESH_TOKEN_KEY, token);
-}
-
-function removeStoredRefreshToken(): void {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
-}
-
-function setStoredUser(user: StoredUser): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
-}
-
-function removeStoredUser(): void {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(USER_STORAGE_KEY);
-}
-
-function extractTokenFromResponse(response: any): string | null {
-  return response?.data?.token || response?.data?.accessToken || response?.data?.data?.token || response?.data?.data?.accessToken || response?.data?.user?.token || response?.data?.user?.accessToken || response?.token || response?.accessToken || null;
-}
-
-function extractRefreshTokenFromResponse(response: any): string | null {
-  return response?.data?.refreshToken || response?.data?.data?.refreshToken || response?.data?.user?.refreshToken || response?.refreshToken || null;
-}
-
-function extractUserFromResponse(response: any): any {
-  return response?.data?.user || response?.data?.data?.user || response?.data?.data || response?.data || response?.user || null;
-}
-
-export function getStoredCurrentUser(): StoredUser | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(USER_STORAGE_KEY);
-    if (!raw) return null;
-    return normalizeUser(JSON.parse(raw));
-  } catch {
-    return null;
-  }
-}
-
-export function setCurrentUser(user: StoredUser | null): void {
-  if (!user) {
-    removeStoredUser();
-    return;
-  }
-  setStoredUser(user);
-}
-
-export function getToken(): string | null {
-  return getStorageToken() || getCookieValue('accessToken') || getCookieValue('token') || getCookieValue('authToken');
-}
-
-export function getRefreshToken(): string | null {
-  return getStoredRefreshToken() || getCookieValue('refreshToken');
-}
-
-export async function getMe(): Promise<{ success: boolean; data?: StoredUser; message?: string }> {
-  try {
-    const res = await get<any>('/auth/me');
-    if (!res.success || !res.data) return { success: false, message: res.message || 'دریافت اطلاعات کاربر ناموفق بود' };
-    const user = normalizeUser(res.data.user || res.data);
-    setStoredUser(user);
-    return { success: true, data: user };
-  } catch (error: any) {
-    return { success: false, message: error?.message || 'خطا در دریافت اطلاعات کاربر' };
-  }
-}
-
-export async function getCurrentUser(): Promise<StoredUser | null> {
-  const res = await get<any>('/auth/me');
-  if (!res.success || !res.data) return null;
-  const user = normalizeUser(res.data.user || res.data);
-  setStoredUser(user);
-  return user;
-}
-
-export async function getUsers(): Promise<StoredUser[]> {
-  const res = await get<any>('/admin/users');
-  if (!res.success) throw new Error(res.message || 'Failed to fetch users');
-  const rows = Array.isArray(res.data) ? res.data : res.data?.users || res.data?.data || [];
-  return rows.map((u: any) => normalizeUser(u));
-}
-
-export async function getGuestUsers(): Promise<StoredUser[]> {
-  const res = await get<any>('/admin/users/guests');
-  if (!res.success) throw new Error(res.message || 'Failed to fetch guest users');
-  const rows = Array.isArray(res.data) ? res.data : res.data?.users || res.data?.data || [];
-  return rows.map((u: any) => normalizeUser(u));
-}
-
-export async function login(emailOrUsername: string, password: string, _rememberMe = false): Promise<StoredUser> {
-  const res = await post<any>('/auth/login', { email: emailOrUsername, password });
-  if (!res.success) throw new Error(res.message || 'Login failed');
-  const accessToken = extractTokenFromResponse(res);
-  const refreshToken = extractRefreshTokenFromResponse(res);
-  if (accessToken) setStoredToken(accessToken);
-  if (refreshToken) setStoredRefreshToken(refreshToken);
-  const directUser = extractUserFromResponse(res);
-  if (directUser?.id || directUser?.email || directUser?.username) {
-    const user = normalizeUser(directUser, emailOrUsername);
-    setStoredUser(user);
-    return user;
-  }
-  const me = await getCurrentUser();
-  if (!me) throw new Error('Authenticated user could not be resolved after login');
-  return me;
-}
-
-export async function logout(): Promise<void> {
-  try { await post('/auth/logout', {}); } finally {
-    removeStoredToken();
-    removeStoredRefreshToken();
-    removeStoredUser();
-  }
-}
-
-export async function updateUser(userOrId: StoredUser | string, updates?: Partial<StoredUser>): Promise<StoredUser> {
-  const userId = typeof userOrId === 'string' ? userOrId : userOrId.id;
-  const payload = typeof userOrId === 'string' ? (updates || {}) : { ...userOrId, ...(updates || {}) };
-  const res = await put<any>(`/admin/users/${encodeURIComponent(userId)}`, payload);
-  if (!res.success) throw new Error(res.message || 'Failed to update user');
-  return normalizeUser(res.data?.user || res.data?.data || res.data);
-}
-
-export async function updateProfile(updates: Partial<StoredUser>): Promise<StoredUser> {
-  const res = await put<any>('/auth/profile', updates);
-  if (!res.success) throw new Error(res.message || 'Failed to update profile');
-  const user = normalizeUser(res.data?.user || res.data?.data || res.data);
-  setStoredUser(user);
-  return user;
-}
-
-export async function deleteUser(userId: string): Promise<void> {
-  const res = await del<any>(`/admin/users/${encodeURIComponent(userId)}`);
-  if (!res.success) throw new Error(res.message || 'Failed to delete user');
-}
-
-export async function createGuestUser(guestData: { firstName: string; lastName: string; mobile?: string; email?: string; validityDays?: number; }): Promise<StoredUser> {
-  const res = await post<any>('/admin/users/guest', { ...guestData, role: 'guest', isGuest: true });
-  if (!res.success) throw new Error(res.message || 'Failed to create guest user');
-  return normalizeUser(res.data?.user || res.data?.data || res.data);
-}
-
-export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
-  const res = await post<any>('/auth/change-password', { currentPassword, newPassword });
-  if (!res.success) throw new Error(res.message || 'Failed to change password');
-}
-
-export async function recoverPassword(email: string): Promise<void> {
-  const res = await post<any>('/auth/recover-password', { email });
-  if (!res.success) throw new Error(res.message || 'Failed to recover password');
-}
-
-export async function registerUser(userData: RegisterUserData): Promise<StoredUser> {
-  const fullName = [userData.firstName, userData.lastName].filter(Boolean).join(' ').trim();
-  const res = await post<any>('/auth/register', { username: userData.email, email: userData.email, name: fullName, phone: userData.mobile });
-  if (!res.success) throw new Error(res.message || 'Registration failed');
-  const accessToken = extractTokenFromResponse(res);
-  const refreshToken = extractRefreshTokenFromResponse(res);
-  if (accessToken) setStoredToken(accessToken);
-  if (refreshToken) setStoredRefreshToken(refreshToken);
-  const user = normalizeUser(extractUserFromResponse(res), userData.email);
-  setStoredUser(user);
-  return user;
-}
-
-export function isAccountExpired(user: StoredUser): boolean {
-  if (user.isAdmin) return false;
-  const expiryDate = getExpiryDate(user);
-  if (expiryDate) return expiryDate.getTime() <= Date.now();
-  if (user.isSubscriptionActive === false) return true;
-  if (typeof user.remainingDays === 'number') return user.remainingDays <= 0;
-  return false;
-}
-
-export function getUserValidityInfo(user: StoredUser): ValidityInfo {
-  const expiryDate = getExpiryDate(user);
-  let daysRemaining: number | null = null;
-  let isExpired = false;
-
-  if (expiryDate) {
-    const diffMs = expiryDate.getTime() - Date.now();
-    daysRemaining = Math.max(0, Math.ceil(diffMs / 86400000));
-    isExpired = diffMs <= 0;
-  } else if (typeof user.remainingDays === 'number') {
-    daysRemaining = Math.max(0, user.remainingDays);
-    isExpired = !user.isAdmin && (user.isSubscriptionActive === false || daysRemaining <= 0);
-  } else if (Number(user.subscriptionDays) > 0) {
-    daysRemaining = Number(user.subscriptionDays);
-    isExpired = false;
-  }
-
-  return {
-    isExpired,
-    daysRemaining,
-    expiryDate: expiryDate ? expiryDate.toLocaleDateString('fa-IR') : null,
-    statusText: isExpired ? 'Account expired' : daysRemaining !== null ? `${daysRemaining} days remaining` : 'No expiry date',
-    statusColor: isExpired ? 'red' : daysRemaining !== null && daysRemaining <= 3 ? 'red' : daysRemaining !== null && daysRemaining <= 7 ? 'orange' : 'green',
-  };
-}
-
-export function updateUserPresence(_userId: string): void {}
-export function removeUserPresence(_userId: string): void {}
-export function getOnlineUserCount(): number { return 0; }
-
-const authService = { getToken, getStoredCurrentUser, setCurrentUser, getRefreshToken, getCurrentUser, getMe, getUsers, getGuestUsers, login, logout, recoverPassword, registerUser, updateUser, updateProfile, deleteUser, createGuestUser, changePassword, isAccountExpired, getUserValidityInfo, updateUserPresence, removeUserPresence, getOnlineUserCount };
+export interface RegisterUserData { firstName: string; lastName: string; mobile: string; email: string; }
+const ACCESS_TOKEN_KEY = 'token'; const REFRESH_TOKEN_KEY = 'refreshToken'; const USER_STORAGE_KEY = 'currentUser';
+function extractRole(raw: any): string { if (raw?.role && typeof raw.role === 'object' && raw.role.name) return String(raw.role.name).toLowerCase(); if (typeof raw?.role === 'string') return raw.role.toLowerCase(); if (raw?.roleName) return String(raw.roleName).toLowerCase(); if (raw?.isAdmin === true) return 'admin'; if (raw?.isGuest === true) return 'guest'; return 'user'; }
+function getRemainingDaysFromSubscription(start: any, end: any, subscriptionDays: any, subscriptionMonths: any): number | undefined { const now = Date.now(); if (end) { const date = new Date(end); if (!Number.isNaN(date.getTime())) return Math.max(0, Math.ceil((date.getTime() - now) / 86400000)); } if (start) { const startDate = new Date(start); if (!Number.isNaN(startDate.getTime())) { const days = Number(subscriptionDays); if (Number.isFinite(days) && days > 0) return Math.max(0, Math.ceil((startDate.getTime() + days * 86400000 - now) / 86400000)); const months = Number(subscriptionMonths); if (Number.isFinite(months) && months > 0) { const calculatedEnd = new Date(startDate); calculatedEnd.setMonth(calculatedEnd.getMonth() + months); return Math.max(0, Math.ceil((calculatedEnd.getTime() - now) / 86400000)); } } } return undefined; }
+function normalizeUser(raw: any, fallbackEmail?: string): StoredUser { const email = raw?.email || raw?.username || fallbackEmail || ''; const firstName = raw?.firstName || raw?.name?.split?.(' ')?.[0] || ''; const lastName = raw?.lastName || raw?.name?.split?.(' ')?.slice?.(1)?.join?.(' ') || ''; const role = extractRole(raw); const subscriptionStart = raw?.subscriptionStart || null; const subscriptionEnd = raw?.subscriptionEnd || null; const subscriptionDays = raw?.subscriptionDays ?? 0; const subscriptionMonths = raw?.subscriptionMonths ?? 0; const calculated = getRemainingDaysFromSubscription(subscriptionStart, subscriptionEnd, subscriptionDays, subscriptionMonths); const serverRemaining = raw?.remainingDays ?? raw?.daysRemaining; const remainingDays = calculated !== undefined ? calculated : serverRemaining != null ? Number(serverRemaining) : Number(subscriptionDays) > 0 ? Number(subscriptionDays) : raw?.validityDays ?? 0; return { id: raw?.id || raw?._id || '', username: raw?.username || email, firstName, lastName, mobile: raw?.mobile || raw?.phone || '', email, isAdmin: role === 'admin' || raw?.isAdmin === true, isActive: raw?.isActive !== false, isGuest: role === 'guest' || raw?.isGuest === true, role, registrationDate: raw?.registrationDate || raw?.createdAt || new Date().toISOString(), activationDate: raw?.activationDate || raw?.createdAt || new Date().toISOString(), validityDays: remainingDays ?? 0, analysisIntervalMinutes: raw?.analysisIntervalMinutes ?? 5, analysisLimit24h: raw?.analysisLimit24h ?? raw?.analysisLimit ?? 100, isDeleted: raw?.isDeleted === true, subscriptionStart, subscriptionEnd, subscriptionDays, subscriptionMonths, analysisLimit: raw?.analysisLimit ?? raw?.analysisLimit24h ?? 100, isSubscriptionActive: raw?.isSubscriptionActive ?? (remainingDays === undefined ? true : remainingDays > 0), remainingDays, createdAt: raw?.createdAt || raw?.registrationDate || new Date().toISOString(), validityDate: raw?.validityDate || null, expiresAt: raw?.expiresAt || null, analysisUsed: raw?.analysisUsed ?? raw?.analysisCount ?? 0, passwordHash: raw?.passwordHash || '' } as StoredUser; }
+function getExpiryDate(user: StoredUser): Date | null { const value = user.subscriptionEnd || (user as any).validityDate || (user as any).expiresAt; if (!value) return null; const date = new Date(value); return Number.isNaN(date.getTime()) ? null : date; }
+function getCookieValue(name: string): string | null { if (typeof document === 'undefined') return null; const prefix = `${encodeURIComponent(name)}=`; const found = document.cookie.split(';').map(x => x.trim()).find(x => x.startsWith(prefix)); return found ? decodeURIComponent(found.slice(prefix.length)) : null; }
+function getStorageToken(): string | null { if (typeof window === 'undefined') return null; return localStorage.getItem(ACCESS_TOKEN_KEY) || localStorage.getItem('accessToken'); }
+function setStoredToken(token: string): void { if (typeof window !== 'undefined' && token) { localStorage.setItem(ACCESS_TOKEN_KEY, token); localStorage.setItem('accessToken', token); } }
+function removeStoredToken(): void { if (typeof window !== 'undefined') { localStorage.removeItem(ACCESS_TOKEN_KEY); localStorage.removeItem('accessToken'); } }
+function getStoredRefreshToken(): string | null { return typeof window === 'undefined' ? null : localStorage.getItem(REFRESH_TOKEN_KEY); }
+function setStoredRefreshToken(token: string): void { if (typeof window !== 'undefined' && token) localStorage.setItem(REFRESH_TOKEN_KEY, token); }
+function removeStoredRefreshToken(): void { if (typeof window !== 'undefined') localStorage.removeItem(REFRESH_TOKEN_KEY); }
+function setStoredUser(user: StoredUser): void { if (typeof window !== 'undefined') localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user)); }
+function removeStoredUser(): void { if (typeof window !== 'undefined') localStorage.removeItem(USER_STORAGE_KEY); }
+function extractTokenFromResponse(response: any): string | null { return response?.data?.token || response?.data?.accessToken || response?.data?.data?.token || response?.data?.data?.accessToken || response?.token || response?.accessToken || null; }
+function extractRefreshTokenFromResponse(response: any): string | null { return response?.data?.refreshToken || response?.data?.data?.refreshToken || response?.refreshToken || null; }
+function extractUserFromResponse(response: any): any { return response?.data?.user || response?.data?.data?.user || response?.data?.data || response?.data || response?.user || null; }
+export function getStoredCurrentUser(): StoredUser | null { if (typeof window === 'undefined') return null; try { const raw = localStorage.getItem(USER_STORAGE_KEY); return raw ? normalizeUser(JSON.parse(raw)) : null; } catch { return null; } }
+export function setCurrentUser(user: StoredUser | null): void { if (user) setStoredUser(user); else removeStoredUser(); }
+export function getToken(): string | null { return getStorageToken() || getCookieValue('accessToken') || getCookieValue('token') || getCookieValue('authToken'); }
+export function getRefreshToken(): string | null { return getStoredRefreshToken() || getCookieValue('refreshToken'); }
+export async function getMe(): Promise<{ success: boolean; data?: StoredUser; message?: string }> { try { const res = await get<any>('/auth/me'); if (!res.success || !res.data) return { success: false, message: res.message || 'دریافت اطلاعات کاربر ناموفق بود' }; const user = normalizeUser(res.data.user || res.data); setStoredUser(user); return { success: true, data: user }; } catch (error: any) { return { success: false, message: error?.message || 'خطا در دریافت اطلاعات کاربر' }; } }
+/** Synchronous shell accessor. Network refresh is performed by getMe(); the last authenticated user is persisted locally. */
+export function getCurrentUser(): StoredUser | null { return getStoredCurrentUser(); }
+export async function refreshCurrentUser(): Promise<StoredUser | null> { return (await getMe()).data || null; }
+export async function getUsers(): Promise<StoredUser[]> { const res = await get<any>('/admin/users'); if (!res.success) throw new Error(res.message || 'Failed to fetch users'); const rows = Array.isArray(res.data) ? res.data : res.data?.users || res.data?.data || []; return rows.map((u: any) => normalizeUser(u)); }
+export async function getGuestUsers(): Promise<StoredUser[]> { const res = await get<any>('/admin/users/guests'); if (!res.success) throw new Error(res.message || 'Failed to fetch guest users'); const rows = Array.isArray(res.data) ? res.data : res.data?.users || res.data?.data || []; return rows.map((u: any) => normalizeUser(u)); }
+export async function login(emailOrUsername: string, password: string, _rememberMe = false): Promise<StoredUser> { const res = await post<any>('/auth/login', { email: emailOrUsername, password }); if (!res.success) throw new Error(res.message || 'Login failed'); const token = extractTokenFromResponse(res); const refresh = extractRefreshTokenFromResponse(res); if (token) setStoredToken(token); if (refresh) setStoredRefreshToken(refresh); const direct = extractUserFromResponse(res); if (direct?.id || direct?.email || direct?.username) { const user = normalizeUser(direct, emailOrUsername); setStoredUser(user); return user; } const me = await refreshCurrentUser(); if (!me) throw new Error('Authenticated user could not be resolved after login'); return me; }
+export async function logout(): Promise<void> { try { await post('/auth/logout', {}); } finally { removeStoredToken(); removeStoredRefreshToken(); removeStoredUser(); } }
+export async function updateUser(userOrId: StoredUser | string, updates?: Partial<StoredUser>): Promise<StoredUser> { const userId = typeof userOrId === 'string' ? userOrId : userOrId.id; const payload = typeof userOrId === 'string' ? (updates || {}) : { ...userOrId, ...(updates || {}) }; const res = await put<any>(`/admin/users/${encodeURIComponent(userId)}`, payload); if (!res.success) throw new Error(res.message || 'Failed to update user'); const user = normalizeUser(res.data?.user || res.data?.data || res.data); setStoredUser(user); return user; }
+export async function updateProfile(updates: Partial<StoredUser>): Promise<StoredUser> { const res = await put<any>('/auth/profile', updates); if (!res.success) throw new Error(res.message || 'Failed to update profile'); const user = normalizeUser(res.data?.user || res.data?.data || res.data); setStoredUser(user); return user; }
+export async function deleteUser(userId: string): Promise<void> { const res = await del<any>(`/admin/users/${encodeURIComponent(userId)}`); if (!res.success) throw new Error(res.message || 'Failed to delete user'); }
+export async function createGuestUser(guestData: { firstName: string; lastName: string; mobile?: string; email?: string; validityDays?: number; }): Promise<StoredUser> { const res = await post<any>('/admin/users/guest', { ...guestData, role: 'guest', isGuest: true }); if (!res.success) throw new Error(res.message || 'Failed to create guest user'); return normalizeUser(res.data?.user || res.data?.data || res.data); }
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> { const res = await post<any>('/auth/change-password', { currentPassword, newPassword }); if (!res.success) throw new Error(res.message || 'Failed to change password'); }
+export async function recoverPassword(email: string): Promise<void> { const res = await post<any>('/auth/recover-password', { email }); if (!res.success) throw new Error(res.message || 'Failed to recover password'); }
+export async function registerUser(userData: RegisterUserData): Promise<StoredUser> { const res = await post<any>('/auth/register', { username: userData.email, email: userData.email, name: [userData.firstName, userData.lastName].filter(Boolean).join(' ').trim(), phone: userData.mobile }); if (!res.success) throw new Error(res.message || 'Registration failed'); const token = extractTokenFromResponse(res); const refresh = extractRefreshTokenFromResponse(res); if (token) setStoredToken(token); if (refresh) setStoredRefreshToken(refresh); const user = normalizeUser(extractUserFromResponse(res), userData.email); setStoredUser(user); return user; }
+export function isAccountExpired(user: StoredUser): boolean { if (user.isAdmin) return false; const expiry = getExpiryDate(user); if (expiry) return expiry.getTime() <= Date.now(); if (user.isSubscriptionActive === false) return true; return typeof user.remainingDays === 'number' && user.remainingDays <= 0; }
+export function getUserValidityInfo(user: StoredUser): ValidityInfo { const expiry = getExpiryDate(user); let days: number | null = null; let expired = false; if (expiry) { const diff = expiry.getTime() - Date.now(); days = Math.max(0, Math.ceil(diff / 86400000)); expired = diff <= 0; } else if (typeof user.remainingDays === 'number') { days = Math.max(0, user.remainingDays); expired = !user.isAdmin && (user.isSubscriptionActive === false || days <= 0); } return { isExpired: expired, daysRemaining: days, expiryDate: expiry ? expiry.toLocaleDateString('fa-IR') : null, statusText: expired ? 'Account expired' : days !== null ? `${days} days remaining` : 'No expiry date', statusColor: expired ? 'red' : days !== null && days <= 3 ? 'red' : days !== null && days <= 7 ? 'orange' : 'green' }; }
+export function updateUserPresence(_userId: string): void {} export function removeUserPresence(_userId: string): void {} export function getOnlineUserCount(): number { return 0; }
+const authService = { getToken, getStoredCurrentUser, setCurrentUser, getRefreshToken, getCurrentUser, refreshCurrentUser, getMe, getUsers, getGuestUsers, login, logout, recoverPassword, registerUser, updateUser, updateProfile, deleteUser, createGuestUser, changePassword, isAccountExpired, getUserValidityInfo, updateUserPresence, removeUserPresence, getOnlineUserCount };
 export default authService;
