@@ -1,14 +1,8 @@
 // src/services/updateService.ts
 import type { UpdateHistoryItem } from '../types';
-import type { ApiResult } from '../types';
 import { safeApi } from './apiResult';
 
-// ??? ?????? ??? endpoint ?????? ????? ??? ??? BASE ?? ????? ???
 const BASE = '/updates';
-
-// ==============================
-// Helpers
-// ==============================
 
 const normalizeHistory = (input: unknown): UpdateHistoryItem[] => {
   if (!Array.isArray(input)) return [];
@@ -25,7 +19,7 @@ const normalizeHistory = (input: unknown): UpdateHistoryItem[] => {
       const fileName =
         typeof raw.fileName === 'string' && raw.fileName.trim()
           ? raw.fileName.trim()
-          : '???? ???';
+          : 'فایل به‌روزرسانی';
 
       const size = Number(raw.size);
       const date = Number(raw.date);
@@ -42,7 +36,6 @@ const normalizeHistory = (input: unknown): UpdateHistoryItem[] => {
     })
     .sort((a, b) => b.versionNumber - a.versionNumber);
 
-  // ????? ???? ?? ???? ????
   if (list.length > 0 && !list.some((v) => v.isActive)) {
     list[0].isActive = true;
   }
@@ -55,7 +48,7 @@ const ensureHasInitial = (history: UpdateHistoryItem[]): UpdateHistoryItem[] => 
   return [
     {
       id: 'initial_version_0',
-      fileName: '???? ?????',
+      fileName: 'نسخه اولیه',
       size: 0,
       date: Date.now(),
       versionNumber: 1,
@@ -64,15 +57,10 @@ const ensureHasInitial = (history: UpdateHistoryItem[]): UpdateHistoryItem[] => 
   ];
 };
 
-// ==============================
-// API Calls
-// ==============================
-
 export const getUpdateHistory = async (): Promise<UpdateHistoryItem[]> => {
   const res = await safeApi<unknown>(`${BASE}/history`, { method: 'GET' });
 
   if (!res.ok) {
-    // fallback ????????? (???? persistence ??? ??????)
     return ensureHasInitial([]);
   }
 
@@ -87,11 +75,10 @@ export const addUpdate = async (file: File): Promise<UpdateHistoryItem[]> => {
   const uploadRes = await safeApi<{ success: true } | unknown>(`${BASE}/upload`, {
     method: 'POST',
     body: form,
-    // Content-Type ?? ???? ?????? browser ???? boundary ???????
   });
 
   if (!uploadRes.ok) {
-    throw new Error(uploadRes.error?.message || '????? ???? ???? ?????? ???.');
+    throw new Error(uploadRes.error || 'آپلود فایل به‌روزرسانی ناموفق بود.');
   }
 
   return getUpdateHistory();
@@ -103,10 +90,7 @@ export const deleteVersion = async (id: string): Promise<UpdateHistoryItem[]> =>
   });
 
   if (!res.ok) {
-    // ????? ?????? ??????
-    if (res.status === 404) throw new Error('???? ???? ??? ???? ???.');
-    if (res.status === 409) throw new Error('????? ??? ???? ???? ???? ?????.');
-    throw new Error(res.error?.message || '??? ???? ?????? ???.');
+    throw new Error(res.error || 'حذف نسخه ناموفق بود.');
   }
 
   return getUpdateHistory();
@@ -118,10 +102,8 @@ export const setActiveVersion = async (id: string): Promise<UpdateHistoryItem[]>
   });
 
   if (!res.ok) {
-    if (res.status === 404) throw new Error('???? ???? ??? ???? ????????? ???? ???.');
-    throw new Error(res.error?.message || '????????? ???? ?????? ???.');
+    throw new Error(res.error || 'فعال‌سازی نسخه ناموفق بود.');
   }
 
   return getUpdateHistory();
 };
-
