@@ -1,6 +1,10 @@
 name: Fix remaining TypeScript errors
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-typecheck-errors.yml'
   workflow_dispatch:
 
 permissions:
@@ -27,15 +31,15 @@ jobs:
               p = Path(path)
               s = p.read_text(encoding='utf-8-sig')
               n = fn(s)
-              if n == s:
-                  raise SystemExit(f'No change made to {path}')
-              p.write_text(n, encoding='utf-8')
+              if n != s:
+                  p.write_text(n, encoding='utf-8')
+                  print(f'patched {path}')
+              else:
+                  print(f'no change needed: {path}')
 
           def app(s):
               old = "setTseLinks(uiConfigService.getLinksForDisplay());"
               new = "setTseLinks(uiConfigService.getLinksForDisplay().map((link) => ({ id: link.id, label: link.label ?? link.title, href: link.href ?? link.url })));"
-              if old not in s:
-                  raise SystemExit('App TseLink assignment not found')
               return s.replace(old, new, 1)
 
           def market(s):
@@ -44,20 +48,16 @@ jobs:
               return s
 
           def stock(s):
-              s = s.replace("{ inflow, outflow, net }", "{ inflow: inflow ?? 0, outflow: outflow ?? 0, net: net ?? 0 }", 0)
               s = re.sub(r"\{item\.result\?\.summary \?\?\s*item\.summary \?\?\s*'تحلیل ذخیره شده'\}", "{item.result?.summary ?? 'تحلیل ذخیره شده'}", s, count=1)
               return s
+
+          def admin(s):
+              return s.replace("password: normalizeString(payload.password) || '',", "password: normalizeString(payload.password) ?? '',", 1)
 
           patch('src/App.tsx', app)
           patch('src/components/MarketSummaryDashboard.tsx', market)
           patch('src/components/StockAnalysis.tsx', stock)
-
-          p = Path('src/services/adminService.ts')
-          s = p.read_text(encoding='utf-8-sig')
-          s2 = s.replace("password: normalizeString(payload.password) || '',", "password: normalizeString(payload.password) ?? '',", 1)
-          if s2 == s:
-              raise SystemExit('adminService password assignment not found')
-          p.write_text(s2, encoding='utf-8')
+          patch('src/services/adminService.ts', admin)
 
       - name: Typecheck
         run: |
@@ -73,5 +73,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/App.tsx src/components/MarketSummaryDashboard.tsx src/components/StockAnalysis.tsx src/services/adminService.ts
+          if git diff --cached --quiet; then
+            echo "No source changes"
+            exit 0
+          fi
           git commit -m "fix: resolve remaining TypeScript errors"
           git push origin main
