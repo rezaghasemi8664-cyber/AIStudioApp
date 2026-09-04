@@ -707,7 +707,7 @@ export const getSummaryHistory = async (
       }
 
       const normalized = dataArray
-        .map((item) => (asObject(item) ? normalizeSummary(item) : null))
+        .map((item) => (asObject(item) ? normalizeSummary(asObject(item) ?? {}) : null))
         .filter((x): x is MarketSummaryData => x !== null);
 
       const dataObj = asObject(obj.data);
