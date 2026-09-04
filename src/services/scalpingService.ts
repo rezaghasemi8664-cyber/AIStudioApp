@@ -118,8 +118,7 @@ const DEFAULT_SCALPING_SETTINGS: ScalpingSettings = {
   startTime: '09:00',
   endTime: '12:30',
   days: [],
-  interval: 2,
-  symbols: []
+  interval: 2
 };
 
 const normalizeMarketStatus = (raw: UnknownRecord | undefined): ScalpingStatus['marketStatus'] => {
