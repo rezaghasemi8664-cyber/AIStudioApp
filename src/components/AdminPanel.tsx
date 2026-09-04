@@ -4,7 +4,7 @@ import * as adminControlService from '../services/adminControlService';
 import * as adminOperationsService from '../services/adminOperationsService';
 import * as adminActionsService from '../services/adminActionsService';
 import type { AdminDashboardData } from '../services/adminDashboardService';
-import UserManagementLegacy from './UserManagementLegacy';
+import UserManagementLegacy from './UserManagementRBAC';
 import OperationalPanels from './AdminOperationalPanels';
 import { ChartBarIcon, UserGroupIcon, BriefcaseIcon, Cog6ToothIcon, BellIcon, ShieldCheckIcon, PresentationChartLineIcon, ClipboardDocumentIcon, GlobeAltIcon, MagnifyingGlassIcon, LockClosedIcon } from './Icons';
 interface AdminPanelProps { isOnline: boolean; onMessageUpdate: () => void; onlineCount: number; }
