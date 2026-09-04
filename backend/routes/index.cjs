@@ -4,6 +4,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const maintenanceMiddleware = require('../middlewares/maintenance.middleware.cjs');
+const adminActionsRbac = require('../middlewares/adminActionsRbac.middleware.cjs');
 
 const router = express.Router();
 const v1 = express.Router();
@@ -14,14 +15,14 @@ function safeLoad(file, label) {
   try { const mod = require(fullPath); return mod && mod.default ? mod.default : mod; }
   catch (err) { console.error(`[ROUTE] FAIL ${label}: ${err.message}`); return null; }
 }
-function mount(prefix, file, label) {
+function mount(prefix, file, label, middleware) {
   const routeModule = safeLoad(file, label);
   if (!routeModule) return;
-  v1.use(prefix, routeModule);
+  if (middleware) v1.use(prefix, middleware, routeModule);
+  else v1.use(prefix, routeModule);
   console.log(`[ROUTE] OK ${label}: mounted at ${prefix}`);
 }
 
-// Maintenance is checked before application routes. Health, authentication and admin endpoints are exempted by the middleware itself.
 v1.use(maintenanceMiddleware);
 
 mount('/auth', './auth.routes.cjs', 'Auth');
@@ -49,7 +50,7 @@ mount('/global-settings', './globalSettings.routes.cjs', 'Global Settings');
 mount('/health', './health.routes.cjs', 'Health');
 mount('/admin', './admin.routes.cjs', 'Admin');
 mount('/admin-control', './adminControl.routes.cjs', 'Admin Control');
-mount('/admin-actions', './adminActions.routes.cjs', 'Admin Actions');
+mount('/admin-actions', './adminActions.routes.cjs', 'Admin Actions', adminActionsRbac);
 mount('/admin-security', './adminSecurity.routes.cjs', 'Admin Security Settings');
 mount('/api-keys', './apiKey.routes.cjs', 'API Keys');
 mount('/roles', './roles.routes.cjs', 'Roles');
@@ -58,5 +59,5 @@ mount('/endpoints', './endpoints.routes.cjs', 'Endpoints');
 
 router.use('/v1', v1);
 router.use('/', v1);
-router.use((req, res) => res.status(404).json({ success:false, message:`مسیر یافت نشد: ${req.originalUrl}` }));
-module.exports = router;
+router.use((req,res)=>res.status(404).json({success:false,message:`مسیر یافت نشد: ${req.originalUrl}`}));
+module.exports=router;
