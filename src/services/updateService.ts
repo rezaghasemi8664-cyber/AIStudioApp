@@ -90,7 +90,7 @@ export const deleteVersion = async (id: string): Promise<UpdateHistoryItem[]> =>
   });
 
   if (!res.ok) {
-    throw new Error(res.error || 'حذف نسخه ناموفق بود.');
+    throw new Error((typeof res.error === 'string' ? res.error : undefined) || 'حذف نسخه ناموفق بود.');
   }
 
   return getUpdateHistory();
@@ -102,7 +102,7 @@ export const setActiveVersion = async (id: string): Promise<UpdateHistoryItem[]>
   });
 
   if (!res.ok) {
-    throw new Error(res.error || 'فعال‌سازی نسخه ناموفق بود.');
+    throw new Error((typeof res.error === 'string' ? res.error : undefined) || 'فعال‌سازی نسخه ناموفق بود.');
   }
 
   return getUpdateHistory();
