@@ -276,7 +276,7 @@ const StatusBadge = ({
   value: any;
   tone?: 'positive' | 'negative' | 'warning' | 'neutral' | 'info';
 }) => {
-  const currentTone = tone ?? toneFromValue(value);
+  const currentTone = tone ?? toneFromValue(value) as 'info' | 'warning' | 'default' | 'positive' | 'negative';
 
   const styles = {
     positive:
@@ -541,11 +541,7 @@ export default function MarketSummaryDashboard({
   const risk = intelligence.risk || {};
   const action = intelligence.action || {};
   const leaders = intelligence.leaders || {};
-  const normalizedLeaders = {
-    gainers: Array.isArray(normalizedLeaders.gainers) ? leaders.gainers : [],
-    losers: Array.isArray(normalizedLeaders.losers) ? leaders.losers : [],
-    volumes: Array.isArray(normalizedLeaders.volumess) ? leaders.volumes : Array.isArray(leaders.volume) ? leaders.volume : [],
-  };
+  const normalizedLeaders: { gainers: unknown[]; losers: unknown[]; volumes: unknown[] } = { gainers: Array.isArray(leaders.gainers) ? leaders.gainers : [], losers: Array.isArray(leaders.losers) ? leaders.losers : [], volumes: Array.isArray(leaders.volumes) ? leaders.volumes : Array.isArray(leaders.volume) ? leaders.volume : [] };
   const dataQuality =
     intelligence.dataQuality ||
     intelligence.data_quality ||
@@ -607,7 +603,7 @@ export default function MarketSummaryDashboard({
       ? (Number(b.neutral || 0) / breadthTotal) * 100
       : null);
 
-  const regimeTone = toneFromValue(r.state);
+  const regimeTone = toneFromValue(r.state) as 'info' | 'warning' | 'default' | 'positive' | 'negative';
 
   const score = r.score ?? intelligence.score;
 
@@ -880,7 +876,7 @@ export default function MarketSummaryDashboard({
               l.interpretation ||
               'داده در دسترس نیست'
             }
-            tone={toneFromValue(l.label)}
+            tone={toneFromValue(l.label) as 'info' | 'warning' | 'default' | 'positive' | 'negative'}
           />
         </div>
 
@@ -935,7 +931,7 @@ export default function MarketSummaryDashboard({
                 value={translate(
                   f.label || f.state
                 )}
-                tone={toneFromValue(f.state)}
+                tone={toneFromValue(f.state) as 'info' | 'warning' | 'default' | 'positive' | 'negative'}
               />
 
               <KpiCard
@@ -1088,7 +1084,7 @@ export default function MarketSummaryDashboard({
               translate(m.state) ||
               'داده در دسترس نیست'
             }
-            tone={toneFromValue(m.state)}
+            tone={toneFromValue(m.state) as 'info' | 'warning' | 'default' | 'positive' | 'negative'}
           />
         </div>
 
@@ -1127,7 +1123,7 @@ export default function MarketSummaryDashboard({
               translate(risk.state) ||
               'داده در دسترس نیست'
             }
-            tone={toneFromValue(risk.state)}
+            tone={toneFromValue(risk.state) as 'info' | 'warning' | 'default' | 'positive' | 'negative'}
           />
 
           <KpiCard
@@ -1384,7 +1380,7 @@ export default function MarketSummaryDashboard({
           <KpiCard
             label="سوگیری معاملاتی"
             value={translate(actionBias)}
-            tone={toneFromValue(actionBias)}
+            tone={toneFromValue(actionBias) as 'info' | 'warning' | 'default' | 'positive' | 'negative'}
           />
 
           <KpiCard
@@ -1393,7 +1389,7 @@ export default function MarketSummaryDashboard({
               action.risk ||
               'داده در دسترس نیست'
             }
-            tone={toneFromValue(action.risk)}
+            tone={toneFromValue(action.risk) as 'info' | 'warning' | 'default' | 'positive' | 'negative'}
           />
 
           <KpiCard
