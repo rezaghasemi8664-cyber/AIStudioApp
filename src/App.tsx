@@ -359,7 +359,7 @@ const App: React.FC = () => {
     }
 
     if (typeof uiConfigService.getLinksForDisplay === 'function') {
-      setTseLinks(uiConfigService.getLinksForDisplay());
+      setTseLinks((uiConfigService.getLinksForDisplay() as unknown as import('./types').TseLink[]));
     }
   }, []);
 
@@ -378,7 +378,7 @@ const App: React.FC = () => {
       }
 
       if (user.isAdmin && typeof messageService.getUnreadMessageCountForAdmin === 'function') {
-        totalUnread += messageService.getUnreadMessageCountForAdmin();
+        totalUnread += 0; void messageService.getUnreadMessageCountForAdmin().then(count => setUnreadCount(current => current + count));
       }
 
       setUnreadCount(totalUnread);
@@ -703,7 +703,7 @@ const App: React.FC = () => {
         }
 
         if (user.isAdmin && typeof authService.getOnlineUserCount === 'function') {
-          authService.getOnlineUserCount().then(setOnlineUserCount).catch(() => {});
+          setOnlineUserCount(authService.getOnlineUserCount());
         }
       } catch {
         //
@@ -878,8 +878,8 @@ const App: React.FC = () => {
 
             if (isCancelled) return;
 
-            if (result?.opportunities?.length > 0) {
-              addNotification(`فرصت‌های جدید: ${result.opportunities.join(', ')}`, 'success');
+            if (result?.newOpportunitySymbols?.length > 0) {
+              addNotification(`فرصت‌های جدید: ${result.newOpportunitySymbols.join(', ')}`, 'success');
               setScalpingAlert(true);
             }
           }
@@ -1016,7 +1016,7 @@ const App: React.FC = () => {
   const handleTabClick = useCallback(
     (tab: Tab) => {
       if (isExpired && !currentUser?.isAdmin && !['profile', 'settings', 'notifications'].includes(tab)) {
-        addNotification('مدت زمان اشتراک شما به پایان رسیده است لطفا جهت دسترسی به تمام امکانات نرم افزار نسبت به تمدید اشتراک خود اقدام نمایید', 'warning');
+        addNotification('مدت زمان اشتراک شما به پایان رسیده است لطفا جهت دسترسی به تمام امکانات نرم افزار نسبت به تمدید اشتراک خود اقدام نمایید', 'info');
         return;
       }
       if (activeTab === 'settings' && tab !== 'settings') {
@@ -1103,7 +1103,7 @@ const App: React.FC = () => {
 
       if (!notification.read && currentUser) {
         if (typeof notificationService.markSingleNotificationAsRead === 'function') {
-          notificationService.markSingleNotificationAsRead(notification.id, currentUser.id);
+          notificationService.markSingleNotificationAsRead(notification.id);
         }
 
         refreshUnreadCount(currentUser);
@@ -1129,7 +1129,7 @@ const App: React.FC = () => {
 
     switch (activeTab) {
       case 'analysis':
-        return <StockAnalysis currentUser={currentUser} isOnline={isOnline} />;
+        return <StockAnalysis />;
 
       case 'scalping':
         return <Scalping isOnline={isOnline} />;
@@ -1189,7 +1189,7 @@ const App: React.FC = () => {
         return isExpired ? (
           <AccessDenied />
         ) : (
-          <StockAnalysis currentUser={currentUser} isOnline={isOnline} />
+          <StockAnalysis />
         );
     }
   }, [
