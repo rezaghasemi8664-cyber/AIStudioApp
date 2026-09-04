@@ -1,4 +1,4 @@
-﻿// backend/server.cjs - Complete Production Server v5.2.1 FIXED + Socket.IO (PATCH-ONLY)
+// backend/server.cjs - Complete Production Server v5.2.1 FIXED + Socket.IO (PATCH-ONLY)
 // ══════════════════════════════════════════════════════════════════
 // v5.2.1 Patch-only changes:
 //   - Harden API path guard (strict /api and /api/* only) in SPA fallback and API 404
@@ -566,6 +566,9 @@ console.log('  Mounting API Routes (v5.2.1)');
 console.log('════════════════════════════════════════════════');
 
 mountRoute('/api/v1', './routes/v1/index.cjs', 'API v1 Root');
+// Compatibility aliases for reverse proxies that strip the /api prefix.
+// This keeps /api/v1/* requests functional when Nginx forwards them as /v1/*.
+mountRoute('/v1', './routes/v1/index.cjs', 'API v1 proxy-stripped compatibility');
 mountRoute('/api/v2', './routes/v2/index.cjs', 'API v2 Root');
 
 mountRoute('/api/auth',        './routes/auth.routes.cjs',             'Auth (login/register/refresh)');
