@@ -27,6 +27,7 @@ type AnalysisHistoryItem = {
   id: string;
   symbol: string;
   result: AnalysisResult | null;
+  summary?: string;
   createdAt: string;
 };
 
