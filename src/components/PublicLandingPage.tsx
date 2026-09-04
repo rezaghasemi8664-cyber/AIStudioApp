@@ -118,7 +118,7 @@ const PublicLandingPage: React.FC = () => {
           <div className="public-wrap">
             <img className="public-hero-logo" src="/1.png" alt="تحلیلگر هوشمند بورس رونیا" />
             <div className="public-badge"><span /> سامانه تحلیل و بررسی بازار سرمایه</div>
-            <h1><span className="public-gradient-text">تحلیل هوشمند بازار</span><br />برای تصمیم‌گیری دقیق‌تر</h1>
+            <h1>18572255</h1>
             <p>
               تحلیلگر هوشمند بورس رونیا یک سامانه تخصصی برای بررسی سهام و بازار سرمایه ایران است؛
               محیطی یکپارچه برای تحلیل سهم، تحلیل بنیادی، مقایسه نمادها، بررسی بازار، نوسان‌گیری و مدیریت سبد سهام.
