@@ -399,7 +399,7 @@ const UserProfile: React.FC<UserProfileProps> = ({
   // =====================
   useEffect(() => {
     if (currentUser.isAdmin) {
-      setGuestValidityDays(guestSettingsService.getGuestValidityDays());
+      void guestSettingsService.getGuestValidityDays().then(setGuestValidityDays);
       refreshGuestUsers();
     }
     fetchSubscription();
