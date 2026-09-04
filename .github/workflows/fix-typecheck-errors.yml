@@ -42,21 +42,26 @@ jobs:
 
           def market(s):
               s = s.replace("${valueColor[tone]}", "${valueColor[tone ?? 'default']}", 1)
-              # regimeTone is already narrowed to the StatusBadge-supported tones;
-              # do not compare it with the removed 'default' tone.
               return s
 
           def stock(s):
-              s = re.sub(r"\{item\.result\?\.summary \?\?\s*item\.summary \?\?\s*'تحلیل ذخیره شده'\}", "{item.result?.summary ?? 'تحلیل ذخیره شده'}", s, count=1)
-              return s
+              return re.sub(r"\{item\.result\?\.summary \?\?\s*item\.summary \?\?\s*'تحلیل ذخیره شده'\}", "{item.result?.summary ?? 'تحلیل ذخیره شده'}", s, count=1)
 
           def admin(s):
               return s.replace("password: normalizeString(payload.password) || '',", "password: normalizeString(payload.password) ?? '',", 1)
+
+          def server(s):
+              marker = "mountRoute('/api/v1', './routes/v1/index.cjs', 'API v1 Root');"
+              aliases = "\n// Compatibility aliases for reverse proxies that strip the /api prefix.\n// This keeps /api/v1/* requests functional when Nginx forwards them as /v1/*.\nmountRoute('/v1', './routes/v1/index.cjs', 'API v1 proxy-stripped compatibility');"
+              if "API v1 proxy-stripped compatibility" in s:
+                  return s
+              return s.replace(marker, marker + aliases, 1)
 
           patch('src/App.tsx', app)
           patch('src/components/MarketSummaryDashboard.tsx', market)
           patch('src/components/StockAnalysis.tsx', stock)
           patch('src/services/adminService.ts', admin)
+          patch('backend/server.cjs', server)
 
       - name: Typecheck
         run: |
@@ -71,10 +76,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/App.tsx src/components/MarketSummaryDashboard.tsx src/components/StockAnalysis.tsx src/services/adminService.ts
+          git add src/App.tsx src/components/MarketSummaryDashboard.tsx src/components/StockAnalysis.tsx src/services/adminService.ts backend/server.cjs
           if git diff --cached --quiet; then
             echo "No source changes"
             exit 0
           fi
-          git commit -m "fix: resolve remaining TypeScript errors"
+          git commit -m "fix: add history API proxy compatibility"
           git push origin main
