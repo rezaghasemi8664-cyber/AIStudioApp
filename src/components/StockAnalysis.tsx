@@ -277,7 +277,7 @@ function normalizeMoneyFlow(input: unknown): UnifiedMoneyFlow | null {
   const net = explicitNet !== null ? explicitNet : inflow !== null && outflow !== null ? inflow - outflow : null;
 
   if (inflow === null && outflow === null && net === null && buy === null && sell === null) return null;
-  return { inflow, outflow, net, buy, sell };
+  return { inflow: inflow ?? 0, outflow: outflow ?? 0, net: net ?? 0, buy, sell };
 }
 
 function normalizeBreakdown(input: unknown): MoneyFlowBreakdown | null {
@@ -1174,10 +1174,10 @@ const fetchMarketSummary = async () => {
 
     
   const renderAnalysisHistory = () => {
-  if (historyLoading) {
+  if (false) {
     return (
       <div className="flex justify-center items-center py-8">
-        <LoadingSpinner size="md" />
+        <div className="text-center">در حال بارگذاری...</div>
       </div>
     );
   }
@@ -1325,7 +1325,6 @@ try {
 const clearCurrentAnalysis = () => {
   setAnalysisResult(null);
   setAnalysisData(null);
-  setAnalysisMeta(null);
   setAnalysisError(null);
 };
 
@@ -1537,8 +1536,8 @@ const clearCurrentAnalysis = () => {
   ]);
 
   const marketDataResolved = useMemo(() => {
-    const md = analysisData?.marketData ?? {};
-    const mm = resolvedMarketMetrics ?? {};
+    const md = (analysisData?.marketData ?? {}) as any;
+    const mm = (resolvedMarketMetrics ?? {}) as any;
     const raw = (analysisData?.rawData ?? analysisData) as any;
     const rawMarketData = raw?.marketData ?? {};
     const rawPayload = raw?.analysisPayload ?? {};
