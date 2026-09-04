@@ -3,8 +3,8 @@ import apiClient from './apiClient';
 
 export const initializeTseLinks = () => { /* legacy module-level shim */ };
 export const getAdminLinks = () => { return []; };
-export const setAdminLinks = (links: any) => { void links; /* legacy shim */ };
-export const publishLinks = () => { /* legacy shim */ };
+export const setAdminLinks = (links: any) => { void links; };
+export const publishLinks = () => { /* legacy module-level shim */ };
 
 export interface TseLink { id: string; title: string; url: string; category?: string; }
 const GLOBAL_TSE_LINKS_KEY = 'global_app_tse_links';
@@ -56,5 +56,5 @@ class UIConfigService {
   areGlobalLinksPublished(): boolean { return this.published; }
 }
 const uiConfigService = new UIConfigService();
-export const getLinksForDisplay = (): Promise<TseLink[]> => uiConfigService.getLinksForDisplay();
+export const getLinksForDisplay = (): TseLink[] => [...DEFAULT_TSE_LINKS];
 export default uiConfigService;
