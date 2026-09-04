@@ -113,13 +113,7 @@ function unwrapData<T>(response: unknown, fallback: T): T {
 
 const getCacheBuster = () => `t=${Date.now()}`;
 
-const DEFAULT_SCALPING_SETTINGS: ScalpingSettings = {
-  isEnabled: false,
-  startTime: '09:00',
-  endTime: '12:30',
-  days: [],
-  interval: 2
-};
+const DEFAULT_SCALPING_SETTINGS: ScalpingSettings = { isEnabled: false, startTime: '09:00', endTime: '12:30', days: [], interval: 2 };
 
 const normalizeMarketStatus = (raw: UnknownRecord | undefined): ScalpingStatus['marketStatus'] => {
   const market = raw ?? {};
