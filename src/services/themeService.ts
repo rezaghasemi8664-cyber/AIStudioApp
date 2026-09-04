@@ -285,7 +285,7 @@ async function saveWelcomeBannerConfigToServer(
 export const initializeTheme = async (): Promise<void> => {
   // 1) load global theme from backend
   const globalRes = await fetchGlobalThemeFromServer();
-  globalThemeCache = globalRes.ok ? globalRes.data : {};
+  globalThemeCache = globalRes.ok && globalRes.data ? globalRes.data : {};
 
   // 2) apply active theme (global + current in-memory draft)
   applyTheme(getActiveTheme());
@@ -372,7 +372,7 @@ export const discardLocalDraftTheme = (): void => {
 
 export const getWelcomeBannerConfig = async (): Promise<WelcomeBannerConfig> => {
   const res = await fetchWelcomeBannerConfigFromServer();
-  return res.ok ? res.data : DEFAULT_WELCOME_BANNER_CONFIG;
+  return res.ok && res.data ? res.data : DEFAULT_WELCOME_BANNER_CONFIG;
 };
 
 export const setWelcomeBannerConfig = async (
