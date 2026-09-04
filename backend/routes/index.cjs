@@ -3,6 +3,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const maintenanceMiddleware = require('../middlewares/maintenance.middleware.cjs');
 
 const router = express.Router();
 const v1 = express.Router();
@@ -19,6 +20,9 @@ function mount(prefix, file, label) {
   v1.use(prefix, routeModule);
   console.log(`[ROUTE] OK ${label}: mounted at ${prefix}`);
 }
+
+// Maintenance is checked before application routes. Health, authentication and admin endpoints are exempted by the middleware itself.
+v1.use(maintenanceMiddleware);
 
 mount('/auth', './auth.routes.cjs', 'Auth');
 mount('/profile', './profile.routes.cjs', 'Profile');
