@@ -10,10 +10,6 @@ import type {
   ApiResponse,
 } from '../types';
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export type UserId = string | number;
 
 export interface AdminCreateUserPayload {
@@ -77,16 +73,8 @@ export interface AdminChangeRolePayload {
   roleId: number;
 }
 
-// =============================================================================
-// Constants
-// =============================================================================
-
 const ADMIN_BASE = '/admin';
 const USERS_BASE = `${ADMIN_BASE}/users`;
-
-// =============================================================================
-// Helpers
-// =============================================================================
 
 function assertUserId(userId: UserId): void {
   if (userId === null || userId === undefined || String(userId).trim() === '') {
@@ -109,38 +97,29 @@ function normalizeNullableString(value: unknown): string | null | undefined {
   if (value === undefined) return undefined;
   if (value === null) return null;
   if (typeof value !== 'string') return undefined;
-
   const trimmed = value.trim();
   return trimmed === '' ? null : trimmed;
 }
 
 function normalizeNumber(value: unknown): number | undefined {
   if (value === undefined || value === null || value === '') return undefined;
-
-  const parsed =
-    typeof value === 'number' ? value : Number(String(value).trim());
-
+  const parsed = typeof value === 'number' ? value : Number(String(value).trim());
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function normalizeBoolean(value: unknown): boolean | undefined {
   if (typeof value === 'boolean') return value;
   if (value === undefined || value === null || value === '') return undefined;
-
   if (value === 'true' || value === '1' || value === 1) return true;
   if (value === 'false' || value === '0' || value === 0) return false;
-
   return undefined;
 }
 
 function omitUndefined<T extends Record<string, unknown>>(obj: T): T {
-  const entries = Object.entries(obj).filter(([, value]) => value !== undefined);
-  return Object.fromEntries(entries) as T;
+  return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined)) as T;
 }
 
-function sanitizeCreateUserPayload(
-  payload: AdminCreateUserPayload
-): AdminCreateUserPayload {
+function sanitizeCreateUserPayload(payload: AdminCreateUserPayload): AdminCreateUserPayload {
   return omitUndefined({
     username: normalizeString(payload.username) || '',
     password: normalizeString(payload.password) ?? '',
@@ -155,29 +134,17 @@ function sanitizeCreateUserPayload(
     avatar: normalizeNullableString(payload.avatar),
     roleId: normalizeNumber(payload.roleId) ?? payload.roleId ?? undefined,
     isActive: normalizeBoolean(payload.isActive),
-    analysisLimit:
-      normalizeNumber(payload.analysisLimit) ?? payload.analysisLimit ?? undefined,
-    analysisLimit24h:
-      normalizeNumber(payload.analysisLimit24h) ??
-      payload.analysisLimit24h ??
-      undefined,
+    analysisLimit: normalizeNumber(payload.analysisLimit) ?? payload.analysisLimit ?? undefined,
+    analysisLimit24h: normalizeNumber(payload.analysisLimit24h) ?? payload.analysisLimit24h ?? undefined,
     subscriptionStart: normalizeNullableString(payload.subscriptionStart),
     subscriptionEnd: normalizeNullableString(payload.subscriptionEnd),
-    subscriptionDays:
-      normalizeNumber(payload.subscriptionDays) ??
-      payload.subscriptionDays ??
-      undefined,
-    subscriptionMonths:
-      normalizeNumber(payload.subscriptionMonths) ??
-      payload.subscriptionMonths ??
-      undefined,
+    subscriptionDays: normalizeNumber(payload.subscriptionDays) ?? payload.subscriptionDays ?? undefined,
+    subscriptionMonths: normalizeNumber(payload.subscriptionMonths) ?? payload.subscriptionMonths ?? undefined,
     isSubscriptionActive: normalizeBoolean(payload.isSubscriptionActive),
   });
 }
 
-function sanitizeUpdateUserPayload(
-  payload: AdminUpdateUserPayload
-): AdminUpdateUserPayload {
+function sanitizeUpdateUserPayload(payload: AdminUpdateUserPayload): AdminUpdateUserPayload {
   return omitUndefined({
     username: normalizeString(payload.username) || '',
     password: normalizeString(payload.password) ?? '',
@@ -192,22 +159,12 @@ function sanitizeUpdateUserPayload(
     avatar: normalizeNullableString(payload.avatar),
     roleId: normalizeNumber(payload.roleId) ?? payload.roleId ?? undefined,
     isActive: normalizeBoolean(payload.isActive),
-    analysisLimit:
-      normalizeNumber(payload.analysisLimit) ?? payload.analysisLimit ?? undefined,
-    analysisLimit24h:
-      normalizeNumber(payload.analysisLimit24h) ??
-      payload.analysisLimit24h ??
-      undefined,
+    analysisLimit: normalizeNumber(payload.analysisLimit) ?? payload.analysisLimit ?? undefined,
+    analysisLimit24h: normalizeNumber(payload.analysisLimit24h) ?? payload.analysisLimit24h ?? undefined,
     subscriptionStart: normalizeNullableString(payload.subscriptionStart),
     subscriptionEnd: normalizeNullableString(payload.subscriptionEnd),
-    subscriptionDays:
-      normalizeNumber(payload.subscriptionDays) ??
-      payload.subscriptionDays ??
-      undefined,
-    subscriptionMonths:
-      normalizeNumber(payload.subscriptionMonths) ??
-      payload.subscriptionMonths ??
-      undefined,
+    subscriptionDays: normalizeNumber(payload.subscriptionDays) ?? payload.subscriptionDays ?? undefined,
+    subscriptionMonths: normalizeNumber(payload.subscriptionMonths) ?? payload.subscriptionMonths ?? undefined,
     isSubscriptionActive: normalizeBoolean(payload.isSubscriptionActive),
   });
 }
@@ -217,46 +174,27 @@ function unwrapOrNull<T>(response: ApiResponse<T> | null | undefined): T | null 
   return null;
 }
 
-function unwrapUserArray(
-  response: ApiResponse<AdminUserListItem[]> | null | undefined
-): AdminUserListItem[] {
+function unwrapUserArray(response: ApiResponse<AdminUserListItem[]> | null | undefined): AdminUserListItem[] {
   if (!response?.success) return [];
-
   if (Array.isArray(response.data)) return response.data;
-
-  // Tolerant handling in case backend returns nested list structures
   const data = response.data as unknown;
-
   if (data && typeof data === 'object') {
     const maybeUsers = (data as { users?: unknown }).users;
     const maybeItems = (data as { items?: unknown }).items;
-
     if (Array.isArray(maybeUsers)) return maybeUsers as AdminUserListItem[];
     if (Array.isArray(maybeItems)) return maybeItems as AdminUserListItem[];
   }
-
   return [];
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message?.trim()) {
-    return error.message;
-  }
+  if (error instanceof Error && error.message?.trim()) return error.message;
   return fallback;
 }
 
-// =============================================================================
-// Dashboard
-// =============================================================================
-
-/**
- * GET /admin/dashboard
- */
 export async function getDashboard(): Promise<AdminDashboardStats | null> {
   try {
-    const response = await apiClient.get<AdminDashboardStats>(
-      `${ADMIN_BASE}/dashboard`
-    );
+    const response = await apiClient.get<AdminDashboardStats>(`${ADMIN_BASE}/dashboard`);
     return unwrapOrNull(response);
   } catch (error) {
     console.warn('[adminService] getDashboard failed:', error);
@@ -264,13 +202,6 @@ export async function getDashboard(): Promise<AdminDashboardStats | null> {
   }
 }
 
-// =============================================================================
-// Users
-// =============================================================================
-
-/**
- * GET /admin/users
- */
 export async function getUsers(): Promise<AdminUserListItem[]> {
   try {
     const response = await apiClient.get<AdminUserListItem[]>(USERS_BASE);
@@ -281,14 +212,9 @@ export async function getUsers(): Promise<AdminUserListItem[]> {
   }
 }
 
-/**
- * GET /admin/users/:id
- */
 export async function getUser(userId: UserId): Promise<AdminUserListItem | null> {
   try {
-    const response = await apiClient.get<AdminUserListItem>(
-      `${USERS_BASE}/${encodeUserId(userId)}`
-    );
+    const response = await apiClient.get<AdminUserListItem>(`${USERS_BASE}/${encodeUserId(userId)}`);
     return unwrapOrNull(response);
   } catch (error) {
     console.warn('[adminService] getUser failed:', error);
@@ -296,16 +222,9 @@ export async function getUser(userId: UserId): Promise<AdminUserListItem | null>
   }
 }
 
-/**
- * POST /admin/users
- */
-export async function createUser(
-  payload: AdminCreateUserPayload
-): Promise<AdminUserListItem | null> {
+export async function createUser(payload: AdminCreateUserPayload): Promise<AdminUserListItem | null> {
   try {
-    const body = sanitizeCreateUserPayload(payload);
-
-    const response = await apiClient.post<AdminUserListItem>(USERS_BASE, body);
+    const response = await apiClient.post<AdminUserListItem>(USERS_BASE, sanitizeCreateUserPayload(payload));
     return unwrapOrNull(response);
   } catch (error) {
     console.warn('[adminService] createUser failed:', error);
@@ -313,22 +232,9 @@ export async function createUser(
   }
 }
 
-/**
- * PUT /admin/users/:id
- * or PATCH /admin/users/:id depending on backend implementation
- */
-export async function updateUser(
-  userId: UserId,
-  payload: AdminUpdateUserPayload
-): Promise<AdminUserListItem | null> {
+export async function updateUser(userId: UserId, payload: AdminUpdateUserPayload): Promise<AdminUserListItem | null> {
   try {
-    const body = sanitizeUpdateUserPayload(payload);
-
-    const response = await apiClient.put<AdminUserListItem>(
-      `${USERS_BASE}/${encodeUserId(userId)}`,
-      body
-    );
-
+    const response = await apiClient.put<AdminUserListItem>(`${USERS_BASE}/${encodeUserId(userId)}`, sanitizeUpdateUserPayload(payload));
     return unwrapOrNull(response);
   } catch (error) {
     console.warn('[adminService] updateUser failed:', error);
@@ -336,40 +242,35 @@ export async function updateUser(
   }
 }
 
-/**
- * PATCH /admin/users/:id/toggle-active
- */
-export async function toggleUserActive(
-  userId: UserId,
-  isActive: boolean
-): Promise<AdminUserListItem | null> {
+export async function toggleUserActive(userId: UserId, isActive: boolean): Promise<AdminUserListItem | null> {
   try {
-    const response = await apiClient.patch<AdminUserListItem>(
-      `${USERS_BASE}/${encodeUserId(userId)}/toggle-active`,
-      { isActive: !!isActive }
-    );
+    const response = await apiClient.patch<AdminUserListItem>(`${USERS_BASE}/${encodeUserId(userId)}/toggle-active`, { isActive: !!isActive });
     return unwrapOrNull(response);
   } catch (error) {
     console.warn('[adminService] toggleUserActive failed:', error);
-    throw new Error(
-      getErrorMessage(error, 'تغییر وضعیت فعال بودن کاربر با خطا مواجه شد.')
-    );
+    throw new Error(getErrorMessage(error, 'تغییر وضعیت فعال بودن کاربر با خطا مواجه شد.'));
   }
 }
 
 /**
- * PATCH /admin/users/:id/role
- * اگر بک‌اند شما endpoint دیگری دارد، فقط همین مسیر را تغییر بده.
+ * Changes a user's role through the dedicated RBAC endpoint.
+ * Role changes are intentionally not sent through PUT /admin/users/:id,
+ * so privileged role changes cannot bypass the RBAC policy.
  */
-export async function changeUserRole(
-  userId: UserId,
-  roleId: number
-): Promise<AdminUserListItem | null> {
+export async function changeUserRole(userId: UserId, roleId: number): Promise<AdminUserListItem | null> {
   try {
+    assertUserId(userId);
+    if (!Number.isInteger(roleId) || roleId <= 0) throw new Error('شناسه نقش معتبر نیست.');
+
     const response = await apiClient.patch<AdminUserListItem>(
-      `${USERS_BASE}/${encodeUserId(userId)}/role`,
+      `/admin-rbac/users/${encodeUserId(userId)}/role`,
       { roleId }
     );
+
+    if (!response?.success) {
+      throw new Error(response?.message || 'تغییر نقش کاربر با خطا مواجه شد.');
+    }
+
     return unwrapOrNull(response);
   } catch (error) {
     console.warn('[adminService] changeUserRole failed:', error);
@@ -377,14 +278,9 @@ export async function changeUserRole(
   }
 }
 
-/**
- * DELETE /admin/users/:id
- */
 export async function deleteUser(userId: UserId): Promise<boolean> {
   try {
-    const response: ApiResponse<unknown> = await apiClient.del(
-      `${USERS_BASE}/${encodeUserId(userId)}`
-    );
+    const response: ApiResponse<unknown> = await apiClient.del(`${USERS_BASE}/${encodeUserId(userId)}`);
     return response?.success === true;
   } catch (error) {
     console.warn('[adminService] deleteUser failed:', error);
@@ -392,16 +288,7 @@ export async function deleteUser(userId: UserId): Promise<boolean> {
   }
 }
 
-// =============================================================================
-// Subscription
-// =============================================================================
-
-/**
- * PUT /admin/users/:id/subscription
- */
-export async function updateSubscription(
-  data: AdminUpdateSubscriptionData
-): Promise<AdminUserListItem | null> {
+export async function updateSubscription(data: AdminUpdateSubscriptionData): Promise<AdminUserListItem | null> {
   try {
     const response = await apiClient.put<AdminUserListItem>(
       `${USERS_BASE}/${encodeUserId(data.userId)}/subscription`,
@@ -409,25 +296,12 @@ export async function updateSubscription(
         isSubscriptionActive: normalizeBoolean(data.isSubscriptionActive),
         subscriptionStart: normalizeNullableString(data.subscriptionStart),
         subscriptionEnd: normalizeNullableString(data.subscriptionEnd),
-        subscriptionDays:
-          normalizeNumber(data.subscriptionDays) ??
-          data.subscriptionDays ??
-          undefined,
-        subscriptionMonths:
-          normalizeNumber(data.subscriptionMonths) ??
-          data.subscriptionMonths ??
-          undefined,
-        analysisLimit:
-          normalizeNumber(data.analysisLimit) ??
-          data.analysisLimit ??
-          undefined,
-        analysisLimit24h:
-          normalizeNumber(data.analysisLimit24h) ??
-          data.analysisLimit24h ??
-          undefined,
+        subscriptionDays: normalizeNumber(data.subscriptionDays) ?? data.subscriptionDays ?? undefined,
+        subscriptionMonths: normalizeNumber(data.subscriptionMonths) ?? data.subscriptionMonths ?? undefined,
+        analysisLimit: normalizeNumber(data.analysisLimit) ?? data.analysisLimit ?? undefined,
+        analysisLimit24h: normalizeNumber(data.analysisLimit24h) ?? data.analysisLimit24h ?? undefined,
       })
     );
-
     return unwrapOrNull(response);
   } catch (error) {
     console.warn('[adminService] updateSubscription failed:', error);
@@ -435,14 +309,7 @@ export async function updateSubscription(
   }
 }
 
-/**
- * PUT /admin/users/:id/reset-password
- * فقط در صورتی استفاده شود که endpoint در بک‌اند موجود باشد.
- */
-export async function resetUserPassword(
-  userId: UserId,
-  newPassword: string
-): Promise<boolean> {
+export async function resetUserPassword(userId: UserId, newPassword: string): Promise<boolean> {
   try {
     const response: ApiResponse<unknown> = await apiClient.put(
       `${USERS_BASE}/${encodeUserId(userId)}/reset-password`,
