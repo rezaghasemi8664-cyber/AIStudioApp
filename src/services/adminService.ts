@@ -143,7 +143,7 @@ function sanitizeCreateUserPayload(
 ): AdminCreateUserPayload {
   return omitUndefined({
     username: normalizeString(payload.username) || '',
-    password: normalizeString(payload.password) || '',
+    password: normalizeString(payload.password) ?? '',
     email: normalizeNullableString(payload.email),
     name: normalizeNullableString(payload.name),
     firstName: normalizeNullableString(payload.firstName),

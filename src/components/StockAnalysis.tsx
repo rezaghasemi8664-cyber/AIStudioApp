@@ -2366,9 +2366,7 @@ const clearCurrentAnalysis = () => {
                     </div>
 
                     <div className="mt-2 line-clamp-2 text-[13px] font-medium leading-7 text-slate-800">
-                      {item.result?.summary ??
-                        item.summary ??
-                        'تحلیل ذخیره شده'}
+                      {item.result?.summary ?? 'تحلیل ذخیره شده'}
                     </div>
                   </div>
 

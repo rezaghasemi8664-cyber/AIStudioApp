@@ -667,7 +667,7 @@ const App: React.FC = () => {
 
       if (event.key === 'global_app_tse_links') {
         if (typeof uiConfigService.getLinksForDisplay === 'function') {
-          setTseLinks(uiConfigService.getLinksForDisplay());
+          setTseLinks(uiConfigService.getLinksForDisplay().map((link) => ({ id: link.id, label: link.label ?? link.title, href: link.href ?? link.url })));
         }
       }
     };

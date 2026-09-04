@@ -255,7 +255,7 @@ const KpiCard = ({
       </div>
 
       <div
-        className={`text-[21px] font-extrabold leading-9 tracking-tight ${valueColor[tone]}`}
+        className={`text-[21px] font-extrabold leading-9 tracking-tight ${valueColor[tone ?? 'default']}`}
       >
         {value}
       </div>
