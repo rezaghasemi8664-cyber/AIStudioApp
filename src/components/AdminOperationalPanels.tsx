@@ -26,13 +26,15 @@ const OperationalPanels: React.FC<Props> = ({ moduleKey, onComplete }) => {
   const [version, setVersion] = useState('');
   const [commitSha, setCommitSha] = useState('');
   const [deploymentStatus, setDeploymentStatus] = useState('success');
-  const [backupResult, setBackupResult] = useState<unknown>(null);
+  const [backupResult, setBackupResult] = useState<Record<string, unknown> | null>(null);
 
   const run = async (action: string, payload: Record<string, unknown> = {}) => {
     setBusy(true); setMessage(null); setError(null);
     try {
       const result = await adminActionsService.executeAction(moduleKey, action, payload);
-      if (moduleKey === 'backup' && action === 'get-status') setBackupResult(result);
+      if (moduleKey === 'backup' && action === 'get-status') {
+        setBackupResult(result && typeof result === 'object' ? result as Record<string, unknown> : null);
+      }
       setMessage('عملیات با موفقیت انجام شد و در گزارش Audit ثبت شد.');
       await onComplete();
     } catch (e) {
@@ -57,7 +59,7 @@ const OperationalPanels: React.FC<Props> = ({ moduleKey, onComplete }) => {
   if (moduleKey === 'backup') return <div className={card} dir="rtl">
     <div className="mb-5"><h3 className="font-bold text-lg">پشتیبان‌گیری و بازیابی</h3><p className="mt-1 text-sm text-gray-500">ایجاد Backup واقعی از پایگاه داده و مشاهده وضعیت آخرین عملیات.</p></div>
     <div className="flex flex-wrap gap-3"><button disabled={busy} onClick={()=>void run('create-backup',{type:'database'})} className="rounded-xl bg-cyan-600 px-5 py-2.5 font-semibold text-white disabled:opacity-50">ایجاد پشتیبان جدید</button><button disabled={busy} onClick={()=>void run('get-status')} className="rounded-xl border px-5 py-2.5 font-semibold disabled:opacity-50">دریافت وضعیت پشتیبان‌ها</button></div>
-    {backupResult&&<pre dir="ltr" className="mt-5 max-h-72 overflow-auto rounded-xl bg-gray-950 p-4 text-xs text-gray-100">{JSON.stringify(backupResult,null,2) ?? ''}</pre>}
+    {backupResult&&<pre dir="ltr" className="mt-5 max-h-72 overflow-auto rounded-xl bg-gray-950 p-4 text-xs text-gray-100">{JSON.stringify(backupResult,null,2)}</pre>}
     <div className="mt-5 rounded-xl bg-amber-50 dark:bg-amber-950/20 p-4 text-sm text-amber-800 dark:text-amber-200">برای اجرای Backup واقعی باید <span dir="ltr">ADMIN_BACKUP_DIR</span> روی سرور تنظیم شده باشد و حساب سرویس SQL Server مجوز نوشتن در آن مسیر را داشته باشد.</div>
     {message&&<p className="mt-4 text-sm text-green-600">{message}</p>}{error&&<p className="mt-4 text-sm text-red-600">{error}</p>}
   </div>;
