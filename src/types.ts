@@ -5,7 +5,6 @@
 // =============================================================================
 
 // --- Price & Analysis ---
-
 export interface PriceDataPoint { date: string; price: number; }
 export type AnalysisRiskLevel = 'low' | 'medium' | 'high';
 export type AnalysisSignalType = 'trend' | 'volume' | 'money_flow' | 'order_book' | 'index';
@@ -22,31 +21,25 @@ export interface AnalysisResult extends StructuredStockAnalysisResult {
   priceHistory: { daily: PriceDataPoint[]; weekly: PriceDataPoint[] };
 }
 export interface StockComparisonResult { symbol1_analysis: AnalysisResult; symbol2_analysis: AnalysisResult; comparison_summary: string; final_recommendation: string; }
-export interface PortfolioOptimizationHoldingSummary {
-  symbol: string;
-  name?: string;
-  totalQuantity: number;
-  averageEntryPrice: number;
-  totalCost: number;
-  currentPrice: number;
-  currentValue: number;
-  pnl: number;
-  pnlPercent: number;
-}
+export interface PortfolioOptimizationHoldingSummary { symbol: string; name?: string; totalQuantity: number; averageEntryPrice: number; totalCost: number; currentPrice: number; currentValue: number; pnl: number; pnlPercent: number; }
 export interface PortfolioOptimizationResult {
   summary: string;
-  suggestions: { symbol: string; action: 'HOLD' | 'INCREASE' | 'DECREASE' | 'SELL'; reason: string; }[];
+  suggestions?: { symbol: string; action: 'HOLD' | 'INCREASE' | 'DECREASE' | 'SELL'; reason: string; }[];
   holdingsSummary?: PortfolioOptimizationHoldingSummary[];
+  riskScore?: number;
+  diversificationScore?: number;
+  recommendations?: unknown[];
 }
 export interface PortfolioItem { id: string; symbol: string; name?: string; entryPrice: number; entryDate: string; quantity: number; }
 
 // --- Scalping ---
 export type ScalpingSignalType = 'BUY' | 'SELL' | 'NONE';
-export interface ScalpingOpportunity { id?: string | number; symbol: string; price: number | null; reason: string; score: number; confidence?: number | null; signal?: ScalpingSignalType; type?: ScalpingSignalType; timestamp?: number; createdAt?: string; }
+export interface ScalpingOpportunity { id?: string | number; symbol: string; price: number | null; reason: string; score: number; confidence?: number | null; signal?: ScalpingSignalType; type?: ScalpingSignalType; timestamp?: number; createdAt?: string; updatedAt?: string; }
 export interface ScalpingHistoryItem extends ScalpingOpportunity {}
 export interface ScalpingHistoryResult { items: ScalpingHistoryItem[]; page: number; limit: number; total: number; totalPages: number; }
 export interface ScalpingCache { data: ScalpingOpportunity[]; timestamp: number; }
 export interface ScalpingSchedule { isEnabled: boolean; startTime: string; endTime: string; days: number[]; interval: number; }
+export interface ScalpingSettings { isEnabled: boolean; startTime: string; endTime: string; days: number[]; interval: number; }
 export type PortfolioAlertType = 'none' | 'buy' | 'sell';
 
 // =============================================================================
@@ -56,30 +49,26 @@ export interface User {
   id: string; username: string; firstName: string; lastName: string; mobile: string; isAdmin: boolean; isActive: boolean; registrationDate: string;
   activationDate: string; validityDays: number; email?: string; isGuest?: boolean; analysisIntervalMinutes: number; analysisLimit24h: number; isDeleted?: boolean;
   name?: string; phone?: string; role?: string; subscriptionStart?: string | null; subscriptionEnd?: string | null; subscriptionDays?: number;
-  subscriptionMonths?: number;
-  analysisLimit?: number; isSubscriptionActive?: boolean; remainingDays?: number; createdAt?: string; validityDate?: string | null; expiresAt?: string | null; analysisUsed?: number;
+  subscriptionMonths?: number; analysisLimit?: number; isSubscriptionActive?: boolean; remainingDays?: number; createdAt?: string; validityDate?: string | null; expiresAt?: string | null; analysisUsed?: number;
 }
 export interface StoredUser extends User { passwordHash: string; password?: string; }
 export interface ValidityInfo { isExpired: boolean; daysRemaining: number | null; expiryDate: string | null; statusText: string; statusColor: string; }
-export interface UserProfile { id: string; username: string; name: string; email: string | null; phone: string | null; mobile: string | null; role: string; isActive: boolean; isSubscriptionActive: boolean; subscriptionStart: string | null; subscriptionEnd: string | null; subscriptionDays: number;
-  subscriptionMonths: number; analysisLimit: number; remainingDays: number; analysisCount: number; createdAt: string; updatedAt: string; }
+export interface UserProfile { id: string; username: string; name: string; email: string | null; phone: string | null; mobile: string | null; role: string; isActive: boolean; isSubscriptionActive: boolean; subscriptionStart: string | null; subscriptionEnd: string | null; subscriptionDays: number; subscriptionMonths: number; analysisLimit: number; remainingDays: number; analysisCount: number; createdAt: string; updatedAt: string; }
 export interface UpdateProfileData { name?: string; email?: string; phone?: string; mobile?: string; }
-export interface SubscriptionInfo { isSubscriptionActive: boolean; subscriptionStart: string | null; subscriptionEnd: string | null; subscriptionDays: number;
-  subscriptionMonths: number; analysisLimit: number; remainingDays: number; analysisCount: number; }
+export interface SubscriptionInfo { isSubscriptionActive: boolean; subscriptionStart: string | null; subscriptionEnd: string | null; subscriptionDays: number; subscriptionMonths: number; analysisLimit: number; remainingDays: number; analysisCount: number; }
 export interface AdminDashboardStats { totalUsers: number; activeSubscriptions: number; totalAnalyses: number; totalApiKeys: number; recentUsers?: AdminUserListItem[]; }
-export interface AdminUserListItem { id: string; username: string; name: string | null; email: string | null; phone: string | null; mobile: string | null; role: string; isActive: boolean; isSubscriptionActive: boolean; subscriptionStart: string | null; subscriptionEnd: string | null; subscriptionDays: number;
-  subscriptionMonths: number; analysisLimit: number; remainingDays: number; analysisCount: number; createdAt: string; updatedAt: string; }
-export interface AdminUpdateSubscriptionData { userId: string; isSubscriptionActive: boolean; subscriptionStart: string; subscriptionEnd: string; subscriptionDays: number;
-  subscriptionMonths: number; analysisLimit: number; }
+export interface AdminUserListItem { id: string; username: string; name: string | null; email: string | null; phone: string | null; mobile: string | null; role: string; isActive: boolean; isSubscriptionActive: boolean; subscriptionStart: string | null; subscriptionEnd: string | null; subscriptionDays: number; subscriptionMonths: number; analysisLimit: number; remainingDays: number; analysisCount: number; createdAt: string; updatedAt: string; }
+export interface AdminUpdateSubscriptionData { userId: string; isSubscriptionActive: boolean; subscriptionStart: string; subscriptionEnd: string; subscriptionDays: number; subscriptionMonths: number; analysisLimit: number; }
 export interface SystemRole { id: string; name: string; description?: string; }
-export interface ApiResponse<T = unknown> { success: boolean; data?: T; error?: string; message?: string; }
+export interface ApiResponse<T = unknown> { success: boolean; data?: T; error?: string; message?: string; statusCode?: number; ok?: boolean; }
+export type ApiResult<T = unknown> = ApiResponse<T>;
 export interface LoginResponse { user: UserProfile; accessToken: string; refreshToken?: string; }
 export interface ChangePasswordResponse { message: string; }
-export interface SettingsProps { currentUser: User; initialTab?: string; onUserAccessChange: (isDisconnected: boolean) => void; }
+export interface SettingsProps { currentUser: User; initialTab?: string; onUserAccessChange?: (isDisconnected: boolean) => void; }
 export interface PasswordChangeFormProps { onPasswordChange: (currentPass: string, newPass: string) => Promise<void>; }
-export interface AnalysisHistoryItem { symbol: string; timestamp: number; result: AnalysisResult; }
+export interface AnalysisHistoryItem { symbol: string; timestamp: number; result: AnalysisResult; summary?: string; }
 export interface AppNotification { id: string; message: string; timestamp: number; recipientUserId: string; read: boolean; attachment?: { name: string; type: string; data: string; }; }
-export interface Notification { id: number; message: string; type: 'success' | 'info' | 'error'; }
+export interface Notification { id: number; message: string; type: 'success' | 'info' | 'error' | 'warning'; }
 export interface MarketIndexData { value: number; changeValue: number; changePercent: number; isMarketOpen: boolean; equalWeightedValue: number; equalWeightedChangeValue: number; equalWeightedChangePercent: number; }
 export interface MarketIndexCache { data: MarketIndexData; timestamp: number; }
 export interface MarketIndexSchedule { isEnabled: boolean; startTime: string; endTime: string; days: number[]; interval: number; }
@@ -100,5 +89,5 @@ export interface WelcomeBannerConfig { text: string; durationSeconds: number; }
 export interface ServerFile { name: string; type: 'archive' | 'file'; extracted?: boolean; size: number; uploadedAt: number; }
 export type ServerFileSystem = Record<string, ServerFile[]>;
 export interface UpdateHistoryItem { id: string; fileName: string; size: number; date: number; versionNumber: number; isActive: boolean; }
-export interface TseLink { id: string; label: string; href: string; }
+export interface TseLink { id: string; label: string; href: string; title?: string; url?: string; category?: string; }
 export type FeatureKey = 'analysis' | 'scalping' | 'marketIndex' | 'stockComparison' | 'marketSummary' | 'portfolio';
