@@ -1,76 +1,11 @@
 ﻿import { io, Socket } from 'socket.io-client';
 import { API_BASE } from '../api/config';
-
 let socket: Socket | null = null;
-
-export type GlobalSettingsUpdatedPayload = {
-  category?: string;
-  key?: string;
-  value?: unknown;
-  data?: unknown;
-  updatedBy?: string | number;
-  updatedAt?: string | Date;
-};
-
+export type GlobalSettingsUpdatedPayload = { category?: string; key?: string; value?: unknown; data?: unknown; updatedBy?: string | number; updatedAt?: string | Date; };
 type GlobalSettingsHandler = (payload: GlobalSettingsUpdatedPayload) => void;
-
-const GLOBAL_SETTINGS_EVENTS = [
-  'global-settings:updated',
-  'global-settings:bulk-updated',
-] as const;
-
-export const initializeSocket = (token: string): Socket => {
-  if (socket?.connected) return socket;
-
-  if (socket && !socket.connected) {
-    socket.connect();
-    return socket;
-  }
-
-  socket = io(API_BASE, {
-    extraHeaders: { Authorization: token ? `Bearer ${token}` : '' },
-    transports: ['websocket'],
-  });
-
-  return socket;
-};
-
+const GLOBAL_SETTINGS_EVENTS = ['global-settings:updated', 'global-settings:bulk-updated'] as const;
+export const initializeSocket = (token = ''): Socket => { if (socket?.connected) return socket; if (socket && !socket.connected) { socket.connect(); return socket; } socket = io(API_BASE, { extraHeaders: token ? { Authorization: `Bearer ${token}` } : {}, transports: ['websocket'] }); return socket; };
 export const getSocket = (): Socket | null => socket;
-
-export const onGlobalSettingsUpdated = (
-  handler: GlobalSettingsHandler,
-): (() => void) => {
-  if (!socket) {
-    console.warn('[socketService] Socket is not initialized. Call initializeSocket first.');
-    return () => {};
-  }
-
-  GLOBAL_SETTINGS_EVENTS.forEach((eventName) => {
-    socket?.on(eventName, handler);
-  });
-
-  return () => {
-    GLOBAL_SETTINGS_EVENTS.forEach((eventName) => {
-      socket?.off(eventName, handler);
-    });
-  };
-};
-
-export const offGlobalSettingsUpdated = (handler: GlobalSettingsHandler): void => {
-  if (!socket) return;
-
-  GLOBAL_SETTINGS_EVENTS.forEach((eventName) => {
-    socket?.off(eventName, handler);
-  });
-};
-
-export const disconnectSocket = () => {
-  if (!socket) return;
-
-  GLOBAL_SETTINGS_EVENTS.forEach((eventName) => {
-    socket?.removeAllListeners(eventName);
-  });
-
-  socket.disconnect();
-  socket = null;
-};
+export const onGlobalSettingsUpdated = (handler: GlobalSettingsHandler): (() => void) => { if (!socket) { console.warn('[socketService] Socket is not initialized.'); return () => {}; } GLOBAL_SETTINGS_EVENTS.forEach(eventName => socket?.on(eventName, handler)); return () => GLOBAL_SETTINGS_EVENTS.forEach(eventName => socket?.off(eventName, handler)); };
+export const offGlobalSettingsUpdated = (handler: GlobalSettingsHandler): void => { if (!socket) return; GLOBAL_SETTINGS_EVENTS.forEach(eventName => socket?.off(eventName, handler)); };
+export const disconnectSocket = () => { if (!socket) return; GLOBAL_SETTINGS_EVENTS.forEach(eventName => socket?.removeAllListeners(eventName)); socket.disconnect(); socket = null; };
