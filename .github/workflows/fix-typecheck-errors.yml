@@ -3,8 +3,6 @@ name: Fix remaining TypeScript errors
 on:
   push:
     branches: [main]
-    paths:
-      - '.github/workflows/fix-typecheck-errors.yml'
   workflow_dispatch:
 
 permissions:
