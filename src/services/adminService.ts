@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // src/services/adminService.ts
 // Admin Service — Backend Only
 // =============================================================================
@@ -143,7 +143,7 @@ function sanitizeCreateUserPayload(
 ): AdminCreateUserPayload {
   return omitUndefined({
     username: normalizeString(payload.username) || '',
-    password: normalizeString(payload.password),
+    password: normalizeString(payload.password) || '',
     email: normalizeNullableString(payload.email),
     name: normalizeNullableString(payload.name),
     firstName: normalizeNullableString(payload.firstName),
@@ -180,7 +180,7 @@ function sanitizeUpdateUserPayload(
 ): AdminUpdateUserPayload {
   return omitUndefined({
     username: normalizeString(payload.username) || '',
-    password: normalizeString(payload.password),
+    password: normalizeString(payload.password) || '',
     email: normalizeNullableString(payload.email),
     name: normalizeNullableString(payload.name),
     firstName: normalizeNullableString(payload.firstName),

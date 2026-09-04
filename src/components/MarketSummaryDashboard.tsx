@@ -276,7 +276,7 @@ const StatusBadge = ({
   value: any;
   tone?: 'positive' | 'negative' | 'warning' | 'neutral' | 'info';
 }) => {
-  const currentTone = tone ?? toneFromValue(value) as 'info' | 'warning' | 'default' | 'positive' | 'negative';
+  const currentTone: 'positive' | 'negative' | 'warning' | 'neutral' | 'info' = tone ?? toneFromValue(value);
 
   const styles = {
     positive:
@@ -603,7 +603,7 @@ export default function MarketSummaryDashboard({
       ? (Number(b.neutral || 0) / breadthTotal) * 100
       : null);
 
-  const regimeTone = toneFromValue(r.state) as 'info' | 'warning' | 'default' | 'positive' | 'negative';
+  const regimeTone: 'info' | 'warning' | 'neutral' | 'positive' | 'negative' = toneFromValue(r.state);
 
   const score = r.score ?? intelligence.score;
 

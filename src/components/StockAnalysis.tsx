@@ -287,7 +287,7 @@ function normalizeBreakdown(input: unknown): MoneyFlowBreakdown | null {
   const outflow = toNullableNum(item.outflow);
   const net = toNullableNum(item.net);
   if (inflow === null && outflow === null && net === null) return null;
-  return { inflow, outflow, net };
+  return { inflow: inflow ?? 0, outflow: outflow ?? 0, net: net ?? 0 };
 }
 
 function pickFirstNumber(...values: unknown[]): number | null {
@@ -1822,7 +1822,7 @@ const clearCurrentAnalysis = () => {
         : 'border-slate-300 text-slate-700 hover:bg-slate-50'
     } ${hasUnreadMarketSummary ? 'animate-pulse' : ''}`}
   >
-    <MarketIcon className="h-4 w-4" />
+    <MarketIcon size={16} />
     خلاصه بازار
 
     {hasUnreadMarketSummary ? (
