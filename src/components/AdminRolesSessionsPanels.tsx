@@ -10,79 +10,38 @@ interface Session { id:number; userId:number; username?:string|null; email?:stri
 
 const card='rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5';
 const input='w-full rounded-xl border border-[var(--card-border-color)] bg-transparent px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-cyan-500/30';
-const permissionLabels:Record<string,string>={
- dashboard:'داشبورد',users:'کاربران',subscriptions:'اشتراک‌ها',analysis:'تحلیل‌ها',market:'بازار',scalping:'نوسان‌گیری',ai:'هوش مصنوعی',prompts:'پرامپت‌ها',history:'تاریخچه تحلیل',notifications:'اعلان‌ها',monitoring:'پایش سامانه',reports:'گزارش‌ها',security:'امنیت',settings:'تنظیمات',maintenance:'تعمیرات',updates:'به‌روزرسانی',backup:'پشتیبان‌گیری',payments:'پرداخت‌ها',roles:'نقش‌ها و مجوزها',audit:'گزارش رویدادها',sessions:'نشست‌ها',api:'کلیدهای API',infrastructure:'زیرساخت'
-};
-const actionLabel=(key:string)=>key.replace(/^admin\./,'').split('.').map((part)=>permissionLabels[part]||part).join(' — ');
+const permissionLabels:Record<string,string>={dashboard:'داشبورد',users:'کاربران',subscriptions:'اشتراک‌ها',analysis:'تحلیل‌ها',market:'بازار',scalping:'نوسان‌گیری',ai:'هوش مصنوعی',prompts:'پرامپت‌ها',history:'تاریخچه تحلیل',notifications:'اعلان‌ها',monitoring:'پایش سامانه',reports:'گزارش‌ها',security:'امنیت',settings:'تنظیمات',maintenance:'تعمیرات',updates:'به‌روزرسانی',backup:'پشتیبان‌گیری',payments:'پرداخت‌ها',roles:'نقش‌ها و مجوزها',audit:'گزارش رویدادها',sessions:'نشست‌ها',api:'کلیدهای API',infrastructure:'زیرساخت'};
+const actionLabel=(key:string)=>key.replace(/^admin\./,'').split('.').map(part=>permissionLabels[part]||part).join(' — ');
 const dateFmt=(v?:string|null)=>v?new Date(v).toLocaleString('fa-IR'):'—';
+const isSuper=(role?:Role)=>String(role?.name||'').toUpperCase()==='SUPERADMIN';
 
 const AdminRolesSessionsPanels:React.FC<Props>=({moduleKey,onComplete})=>{
- const [roles,setRoles]=useState<Role[]>([]);
- const [selectedRole,setSelectedRole]=useState<number|null>(null);
- const [permissions,setPermissions]=useState<Permission[]>([]);
- const [sessions,setSessions]=useState<Session[]>([]);
- const [busy,setBusy]=useState(false);
- const [error,setError]=useState<string|null>(null);
- const [message,setMessage]=useState<string|null>(null);
-
+ const [roles,setRoles]=useState<Role[]>([]); const [selectedRole,setSelectedRole]=useState<number|null>(null); const [permissions,setPermissions]=useState<Permission[]>([]);
+ const [sessions,setSessions]=useState<Session[]>([]); const [busy,setBusy]=useState(false); const [error,setError]=useState<string|null>(null); const [message,setMessage]=useState<string|null>(null);
+ const [targetUserId,setTargetUserId]=useState(''); const [targetRoleId,setTargetRoleId]=useState('');
  const selectedRoleInfo=useMemo(()=>roles.find(r=>r.id===selectedRole),[roles,selectedRole]);
-
- const loadRoles=async()=>{
-  const response=await apiClient.get<Role[]>('/admin-rbac/roles');
-  if(!response.success||!response.data) throw new Error(response.message||'دریافت نقش‌ها ناموفق بود.');
-  setRoles(response.data);
-  if(selectedRole===null&&response.data.length) setSelectedRole(response.data[0].id);
- };
- const loadPermissions=async(roleId:number)=>{
-  const response=await apiClient.get<Permission[]>(`/admin-rbac/roles/${roleId}/permissions`);
-  if(!response.success||!response.data) throw new Error(response.message||'دریافت مجوزهای نقش ناموفق بود.');
-  setPermissions(response.data);
- };
- const loadSessions=async()=>{
-  const result=await adminActionsService.executeAction<Session[]>('sessions','list-sessions');
-  setSessions(Array.isArray(result)?result:[]);
- };
- const refresh=async()=>{
-  setBusy(true);setError(null);setMessage(null);
-  try{ if(moduleKey==='roles'){await loadRoles();} else {await loadSessions();} }
-  catch(e){setError(e instanceof Error?e.message:'دریافت اطلاعات ناموفق بود.');}
-  finally{setBusy(false);}
- };
+ const permissionGroups=useMemo(()=>{const groups=new Map<string,Permission[]>();permissions.forEach(p=>{const key=p.key.replace(/^admin\./,'').split('.')[0]||'other';groups.set(key,[...(groups.get(key)||[]),p]);});return [...groups.entries()];},[permissions]);
+ const loadRoles=async()=>{const response=await apiClient.get<Role[]>('/admin-rbac/roles');if(!response.success||!response.data)throw new Error(response.message||'دریافت نقش‌ها ناموفق بود.');setRoles(response.data);if((selectedRole===null||!response.data.some(r=>r.id===selectedRole))&&response.data.length)setSelectedRole(response.data[0].id);};
+ const loadPermissions=async(roleId:number)=>{const response=await apiClient.get<Permission[]>(`/admin-rbac/roles/${roleId}/permissions`);if(!response.success||!response.data)throw new Error(response.message||'دریافت مجوزها ناموفق بود.');setPermissions(response.data);};
+ const loadSessions=async()=>{const result=await adminActionsService.executeAction<Session[]>('sessions','list-sessions');setSessions(Array.isArray(result)?result:[]);};
+ const refresh=async()=>{setBusy(true);setError(null);setMessage(null);try{if(moduleKey==='roles'){await loadRoles();}else{await loadSessions();}}catch(e){setError(e instanceof Error?e.message:'دریافت اطلاعات ناموفق بود.');}finally{setBusy(false);}};
  useEffect(()=>{void refresh();},[moduleKey]);
  useEffect(()=>{if(moduleKey==='roles'&&selectedRole!==null){setBusy(true);setError(null);void loadPermissions(selectedRole).catch(e=>setError(e instanceof Error?e.message:'دریافت مجوزها ناموفق بود.')).finally(()=>setBusy(false));}},[selectedRole,moduleKey]);
-
- const togglePermission=(key:string)=>setPermissions(current=>current.map(p=>p.key===key?{...p,assigned:!p.assigned}:p));
- const savePermissions=async()=>{
-  if(!selectedRole)return;
-  setBusy(true);setError(null);setMessage(null);
-  try{
-   const response=await apiClient.put(`/admin-rbac/roles/${selectedRole}/permissions`,{permissionKeys:permissions.filter(p=>p.assigned).map(p=>p.key)});
-   if(!response.success)throw new Error(response.message||'ذخیره مجوزها ناموفق بود.');
-   setMessage('مجوزهای نقش با موفقیت ذخیره شد.');await loadRoles();await onComplete();
-  }catch(e){setError(e instanceof Error?e.message:'ذخیره مجوزها ناموفق بود.');}
-  finally{setBusy(false);}
- };
- const revokeSession=async(id:number)=>{
-  if(!window.confirm('آیا از لغو این نشست مطمئن هستید؟'))return;
-  setBusy(true);setError(null);setMessage(null);
-  try{await adminActionsService.executeAction('sessions','revoke-session',{sessionId:id});setMessage('نشست با موفقیت لغو شد.');await loadSessions();await onComplete();}
-  catch(e){setError(e instanceof Error?e.message:'لغو نشست ناموفق بود.');}
-  finally{setBusy(false);}
- };
- const revokeAll=async(userId:number)=>{
-  if(!window.confirm('همه نشست‌های این کاربر لغو شوند؟'))return;
-  setBusy(true);setError(null);setMessage(null);
-  try{await adminActionsService.executeAction('sessions','revoke-all-user-sessions',{userId});setMessage('همه نشست‌های کاربر لغو شد.');await loadSessions();await onComplete();}
-  catch(e){setError(e instanceof Error?e.message:'لغو نشست‌ها ناموفق بود.');}
-  finally{setBusy(false);}
- };
+ const togglePermission=(key:string)=>{if(isSuper(selectedRoleInfo))return;setPermissions(current=>current.map(p=>p.key===key?{...p,assigned:!p.assigned}:p));};
+ const setGroup=(group:string,assigned:boolean)=>{if(isSuper(selectedRoleInfo))return;setPermissions(current=>current.map(p=>p.key.replace(/^admin\./,'').split('.')[0]===group?{...p,assigned}:p));};
+ const savePermissions=async()=>{if(!selectedRole||isSuper(selectedRoleInfo))return;setBusy(true);setError(null);setMessage(null);try{const response=await apiClient.put(`/admin-rbac/roles/${selectedRole}/permissions`,{permissionKeys:permissions.filter(p=>p.assigned).map(p=>p.key)});if(!response.success)throw new Error(response.message||'ذخیره مجوزها ناموفق بود.');setMessage('مجوزهای نقش با موفقیت ذخیره شد.');await loadRoles();await onComplete();}catch(e){setError(e instanceof Error?e.message:'ذخیره مجوزها ناموفق بود.');}finally{setBusy(false);}};
+ const assignRole=async()=>{const uid=Number(targetUserId),rid=Number(targetRoleId);if(!uid||!rid)return;setBusy(true);setError(null);setMessage(null);try{const response=await apiClient.patch(`/admin-rbac/users/${uid}/role`,{roleId:rid});if(!response.success)throw new Error(response.message||'تخصیص نقش ناموفق بود.');setMessage('نقش کاربر با موفقیت تغییر کرد.');setTargetUserId('');await loadRoles();await onComplete();}catch(e){setError(e instanceof Error?e.message:'تخصیص نقش ناموفق بود.');}finally{setBusy(false);}};
+ const revokeSession=async(id:number)=>{if(!window.confirm('آیا از لغو این نشست مطمئن هستید؟'))return;setBusy(true);setError(null);setMessage(null);try{await adminActionsService.executeAction('sessions','revoke-session',{sessionId:id});setMessage('نشست با موفقیت لغو شد.');await loadSessions();await onComplete();}catch(e){setError(e instanceof Error?e.message:'لغو نشست ناموفق بود.');}finally{setBusy(false);}};
+ const revokeAll=async(userId:number)=>{if(!window.confirm('همه نشست‌های این کاربر لغو شوند؟'))return;setBusy(true);setError(null);setMessage(null);try{await adminActionsService.executeAction('sessions','revoke-all-user-sessions',{userId});setMessage('همه نشست‌های کاربر لغو شد.');await loadSessions();await onComplete();}catch(e){setError(e instanceof Error?e.message:'لغو نشست‌ها ناموفق بود.');}finally{setBusy(false);}};
 
  if(moduleKey==='roles')return <div className={card} dir="rtl">
-  <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-bold">نقش‌ها و مجوزها</h3><p className="mt-1 text-sm text-gray-500">مجوزها را برای هر نقش به‌صورت دقیق تعیین کنید. نقش SUPERADMIN قابل تغییر نیست.</p></div><button disabled={busy} onClick={()=>void refresh()} className="rounded-xl border px-4 py-2 text-sm">به‌روزرسانی</button></div>
+  <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-bold">نقش‌ها و مجوزها</h3><p className="mt-1 text-sm text-gray-500">مدیریت سطح دسترسی ۲۳ ماژول سامانه با امکان کنترل گروهی مجوزها.</p></div><button disabled={busy} onClick={()=>void refresh()} className="rounded-xl border px-4 py-2 text-sm">به‌روزرسانی</button></div>
+  <div className="mb-5 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4"><h4 className="font-bold">تخصیص نقش به کاربر</h4><p className="mt-1 text-xs text-gray-500">شناسه کاربر و نقش موردنظر را انتخاب کنید. تغییر نقش در Audit Log ثبت می‌شود.</p><div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto]"><input className={input} value={targetUserId} onChange={e=>setTargetUserId(e.target.value)} placeholder="شناسه کاربر" dir="ltr"/><select className={input} value={targetRoleId} onChange={e=>setTargetRoleId(e.target.value)}><option value="">انتخاب نقش</option>{roles.map(r=><option key={r.id} value={r.id}>{r.title||r.name}</option>)}</select><button disabled={busy||!targetUserId||!targetRoleId} onClick={()=>void assignRole()} className="rounded-xl bg-cyan-600 px-5 py-2.5 font-semibold text-white disabled:opacity-50">تخصیص نقش</button></div></div>
   <div className="grid grid-cols-1 gap-5 lg:grid-cols-[280px_1fr]">
-   <div className="space-y-2">{roles.map(role=><button key={role.id} onClick={()=>setSelectedRole(role.id)} className={`w-full rounded-xl border p-3 text-right transition ${selectedRole===role.id?'border-cyan-500 bg-cyan-500/10':'border-[var(--card-border-color)]'}`}><div className="font-semibold">{role.title||role.name}</div><div className="mt-1 text-xs text-gray-500">{role.userCount.toLocaleString('fa-IR')} کاربر · {role.permissionCount.toLocaleString('fa-IR')} مجوز</div></button>)}{roles.length===0&&<div className="rounded-xl border p-4 text-sm text-gray-500">نقشی ثبت نشده است.</div>}</div>
-   <div><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-bold">مجوزهای {selectedRoleInfo?.title||selectedRoleInfo?.name||'نقش'}</h4><p className="text-xs text-gray-500">{permissions.filter(p=>p.assigned).length.toLocaleString('fa-IR')} مجوز فعال از {permissions.length.toLocaleString('fa-IR')}</p></div><button disabled={busy||!selectedRole||selectedRoleInfo?.name?.toUpperCase()==='SUPERADMIN'} onClick={()=>void savePermissions()} className="rounded-xl bg-cyan-600 px-5 py-2.5 font-semibold text-white disabled:opacity-50">ذخیره مجوزها</button></div>
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">{permissions.map(p=><label key={p.id} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 ${p.assigned?'border-cyan-500/50 bg-cyan-500/5':'border-[var(--card-border-color)]'}`}><input type="checkbox" checked={p.assigned} disabled={busy||selectedRoleInfo?.name?.toUpperCase()==='SUPERADMIN'} onChange={()=>togglePermission(p.key)} className="h-4 w-4"/><span className="text-sm">{actionLabel(p.key)}</span></label>)}</div>
+   <div className="space-y-2">{roles.map(role=><button key={role.id} onClick={()=>setSelectedRole(role.id)} className={`w-full rounded-xl border p-3 text-right transition ${selectedRole===role.id?'border-cyan-500 bg-cyan-500/10':'border-[var(--card-border-color)]'}`}><div className="flex items-center justify-between gap-2"><span className="font-semibold">{role.title||role.name}</span>{isSuper(role)&&<span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] text-amber-700">حفاظت‌شده</span>}</div><div className="mt-1 text-xs text-gray-500">{role.userCount.toLocaleString('fa-IR')} کاربر · {role.permissionCount.toLocaleString('fa-IR')} مجوز</div></button>)}{roles.length===0&&<div className="rounded-xl border p-4 text-sm text-gray-500">نقشی ثبت نشده است.</div>}</div>
+   <div><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-bold">مجوزهای {selectedRoleInfo?.title||selectedRoleInfo?.name||'نقش'}</h4><p className="text-xs text-gray-500">{permissions.filter(p=>p.assigned).length.toLocaleString('fa-IR')} مجوز فعال از {permissions.length.toLocaleString('fa-IR')}</p></div><button disabled={busy||!selectedRole||isSuper(selectedRoleInfo)} onClick={()=>void savePermissions()} className="rounded-xl bg-cyan-600 px-5 py-2.5 font-semibold text-white disabled:opacity-50">ذخیره مجوزها</button></div>
+    {isSuper(selectedRoleInfo)&&<div className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/20 dark:text-amber-200">نقش SUPERADMIN برای جلوگیری از قفل‌شدن دسترسی مدیریتی قابل ویرایش نیست.</div>}
+    <div className="space-y-3">{permissionGroups.map(([group,items])=><div key={group} className="rounded-xl border border-[var(--card-border-color)] p-3"><div className="mb-2 flex items-center justify-between gap-2"><div className="font-semibold">{permissionLabels[group]||group}</div><div className="flex gap-2"><button disabled={busy||isSuper(selectedRoleInfo)} onClick={()=>setGroup(group,true)} className="rounded-lg border px-2 py-1 text-[11px]">همه</button><button disabled={busy||isSuper(selectedRoleInfo)} onClick={()=>setGroup(group,false)} className="rounded-lg border px-2 py-1 text-[11px]">هیچ‌کدام</button></div></div><div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{items.map(p=><label key={p.id} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-2.5 ${p.assigned?'border-cyan-500/50 bg-cyan-500/5':'border-[var(--card-border-color)]'}`}><input type="checkbox" checked={p.assigned} disabled={busy||isSuper(selectedRoleInfo)} onChange={()=>togglePermission(p.key)} className="h-4 w-4"/><span className="text-sm">{actionLabel(p.key)}</span></label>)}</div></div>)}</div>
    </div>
   </div>
   {message&&<p className="mt-4 text-sm text-green-600">{message}</p>}{error&&<p className="mt-4 text-sm text-red-600">{error}</p>}
