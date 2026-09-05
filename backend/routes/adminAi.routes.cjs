@@ -7,86 +7,16 @@ const authMiddleware = require('../middlewares/auth.middleware.cjs');
 const { hasPermission } = require('../services/rbac.service.cjs');
 
 const router = express.Router();
-
 function userId(req) { return Number(req.user?.id ?? req.user?.userId ?? 0) || null; }
-function isAdmin(req) {
-  const u = req.user || {};
-  if (u.isAdmin === true || ['admin', 'superadmin'].includes(String(u.role || '').toLowerCase())) return true;
-  return (Array.isArray(u.roles) ? u.roles : []).some(r => ['admin', 'superadmin'].includes(String(typeof r === 'string' ? r : r?.name).toLowerCase()));
-}
-async function canManage(req) {
-  const id = userId(req);
-  return !!(id && await hasPermission(id, 'admin.ai.manage'));
-}
-function maskUrl(value) {
-  try {
-    const u = new URL(value);
-    return `${u.protocol}//${u.host}${u.pathname}`;
-  } catch (_) { return value ? '[تنظیم‌شده]' : null; }
-}
-function safeError(error) {
-  return String(error?.response?.data?.message || error?.message || 'خطای نامشخص').slice(0, 300);
-}
-
-router.use(authMiddleware, async (req, res, next) => {
-  if (!isAdmin(req)) return res.status(403).json({ success: false, message: 'این بخش فقط برای ادمین مجاز است.' });
-  if (!(await canManage(req))) return res.status(403).json({ success: false, message: 'دسترسی مدیریت هوش مصنوعی برای شما مجاز نیست.' });
-  next();
-});
-
-router.get('/overview', async (req, res) => {
-  const started = Date.now();
-  const baseUrl = process.env.AI_API_URL || process.env.GAPGPT_URL || 'http://localhost:8000';
-  const apiKey = process.env.AI_API_KEY || process.env.GAPGPT_API_KEY || '';
-  const model = process.env.GAPGPT_MODEL || process.env.AI_MODEL || 'gpt-4o-mini';
-  const fallbackModel = process.env.GAPGPT_FALLBACK_MODEL || '';
-  const timeout = Number(process.env.AI_TIMEOUT || 30000) || 30000;
-  const maxTokens = Number(process.env.AI_MAX_TOKENS || 3000) || 3000;
-  const configured = !!apiKey;
-  let health = { available: false, latencyMs: null, status: null, error: null };
-  try {
-    const r = await axios.get(`${baseUrl.replace(/\/$/, '')}/health`, { timeout: Math.min(timeout, 5000) });
-    health = { available: true, latencyMs: Date.now() - started, status: r.status, error: null };
-  } catch (error) {
-    health = { available: false, latencyMs: Date.now() - started, status: error?.response?.status || null, error: safeError(error) };
-  }
-
-  let saved = {};
-  try {
-    const rows = await prisma.globalSetting.findMany({ where: { category: 'ai' }, select: { key: true, value: true, updatedAt: true } });
-    for (const row of rows) {
-      try { saved[row.key] = JSON.parse(row.value); } catch (_) { saved[row.key] = row.value; }
-    }
-  } catch (_) {}
-
-  return res.json({ success: true, data: {
-    service: 'GapGPT / AI',
-    configured,
-    status: health.available ? 'online' : (configured ? 'degraded' : 'not-configured'),
-    endpoint: maskUrl(baseUrl),
-    model,
-    fallbackModel: fallbackModel || saved['fallback-model'] || null,
-    timeout,
-    maxTokens,
-    enabled: saved.enabled !== false,
-    health,
-    savedConfig: saved,
-    checkedAt: new Date().toISOString()
-  }});
-});
-
-router.post('/test', async (req, res) => {
-  const baseUrl = process.env.AI_API_URL || process.env.GAPGPT_URL || 'http://localhost:8000';
-  const apiKey = process.env.AI_API_KEY || process.env.GAPGPT_API_KEY || '';
-  const started = Date.now();
-  try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-    const response = await axios.get(`${baseUrl.replace(/\/$/, '')}/health`, { headers, timeout: 5000 });
-    return res.json({ success: true, data: { passed: true, latencyMs: Date.now() - started, status: response.status, model: process.env.GAPGPT_MODEL || process.env.AI_MODEL || 'gpt-4o-mini', message: 'اتصال سرویس AI با موفقیت بررسی شد.' } });
-  } catch (error) {
-    return res.json({ success: true, data: { passed: false, latencyMs: Date.now() - started, status: error?.response?.status || null, error: safeError(error), message: 'اتصال سرویس AI برقرار نشد.' } });
-  }
-});
-
-module.exports = router;
+function isAdmin(req) { const u=req.user||{}; if(u.isAdmin===true||['admin','superadmin'].includes(String(u.role||'').toLowerCase()))return true; return (Array.isArray(u.roles)?u.roles:[]).some(r=>['admin','superadmin'].includes(String(typeof r==='string'?r:r?.name).toLowerCase())); }
+async function canManage(req){const id=userId(req);return !!(id&&await hasPermission(id,'admin.ai.manage'));}
+function maskUrl(value){try{const u=new URL(value);return `${u.protocol}//${u.host}${u.pathname}`;}catch(_){return value?'[تنظیم‌شده]':null;}}
+function safeError(error){return String(error?.response?.data?.message||error?.message||'خطای نامشخص').slice(0,300);}
+function parseValue(value){try{return JSON.parse(value);}catch(_){return value;}}
+function promptParts(key){const raw=String(key||'').replace(/^prompt\./,'');const m=raw.match(/^(.*)\.v(\d+)$/);return m?{name:m[1],version:Number(m[2])}:{name:raw,version:1};}
+router.use(authMiddleware,async(req,res,next)=>{if(!isAdmin(req))return res.status(403).json({success:false,message:'این بخش فقط برای ادمین مجاز است.'});if(!(await canManage(req)))return res.status(403).json({success:false,message:'دسترسی مدیریت هوش مصنوعی برای شما مجاز نیست.'});next();});
+router.get('/overview',async(req,res)=>{const started=Date.now();const baseUrl=process.env.AI_API_URL||process.env.GAPGPT_URL||'http://localhost:8000';const apiKey=process.env.AI_API_KEY||process.env.GAPGPT_API_KEY||'';const model=process.env.GAPGPT_MODEL||process.env.AI_MODEL||'gpt-4o-mini';const fallbackModel=process.env.GAPGPT_FALLBACK_MODEL||'';const timeout=Number(process.env.AI_TIMEOUT||30000)||30000;const maxTokens=Number(process.env.AI_MAX_TOKENS||3000)||3000;let health={available:false,latencyMs:null,status:null,error:null};try{const r=await axios.get(`${baseUrl.replace(/\/$/,'')}/health`,{timeout:Math.min(timeout,5000)});health={available:true,latencyMs:Date.now()-started,status:r.status,error:null};}catch(error){health={available:false,latencyMs:Date.now()-started,status:error?.response?.status||null,error:safeError(error)};}let saved={};try{const rows=await prisma.globalSetting.findMany({where:{category:'ai'},select:{key:true,value:true}});for(const row of rows)saved[row.key]=parseValue(row.value);}catch(_){}return res.json({success:true,data:{service:'GapGPT / AI',configured:!!apiKey,status:health.available?'online':(apiKey?'degraded':'not-configured'),endpoint:maskUrl(baseUrl),model,fallbackModel:fallbackModel||saved['fallback-model']||null,timeout,maxTokens,enabled:saved.enabled!==false,health, savedConfig:saved,checkedAt:new Date().toISOString()}});});
+router.post('/test',async(req,res)=>{const baseUrl=process.env.AI_API_URL||process.env.GAPGPT_URL||'http://localhost:8000';const apiKey=process.env.AI_API_KEY||process.env.GAPGPT_API_KEY||'';const started=Date.now();try{const headers={'Content-Type':'application/json'};if(apiKey)headers.Authorization=`Bearer ${apiKey}`;const response=await axios.get(`${baseUrl.replace(/\/$/,'')}/health`,{headers,timeout:5000});return res.json({success:true,data:{passed:true,latencyMs:Date.now()-started,status:response.status,model:process.env.GAPGPT_MODEL||process.env.AI_MODEL||'gpt-4o-mini',message:'اتصال سرویس AI با موفقیت بررسی شد.'}});}catch(error){return res.json({success:true,data:{passed:false,latencyMs:Date.now()-started,status:error?.response?.status||null,model:process.env.GAPGPT_MODEL||process.env.AI_MODEL||'gpt-4o-mini',error:safeError(error),message:'اتصال سرویس AI برقرار نشد.'}});}});
+router.get('/prompts',async(req,res)=>{try{const rows=await prisma.globalSetting.findMany({where:{category:'prompts'},select:{key:true,value:true,updatedAt:true},orderBy:{updatedAt:'desc'}});const activeMap={};for(const row of rows){const p=promptParts(row.key);if(!activeMap[p.name]||p.version>activeMap[p.name])activeMap[p.name]=p.version;}const data=rows.map(row=>{const p=promptParts(row.key);return{name:p.name,version:p.version,active:activeMap[p.name]===p.version,value:String(parseValue(row.value)??''),updatedAt:row.updatedAt||null};}).sort((a,b)=>a.name.localeCompare(b.name)||b.version-a.version);return res.json({success:true,data});}catch(error){return res.status(500).json({success:false,message:'دریافت پرامپت‌ها ناموفق بود.',error:safeError(error)});}});
+router.post('/prompts/activate',async(req,res)=>{const name=String(req.body?.name||'').trim();const version=Number(req.body?.version);if(!name||!Number.isInteger(version)||version<1)return res.status(400).json({success:false,message:'نام و نسخه پرامپت نامعتبر است.'});try{const source=await prisma.globalSetting.findUnique({where:{key:`prompt.${name}.v${version}`}});if(!source)return res.status(404).json({success:false,message:'نسخه پرامپت یافت نشد.'});await prisma.globalSetting.upsert({where:{key:`prompt.${name}`},update:{value:source.value,updatedBy:userId(req),updatedAt:new Date()},create:{category:'prompts',key:`prompt.${name}`,value:source.value,updatedBy:userId(req)}});return res.json({success:true,data:{saved:true,name,version}});}catch(error){return res.status(500).json({success:false,message:'فعال‌سازی پرامپت ناموفق بود.',error:safeError(error)});}});
+module.exports=router;
