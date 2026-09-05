@@ -3,114 +3,66 @@
 
 const express = require('express');
 const router = express.Router();
+const authMiddleware = require('../middlewares/auth.middleware.cjs');
+const { prisma } = require('../config/prisma.cjs');
 
-let authenticate;
-try {
-  authenticate = require('../middlewares/auth.middleware.cjs');
-} catch (e) {
-  authenticate = function(req, res, next) { next(); };
+function currentUserId(req) {
+  return Number(req.user?.id ?? req.user?.userId ?? 0) || 0;
 }
 
-let prisma;
-try {
-  prisma = require('../config/prisma.cjs');
-} catch (e) {
-  console.warn('[APIKEY ROUTES] Prisma not available');
-}
-
-// GET /api/api-keys
-router.get('/', authenticate, async function(req, res) {
+// GET /api/api-keys — never return the secret value.
+router.get('/', authMiddleware, async (req, res) => {
   try {
-    if (!prisma) {
-      return res.json({ success: true, data: [] });
-    }
+    const userId = currentUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
 
-    // Check if ApiKey model exists
-    if (!prisma.apiKey) {
-      // Fallback: store in user settings
-      var user = await prisma.user.findUnique({
-        where: { id: parseInt(req.user.id, 10) },
-        select: { settings: true }
-      });
-
-      var settings = {};
-      try { settings = JSON.parse(user.settings || '{}'); } catch(e) {}
-      var keys = settings.apiKeys || [];
-
-      return res.json({ success: true, data: keys });
-    }
-
-    var apiKeys = await prisma.apiKey.findMany({
-      where: { userId: parseInt(req.user.id, 10) }
+    const apiKeys = await prisma.apiKey.findMany({
+      where: { userId },
+      select: { id: true, name: true, createdAt: true, isRevoked: true },
+      orderBy: { createdAt: 'desc' },
     });
 
     res.json({ success: true, data: apiKeys });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: 'دریافت کلیدهای API ناموفق بود.' });
   }
 });
 
-// POST /api/api-keys
-router.post('/', authenticate, async function(req, res) {
+// POST /api/api-keys — create a key and return it only once.
+router.post('/', authMiddleware, async (req, res) => {
   try {
-    var body = req.body;
+    const userId = currentUserId(req);
+    const value = String(req.body?.key ?? req.body?.apiKey ?? '').trim();
+    const name = String(req.body?.name ?? 'default').trim().slice(0, 100) || 'default';
+    if (!userId || !value) return res.status(400).json({ success: false, message: 'کلید API الزامی است.' });
 
-    if (!prisma) {
-      return res.json({ success: true, data: body });
-    }
-
-    if (prisma.apiKey) {
-      var apiKey = await prisma.apiKey.create({
-        data: {
-          userId: parseInt(req.user.id, 10),
-          name: body.name || 'default',
-          key: body.key || body.apiKey,
-          service: body.service || 'general',
-          isActive: true
-        }
-      });
-      return res.json({ success: true, data: apiKey });
-    }
-
-    // Fallback: store in user settings
-    var user = await prisma.user.findUnique({
-      where: { id: parseInt(req.user.id, 10) },
-      select: { settings: true }
-    });
-    var settings = {};
-    try { settings = JSON.parse(user.settings || '{}'); } catch(e) {}
-    if (!settings.apiKeys) settings.apiKeys = [];
-    settings.apiKeys.push({
-      name: body.name || 'default',
-      key: body.key || body.apiKey,
-      service: body.service || 'general',
-      createdAt: new Date().toISOString()
-    });
-    await prisma.user.update({
-      where: { id: parseInt(req.user.id, 10) },
-      data: { settings: JSON.stringify(settings) }
+    const apiKey = await prisma.apiKey.create({
+      data: { userId, name, value, isRevoked: false },
+      select: { id: true, name: true, createdAt: true, isRevoked: true },
     });
 
-    res.json({ success: true, data: body });
+    res.status(201).json({ success: true, data: { ...apiKey, key: value } });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: 'ایجاد کلید API ناموفق بود.' });
   }
 });
 
-// DELETE /api/api-keys/:id
-router.delete('/:id', authenticate, async function(req, res) {
+// DELETE /api/api-keys/:id — revoke instead of hard-delete for auditability.
+router.delete('/:id', authMiddleware, async (req, res) => {
   try {
-    if (prisma && prisma.apiKey) {
-      await prisma.apiKey.delete({
-        where: {
-          id: parseInt(req.params.id, 10),
-          userId: parseInt(req.user.id, 10)
-        }
-      });
-    }
-    res.json({ success: true, message: 'API key deleted' });
+    const userId = currentUserId(req);
+    const id = Number(req.params.id);
+    if (!userId || !id) return res.status(400).json({ success: false, message: 'شناسه کلید API نامعتبر است.' });
+
+    const result = await prisma.apiKey.updateMany({
+      where: { id, userId, isRevoked: false },
+      data: { isRevoked: true },
+    });
+    if (!result.count) return res.status(404).json({ success: false, message: 'کلید API پیدا نشد یا قبلاً لغو شده است.' });
+
+    res.json({ success: true, data: { revoked: true, id } });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: 'لغو کلید API ناموفق بود.' });
   }
 });
 
