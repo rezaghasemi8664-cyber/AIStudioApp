@@ -4,6 +4,7 @@ import type { AdminModuleKey } from '../services/adminControlService';
 import AdminSecuritySettingsPanels from './AdminSecuritySettingsPanels';
 import AdminRolesSessionsPanels from './AdminRolesSessionsPanels';
 import AdminPaymentsPanel from './AdminPaymentsPanel';
+import AdminReportsPanel from './AdminReportsPanel';
 
 interface Props { moduleKey?: AdminModuleKey; section?: AdminModuleKey; onComplete?: () => Promise<void> | void; }
 interface PaymentRow { id:number; userId:number; amount:number; currency:string; gateway?:string|null; referenceNo?:string|null; status:string; description?:string|null; createdAt?:string; paidAt?:string|null; }
@@ -27,6 +28,7 @@ const OperationalPanels:React.FC<Props>=({moduleKey: suppliedModuleKey,section,o
  const [accessUserId,setAccessUserId]=useState(''); const [roleId,setRoleId]=useState(''); const [revokeId,setRevokeId]=useState('');
  const run=async(action:string,payload:Record<string,unknown>={})=>{setBusy(true);setMessage(null);setError(null);try{const result=await adminActionsService.executeAction(moduleKey,action,payload);if(moduleKey==='payments'&&action==='list-transactions')setPayments(Array.isArray(result)?result as PaymentRow[]:[]);if(moduleKey==='backup'&&action==='get-status')setBackups(Array.isArray(result)?result as BackupRow[]:[]);if(moduleKey==='updates'&&action==='get-deployments')setDeployments(Array.isArray(result)?result as DeploymentRow[]:[]);if(moduleKey==='roles'&&action==='list-roles')setRoles(Array.isArray(result)?result as RoleRow[]:[]);if(moduleKey==='sessions'&&action==='list-sessions')setSessions(Array.isArray(result)?result as SessionRow[]:[]);if(moduleKey==='api'&&action==='list-api-keys')setApiKeys(Array.isArray(result)?result as ApiKeyRow[]:[]);setMessage('عملیات با موفقیت انجام شد و در Audit Log ثبت شد.');await onComplete();}catch(e){setError(e instanceof Error?e.message:'اجرای عملیات ناموفق بود.');}finally{setBusy(false);}};
  useEffect(()=>{if(moduleKey==='payments')void run('list-transactions');if(moduleKey==='backup')void run('get-status');if(moduleKey==='updates')void run('get-deployments');if(moduleKey==='roles')void run('list-roles');if(moduleKey==='sessions')void run('list-sessions');if(moduleKey==='api')void run('list-api-keys');},[moduleKey]);
+ if(moduleKey==='reports') return <AdminReportsPanel/>;
  if(moduleKey==='payments') return <AdminPaymentsPanel onComplete={onComplete}/>;
  if(moduleKey==='roles'||moduleKey==='sessions') return <AdminRolesSessionsPanels moduleKey={moduleKey} onComplete={onComplete}/>;
  if(moduleKey==='security'||moduleKey==='settings'||moduleKey==='maintenance') return <AdminSecuritySettingsPanels moduleKey={moduleKey} onComplete={onComplete}/>;
