@@ -87,6 +87,7 @@ jobs:
           echo "backup_id=$BACKUP" >> "$GITHUB_OUTPUT"
 
       - name: Execute server deployment
+        id: execute
         shell: bash
         env:
           DEPLOY_URL: ${{ secrets.RONIYA_DEPLOY_URL }}
