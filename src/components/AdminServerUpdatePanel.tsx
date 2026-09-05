@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { apiClient } from '../services/apiClient';
+import apiClient from '../services/apiClient';
 
 interface Step { name:string; label:string; status:string; startedAt?:string; finishedAt?:string; output?:string; error?:string; }
 interface UpdateStatus { jobId?:string; status:string; stage:string; branch?:string; commitSha?:string; message?:string; lastOutput?:string; lastError?:string; startedAt?:string; updatedAt?:string; steps?:Step[]; }
