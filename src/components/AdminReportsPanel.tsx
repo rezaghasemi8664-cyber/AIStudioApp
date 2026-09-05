@@ -1,22 +1,49 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as reportsService from '../services/adminReportsService';
 
 const card='rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5 shadow-sm';
 const fmt=(v:number)=>Number(v||0).toLocaleString('fa-IR');
 const money=(v:number,currency:string)=>`${fmt(v)} ${currency}`;
+const pct=(v:number)=>`${Math.round(v)}٪`;
 
 const Stat:React.FC<{title:string;value:string;hint?:string}>=({title,value,hint})=><div className={card}><div className="text-sm text-gray-500">{title}</div><div className="mt-2 text-2xl font-extrabold">{value}</div>{hint&&<div className="mt-2 text-xs text-gray-500">{hint}</div>}</div>;
 
+const TrendChart:React.FC<{title:string;unit:string;data:reportsService.AdminReportTrendPoint[];field:'users'|'analyses'|'sessions';emptyText?:string}>=({title,unit,data,field,emptyText='داده‌ای برای این بازه ثبت نشده است.'})=>{
+ const max=Math.max(1,...data.map(x=>Number(x[field]||0)));
+ const step=data.length>14?5:1;
+ const has=data.some(x=>Number(x[field]||0)>0);
+ return <div className={card}>
+  <div className="flex items-center justify-between gap-3"><div><h4 className="font-bold">{title}</h4><p className="mt-1 text-xs text-gray-500">{unit}</p></div><span className="rounded-lg bg-gray-100 px-2 py-1 text-xs dark:bg-gray-800">{fmt(max)} اوج</span></div>
+  {!has?<div className="flex h-52 items-center justify-center text-sm text-gray-500">{emptyText}</div>:<div className="mt-5 overflow-x-auto pb-1"><div className="flex h-56 min-w-full items-end gap-1" style={{minWidth:data.length*24}}>{data.map((p,i)=>{const value=Number(p[field]||0);return <div key={p.day} className="flex h-full w-5 shrink-0 flex-col items-center justify-end gap-1"><div title={`${p.label}: ${fmt(value)}`} className="w-full rounded-t-md bg-emerald-500/80 transition-all hover:bg-emerald-500" style={{height:`${Math.max(value?4:1,value/max*88)}%`}}/><span className="h-4 whitespace-nowrap text-[9px] text-gray-500">{i%step===0?p.label:''}</span></div>;})}</div></div>}
+ </div>;
+};
+
+const PaymentChart:React.FC<{data:reportsService.AdminReportTrendPoint[]}>=({data})=>{
+ const max=Math.max(1,...data.flatMap(x=>[x.paidIrr,x.paidIrt]));
+ const has=data.some(x=>x.paidIrr>0||x.paidIrt>0);
+ return <div className={card}>
+  <div className="flex items-center justify-between gap-3"><div><h4 className="font-bold">روند پرداخت‌های ثبت‌شده</h4><p className="mt-1 text-xs text-gray-500">فقط تراکنش‌های با وضعیت پرداخت‌شده</p></div><div className="flex gap-3 text-xs"><span>ریال</span><span>تومان</span></div></div>
+  {!has?<div className="flex h-52 items-center justify-center text-sm text-gray-500">هنوز پرداخت موفقی در این بازه ثبت نشده است.</div>:<div className="mt-5 overflow-x-auto pb-1"><div className="flex h-56 min-w-full items-end gap-1" style={{minWidth:data.length*28}}>{data.map((p,i)=><div key={p.day} className="flex h-full w-6 shrink-0 flex-col items-center justify-end gap-1"><div className="flex h-[88%] w-full items-end gap-0.5"><div title={`${p.label}: ${fmt(p.paidIrr)} ریال`} className="w-1/2 rounded-t bg-sky-500/80" style={{height:`${Math.max(p.paidIrr?4:1,p.paidIrr/max*100)}%`}}/><div title={`${p.label}: ${fmt(p.paidIrt)} تومان`} className="w-1/2 rounded-t bg-violet-500/80" style={{height:`${Math.max(p.paidIrt?4:1,p.paidIrt/max*100)}%`}}/></div><span className="h-4 whitespace-nowrap text-[9px] text-gray-500">{i%(data.length>14?5:1)===0?p.label:''}</span></div>)}</div></div>}
+ </div>;
+};
+
 const AdminReportsPanel:React.FC=()=>{
  const [data,setData]=useState<reportsService.AdminReportsSummary|null>(null);
- const [loading,setLoading]=useState(true); const [error,setError]=useState<string|null>(null);
+ const [trend,setTrend]=useState<reportsService.AdminReportsTrends|null>(null);
+ const [days,setDays]=useState<7|30>(7);
+ const [loading,setLoading]=useState(true); const [trendLoading,setTrendLoading]=useState(true);
+ const [error,setError]=useState<string|null>(null); const [trendError,setTrendError]=useState<string|null>(null);
  const load=useCallback(async()=>{setLoading(true);setError(null);try{setData(await reportsService.getSummary());}catch(e){setError(e instanceof Error?e.message:'دریافت گزارش مدیریتی ناموفق بود.');}finally{setLoading(false);}},[]);
+ const loadTrend=useCallback(async(period:7|30)=>{setTrendLoading(true);setTrendError(null);try{setTrend(await reportsService.getTrends(period));}catch(e){setTrendError(e instanceof Error?e.message:'دریافت روند گزارش مدیریتی ناموفق بود.');}finally{setTrendLoading(false);}},[]);
  useEffect(()=>{void load();},[load]);
+ useEffect(()=>{void loadTrend(days);},[days,loadTrend]);
+ const trendTotals=useMemo(()=>{if(!trend)return {users:0,analyses:0,sessions:0,irr:0,irt:0};return trend.series.reduce((a,p)=>({users:a.users+p.users,analyses:a.analyses+p.analyses,sessions:a.sessions+p.sessions,irr:a.irr+p.paidIrr,irt:a.irt+p.paidIrt}),{users:0,analyses:0,sessions:0,irr:0,irt:0});},[trend]);
+ const activePct=data?.users.total?data.users.active/data.users.total*100:0;
  if(loading&&!data)return <div className={card} dir="rtl"><div className="animate-pulse text-gray-500">در حال دریافت گزارش مدیریتی...</div></div>;
  if(error&&!data)return <div className={card} dir="rtl"><div className="text-red-600">{error}</div><button onClick={()=>void load()} className="mt-4 rounded-xl border px-4 py-2">تلاش مجدد</button></div>;
  if(!data)return null;
  return <div className="space-y-6" dir="rtl">
-  <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-bold">گزارش‌های مدیریتی</h3><p className="mt-1 text-sm text-gray-500">نمای کلی واقعی از کاربران، تحلیل‌ها، بازار، مالی و رویدادهای مدیریتی</p></div><div className="flex items-center gap-2"><span className="text-xs text-gray-500">آخرین بروزرسانی: {new Date(data.generatedAt).toLocaleString('fa-IR')}</span><button disabled={loading} onClick={()=>void load()} className="rounded-xl border px-4 py-2 text-sm font-semibold disabled:opacity-50">بروزرسانی</button></div></div>
+  <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xl font-bold">گزارش‌های مدیریتی</h3><p className="mt-1 text-sm text-gray-500">نمای کلی واقعی از کاربران، تحلیل‌ها، بازار، مالی و رویدادهای مدیریتی</p></div><div className="flex flex-wrap items-center gap-2"><span className="text-xs text-gray-500">آخرین بروزرسانی: {new Date(data.generatedAt).toLocaleString('fa-IR')}</span><button disabled={loading||trendLoading} onClick={()=>{void load();void loadTrend(days);}} className="rounded-xl border px-4 py-2 text-sm font-semibold disabled:opacity-50">بروزرسانی</button></div></div>
   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
    <Stat title="کل کاربران" value={fmt(data.users.total)} hint={`فعال ${fmt(data.users.active)} · غیرفعال ${fmt(data.users.inactive)}`}/>
    <Stat title="کل تحلیل‌ها" value={fmt(data.analyses.total)} hint="سوابق ثبت‌شده تحلیل"/>
@@ -29,8 +56,16 @@ const AdminReportsPanel:React.FC=()=>{
    <Stat title="خلاصه‌های بازار" value={fmt(data.market.summaries)} hint={`روزانه ${fmt(data.market.daily)} · خام ${fmt(data.market.history)}`}/>
    <Stat title="تراکنش‌های پرداخت" value={fmt(data.payments.transactionCount)} hint={`پرداخت‌شده ${fmt(data.payments.paidCount)} · در انتظار ${fmt(data.payments.pendingCount)}`}/>
   </div>
+
+  <div className={card}>
+   <div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-bold">روند فعالیت سامانه</h4><p className="mt-1 text-xs text-gray-500">مقایسه روزانه ثبت‌نام، تحلیل و نشست در بازه انتخابی</p></div><div className="flex rounded-xl border p-1"><button onClick={()=>setDays(7)} className={`rounded-lg px-4 py-2 text-sm ${days===7?'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900':''}`}>۷ روز</button><button onClick={()=>setDays(30)} className={`rounded-lg px-4 py-2 text-sm ${days===30?'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900':''}`}>۳۰ روز</button></div></div>
+   {trendLoading?<div className="mt-6 h-32 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800"/>:trendError?<div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"><span>{trendError}</span><button onClick={()=>void loadTrend(days)} className="rounded-lg border border-red-300 px-3 py-1.5">تلاش مجدد</button></div>:trend&&<><div className="mt-5 grid grid-cols-2 md:grid-cols-5 gap-3"><div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-800/60"><div className="text-xs text-gray-500">کاربر جدید</div><b className="mt-1 block">{fmt(trendTotals.users)}</b></div><div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-800/60"><div className="text-xs text-gray-500">تحلیل</div><b className="mt-1 block">{fmt(trendTotals.analyses)}</b></div><div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-800/60"><div className="text-xs text-gray-500">نشست</div><b className="mt-1 block">{fmt(trendTotals.sessions)}</b></div><div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-800/60"><div className="text-xs text-gray-500">پرداخت ریالی</div><b className="mt-1 block">{fmt(trendTotals.irr)}</b></div><div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-800/60"><div className="text-xs text-gray-500">پرداخت تومانی</div><b className="mt-1 block">{fmt(trendTotals.irt)}</b></div></div></>}
+  </div>
+
+  {trend&&!trendLoading&&!trendError&&<div className="grid grid-cols-1 xl:grid-cols-2 gap-4"><TrendChart title="روند کاربران جدید" unit="تعداد کاربران ثبت‌نام‌شده در هر روز" data={trend.series} field="users"/><TrendChart title="روند تحلیل‌ها" unit="تعداد تحلیل‌های ثبت‌شده در هر روز" data={trend.series} field="analyses"/><TrendChart title="روند نشست‌ها" unit="تعداد نشست‌های ایجادشده در هر روز" data={trend.series} field="sessions"/><PaymentChart data={trend.series}/></div>}
+
   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-   <div className={card}><h4 className="font-bold">وضعیت کاربران</h4><div className="mt-5 space-y-4"><div><div className="mb-1 flex justify-between text-sm"><span>فعال</span><b>{fmt(data.users.active)}</b></div><div className="h-3 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800"><div className="h-full rounded-full bg-emerald-500" style={{width:`${data.users.total?Math.min(100,data.users.active/data.users.total*100):0}%`}}/></div></div><div><div className="mb-1 flex justify-between text-sm"><span>غیرفعال</span><b>{fmt(data.users.inactive)}</b></div><div className="h-3 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800"><div className="h-full rounded-full bg-slate-400" style={{width:`${data.users.total?Math.min(100,data.users.inactive/data.users.total*100):0}%`}}/></div></div></div></div>
+   <div className={card}><h4 className="font-bold">وضعیت کاربران</h4><div className="mt-5 space-y-4"><div><div className="mb-1 flex justify-between text-sm"><span>فعال</span><b>{fmt(data.users.active)} ({pct(activePct)})</b></div><div className="h-3 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800"><div className="h-full rounded-full bg-emerald-500" style={{width:`${Math.min(100,activePct)}%`}}/></div></div><div><div className="mb-1 flex justify-between text-sm"><span>غیرفعال</span><b>{fmt(data.users.inactive)}</b></div><div className="h-3 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800"><div className="h-full rounded-full bg-slate-400" style={{width:`${data.users.total?Math.min(100,data.users.inactive/data.users.total*100):0}%`}}/></div></div></div></div>
    <div className={card}><h4 className="font-bold">گزارش مالی</h4><div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3"><div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-xs text-gray-500">پرداخت‌شده ریالی</div><div className="mt-2 font-bold">{money(data.payments.paidIrr,'ریال')}</div></div><div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-xs text-gray-500">پرداخت‌شده تومانی</div><div className="mt-2 font-bold">{money(data.payments.paidIrt,'تومان')}</div></div></div><p className="mt-4 text-xs text-gray-500">مبالغ ریال و تومان عمداً جداگانه نمایش داده می‌شوند و با هم جمع نمی‌شوند.</p></div>
   </div>
   <div className={card}><h4 className="font-bold">پوشش داده‌های بازار</h4><div className="mt-4 overflow-auto"><table className="w-full min-w-[620px] text-sm"><thead><tr className="border-b"><th className="p-3 text-right">منبع/نوع داده</th><th className="p-3 text-right">تعداد</th><th className="p-3 text-right">توضیح</th></tr></thead><tbody><tr className="border-b"><td className="p-3">تاریخچه خام بازار</td><td className="p-3 font-semibold">{fmt(data.market.history)}</td><td className="p-3 text-gray-500">داده‌های ثبت‌شده تاریخی</td></tr><tr className="border-b"><td className="p-3">داده روزانه</td><td className="p-3 font-semibold">{fmt(data.market.daily)}</td><td className="p-3 text-gray-500">خلاصه‌های روزانه</td></tr><tr><td className="p-3">خلاصه بازار</td><td className="p-3 font-semibold">{fmt(data.market.summaries)}</td><td className="p-3 text-gray-500">گزارش‌های خلاصه بازار</td></tr></tbody></table></div></div>
