@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as adminActionsService from '../services/adminActionsService';
-interface Props { onComplete: () => Promise<void> | void; }
+interface Props { onComplete?: () => Promise<void> | void; }
 interface ApiKeyRow { id: number|string; userId?: number|string|null; username?: string|null; email?: string|null; name?: string|null; service?: string|null; createdAt?: string|null; isRevoked?: boolean; }
 const fmtDate=(v?:string|null)=>v?new Date(v).toLocaleString('fa-IR'):'—';
-const AdminApiKeysPanel:React.FC<Props>=({onComplete})=>{
+const AdminApiKeysPanel:React.FC<Props>=({onComplete=()=>undefined})=>{
  const [rows,setRows]=useState<ApiKeyRow[]>([]),[loading,setLoading]=useState(true),[busyId,setBusyId]=useState<number|string|null>(null),[error,setError]=useState<string|null>(null),[query,setQuery]=useState('');
  const load=useCallback(async()=>{setLoading(true);setError(null);try{const result=await adminActionsService.executeAction<unknown[]>('api','list-api-keys',{});setRows(Array.isArray(result)?result as ApiKeyRow[]:[]);}catch(e){setError(e instanceof Error?e.message:'دریافت کلیدهای API ناموفق بود.');}finally{setLoading(false);}},[]);
  useEffect(()=>{void load();},[load]);
