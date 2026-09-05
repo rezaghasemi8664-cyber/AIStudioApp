@@ -4,7 +4,7 @@ import type { AdminModuleKey } from '../services/adminControlService';
 import AdminSecuritySettingsPanels from './AdminSecuritySettingsPanels';
 import AdminRolesSessionsPanels from './AdminRolesSessionsPanels';
 
-interface Props { moduleKey: AdminModuleKey; onComplete: () => Promise<void> | void; }
+interface Props { moduleKey?: AdminModuleKey; section?: AdminModuleKey; onComplete?: () => Promise<void> | void; }
 interface PaymentRow { id:number; userId:number; amount:number; currency:string; gateway?:string|null; referenceNo?:string|null; status:string; description?:string|null; createdAt?:string; paidAt?:string|null; }
 interface BackupRow { id:number; type:string; filePath?:string|null; status:string; startedAt?:string; finishedAt?:string|null; sizeBytes?:number|null; errorMessage?:string|null; }
 interface DeploymentRow { id:number; version?:string|null; channel:string; commitSha?:string|null; status:string; createdAt?:string; }
@@ -17,7 +17,7 @@ const statusLabel:Record<string,string>={pending:'در انتظار',paid:'پر�
 const fmt=(v:number)=>Number(v||0).toLocaleString('fa-IR');
 const dateFmt=(v?:string|null)=>v?new Date(v).toLocaleString('fa-IR'):'—';
 const badge=(value:string)=><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs dark:bg-slate-800">{statusLabel[value]||value}</span>;
-const OperationalPanels:React.FC<Props>=({moduleKey,onComplete})=>{
+const OperationalPanels:React.FC<Props>=({moduleKey: suppliedModuleKey,section,onComplete=()=>undefined})=>{const moduleKey=suppliedModuleKey??section??'payments';
  const [busy,setBusy]=useState(false); const [message,setMessage]=useState<string|null>(null); const [error,setError]=useState<string|null>(null);
  const [userId,setUserId]=useState(''); const [amount,setAmount]=useState(''); const [currency,setCurrency]=useState('IRR'); const [gateway,setGateway]=useState(''); const [description,setDescription]=useState('');
  const [transactionId,setTransactionId]=useState(''); const [status,setStatus]=useState('paid'); const [referenceNo,setReferenceNo]=useState(''); const [payments,setPayments]=useState<PaymentRow[]>([]);
