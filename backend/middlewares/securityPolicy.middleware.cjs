@@ -45,7 +45,7 @@ function validatePassword(password, policy) {
   if (policy.requireUppercase && !/[A-Z]/.test(value)) errors.push('رمز عبور باید حداقل یک حرف بزرگ لاتین داشته باشد.');
   if (policy.requireLowercase && !/[a-z]/.test(value)) errors.push('رمز عبور باید حداقل یک حرف کوچک لاتین داشته باشد.');
   if (policy.requireNumber && !/\d/.test(value)) errors.push('رمز عبور باید حداقل یک عدد داشته باشد.');
-  if (policy.requireSpecial && ![^A-Za-z0-9\s]/.test(value)) errors.push('رمز عبور باید حداقل یک کاراکتر ویژه داشته باشد.');
+  if (policy.requireSpecial && !/[^A-Za-z0-9\s]/.test(value)) errors.push('رمز عبور باید حداقل یک کاراکتر ویژه داشته باشد.');
   return { valid: errors.length === 0, errors };
 }
 
