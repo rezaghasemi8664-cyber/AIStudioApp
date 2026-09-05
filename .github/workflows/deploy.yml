@@ -1,0 +1,104 @@
+name: Deploy Roniya
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'کانال انتشار'
+        required: true
+        default: stable
+        type: choice
+        options:
+          - stable
+          - beta
+      version:
+        description: 'نسخه انتشار (اختیاری)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: roniya-deploy-${{ inputs.channel }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Prepare deployment metadata
+        id: meta
+        shell: bash
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
+        run: |
+          VERSION="$VERSION_INPUT"
+          if [ -z "$VERSION" ]; then VERSION="${GITHUB_SHA::12}"; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "commit=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Production backup preflight
+        id: preflight
+        shell: bash
+        env:
+          DEPLOY_URL: ${{ secrets.RONIYA_DEPLOY_URL }}
+          DEPLOY_SECRET: ${{ secrets.DEPLOYMENT_WEBHOOK_SECRET }}
+          CHANNEL: ${{ inputs.channel }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          COMMIT_SHA: ${{ steps.meta.outputs.commit }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          test -n "$DEPLOY_URL"
+          test -n "$DEPLOY_SECRET"
+          RESPONSE=$(curl --fail-with-body --silent --show-error \
+            -X POST "$DEPLOY_URL/api/v1/deployment-ci/preflight" \
+            -H "Content-Type: application/json" \
+            -H "X-Deployment-Secret: $DEPLOY_SECRET" \
+            --data "{\"commitSha\":\"$COMMIT_SHA\",\"channel\":\"$CHANNEL\",\"version\":\"$VERSION\",\"workflowRunId\":\"$RUN_ID\"}")
+          echo "$RESPONSE" | jq .
+          GATE=$(echo "$RESPONSE" | jq -r '.data.gateToken // empty')
+          BACKUP=$(echo "$RESPONSE" | jq -r '.data.backupId // empty')
+          if [ "$CHANNEL" = "stable" ] && [ -z "$GATE" ]; then
+            echo "Backup gate was not issued; deployment stopped."
+            exit 1
+          fi
+          echo "gate_token=$GATE" >> "$GITHUB_OUTPUT"
+          echo "backup_id=$BACKUP" >> "$GITHUB_OUTPUT"
+
+      - name: Execute server deployment
+        shell: bash
+        env:
+          DEPLOY_URL: ${{ secrets.RONIYA_DEPLOY_URL }}
+          DEPLOY_SECRET: ${{ secrets.DEPLOYMENT_WEBHOOK_SECRET }}
+          CHANNEL: ${{ inputs.channel }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          COMMIT_SHA: ${{ steps.meta.outputs.commit }}
+          RUN_ID: ${{ github.run_id }}
+          GATE_TOKEN: ${{ steps.preflight.outputs.gate_token }}
+        run: |
+          curl --fail-with-body --silent --show-error \
+            -X POST "$DEPLOY_URL/api/v1/deployment-ci/execute" \
+            -H "Content-Type: application/json" \
+            -H "X-Deployment-Secret: $DEPLOY_SECRET" \
+            --data "{\"commitSha\":\"$COMMIT_SHA\",\"channel\":\"$CHANNEL\",\"version\":\"$VERSION\",\"workflowRunId\":\"$RUN_ID\",\"gateToken\":\"$GATE_TOKEN\"}" | jq .
