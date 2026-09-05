@@ -31,18 +31,33 @@ export interface AdminReportsTrends {
   series: AdminReportTrendPoint[];
 }
 
-export async function getSummary(): Promise<AdminReportsSummary> {
-  const response = await api.get('/admin-control/reports/summary');
+export interface AdminReportsInsights {
+  days: 7 | 30;
+  start: string;
+  end: string;
+  growth: { users: number; analyses: number; sessions: number };
+  totals: { users: number; analyses: number; sessions: number };
+  previous: { users: number; analyses: number; sessions: number };
+  topUsers: { userId: number; username: string; analysisCount: number }[];
+  topSymbols: { symbol: string; analysisCount: number }[];
+}
+
+async function unwrap<T>(response: any, fallback: string): Promise<T> {
   const data = response?.data?.data ?? response?.data;
-  if (!data) throw new Error(response?.data?.message || 'دریافت گزارش مدیریتی ناموفق بود.');
-  return data;
+  if (!data) throw new Error(response?.data?.message || fallback);
+  return data as T;
+}
+
+export async function getSummary(): Promise<AdminReportsSummary> {
+  return unwrap<AdminReportsSummary>(await api.get('/admin-control/reports/summary'), 'دریافت گزارش مدیریتی ناموفق بود.');
 }
 
 export async function getTrends(days: 7 | 30 = 7): Promise<AdminReportsTrends> {
-  const response = await api.get('/admin-control/reports/trends', { params: { days } });
-  const data = response?.data?.data ?? response?.data;
-  if (!data) throw new Error(response?.data?.message || 'دریافت روند گزارش مدیریتی ناموفق بود.');
-  return data;
+  return unwrap<AdminReportsTrends>(await api.get('/admin-control/reports/trends', { params: { days } }), 'دریافت روند گزارش مدیریتی ناموفق بود.');
 }
 
-export default { getSummary, getTrends };
+export async function getInsights(days: 7 | 30 = 7): Promise<AdminReportsInsights> {
+  return unwrap<AdminReportsInsights>(await api.get('/admin-control/reports/insights', { params: { days } }), 'دریافت بینش گزارش مدیریتی ناموفق بود.');
+}
+
+export default { getSummary, getTrends, getInsights };
