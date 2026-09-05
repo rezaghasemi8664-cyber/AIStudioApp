@@ -1,9 +1,9 @@
 import React,{useCallback,useEffect,useState}from'react';
 import*as svc from'../services/adminActionsService';
-interface Props{onComplete:()=>Promise<void>|void}
+interface Props{onComplete?:()=>Promise<void>|void}
 type Health={database?:string;node?:string;uptimeSeconds?:number;memory?:{rss:number;heapUsed:number;heapTotal:number};checkedAt?:string;status?:string};
 const n=(v:number)=>Math.round(v/1024/1024).toLocaleString('fa-IR');
-const AdminMonitoringPanel:React.FC<Props>=({onComplete})=>{const[h,setH]=useState<Health|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState<string|null>(null);
+const AdminMonitoringPanel:React.FC<Props>=({onComplete=()=>undefined})=>{const[h,setH]=useState<Health|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState<string|null>(null);
 const load=useCallback(async()=>{setLoading(true);setError(null);try{const x=await svc.executeAction<Health>('monitoring','health-check',{});setH(x);await onComplete()}catch(e){setError(e instanceof Error?e.message:'بررسی سلامت سامانه ناموفق بود.')}finally{setLoading(false)}},[onComplete]);
 useEffect(()=>{void load()},[load]);const uptime=h?.uptimeSeconds??0;const hours=Math.floor(uptime/3600),mins=Math.floor((uptime%3600)/60);
 return <div dir="rtl" className="space-y-5"><div className="rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5"><div className="flex items-center justify-between gap-3"><div><h3 className="text-lg font-bold">پایش و سلامت سامانه</h3><p className="mt-1 text-sm text-gray-500">وضعیت لحظه‌ای Backend، پایگاه داده و منابع پردازشی</p></div><button onClick={()=>void load()} disabled={loading} className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50">{loading?'در حال بررسی...':'بررسی مجدد'}</button></div></div>
