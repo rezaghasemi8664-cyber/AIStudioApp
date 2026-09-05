@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as adminControlService from '../services/adminControlService';
 
 interface Props {
-  modules: Array<{ id: adminControlService.AdminModuleKey; title: string }>;
+  modules?: Array<{ id: adminControlService.AdminModuleKey; title: string }>;
 }
 
 const moduleTitles: Record<string, string> = {
@@ -29,7 +29,7 @@ const statusLabel = (code?: number | null) => {
   return 'نامشخص';
 };
 
-const AdminAuditPanel: React.FC<Props> = ({ modules }) => {
+const AdminAuditPanel: React.FC<Props> = ({ modules = [] }) => {
   const [rows, setRows] = useState<adminControlService.AdminAuditRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
