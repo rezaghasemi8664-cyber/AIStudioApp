@@ -10,10 +10,10 @@ const fmtDate=(v?:string)=>v?new Date(v).toLocaleString('fa-IR'):'—';
 
 const AdminServerUpdatePanel:React.FC<{onComplete?:()=>Promise<void>|void}>=({onComplete=()=>undefined})=>{
  const [data,setData]=useState<UpdateStatus|null>(null); const [busy,setBusy]=useState(false); const [error,setError]=useState<string|null>(null);
- const load=useCallback(async()=>{try{const r=await apiClient.get<UpdateStatus>('/admin-server-update/status');setData(r?.data??r);}catch(e){setError(e instanceof Error?e.message:'دریافت وضعیت بروزرسانی ناموفق بود.');}},[]);
+ const load=useCallback(async()=>{try{const r=await apiClient.get<UpdateStatus>('/admin-server-update/status');setData(r.data ?? null);}catch(e){setError(e instanceof Error?e.message:'دریافت وضعیت بروزرسانی ناموفق بود.');}},[]);
  useEffect(()=>{void load();},[load]);
  useEffect(()=>{if(!data||data.status!=='running')return;const t=window.setInterval(()=>void load(),2000);return()=>window.clearInterval(t);},[data,load]);
- const start=async()=>{if(busy)return;setBusy(true);setError(null);try{const r=await apiClient.post<UpdateStatus>('/admin-server-update/start',{});setData(r?.data??r);await onComplete();}catch(e){setError(e instanceof Error?e.message:'شروع بروزرسانی ناموفق بود.');}finally{setBusy(false);}};
+ const start=async()=>{if(busy)return;setBusy(true);setError(null);try{const r=await apiClient.post<UpdateStatus>('/admin-server-update/start',{});setData(r.data ?? null);await onComplete();}catch(e){setError(e instanceof Error?e.message:'شروع بروزرسانی ناموفق بود.');}finally{setBusy(false);}};
  const running=data?.status==='running';
  return <div className="space-y-5" dir="rtl">
   <div className="rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5">
