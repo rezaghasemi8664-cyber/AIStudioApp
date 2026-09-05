@@ -16,6 +16,8 @@ import AdminReportsPanel from './AdminReportsPanel';
 import AdminInfrastructurePanel from './AdminInfrastructurePanel';
 import AdminMarketPanel from './AdminMarketPanel';
 import AdminScalpingPanel from './AdminScalpingPanel';
+import AdminAiPanel from './AdminAiPanel';
+import AdminPromptsPanel from './AdminPromptsPanel';
 import { ChartBarIcon, UserGroupIcon, BriefcaseIcon, Cog6ToothIcon, BellIcon, ShieldCheckIcon, PresentationChartLineIcon, ClipboardDocumentIcon, GlobeAltIcon, MagnifyingGlassIcon, LockClosedIcon } from './Icons';
 interface AdminPanelProps { isOnline: boolean; onMessageUpdate: () => void; onlineCount: number; }
 type AdminSection = adminControlService.AdminModuleKey;
