@@ -81,6 +81,7 @@ try {
   if (-not (Test-Path (Join-Path $StageBuild 'index.html'))) { throw 'کپی به پوشه موقت Build ناقص است: index.html پیدا نشد.' }
   Move-Item -Path $StageBuild -Destination $BackendBuild -Force
   $copied = @(Get-ChildItem -Path $BackendBuild -Recurse -File)
+  if ($copied.Count -eq 0) { throw 'پس از جایگزینی backend\build هیچ فایل خروجی پیدا نشد.' }
   $finished = (Get-Date).ToUniversalTime().ToString('o')
   Add-Step 'copy-build' 'جایگزینی build سرور با Build جدید' 'success' $started $finished "Build جدید با $($copied.Count) فایل در backend\build قرار گرفت. Backup قبلی: $BackupBuild"
 
@@ -91,18 +92,24 @@ try {
   @"
 Start-Sleep -Seconds 2
 try {
+  `$started = (Get-Date).ToUniversalTime().ToString('o')
   `$out = & pm2.cmd restart roniya-backend --update-env 2>&1 | Out-String
   `$code = `$LASTEXITCODE
+  `$finished = (Get-Date).ToUniversalTime().ToString('o')
   `$state = Get-Content '$StatusFile' -Raw | ConvertFrom-Json
-  `$state.updatedAt = (Get-Date).ToUniversalTime().ToString('o')
+  `$stepStatus = if (`$code -eq 0) { 'success' } else { 'failed' }
+  `$stepError = if (`$code -eq 0) { '' } else { `$out }
+  `$state.updatedAt = `$finished
   `$state.stage = 'pm2-restart'
-  `$state.status = if (`$code -eq 0) { 'success' } else { 'failed' }
-  `$state.steps += [pscustomobject]@{ name='pm2-restart'; label='ریستارت PM2 با update-env'; status=if (`$code -eq 0) { 'success' } else { 'failed' }; startedAt=(Get-Date).ToUniversalTime().ToString('o'); finishedAt=(Get-Date).ToUniversalTime().ToString('o'); output=`$out; error=if (`$code -eq 0) { '' } else { `$out } }
-  if (`$code -eq 0) { `$state.message = 'بروزرسانی کامل شد و PM2 با موفقیت ریستارت شد.' } else { `$state.message = 'Build و جایگزینی موفق بود اما PM2 restart شکست خورد.' }
+  `$state.status = `$stepStatus
+  `$state.steps += [pscustomobject]@{ name='pm2-restart'; label='ریستارت PM2 با update-env'; status=`$stepStatus; startedAt=`$started; finishedAt=`$finished; output=`$out; error=`$stepError }
+  if (`$code -eq 0) { `$state.message = 'بروزرسانی کامل شد و PM2 با موفقیت ریستارت شد.' } else { `$state.message = 'Build و جایگزینی موفق بود اما PM2 restart شکست خورد.'; `$state.lastError=`$out }
   Set-Content '$StatusFile' (`$state | ConvertTo-Json -Depth 12) -Encoding UTF8
 } catch {
-  `$state = Get-Content '$StatusFile' -Raw | ConvertFrom-Json
-  `$state.status='failed'; `$state.stage='pm2-restart'; `$state.message='اجرای PM2 با خطا مواجه شد.'; `$state.lastError=`$_.Exception.Message; Set-Content '$StatusFile' (`$state | ConvertTo-Json -Depth 12) -Encoding UTF8
+  try {
+    `$state = Get-Content '$StatusFile' -Raw | ConvertFrom-Json
+    `$state.status='failed'; `$state.stage='pm2-restart'; `$state.message='اجرای PM2 با خطا مواجه شد.'; `$state.lastError=`$_.Exception.Message; `$state.updatedAt=(Get-Date).ToUniversalTime().ToString('o'); Set-Content '$StatusFile' (`$state | ConvertTo-Json -Depth 12) -Encoding UTF8
+  } catch {}
 }
 Remove-Item -Force '$restartScript' -ErrorAction SilentlyContinue
 "@ | Set-Content -Path $restartScript -Encoding UTF8
@@ -114,11 +121,12 @@ Remove-Item -Force '$restartScript' -ErrorAction SilentlyContinue
 catch {
   $msg = $_.Exception.Message
   try {
+    if ((-not (Test-Path $BackendBuild)) -and (Test-Path $BackupBuild)) { Move-Item -Path $BackupBuild -Destination $BackendBuild -Force }
+    if (Test-Path $StageBuild) { Remove-Item -Recurse -Force $StageBuild -ErrorAction SilentlyContinue }
     $current = Get-Content $StatusFile -Raw | ConvertFrom-Json
     $current.status='failed'; $current.stage='failed'; $current.message='بروزرسانی متوقف شد و مرحله بعدی اجرا نشد.'; $current.lastError=$msg; $current.updatedAt=(Get-Date).ToUniversalTime().ToString('o')
     $current.steps += [pscustomobject]@{ name='failed'; label='خطای عملیات'; status='failed'; startedAt=(Get-Date).ToUniversalTime().ToString('o'); finishedAt=(Get-Date).ToUniversalTime().ToString('o'); output=''; error=$msg }
     Set-Content $StatusFile ($current | ConvertTo-Json -Depth 12) -Encoding UTF8
   } catch {}
-  if (Test-Path $StageBuild) { Remove-Item -Recurse -Force $StageBuild -ErrorAction SilentlyContinue }
   exit 1
 }
