@@ -1,114 +1,30 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import * as adminActionsService from '../services/adminActionsService';
-
+import * as apiClient from '../services/apiClient';
 interface Props { onComplete?: () => Promise<void> | void; }
-
 type NotificationType = 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
-
-const AdminNotificationsPanel: React.FC<Props> = ({ onComplete = () => undefined }) => {
-  const [title, setTitle] = useState('اطلاعیه سامانه');
-  const [message, setMessage] = useState('');
-  const [type, setType] = useState<NotificationType>('INFO');
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ created?: number; skipped?: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const send = async () => {
-    if (!title.trim() || !message.trim()) {
-      setError('عنوان و متن اطلاعیه الزامی است.');
-      return;
-    }
-    const confirmed = window.confirm('این اطلاعیه برای کاربران سامانه ارسال می‌شود. ادامه می‌دهید؟');
-    if (!confirmed) return;
-
-    setBusy(true);
-    setError(null);
-    setResult(null);
-    try {
-      const data = await adminActionsService.executeAction<{ created?: number; skipped?: number }>(
-        'notifications',
-        'broadcast',
-        { title: title.trim(), message: message.trim(), type },
-      );
-      setResult(data || {});
-      setMessage('');
-      await onComplete();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'ارسال اطلاعیه ناموفق بود.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const typeLabel: Record<NotificationType, string> = {
-    INFO: 'اطلاع‌رسانی',
-    SUCCESS: 'موفقیت',
-    WARNING: 'هشدار',
-    ERROR: 'خطا',
-  };
-
-  return (
-    <div className="rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5" dir="rtl">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold">مرکز اطلاع‌رسانی</h2>
-        <p className="mt-1 text-sm text-gray-500">ارسال اطلاعیه عمومی به کاربران و ثبت عملیات در Audit Log.</p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <label className="space-y-1.5 lg:col-span-2">
-          <span className="text-sm font-medium">عنوان اطلاعیه</span>
-          <input
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            maxLength={200}
-            className="w-full rounded-xl border border-[var(--card-border-color)] bg-transparent px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-cyan-500/30"
-          />
-        </label>
-        <label className="space-y-1.5">
-          <span className="text-sm font-medium">نوع اطلاعیه</span>
-          <select
-            value={type}
-            onChange={e => setType(e.target.value as NotificationType)}
-            className="w-full rounded-xl border border-[var(--card-border-color)] bg-transparent px-3 py-2.5 text-sm outline-none"
-          >
-            {(Object.keys(typeLabel) as NotificationType[]).map(key => <option key={key} value={key}>{typeLabel[key]}</option>)}
-          </select>
-        </label>
-      </div>
-
-      <label className="mt-4 block space-y-1.5">
-        <span className="text-sm font-medium">متن اطلاعیه</span>
-        <textarea
-          value={message}
-          onChange={e => setMessage(e.target.value)}
-          maxLength={5000}
-          rows={7}
-          placeholder="متن اطلاعیه را وارد کنید..."
-          className="w-full rounded-xl border border-[var(--card-border-color)] bg-transparent px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-cyan-500/30"
-        />
-        <span className="block text-xs text-gray-500">حداکثر ۵۰۰۰ نویسه</span>
-      </label>
-
-      <div className="mt-5 rounded-xl border border-cyan-500/20 bg-cyan-50/50 dark:bg-cyan-950/20 p-4 text-sm">
-        <b>گیرندگان:</b> همه کاربران سامانه
-        <div className="mt-1 text-xs text-gray-500">این بخش از عملیات واقعی «ارسال اعلان همگانی» در Backend استفاده می‌کند.</div>
-      </div>
-
-      <div className="mt-5 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          disabled={busy || !title.trim() || !message.trim()}
-          onClick={() => void send()}
-          className="rounded-xl bg-cyan-600 px-6 py-2.5 font-semibold text-white disabled:opacity-50"
-        >
-          {busy ? 'در حال ارسال...' : 'ارسال اطلاعیه به همه کاربران'}
-        </button>
-        {result && <span className="text-sm text-green-600">ارسال انجام شد{result.created !== undefined ? `؛ ${result.created.toLocaleString('fa-IR')} اعلان ایجاد شد` : ''}{result.skipped ? ` و ${result.skipped.toLocaleString('fa-IR')} مورد رد شد` : ''}.</span>}
-      </div>
-
-      {error && <div className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/20">{error}</div>}
-    </div>
-  );
+interface NotificationRow { id:number; userId:number; title:string; message:string; type:string; isRead:boolean; createdAt:string; }
+interface Overview { counts:{total:number;unread:number;last24h:number;last7d:number;last30d:number;activeUsers:number}; byType:{type:string;count:number}[]; recent:NotificationRow[]; }
+const card='rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5 shadow-sm';
+const input='w-full rounded-xl border border-[var(--card-border-color)] bg-transparent px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-cyan-500/30';
+const typeLabel:Record<string,string>={INFO:'اطلاع‌رسانی',info:'اطلاع‌رسانی',SUCCESS:'موفقیت',success:'موفقیت',WARNING:'هشدار',warning:'هشدار',ERROR:'خطا',error:'خطا'};
+const fmt=(v:number)=>Number(v||0).toLocaleString('fa-IR');
+const dateFmt=(v?:string)=>v?new Date(v).toLocaleString('fa-IR'):'—';
+const AdminNotificationsPanel:React.FC<Props>=({onComplete=()=>undefined})=>{
+ const [overview,setOverview]=useState<Overview|null>(null);const [loading,setLoading]=useState(true);const [busy,setBusy]=useState(false);const [error,setError]=useState<string|null>(null);const [message,setMessage]=useState<string|null>(null);const [result,setResult]=useState<{recipients?:number}|null>(null);
+ const [title,setTitle]=useState('اطلاعیه سامانه');const [body,setBody]=useState('');const [type,setType]=useState<NotificationType>('INFO');
+ const load=useCallback(async()=>{setLoading(true);setError(null);try{const r=await apiClient.get<Overview>('/admin-notifications/overview');if(!r.success||!r.data)throw new Error(r.message||'دریافت آمار اطلاع‌رسانی ناموفق بود.');setOverview(r.data);}catch(e){setError(e instanceof Error?e.message:'خطا در دریافت اطلاعات اطلاع‌رسانی.');}finally{setLoading(false);}},[]);
+ useEffect(()=>{void load();},[load]);
+ const send=async()=>{if(!title.trim()||!body.trim()){setError('عنوان و متن اعلان الزامی است.');return;}if(!window.confirm('این اعلان برای همه کاربران فعال ارسال می‌شود. آیا مطمئن هستید؟'))return;if(!window.confirm('تأیید نهایی: ارسال همگانی انجام شود؟'))return;setBusy(true);setError(null);setMessage(null);setResult(null);try{const data=await adminActionsService.executeAction<{recipients?:number}>('notifications','broadcast',{title:title.trim(),message:body.trim(),type:type.toLowerCase()});setResult(data||{});setMessage('اعلان با موفقیت ارسال شد.');setBody('');await load();await onComplete();}catch(e){setError(e instanceof Error?e.message:'ارسال اعلان ناموفق بود.');}finally{setBusy(false);}};
+ return <div className="space-y-6" dir="rtl">
+  <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-bold">مرکز اطلاع‌رسانی</h2><p className="mt-1 text-sm text-gray-500">مدیریت ارسال اعلان، آمار واقعی و تاریخچه اطلاع‌رسانی کاربران.</p></div><button type="button" onClick={()=>void load()} disabled={loading} className="rounded-xl border px-4 py-2 text-sm font-semibold disabled:opacity-50">{loading?'در حال بررسی...':'به‌روزرسانی'}</button></div>
+  {error&&<div className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:bg-red-950/20">{error}</div>}
+  <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">{[["کل اعلان‌ها",overview?.counts.total||0],["خوانده‌نشده",overview?.counts.unread||0],["۲۴ ساعت اخیر",overview?.counts.last24h||0],["۷ روز اخیر",overview?.counts.last7d||0],["۳۰ روز اخیر",overview?.counts.last30d||0],["کاربران فعال",overview?.counts.activeUsers||0]].map(([t,v])=><div key={String(t)} className={card}><div className="text-xs text-gray-500">{t}</div><div className="mt-2 text-2xl font-extrabold">{fmt(Number(v))}</div></div>)}</div>
+  <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+   <div className={`${card} xl:col-span-2`}><h3 className="font-bold mb-4">ارسال اعلان همگانی</h3><div className="grid grid-cols-1 sm:grid-cols-3 gap-3"><label className="space-y-1.5 sm:col-span-2"><span className="text-sm font-medium">عنوان</span><input value={title} onChange={e=>setTitle(e.target.value)} maxLength={200} className={input}/></label><label className="space-y-1.5"><span className="text-sm font-medium">نوع</span><select value={type} onChange={e=>setType(e.target.value as NotificationType)} className={input}>{(['INFO','SUCCESS','WARNING','ERROR'] as NotificationType[]).map(k=><option key={k} value={k}>{typeLabel[k]}</option>)}</select></label></div><label className="mt-4 block space-y-1.5"><span className="text-sm font-medium">متن اعلان</span><textarea value={body} onChange={e=>setBody(e.target.value)} maxLength={5000} rows={8} placeholder="متن اطلاعیه را وارد کنید..." className={input}/><span className="block text-xs text-gray-500">حداکثر ۵۰۰۰ نویسه</span></label><div className="mt-4 rounded-xl border border-cyan-500/20 bg-cyan-50/50 dark:bg-cyan-950/20 p-3 text-sm">گیرندگان: <b>{fmt(overview?.counts.activeUsers||0)} کاربر فعال</b></div><button type="button" disabled={busy||!title.trim()||!body.trim()} onClick={()=>void send()} className="mt-4 rounded-xl bg-cyan-600 px-6 py-2.5 font-semibold text-white disabled:opacity-50">{busy?'در حال ارسال...':'ارسال اعلان به همه کاربران'}</button>{message&&<p className="mt-3 text-sm text-green-600">{message}{result?.recipients!==undefined?` تعداد گیرندگان: ${fmt(result.recipients)}`:''}</p>}</div>
+   <div className={`${card} xl:col-span-3`}><h3 className="font-bold">توزیع اعلان‌ها بر اساس نوع</h3><p className="mt-1 text-xs text-gray-500">بر مبنای تمام رکوردهای واقعی دیتابیس</p><div className="mt-5 space-y-3">{(overview?.byType||[]).map(x=><div key={x.type} className="flex items-center gap-3"><div className="w-28 text-sm">{typeLabel[x.type]||x.type}</div><div className="h-3 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className="h-full rounded-full bg-cyan-500" style={{width:`${Math.min(100,(x.count/Math.max(1,overview?.counts.total||1))*100)}%`}}/></div><div className="w-16 text-left text-sm font-bold">{fmt(x.count)}</div></div>)}{!overview?.byType.length&&<div className="py-8 text-center text-gray-500">داده‌ای ثبت نشده است.</div>}</div></div>
+  </div>
+  <div className={card}><h3 className="font-bold">تاریخچه آخرین اعلان‌ها</h3><p className="mt-1 text-xs text-gray-500">۴۰ اعلان اخیر از دیتابیس</p><div className="mt-4 overflow-auto"><table className="w-full min-w-[900px] text-sm"><thead><tr className="border-b"><th className="p-3 text-right">شناسه</th><th className="p-3 text-right">کاربر</th><th className="p-3 text-right">عنوان</th><th className="p-3 text-right">نوع</th><th className="p-3 text-right">وضعیت</th><th className="p-3 text-right">تاریخ</th></tr></thead><tbody>{(overview?.recent||[]).map(r=><tr key={r.id} className="border-b last:border-0"><td className="p-3" dir="ltr">{r.id}</td><td className="p-3" dir="ltr">{r.userId}</td><td className="p-3 max-w-[320px] truncate">{r.title}</td><td className="p-3">{typeLabel[r.type]||r.type}</td><td className="p-3">{r.isRead?<span className="text-green-600">خوانده‌شده</span>:<span className="text-amber-600">خوانده‌نشده</span>}</td><td className="p-3">{dateFmt(r.createdAt)}</td></tr>)}</tbody></table>{!overview?.recent.length&&<div className="py-8 text-center text-gray-500">هنوز اعلانی ثبت نشده است.</div>}</div></div>
+ </div>;
 };
-
 export default AdminNotificationsPanel;
