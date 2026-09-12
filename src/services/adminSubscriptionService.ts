@@ -8,7 +8,7 @@ export interface AdminSubscriptionSummary {
 }
 
 export async function getSummary(): Promise<AdminSubscriptionSummary> {
-  const response = await apiClient.get<AdminSubscriptionSummary>('/admin-subscriptions/summary');
+  const response = await apiClient.get<AdminSubscriptionSummary>('/admin/subscriptions/summary');
   if (!response?.success || !response.data) {
     throw new Error(response?.message || 'دریافت آمار اشتراک‌ها ناموفق بود.');
   }
