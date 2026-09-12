@@ -80,6 +80,9 @@ const PublicLandingPage: React.FC = () => {
         .public-cta { margin: 28px 0 70px; padding: 42px; border: 1px solid rgba(34,211,238,.2); border-radius: 28px; background: radial-gradient(circle at 80% 0%, rgba(34,211,238,.14), transparent 35%), linear-gradient(135deg, rgba(255,255,255,.055), rgba(255,255,255,.02)); text-align: center; }
         .public-cta h2 { margin: 0 0 12px; font-size: clamp(25px, 4vw, 36px); }
         .public-cta p { margin: 0 auto 22px; max-width: 650px; color: var(--muted); line-height: 1.9; }
+        .public-enamad { display: flex; justify-content: center; align-items: center; margin: 28px auto 0; padding: 16px 20px; width: fit-content; min-width: 190px; border: 1px solid rgba(148,163,184,.16); border-radius: 16px; background: rgba(255,255,255,.025); box-shadow: 0 12px 35px rgba(0,0,0,.12); }
+        .public-enamad a { display: inline-flex; align-items: center; justify-content: center; }
+        .public-enamad img { display: block; width: 120px; height: auto; max-width: 100%; }
         .public-footer { border-top: 1px solid var(--line); padding: 25px 0 32px; color: #7f93aa; font-size: 13px; }
         .public-footer-inner { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
         @media (max-width: 820px) {
@@ -99,6 +102,8 @@ const PublicLandingPage: React.FC = () => {
           .public-hero { padding: 38px 0 55px; }
           .public-hero-logo { width: 112px; height: 112px; }
           .public-cta { padding: 28px 18px; }
+          .public-enamad { min-width: 170px; padding: 14px 16px; }
+          .public-enamad img { width: 110px; }
         }
       `}</style>
 
@@ -177,6 +182,11 @@ const PublicLandingPage: React.FC = () => {
           <h2>آماده ورود به دنیای تحلیل حرفه‌ای هستید؟</h2>
           <p>همین حالا وارد سامانه شوید یا با شماره موبایل خود ثبت‌نام کنید و امکانات رونیا را تجربه کنید.</p>
           <button className="public-btn public-btn-primary" onClick={goToLogin}>ورود / ثبت‌نام</button>
+          <div className="public-enamad" aria-label="نماد اعتماد الکترونیکی">
+            <a referrerPolicy="origin" target="_blank" rel="noopener noreferrer" href="https://trustseal.enamad.ir/?id=7523297&Code=o6Q8ZIOyrOl0YWyiXpn8ILYoZ2KnhLOR">
+              <img referrerPolicy="origin" src="https://trustseal.enamad.ir/logo.aspx?id=7523297&Code=o6Q8ZIOyrOl0YWyiXpn8ILYoZ2KnhLOR" alt="نماد اعتماد الکترونیکی" style={{ cursor: 'pointer' }} data-enamad-code="o6Q8ZIOyrOl0YWyiXpn8ILYoZ2KnhLOR" />
+            </a>
+          </div>
         </section>
       </main>
 
