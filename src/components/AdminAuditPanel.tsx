@@ -24,7 +24,8 @@ const AdminAuditPanel:React.FC<Props>=({modules=[]})=>{
  const exportCurrentPage=()=>{
   const header=['ادمین','ایمیل','عملیات','ماژول','وضعیت','کد وضعیت','IP','متد','مسیر','شناسه هدف','زمان','جزئیات'];
   const lines=rows.map(r=>[r.username||'سیستم',r.email||'',actionTitles[r.action]||r.action||'',moduleTitles[r.moduleKey||'']||r.moduleKey||'',statusLabel(r.statusCode),r.statusCode||'',r.ipAddress||'',r.method||'',r.path||'',r.targetId||'',r.createdAt?new Date(r.createdAt).toLocaleString('fa-IR'):'',typeof r.details==='string'?r.details:JSON.stringify(r.details||{})].map(csvCell).join(','));
-  const blob=new Blob(['\uFEFF',header.map(csvCell).join(','),'\n',...lines].join(''),{type:'text/csv;charset=utf-8;'});
+  const csvContent=['\uFEFF',header.map(csvCell).join(','),'\n',...lines].join('');
+  const blob=new Blob([csvContent],{type:'text/csv;charset=utf-8;'});
   const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`audit-log-${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
  };
  return <div dir="rtl" className="space-y-4">
