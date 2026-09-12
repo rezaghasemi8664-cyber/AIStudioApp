@@ -18,6 +18,13 @@ async function allowed(req) {
   return !!(id && await hasPermission(id, 'admin.notifications.manage'));
 }
 function fail(res, status, message) { return res.status(status).json({ success: false, message }); }
+function parseDate(value, endOfDay = false) {
+  if (!value) return null;
+  const d = new Date(String(value));
+  if (Number.isNaN(d.getTime())) return null;
+  if (endOfDay) d.setHours(23, 59, 59, 999);
+  return d;
+}
 
 router.use(authMiddleware, (req, res, next) => isAdmin(req) ? next() : fail(res, 403, 'این بخش فقط برای ادمین مجاز است.'));
 
@@ -42,6 +49,44 @@ router.get('/overview', async (req, res) => {
   } catch (e) {
     console.error('[ADMIN_NOTIFICATIONS] overview:', e.message);
     return fail(res, 500, 'دریافت آمار اطلاع‌رسانی ناموفق بود.');
+  }
+});
+
+router.get('/history', async (req, res) => {
+  if (!(await allowed(req))) return fail(res, 403, 'دسترسی مدیریت اطلاع‌رسانی ندارید.');
+  try {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+    const skip = (page - 1) * limit;
+    const search = String(req.query.search || '').trim();
+    const type = String(req.query.type || '').trim().toLowerCase();
+    const read = String(req.query.read || '').trim().toLowerCase();
+    const from = parseDate(req.query.from);
+    const to = parseDate(req.query.to, true);
+    if (req.query.from && !from) return fail(res, 400, 'تاریخ شروع نامعتبر است.');
+    if (req.query.to && !to) return fail(res, 400, 'تاریخ پایان نامعتبر است.');
+
+    const where = {};
+    if (search) where.OR = [{ title: { contains: search } }, { message: { contains: search } }];
+    if (type) where.type = type;
+    if (read === 'read') where.isRead = true;
+    if (read === 'unread') where.isRead = false;
+    if (from || to) where.createdAt = { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) };
+
+    const [total, items] = await Promise.all([
+      prisma.notification.count({ where }),
+      prisma.notification.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        select: { id: true, userId: true, title: true, message: true, type: true, isRead: true, createdAt: true },
+      }),
+    ]);
+    return res.json({ success: true, data: { items, pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } } });
+  } catch (e) {
+    console.error('[ADMIN_NOTIFICATIONS] history:', e.message);
+    return fail(res, 500, 'دریافت تاریخچه اطلاع‌رسانی ناموفق بود.');
   }
 });
 
