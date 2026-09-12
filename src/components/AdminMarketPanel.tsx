@@ -1,6 +1,5 @@
 import React,{useCallback,useEffect,useMemo,useState}from'react';
 import*as apiClient from'../services/apiClient';
-import*as adminActionsService from'../services/adminActionsService';
 interface Props{onComplete?:()=>Promise<void>|void}
 interface MarketResponse{success?:boolean;data?:any;message?:string}
 const card='rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5 shadow-sm';
@@ -12,7 +11,7 @@ export default function AdminMarketPanel({onComplete=()=>undefined}:Props){
  const[data,setData]=useState<any>(null),[summary,setSummary]=useState<any>(null),[history,setHistory]=useState<any[]>([]),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null),[message,setMessage]=useState<string|null>(null);
  const load=useCallback(async()=>{setLoading(true);setError(null);try{const [i,s,h]=await Promise.all([apiClient.get<any>('/v1/market/index'),apiClient.get<any>('/v1/market/summary'),apiClient.get<any>('/v1/market/history?limit=20')]);setData(unwrap(i));setSummary(unwrap(s));const hd=unwrap(h);setHistory(Array.isArray(hd)?hd:Array.isArray(hd?.items)?hd.items:Array.isArray(hd?.data)?hd.data:[]);}catch(e){setError(e instanceof Error?e.message:'خطا در دریافت داده بازار.');}finally{setLoading(false)}},[]);
  useEffect(()=>{void load()},[load]);
- const clearCache=async()=>{if(!window.confirm('کش داده بازار پاک شود؟ این عملیات روی سرویس بازار اثر می‌گذارد.'))return;setBusy(true);setError(null);setMessage(null);try{await adminActionsService.executeAction('market','health-check',{clearCache:true});setMessage('درخواست بررسی/به‌روزرسانی بازار با موفقیت اجرا شد.');await load();await onComplete()}catch(e){setError(e instanceof Error?e.message:'اجرای عملیات بازار ناموفق بود.')}finally{setBusy(false)}};
+ const clearCache=async()=>{if(!window.confirm('کش داده بازار پاک شود؟ این عملیات روی سرویس بازار اثر می‌گذارد.'))return;setBusy(true);setError(null);setMessage(null);try{const result=await apiClient.post<any>('/v1/market/cache/clear',{});if(!result?.success)throw new Error(result?.message||'پاک‌سازی کش بازار ناموفق بود.');setMessage('کش واقعی داده بازار با موفقیت پاک شد.');await load();await onComplete()}catch(e){setError(e instanceof Error?e.message:'پاک‌سازی کش بازار ناموفق بود.')}finally{setBusy(false)}};
  const index=pick(data,['index','marketIndex','value']);const change=pick(data,['change','indexChange','changePercent']);const mv=pick(data,['marketValue','mv']);const updated=pick(data,['updatedAt','timestamp','lastUpdate','date']);
  const stats=useMemo(()=>({positive:pick(summary,['positive','up','gainers']),negative:pick(summary,['negative','down','losers']),unchanged:pick(summary,['unchanged','neutral']),count:pick(summary,['totalSymbols','symbolCount','count'])}),[summary]);
  return <div dir="rtl" className="space-y-5">{error&&<div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/20 dark:text-red-300">{error}</div>}{message&&<div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-300">{message}</div>}
