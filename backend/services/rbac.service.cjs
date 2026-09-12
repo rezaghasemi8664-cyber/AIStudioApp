@@ -21,9 +21,6 @@ async function ensurePermissions() {
     });
 
     for (const role of adminRoles) {
-      // Bootstrap the built-in admin roles only when they have no permission
-      // assignments yet. Never re-add permissions on every request, otherwise
-      // an administrator's custom RBAC configuration would be overwritten.
       if (role._count.permissions > 0) continue;
 
       for (const key of PERMISSIONS) {
@@ -116,12 +113,15 @@ async function setRolePermissions(roleId, permissionKeys) {
     select: { id: true },
   });
 
-  await prisma.rolePermission.deleteMany({ where: { roleId: id } });
-  for (const permission of permissions) {
-    await prisma.rolePermission.create({
-      data: { roleId: id, permissionId: permission.id },
-    });
-  }
+  await prisma.$transaction(async (tx) => {
+    await tx.rolePermission.deleteMany({ where: { roleId: id } });
+    if (permissions.length > 0) {
+      await tx.rolePermission.createMany({
+        data: permissions.map((permission) => ({ roleId: id, permissionId: permission.id })),
+        skipDuplicates: true,
+      });
+    }
+  });
 
   return { roleId: id, permissionCount: permissions.length };
 }
