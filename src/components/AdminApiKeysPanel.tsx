@@ -15,6 +15,7 @@ interface ApiKeyRow {
 type StatusFilter = 'all' | 'active' | 'revoked';
 
 const fmtDate = (v?: string | null) => v ? new Date(v).toLocaleString('fa-IR') : '—';
+const csvCell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
 
 const AdminApiKeysPanel: React.FC<Props> = ({ onComplete = () => undefined }) => {
   const [rows, setRows] = useState<ApiKeyRow[]>([]);
@@ -24,8 +25,8 @@ const AdminApiKeysPanel: React.FC<Props> = ({ onComplete = () => undefined }) =>
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const result = await adminActionsService.executeAction<unknown[]>('api', 'list-api-keys', {});
@@ -33,11 +34,15 @@ const AdminApiKeysPanel: React.FC<Props> = ({ onComplete = () => undefined }) =>
     } catch (e) {
       setError(e instanceof Error ? e.message : 'دریافت کلیدهای API ناموفق بود.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => { void load(true); }, 30000);
+    return () => window.clearInterval(timer);
+  }, [load]);
 
   const stats = useMemo(() => ({
     total: rows.length,
@@ -56,6 +61,24 @@ const AdminApiKeysPanel: React.FC<Props> = ({ onComplete = () => undefined }) =>
       return matchesStatus && matchesQuery;
     });
   }, [rows, query, statusFilter]);
+
+  const exportCsv = () => {
+    const header = ['شناسه', 'شناسه کاربر', 'نام کاربری', 'ایمیل', 'نام کلید', 'سرویس', 'تاریخ ایجاد', 'وضعیت'];
+    const lines = filtered.map(r => [
+      r.id, r.userId, r.username, r.email, r.name || 'بدون نام', r.service || 'عمومی',
+      r.createdAt ? new Date(r.createdAt).toLocaleString('fa-IR') : '', r.isRevoked ? 'لغوشده' : 'فعال'
+    ].map(csvCell).join(','));
+    const csvContent = ['\uFEFF', header.map(csvCell).join(','), '\n', lines.join('\n')].join('');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `api-keys-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const revoke = async (id: number | string) => {
     if (!window.confirm('آیا از لغو این کلید API مطمئن هستید؟')) return;
@@ -77,11 +100,14 @@ const AdminApiKeysPanel: React.FC<Props> = ({ onComplete = () => undefined }) =>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
           <h3 className="text-lg font-bold">مدیریت کلیدهای API</h3>
-          <p className="mt-1 text-sm text-gray-500">کلیدها بدون نمایش مقدار واقعی مدیریت می‌شوند.</p>
+          <p className="mt-1 text-sm text-gray-500">کلیدها بدون نمایش مقدار واقعی مدیریت می‌شوند. وضعیت فهرست هر ۳۰ ثانیه تازه می‌شود.</p>
         </div>
-        <button onClick={() => void load()} disabled={loading} className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50">
-          {loading ? 'در حال دریافت...' : 'به‌روزرسانی'}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={exportCsv} disabled={filtered.length === 0} className="rounded-xl border px-4 py-2 text-sm font-semibold disabled:opacity-50">خروجی CSV</button>
+          <button onClick={() => void load()} disabled={loading} className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50">
+            {loading ? 'در حال دریافت...' : 'به‌روزرسانی'}
+          </button>
+        </div>
       </div>
       <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="rounded-xl border border-[var(--card-border-color)] p-4"><div className="text-xs text-gray-500">کل کلیدها</div><div className="mt-1 text-2xl font-bold">{stats.total.toLocaleString('fa-IR')}</div></div>
@@ -102,6 +128,7 @@ const AdminApiKeysPanel: React.FC<Props> = ({ onComplete = () => undefined }) =>
       <tbody>{filtered.map(r => <tr key={String(r.id)} className="border-b hover:bg-gray-50/50 dark:hover:bg-gray-800/20"><td className="p-3" dir="ltr">{r.id}</td><td className="p-3"><div className="font-semibold">{r.username || ('کاربر ' + (r.userId ?? '—'))}</div><div className="text-xs text-gray-500">{r.email || '—'}</div></td><td className="p-3">{r.name || 'بدون نام'}</td><td className="p-3">{r.service || 'عمومی'}</td><td className="p-3 whitespace-nowrap">{fmtDate(r.createdAt)}</td><td className="p-3">{r.isRevoked ? <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs text-red-700">لغوشده</span> : <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs text-green-700">فعال</span>}</td><td className="p-3">{r.isRevoked ? <span className="text-xs text-gray-500">غیرفعال</span> : <button disabled={busyId === r.id} onClick={() => void revoke(r.id)} className="rounded-lg border border-red-500/50 px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-50">{busyId === r.id ? 'در حال لغو...' : 'لغو کلید'}</button>}</td></tr>)}</tbody></table></div>
       {!loading && filtered.length === 0 && <div className="py-10 text-center text-gray-500">کلیدی مطابق فیلتر و جستجو پیدا نشد.</div>}
     </div>
+    <div className="rounded-xl border border-amber-500/20 bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950/20 dark:text-amber-100">مقدار واقعی کلیدهای API در پنل ادمین نمایش داده نمی‌شود و عملیات این بخش فقط مدیریت وضعیت کلیدهاست.</div>
   </div>;
 };
 export default AdminApiKeysPanel;
