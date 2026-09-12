@@ -1,6 +1,6 @@
 'use strict';
 
-const { prisma } = require('../config/prisma.cjs');
+const prisma = require('../config/prisma.cjs');
 const { getSecurityPolicy } = require('../middlewares/securityPolicy.middleware.cjs');
 
 async function enforceSession(token, userId) {
@@ -16,8 +16,6 @@ async function enforceSession(token, userId) {
     select: { id: true, userId: true, createdAt: true },
   });
 
-  // Existing deployments may have JWTs issued before session persistence was enabled.
-  // Register the currently valid access token on its first authenticated request.
   if (!session) {
     session = await prisma.session.create({
       data: { userId: Number(userId), token, createdAt: new Date() },
@@ -36,7 +34,6 @@ async function enforceSession(token, userId) {
     return { valid: false, code: 'SESSION_EXPIRED' };
   }
 
-  // Enforce the configured per-user session limit. Keep the newest sessions.
   const maxSessions = Math.max(1, Number(policy.maxSessionsPerUser) || 5);
   const sessions = await prisma.session.findMany({
     where: { userId: Number(userId) },
