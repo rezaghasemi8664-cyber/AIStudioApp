@@ -6,6 +6,7 @@ const moduleTitles: Record<string,string>={dashboard:'داشبورد مدیری�
 const actionTitles:Record<string,string>={'activate-user':'فعال‌سازی کاربر','deactivate-user':'غیرفعال‌سازی کاربر','set-subscription':'ثبت اشتراک','delete-analysis':'حذف تحلیل','delete-history-item':'حذف سابقه',broadcast:'ارسال اعلان','revoke-session':'لغو نشست','revoke-all-user-sessions':'لغو همه نشست‌ها','revoke-api-key':'لغو کلید API','assign-role':'تخصیص نقش','set-policy':'ثبت سیاست','set-setting':'ثبت تنظیم','enable':'فعال‌سازی','disable':'غیرفعال‌سازی','set-config':'ثبت تنظیمات','set-prompt':'ثبت پرامپت','health-check':'بررسی سلامت',snapshot:'ساخت گزارش','set-channel':'تغییر کانال','create-transaction':'ایجاد تراکنش','set-status':'تغییر وضعیت','create-backup':'ایجاد پشتیبان','get-status':'مشاهده وضعیت','record-deployment':'ثبت استقرار'};
 const statusLabel=(code?:number|null)=>code!=null&&code>=200&&code<400?'موفق':code!=null?'ناموفق':'نامشخص';
 const card='rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-4';
+const csvCell=(value:unknown)=>`"${String(value??'').replace(/"/g,'""').replace(/\r?\n/g,' ')}"`;
 
 const AdminAuditPanel:React.FC<Props>=({modules=[]})=>{
  const [rows,setRows]=useState<adminControlService.AdminAuditRecord[]>([]),[total,setTotal]=useState(0),[offset,setOffset]=useState(0),[loading,setLoading]=useState(false),[error,setError]=useState<string|null>(null),[expanded,setExpanded]=useState<string|number|null>(null);
@@ -20,19 +21,25 @@ const AdminAuditPanel:React.FC<Props>=({modules=[]})=>{
  const displayStats=stats||{total,successful:pageSuccessful,failed:pageFailed,last24h:0};
  const apply=()=>{setFilters(draft);setOffset(0);void load(0,draft);};
  const reset=()=>{const empty:adminControlService.AdminAuditFilters={};setDraft(empty);setFilters(empty);setOffset(0);void load(0,empty);};
+ const exportCurrentPage=()=>{
+  const header=['ادمین','ایمیل','عملیات','ماژول','وضعیت','کد وضعیت','IP','متد','مسیر','شناسه هدف','زمان','جزئیات'];
+  const lines=rows.map(r=>[r.username||'سیستم',r.email||'',actionTitles[r.action]||r.action||'',moduleTitles[r.moduleKey||'']||r.moduleKey||'',statusLabel(r.statusCode),r.statusCode||'',r.ipAddress||'',r.method||'',r.path||'',r.targetId||'',r.createdAt?new Date(r.createdAt).toLocaleString('fa-IR'):'',typeof r.details==='string'?r.details:JSON.stringify(r.details||{})].map(csvCell).join(','));
+  const blob=new Blob(['\uFEFF',header.map(csvCell).join(','),'\n',...lines].join(''),{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`audit-log-${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+ };
  return <div dir="rtl" className="space-y-4">
   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
    <div className={card}><div className="text-xs text-gray-500">کل رویدادها</div><div className="mt-2 text-2xl font-black">{displayStats.total.toLocaleString('fa-IR')}</div></div>
    <div className={card}><div className="text-xs text-gray-500">رویدادهای موفق</div><div className="mt-2 text-2xl font-black text-emerald-600">{displayStats.successful.toLocaleString('fa-IR')}</div></div>
    <div className={card}><div className="text-xs text-gray-500">رویدادهای ناموفق</div><div className="mt-2 text-2xl font-black text-red-600">{displayStats.failed.toLocaleString('fa-IR')}</div></div>
-   <div className={card}><div className="text-xs text-gray-500">۲۴ ساعت اخیر</div><div className="mt-2 text-2xl font-black">{stats?displayStats.last24h.toLocaleString('fa-IR'):'—'}</div>{!stats&&<div className="mt-1 text-[10px] text-gray-400">پس از فعال‌شدن آمار سرور</div>}</div>
+   <div className={card}><div className="text-xs text-gray-500">۲۴ ساعت اخیر</div><div className="mt-2 text-2xl font-black">{stats?displayStats.last24h.toLocaleString('fa-IR'):'—'}</div></div>
   </div>
   <div className="rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5">
-   <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4"><div><h3 className="text-lg font-bold">گزارش رویدادهای مدیریتی</h3><p className="text-xs text-gray-500 mt-1">جستجو، فیلتر و بررسی جزئیات عملیات انجام‌شده در پنل مدیریت</p></div><button onClick={()=>void load(offset,filters)} disabled={loading} className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50">{loading?'در حال دریافت...':'به‌روزرسانی'}</button></div>
+   <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4"><div><h3 className="text-lg font-bold">گزارش رویدادهای مدیریتی</h3><p className="text-xs text-gray-500 mt-1">جستجو، فیلتر و بررسی جزئیات عملیات انجام‌شده در پنل مدیریت</p></div><div className="flex gap-2"><button onClick={exportCurrentPage} disabled={loading||rows.length===0} className="rounded-xl border px-4 py-2 text-sm disabled:opacity-40">خروجی CSV</button><button onClick={()=>void load(offset,filters)} disabled={loading} className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50">{loading?'در حال دریافت...':'به‌روزرسانی'}</button></div></div>
    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
     <select value={String(draft.moduleKey||'')} onChange={e=>setDraft(v=>({...v,moduleKey:e.target.value||undefined}))} className="rounded-xl border bg-transparent px-3 py-2 text-sm"><option value="">همه ماژول‌ها</option>{moduleOptions.map(m=><option key={m.id} value={m.id}>{m.title}</option>)}</select>
     <input value={draft.action||''} onChange={e=>setDraft(v=>({...v,action:e.target.value||undefined}))} placeholder="جستجوی عملیات" className="rounded-xl border bg-transparent px-3 py-2 text-sm"/>
-    <select value={String(draft.status||'')} onChange={e=>setDraft(v=>({...v,status:e.target.value||undefined}))} className="rounded-xl border bg-transparent px-3 py-2 text-sm"><option value="">همه وضعیت‌ها</option><option value="200">موفق (۲xx)</option><option value="400">خطا (۴xx)</option><option value="500">خطای سرور (۵xx)</option></select>
+    <select value={String(draft.status||'')} onChange={e=>setDraft(v=>({...v,status:e.target.value||undefined}))} className="rounded-xl border bg-transparent px-3 py-2 text-sm"><option value="">همه کدهای وضعیت</option><option value="200">کد ۲۰۰</option><option value="400">کد ۴۰۰</option><option value="401">کد ۴۰۱</option><option value="403">کد ۴۰۳</option><option value="404">کد ۴۰۴</option><option value="500">کد ۵۰۰</option></select>
     <input value={draft.adminUserId?String(draft.adminUserId):''} onChange={e=>setDraft(v=>({...v,adminUserId:e.target.value||undefined}))} placeholder="شناسه ادمین" inputMode="numeric" className="rounded-xl border bg-transparent px-3 py-2 text-sm"/>
     <input type="datetime-local" value={draft.from||''} onChange={e=>setDraft(v=>({...v,from:e.target.value||undefined}))} className="rounded-xl border bg-transparent px-3 py-2 text-sm"/>
     <input type="datetime-local" value={draft.to||''} onChange={e=>setDraft(v=>({...v,to:e.target.value||undefined}))} className="rounded-xl border bg-transparent px-3 py-2 text-sm"/>
