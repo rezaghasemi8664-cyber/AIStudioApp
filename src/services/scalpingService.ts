@@ -317,7 +317,7 @@ const defaultStartResult = (): StartScalpingResult => ({
 export const scalpingService = {
   async getScalpingStatus(): Promise<ScalpingStatus> {
     try {
-      const response = await apiClient.get(`/api/scalping/status?${getCacheBuster()}`, {
+      const response = await apiClient.get(`/scalping/status?${getCacheBuster()}`, {
         headers: {
           'Cache-Control': 'no-cache',
           Pragma: 'no-cache'
@@ -341,7 +341,7 @@ export const scalpingService = {
 
   async getScalpingSignals(): Promise<ScalpingSignalsResponse> {
     try {
-      const response = await apiClient.get(`/api/scalping/signals?${getCacheBuster()}`, {
+      const response = await apiClient.get(`/scalping/signals?${getCacheBuster()}`, {
         headers: {
           'Cache-Control': 'no-cache',
           Pragma: 'no-cache'
@@ -357,7 +357,7 @@ export const scalpingService = {
 
   async getScalpingSettings(): Promise<ScalpingSettings> {
     try {
-      const response = await apiClient.get(`/api/scalping/settings?${getCacheBuster()}`);
+      const response = await apiClient.get(`/scalping/settings?${getCacheBuster()}`);
       return unwrapData<ScalpingSettings>(response, DEFAULT_SCALPING_SETTINGS);
     } catch (error) {
       console.error('Settings API Error:', error);
@@ -367,7 +367,7 @@ export const scalpingService = {
 
   async updateScalpingSettings(payload: Partial<ScalpingSettings>): Promise<ScalpingSettings> {
     try {
-      const response = await apiClient.put('/api/scalping/settings', payload);
+      const response = await apiClient.put('/scalping/settings', payload);
       return unwrapData<ScalpingSettings>(response, DEFAULT_SCALPING_SETTINGS);
     } catch (error) {
       console.error('Update Settings API Error:', error);
@@ -377,7 +377,7 @@ export const scalpingService = {
 
   async getScalpingHistory(page = 1, limit = 20): Promise<ScalpingHistoryResult> {
     try {
-      const response = await apiClient.get('/api/scalping/history', {
+      const response = await apiClient.get('/scalping/history', {
         params: { page, limit, t: Date.now() }
       });
 
@@ -390,7 +390,7 @@ export const scalpingService = {
 
   async startScalping(payload?: unknown): Promise<StartScalpingResult> {
     try {
-      const response = await apiClient.post('/api/scalping/start', payload);
+      const response = await apiClient.post('/scalping/start', payload);
       const raw = unwrapData<UnknownRecord>(response, {});
 
       const marketRaw = isObject(raw.marketStatus) ? raw.marketStatus : undefined;
@@ -429,7 +429,7 @@ export const scalpingService = {
 
   async stopScalping(): Promise<{ success: boolean; [key: string]: unknown }> {
     try {
-      const response = await apiClient.post('/api/scalping/stop');
+      const response = await apiClient.post('/scalping/stop');
       const raw = unwrapData<UnknownRecord>(response, { success: false });
       return {
         success: typeof raw.success === 'boolean' ? raw.success : false,
@@ -443,7 +443,7 @@ export const scalpingService = {
 
   async getScalpingBest(): Promise<unknown> {
     try {
-      const response = await apiClient.get(`/api/scalping/best?${getCacheBuster()}`);
+      const response = await apiClient.get(`/scalping/best?${getCacheBuster()}`);
       return unwrapData(response, {});
     } catch (error) {
       console.error('Best Scalping API Error:', error);
