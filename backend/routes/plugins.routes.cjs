@@ -32,21 +32,24 @@ function cleanName(name) {
   return path.basename(String(name || 'upload.bin')).replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
+function pluginIdFromName(name) {
+  const base = path.basename(String(name || 'plugin'), path.extname(String(name || 'plugin')))
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+  const id = base || `plugin-${Date.now()}`;
+  return ID_RE.test(id) ? id : `plugin-${Date.now()}`;
+}
+
 function audit(req, action, statusCode, details) {
   return Promise.resolve().then(async () => {
     try {
       const { prisma } = require('../config/prisma.cjs');
       await prisma.$executeRawUnsafe(
         `IF OBJECT_ID(N'dbo.AdminAuditLog',N'U') IS NOT NULL INSERT INTO dbo.AdminAuditLog(adminUserId,action,moduleKey,targetId,method,path,statusCode,ipAddress,userAgent,detailsJson) VALUES(@p1,@p2,N'plugins',@p3,@p4,@p5,@p6,@p7,@p8,@p9)`,
-        uid(req),
-        action,
-        details?.id || null,
-        req.method,
-        req.originalUrl,
-        statusCode,
-        req.ip || null,
-        String(req.get('user-agent') || '').slice(0, 500),
-        JSON.stringify(details || {})
+        uid(req), action, details?.id || null, req.method, req.originalUrl, statusCode,
+        req.ip || null, String(req.get('user-agent') || '').slice(0, 500), JSON.stringify(details || {})
       );
     } catch (_) {}
   });
@@ -61,24 +64,13 @@ function parseMultipart(req) {
     const contentType = String(req.headers['content-type'] || '');
     const match = contentType.match(/(?:^|;)\s*boundary=(?:"([^"]+)"|([^;]+))/i);
     const rawBoundary = match ? String(match[1] || match[2] || '').trim() : '';
-
-    console.log(`[PLUGIN] multipart upload received: content-type=${contentType.slice(0, 200)}`);
-
-    if (!rawBoundary) {
-      reject(new Error('درخواست multipart معتبر نیست.'));
-      return;
-    }
+    if (!rawBoundary) return reject(new Error('درخواست multipart معتبر نیست.'));
 
     const boundary = Buffer.from(`--${rawBoundary}`);
     const chunks = [];
     let totalSize = 0;
     let settled = false;
-
-    const failOnce = (error) => {
-      if (settled) return;
-      settled = true;
-      reject(error);
-    };
+    const failOnce = (error) => { if (!settled) { settled = true; reject(error); } };
 
     req.on('data', (chunk) => {
       if (settled) return;
@@ -90,48 +82,32 @@ function parseMultipart(req) {
       }
       chunks.push(chunk);
     });
-
     req.on('aborted', () => failOnce(new Error('آپلود افزونه قطع شد.')));
     req.on('error', failOnce);
-
     req.on('end', () => {
       if (settled) return;
-
       try {
         const body = Buffer.concat(chunks);
         const parts = [];
         let cursor = 0;
-
         while (cursor < body.length) {
           const start = body.indexOf(boundary, cursor);
           if (start < 0) break;
-
           const afterBoundary = start + boundary.length;
           if (body.subarray(afterBoundary, afterBoundary + 2).toString('ascii') === '--') break;
-
           const next = body.indexOf(boundary, afterBoundary);
           if (next < 0) break;
-
           let part = body.subarray(afterBoundary, next);
           if (part.subarray(0, 2).toString('ascii') === '\r\n') part = part.subarray(2);
-
           const separator = Buffer.from('\r\n\r\n');
           const headerEnd = part.indexOf(separator);
-          if (headerEnd < 0) {
-            cursor = next;
-            continue;
-          }
-
+          if (headerEnd < 0) { cursor = next; continue; }
           const headerText = part.subarray(0, headerEnd).toString('utf8');
-          const dispositionLine = headerText
-            .split(/\r\n/)
-            .find((line) => /^content-disposition\s*:/i.test(line));
-
+          const dispositionLine = headerText.split(/\r\n/).find((line) => /^content-disposition\s*:/i.test(line));
           if (dispositionLine) {
             const nameMatch = dispositionLine.match(/(?:^|;)\s*name="([^"]*)"/i);
             const filenameMatch = dispositionLine.match(/(?:^|;)\s*filename="([^"]*)"/i);
             const filenameStarMatch = dispositionLine.match(/(?:^|;)\s*filename\*=([^;]+)/i);
-
             let filename = filenameMatch?.[1] || '';
             if (!filename && filenameStarMatch) {
               const encoded = filenameStarMatch[1].trim();
@@ -139,34 +115,18 @@ function parseMultipart(req) {
               const value = separatorIndex >= 0 ? encoded.slice(separatorIndex + 2) : encoded;
               try { filename = decodeURIComponent(value); } catch (_) { filename = value; }
             }
-
             let data = part.subarray(headerEnd + separator.length);
             if (data.subarray(-2).toString('ascii') === '\r\n') data = data.subarray(0, -2);
-
-            if (nameMatch) {
-              parts.push({ name: nameMatch[1], filename, data });
-            }
+            if (nameMatch) parts.push({ name: nameMatch[1], filename, data });
           }
-
           cursor = next;
         }
-
         const file = parts.find((part) => part.name === 'file' && part.filename);
-        if (!file) {
-          console.warn(`[PLUGIN] multipart parsed but file field was not found; fields=${parts.map((p) => p.name).join(',') || 'none'}`);
-          throw new Error('فایل افزونه انتخاب نشده است.');
-        }
-
-        if (file.data.length > MAX_UPLOAD) {
-          throw new Error('حجم فایل بیش از ۲۵ مگابایت مجاز نیست.');
-        }
-
-        console.log(`[PLUGIN] file field parsed: name=${cleanName(file.filename)}, size=${file.data.length}`);
+        if (!file) throw new Error('فایل افزونه انتخاب نشده است.');
+        if (file.data.length > MAX_UPLOAD) throw new Error('حجم فایل بیش از ۲۵ مگابایت مجاز نیست.');
         settled = true;
         resolve(file);
-      } catch (error) {
-        failOnce(error);
-      }
+      } catch (error) { failOnce(error); }
     });
   });
 }
@@ -175,21 +135,25 @@ function readManifest(dir) {
   const p = path.join(dir, 'manifest.json');
   if (!inside(dir, p) || !fs.existsSync(p)) throw new Error('فایل manifest.json افزونه یافت نشد.');
   let manifest;
-  try { manifest = JSON.parse(fs.readFileSync(p, 'utf8')); }
-  catch (_) { throw new Error('manifest.json معتبر نیست.'); }
-  if (!manifest || typeof manifest !== 'object' || !ID_RE.test(String(manifest.id || ''))) {
-    throw new Error('شناسه افزونه نامعتبر است.');
-  }
-  if (!/^\d+\.\d+\.\d+(?:[-+].*)?$/.test(String(manifest.version || ''))) {
-    throw new Error('نسخه افزونه باید مانند 1.0.0 باشد.');
-  }
-  return {
-    id: String(manifest.id),
-    name: String(manifest.name || manifest.id).slice(0, 120),
-    version: String(manifest.version),
-    description: String(manifest.description || '').slice(0, 500),
-    main: manifest.main ? String(manifest.main).slice(0, 200) : null,
-  };
+  try { manifest = JSON.parse(fs.readFileSync(p, 'utf8')); } catch (_) { throw new Error('manifest.json معتبر نیست.'); }
+  if (!manifest || typeof manifest !== 'object' || !ID_RE.test(String(manifest.id || ''))) throw new Error('شناسه افزونه نامعتبر است.');
+  if (!/^\d+\.\d+\.\d+(?:[-+].*)?$/.test(String(manifest.version || ''))) throw new Error('نسخه افزونه باید مانند 1.0.0 باشد.');
+  return { id: String(manifest.id), name: String(manifest.name || manifest.id).slice(0, 120), version: String(manifest.version), description: String(manifest.description || '').slice(0, 500), main: manifest.main ? String(manifest.main).slice(0, 200) : null };
+}
+
+function ensureManifest(dir, sourceName) {
+  const manifestPath = path.join(dir, 'manifest.json');
+  if (fs.existsSync(manifestPath)) return;
+  const id = pluginIdFromName(sourceName);
+  const displayName = path.basename(String(sourceName || id), path.extname(String(sourceName || id)));
+  fs.writeFileSync(manifestPath, JSON.stringify({
+    id,
+    name: displayName,
+    version: '1.0.0',
+    description: 'افزونه نصب‌شده بدون manifest.json',
+    main: null,
+    generated: true
+  }, null, 2), 'utf8');
 }
 
 function validateTree(root) {
@@ -207,14 +171,8 @@ function validateTree(root) {
 function extractZip(zipPath, stage) {
   if (process.platform === 'win32') {
     const escapePowerShell = (value) => String(value).replace(/'/g, "''");
-    const result = spawnSync(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', `Expand-Archive -LiteralPath '${escapePowerShell(zipPath)}' -DestinationPath '${escapePowerShell(stage)}' -Force`],
-      { encoding: 'utf8', timeout: 60000 }
-    );
-    if (result.status !== 0) {
-      throw new Error(String(result.stderr || result.stdout || 'استخراج ZIP ناموفق بود.').trim().slice(0, 500));
-    }
+    const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `Expand-Archive -LiteralPath '${escapePowerShell(zipPath)}' -DestinationPath '${escapePowerShell(stage)}' -Force`], { encoding: 'utf8', timeout: 60000 });
+    if (result.status !== 0) throw new Error(String(result.stderr || result.stdout || 'استخراج ZIP ناموفق بود.').trim().slice(0, 500));
   } else {
     const result = spawnSync('unzip', ['-q', '-o', zipPath, '-d', stage], { encoding: 'utf8', timeout: 60000 });
     if (result.status !== 0) throw new Error(String(result.stderr || 'استخراج ZIP ناموفق بود.').trim().slice(0, 500));
@@ -239,14 +197,12 @@ router.get('/', async (_req, res) => {
         items.push({ ...manifest, installedAt: stat.birthtime.toISOString(), updatedAt: stat.mtime.toISOString(), status: 'installed' });
       } catch (_) {
         const stat = fs.statSync(dir);
-        items.push({ id: entry.name, name: entry.name, version: 'نامعتبر', description: 'manifest.json قابل خواندن نیست.', installedAt: stat.birthtime.toISOString(), updatedAt: stat.mtime.toISOString(), status: 'invalid' });
+        items.push({ id: entry.name, name: entry.name, version: 'نامعتبر', description: 'اطلاعات افزونه قابل خواندن نیست.', installedAt: stat.birthtime.toISOString(), updatedAt: stat.mtime.toISOString(), status: 'invalid' });
       }
     }
     items.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
     return res.json({ success: true, data: items });
-  } catch (_) {
-    return fail(res, 500, 'دریافت فهرست افزونه‌ها ناموفق بود.');
-  }
+  } catch (_) { return fail(res, 500, 'دریافت فهرست افزونه‌ها ناموفق بود.'); }
 });
 
 router.post('/install', async (req, res) => {
@@ -254,10 +210,7 @@ router.post('/install', async (req, res) => {
   try {
     const file = await parseMultipart(req);
     const ext = path.extname(file.filename).toLowerCase();
-    if (ext !== '.zip' && !ALLOWED_SINGLE.has(ext)) {
-      return fail(res, 400, 'فرمت افزونه مجاز نیست. فقط ZIP، JS، CJS یا JSON قابل نصب است.');
-    }
-
+    if (ext !== '.zip' && !ALLOWED_SINGLE.has(ext)) return fail(res, 400, 'فرمت افزونه مجاز نیست. فقط ZIP، JS، CJS یا JSON قابل نصب است.');
     fs.mkdirSync(PLUGIN_ROOT, { recursive: true });
     temp = fs.mkdtempSync(path.join(os.tmpdir(), 'roniya-plugin-'));
     const source = path.join(temp, cleanName(file.filename));
@@ -265,43 +218,41 @@ router.post('/install', async (req, res) => {
     const stage = path.join(temp, 'stage');
     fs.mkdirSync(stage);
 
-    if (ext === '.zip') {
-      extractZip(source, stage);
-    } else if (ext === '.json') {
-      fs.copyFileSync(source, path.join(stage, 'manifest.json'));
-    } else {
+    if (ext === '.zip') extractZip(source, stage);
+    else if (ext === '.json') fs.copyFileSync(source, path.join(stage, 'manifest.json'));
+    else {
       fs.copyFileSync(source, path.join(stage, path.basename(source)));
-      fs.writeFileSync(path.join(stage, 'manifest.json'), JSON.stringify({
-        id: path.basename(source, ext).toLowerCase().replace(/[^a-z0-9._-]/g, '-'),
-        name: path.basename(source, ext),
-        version: '1.0.0',
-        description: 'افزونه تک‌فایلی',
-        main: path.basename(source),
-      }, null, 2));
+      ensureManifest(stage, source);
     }
 
     validateTree(stage);
-
     let root = stage;
     const entries = fs.readdirSync(stage, { withFileTypes: true });
-    if (!fs.existsSync(path.join(stage, 'manifest.json')) && entries.length === 1 && entries[0].isDirectory() && fs.existsSync(path.join(stage, entries[0].name, 'manifest.json'))) {
-      root = path.join(stage, entries[0].name);
-    }
+    if (!fs.existsSync(path.join(stage, 'manifest.json')) && entries.length === 1 && entries[0].isDirectory()) root = path.join(stage, entries[0].name);
+    ensureManifest(root, file.filename);
+    validateTree(root);
 
     const manifest = readManifest(root);
     const destination = path.join(PLUGIN_ROOT, manifest.id);
     if (!inside(PLUGIN_ROOT, destination)) throw new Error('مسیر مقصد افزونه نامعتبر است.');
-    if (fs.existsSync(destination)) fs.rmSync(destination, { recursive: true, force: true });
-    fs.cpSync(root, destination, { recursive: true });
+    const backup = `${destination}.backup-${Date.now()}`;
+    if (fs.existsSync(destination)) fs.renameSync(destination, backup);
+    try {
+      fs.cpSync(root, destination, { recursive: true });
+      if (fs.existsSync(backup)) fs.rmSync(backup, { recursive: true, force: true });
+    } catch (installError) {
+      if (fs.existsSync(destination)) fs.rmSync(destination, { recursive: true, force: true });
+      if (fs.existsSync(backup)) fs.renameSync(backup, destination);
+      throw installError;
+    }
 
+    await audit(req, 'INSTALL_PLUGIN', 201, { id: manifest.id, version: manifest.version, generatedManifest: !fs.existsSync(path.join(root, 'manifest.json')) });
     return res.status(201).json({ success: true, message: `افزونه «${manifest.name}» با موفقیت نصب شد.`, data: manifest });
   } catch (error) {
     await audit(req, 'INSTALL_PLUGIN', 400, { error: error.message });
     return fail(res, 400, error.message || 'نصب افزونه ناموفق بود.');
   } finally {
-    if (temp) {
-      try { fs.rmSync(temp, { recursive: true, force: true }); } catch (_) {}
-    }
+    if (temp) { try { fs.rmSync(temp, { recursive: true, force: true }); } catch (_) {} }
   }
 });
 
