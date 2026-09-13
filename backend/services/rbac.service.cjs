@@ -2,7 +2,7 @@
 
 const { prisma } = require('../config/prisma.cjs');
 
-const MODULES = ['dashboard','users','subscriptions','analysis','market','scalping','ai','prompts','history','plugins','notifications','monitoring','reports','security','settings','maintenance','updates','backup','payments','roles','audit','sessions','api','infrastructure'];
+const MODULES = ['dashboard','users','subscriptions','analysis','market','scalping','ai','prompts','history','plugins','farazsms','notifications','monitoring','reports','security','settings','maintenance','updates','backup','payments','roles','audit','sessions','api','infrastructure'];
 const PERMISSIONS = MODULES.map((moduleKey) => `admin.${moduleKey}.${['dashboard','monitoring','reports','audit'].includes(moduleKey) ? 'view' : 'manage'}`);
 
 let bootstrapPromise = null;
