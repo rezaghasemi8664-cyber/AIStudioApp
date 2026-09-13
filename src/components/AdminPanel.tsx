@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as adminDashboardService from '../services/adminDashboardService';
 import * as adminControlService from '../services/adminControlService';
 import * as adminOperationsService from '../services/adminOperationsService';
@@ -35,7 +35,7 @@ const AdminPanel:React.FC<AdminPanelProps>=({isOnline,onMessageUpdate,onlineCoun
  const [dashboard,setDashboard]=useState<AdminDashboardData|null>(null); const [modulesState,setModulesState]=useState<adminControlService.AdminModuleRecord[]>([]); const [overview,setOverview]=useState<adminOperationsService.AdminModuleOverview|null>(null); const [capabilities,setCapabilities]=useState<adminActionsService.AdminCapability|null>(null);
  const [permissions,setPermissions]=useState<Set<string>|null>(null); const [config,setConfig]=useState('{}'); const [enabled,setEnabled]=useState(true); const [actionPayload,setActionPayload]=useState('{}');
  const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [actionBusy,setActionBusy]=useState(false); const [error,setError]=useState<string|null>(null); const [saved,setSaved]=useState(false); const [actionMessage,setActionMessage]=useState<string|null>(null);
- const canAccess=(moduleKey:AdminSection,action:'view'|'manage'='view')=>moduleKey==='plugins'||permissions===null||permissions.has(`admin.${moduleKey}.${action}`);
+ const canAccess=(moduleKey:AdminSection,action:'view'|'manage'='view')=>permissions===null||permissions.has(`admin.${moduleKey}.${action}`);
  const canManage=section==='plugins'||canAccess(section,'manage'); const visibleModules=useMemo(()=>modules.filter(m=>canAccess(m.id,VIEW_ONLY_MODULES.includes(m.id)?'view':'manage')),[permissions]);
  const active=useMemo(()=>visibleModules.find(x=>x.id===section)||visibleModules[0]||modules[0],[section,visibleModules]);
  useEffect(()=>{let cancelled=false;void adminActionsService.getMyPermissions().then(keys=>{if(!cancelled)setPermissions(new Set(keys));}).catch(e=>{if(!cancelled){setPermissions(new Set());setError(e instanceof Error?e.message:'دریافت سطح دسترسی کاربر ناموفق بود.');}});return()=>{cancelled=true;}},[]);
