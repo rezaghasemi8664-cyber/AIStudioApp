@@ -15,7 +15,7 @@ model User {
   email                 String?                 @unique
   passwordHash          String
   passwordEncrypted     String?                 @db.NVarChar(Max)
-  passwordChangedAt      DateTime?
+  passwordChangedAt     DateTime?
   name                  String?
   avatar                String?
   isActive              Boolean                 @default(true)
@@ -57,6 +57,9 @@ model User {
   scalpingConfig        ScalpingConfig?
   scalpingOpportunities ScalpingOpportunity[]
   scalpingRuns          ScalpingRun[]
+  smsOtps               SmsOtp[]
+  smsQueues             SmsQueue[]
+  smsLogs               SmsLog[]
 
   @@index([isActive])
   @@index([isDeleted])
@@ -93,8 +96,88 @@ model Notification {
   @@schema("dbo")
 }
 
+model SmsOtp {
+  id          Int       @id @default(autoincrement())
+  userId      Int?
+  mobile      String    @db.NVarChar(20)
+  codeHash    String    @db.NVarChar(255)
+  purpose     String    @db.NVarChar(50)
+  expiresAt   DateTime
+  verifiedAt  DateTime?
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([mobile, purpose, createdAt])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("SmsOtp")
+  @@schema("dbo")
+}
+
+model SmsQueue {
+  id            Int       @id @default(autoincrement())
+  userId        Int?
+  mobile        String    @db.NVarChar(20)
+  patternCode   String    @db.NVarChar(50)
+  variablesJson String?   @db.NVarChar(Max)
+  sender        String?   @db.NVarChar(30)
+  status        String    @default("pending") @db.NVarChar(20)
+  attempts      Int       @default(0)
+  maxAttempts   Int       @default(3)
+  scheduledAt   DateTime?
+  startedAt     DateTime?
+  sentAt        DateTime?
+  nextRetryAt   DateTime?
+  providerId    String?   @db.NVarChar(100)
+  lastError     String?   @db.NVarChar(1000)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  logs          SmsLog[]
+
+  @@index([status, nextRetryAt])
+  @@index([scheduledAt])
+  @@index([userId])
+  @@index([mobile])
+  @@map("SmsQueue")
+  @@schema("dbo")
+}
+
+model SmsLog {
+  id           Int       @id @default(autoincrement())
+  queueId      Int?
+  userId       Int?
+  mobile       String    @db.NVarChar(20)
+  patternCode  String?   @db.NVarChar(50)
+  sender       String?   @db.NVarChar(30)
+  provider     String    @default("farazsms") @db.NVarChar(30)
+  providerId   String?   @db.NVarChar(100)
+  status       String    @db.NVarChar(20)
+  messageType  String?   @db.NVarChar(50)
+  errorCode    String?   @db.NVarChar(100)
+  errorMessage String?   @db.NVarChar(1000)
+  metadataJson String?   @db.NVarChar(Max)
+  createdAt    DateTime  @default(now())
+
+  queue        SmsQueue? @relation(fields: [queueId], references: [id], onDelete: SetNull)
+  user         User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([mobile, createdAt])
+  @@index([status, createdAt])
+  @@index([providerId])
+  @@index([queueId])
+  @@map("SmsLog")
+  @@schema("dbo")
+}
+
 model Message {
-  id         Int       @id(map: "PK__Message__3213E83F1C6A9185") @default(autoincrement())
+  id         Int       @id(map: "PK__Message__3213E83F1C6A9185")
   senderId   Int?
   receiverId Int?
   content    String?   @db.NVarChar(Max)
