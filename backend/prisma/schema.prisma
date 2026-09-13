@@ -165,7 +165,7 @@ model SmsLog {
   createdAt    DateTime  @default(now())
 
   queue        SmsQueue? @relation(fields: [queueId], references: [id], onDelete: SetNull)
-  user         User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user         User?     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([userId, createdAt])
   @@index([mobile, createdAt])
