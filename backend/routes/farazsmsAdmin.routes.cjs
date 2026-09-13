@@ -47,6 +47,12 @@ function handleError(res, error, fallback) {
   return res.status(error.statusCode || 502).json({ success: false, message: error.message || fallback });
 }
 
+function parsePositiveInt(value, fallback, max) {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
 router.use(authMiddleware, requireManagePermission);
 
 router.get('/status', async (_req, res) => {
@@ -61,6 +67,56 @@ router.get('/account/balance', async (_req, res) => {
 router.get('/account/profile', async (_req, res) => {
   try { return res.json({ success: true, data: await farazsmsAdmin.getProfile() }); }
   catch (error) { return handleError(res, error, 'دریافت اطلاعات حساب فراز اس‌ام‌اس ناموفق بود.'); }
+});
+
+router.get('/history', async (req, res) => {
+  try {
+    const page = parsePositiveInt(req.query.page, 1, 1000000);
+    const limit = parsePositiveInt(req.query.limit, 20, 100);
+    const phone = String(req.query.phone || '').trim().slice(0, 30);
+    const status = String(req.query.status || '').trim().slice(0, 20);
+    const messageType = String(req.query.messageType || '').trim().slice(0, 50);
+
+    const where = {};
+    if (phone) where.mobile = { contains: phone };
+    if (status) where.status = status;
+    if (messageType) where.messageType = messageType;
+
+    const [total, items] = await prisma.$transaction([
+      prisma.smsLog.count({ where }),
+      prisma.smsLog.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true,
+          mobile: true,
+          status: true,
+          providerId: true,
+          messageType: true,
+          errorCode: true,
+          errorMessage: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+
+    return res.json({
+      success: true,
+      data: {
+        items,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / limit)),
+        },
+      },
+    });
+  } catch (error) {
+    return handleError(res, error, 'دریافت تاریخچه پیامک‌های فراز اس‌ام‌اس ناموفق بود.');
+  }
 });
 
 router.post('/send-simple', async (req, res) => {
