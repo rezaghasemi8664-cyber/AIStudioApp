@@ -37,9 +37,76 @@ export async function deleteUser(userId: string): Promise<void> { const res = aw
 export async function createGuestUser(guestData: { firstName: string; lastName: string; mobile?: string; email?: string; validityDays?: number; }): Promise<StoredUser> { const res = await post<any>('/admin/users/guest', { ...guestData, role: 'guest', isGuest: true }); if (!res.success) throw new Error(res.message || 'Failed to create guest user'); return normalizeUser(res.data?.user || res.data?.data || res.data); }
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> { const res = await post<any>('/auth/change-password', { currentPassword, newPassword }); if (!res.success) throw new Error(res.message || 'Failed to change password'); }
 export async function recoverPassword(email: string): Promise<void> { const res = await post<any>('/auth/recover-password', { email }); if (!res.success) throw new Error(res.message || 'Failed to recover password'); }
+export async function sendPasswordResetOtp(mobile: string): Promise<{ expiresAt?: string }> {
+  const normalizedMobile = String(mobile || '').trim();
+
+  if (!normalizedMobile) {
+    throw new Error('شماره موبایل الزامی است');
+  }
+
+  const res = await post<any>('/sms-otp/send', {
+    mobile: normalizedMobile,
+    purpose: 'reset-password',
+  });
+
+  if (!res.success) {
+    throw new Error(res.message || 'ارسال کد تأیید ناموفق بود');
+  }
+
+  return {
+    expiresAt: res.data?.expiresAt || res.data?.data?.expiresAt,
+  };
+}
+
+export async function verifyPasswordResetOtp(mobile: string, code: string): Promise<void> {
+  const normalizedMobile = String(mobile || '').trim();
+  const normalizedCode = String(code || '').trim();
+
+  if (!normalizedMobile || !/^\d{6}$/.test(normalizedCode)) {
+    throw new Error('شماره موبایل و کد تأیید  رقمی الزامی است');
+  }
+
+  const res = await post<any>('/sms-otp/verify', {
+    mobile: normalizedMobile,
+    code: normalizedCode,
+    purpose: 'reset-password',
+  });
+
+  if (!res.success || res.data?.verified === false) {
+    throw new Error(res.message || 'کد تأیید نامعتبر است');
+  }
+}
+
+export async function resetPasswordWithOtp(
+  mobile: string,
+  code: string,
+  newPassword: string
+): Promise<void> {
+  const normalizedMobile = String(mobile || '').trim();
+  const normalizedCode = String(code || '').trim();
+
+  if (!normalizedMobile || !/^\d{6}$/.test(normalizedCode)) {
+    throw new Error('شماره موبایل و کد تأیید  رقمی الزامی است');
+  }
+
+  if (String(newPassword || '').length < 6) {
+    throw new Error('رمز جدید باید حداقل  کاراکتر باشد');
+  }
+
+  const res = await post<any>('/sms-password/reset', {
+    mobile: normalizedMobile,
+    code: normalizedCode,
+    newPassword,
+  });
+
+  if (!res.success) {
+    throw new Error(res.message || 'تغییر کلمه عبور ناموفق بود');
+  }
+}
 export async function registerUser(userData: RegisterUserData): Promise<StoredUser> { const res = await post<any>('/auth/register', { username: userData.email, email: userData.email, name: [userData.firstName, userData.lastName].filter(Boolean).join(' ').trim(), phone: userData.mobile }); if (!res.success) throw new Error(res.message || 'Registration failed'); const token = extractTokenFromResponse(res); const refresh = extractRefreshTokenFromResponse(res); if (token) setStoredToken(token); if (refresh) setStoredRefreshToken(refresh); const user = normalizeUser(extractUserFromResponse(res), userData.email); setStoredUser(user); return user; }
 export function isAccountExpired(user: StoredUser): boolean { if (user.isAdmin) return false; const expiry = getExpiryDate(user); if (expiry) return expiry.getTime() <= Date.now(); if (user.isSubscriptionActive === false) return true; return typeof user.remainingDays === 'number' && user.remainingDays <= 0; }
 export function getUserValidityInfo(user: StoredUser): ValidityInfo { const expiry = getExpiryDate(user); let days: number | null = null; let expired = false; if (expiry) { const diff = expiry.getTime() - Date.now(); days = Math.max(0, Math.ceil(diff / 86400000)); expired = diff <= 0; } else if (typeof user.remainingDays === 'number') { days = Math.max(0, user.remainingDays); expired = !user.isAdmin && (user.isSubscriptionActive === false || days <= 0); } return { isExpired: expired, daysRemaining: days, expiryDate: expiry ? expiry.toLocaleDateString('fa-IR') : null, statusText: expired ? 'Account expired' : days !== null ? `${days} days remaining` : 'No expiry date', statusColor: expired ? 'red' : days !== null && days <= 3 ? 'red' : days !== null && days <= 7 ? 'orange' : 'green' }; }
 export function updateUserPresence(_userId: string): void {} export function removeUserPresence(_userId: string): void {} export function getOnlineUserCount(): number { return 0; }
-const authService = { getToken, getStoredCurrentUser, setCurrentUser, getRefreshToken, getCurrentUser, refreshCurrentUser, getMe, getUsers, getGuestUsers, login, logout, recoverPassword, registerUser, updateUser, updateProfile, deleteUser, createGuestUser, changePassword, isAccountExpired, getUserValidityInfo, updateUserPresence, removeUserPresence, getOnlineUserCount };
+const authService = { getToken, getStoredCurrentUser, setCurrentUser, getRefreshToken, getCurrentUser, refreshCurrentUser, getMe, getUsers, getGuestUsers, login, logout, recoverPassword, sendPasswordResetOtp, verifyPasswordResetOtp, resetPasswordWithOtp, registerUser, updateUser, updateProfile, deleteUser, createGuestUser, changePassword, isAccountExpired, getUserValidityInfo, updateUserPresence, removeUserPresence, getOnlineUserCount };
 export default authService;
+
