@@ -7,6 +7,7 @@ const { createProvider } = require("./sms.provider.cjs");
 const farazsmsProvider = require("./providers/farazsms.provider.cjs");
 
 const provider = createProvider(farazsmsProvider);
+const ALLOWED_OTP_PURPOSES = new Set(["login", "reset-password"]);
 
 function normalizeMobile(mobile) {
   const value = String(mobile || "").trim().replace(/[\s-]/g, "");
@@ -14,6 +15,16 @@ function normalizeMobile(mobile) {
   if (/^989\d{9}$/.test(value)) return `0${value.slice(2)}`;
   if (/^\+989\d{9}$/.test(value)) return `0${value.slice(3)}`;
   throw new Error("Invalid mobile number");
+}
+
+function normalizeOtpPurpose(purpose) {
+  const value = String(purpose || "").trim();
+  if (!ALLOWED_OTP_PURPOSES.has(value)) {
+    const error = new Error("Invalid OTP purpose");
+    error.code = "INVALID_OTP_PURPOSE";
+    throw error;
+  }
+  return value;
 }
 
 function hashOtp(code) {
@@ -115,11 +126,12 @@ async function sendInitialPassword({ userId = null, mobile, password } = {}) {
 
 async function createAndSendOtp({ userId = null, mobile, purpose = "login" } = {}) {
   if (!smsConfig.pattern.otp) throw new Error("OTP SMS pattern is not configured");
+  const normalizedPurpose = normalizeOtpPurpose(purpose);
 
   const normalizedMobile = normalizeMobile(mobile);
   const cooldownAt = new Date(Date.now() - smsConfig.otp.resendCooldownSeconds * 1000);
   const recent = await prisma.smsOtp.findFirst({
-    where: { mobile: normalizedMobile, purpose, createdAt: { gt: cooldownAt } },
+    where: { mobile: normalizedMobile, purpose: normalizedPurpose, createdAt: { gt: cooldownAt } },
     orderBy: { createdAt: "desc" },
   });
 
@@ -133,7 +145,7 @@ async function createAndSendOtp({ userId = null, mobile, purpose = "login" } = {
   const expiresAt = new Date(Date.now() + smsConfig.otp.ttlMinutes * 60 * 1000);
 
   await prisma.smsOtp.updateMany({
-    where: { mobile: normalizedMobile, purpose, verifiedAt: null },
+    where: { mobile: normalizedMobile, purpose: normalizedPurpose, verifiedAt: null },
     data: { expiresAt: new Date() },
   });
 
@@ -142,7 +154,7 @@ async function createAndSendOtp({ userId = null, mobile, purpose = "login" } = {
       userId: userId || null,
       mobile: normalizedMobile,
       codeHash: hashOtp(code),
-      purpose,
+      purpose: normalizedPurpose,
       expiresAt,
       maxAttempts: smsConfig.otp.maxAttempts,
     },
@@ -165,19 +177,31 @@ async function createAndSendOtp({ userId = null, mobile, purpose = "login" } = {
 }
 
 async function verifyOtp({ mobile, code, purpose = "login" } = {}) {
+  const normalizedPurpose = normalizeOtpPurpose(purpose);
   const normalizedMobile = normalizeMobile(mobile);
+  const normalizedCode = String(code || "").trim();
+
+  if (!/^\d{6}$/.test(normalizedCode)) {
+    return { verified: false, reason: "invalid_code" };
+  }
+
   const otp = await prisma.smsOtp.findFirst({
-    where: { mobile: normalizedMobile, purpose, verifiedAt: null },
+    where: { mobile: normalizedMobile, purpose: normalizedPurpose, verifiedAt: null },
     orderBy: { createdAt: "desc" },
   });
 
-  if (!otp || otp.expiresAt <= new Date()) return { verified: false, reason: "expired" };
+  if (!otp) return { verified: false, reason: "expired" };
+  if (otp.expiresAt <= new Date()) return { verified: false, reason: "expired" };
   if (otp.attempts >= otp.maxAttempts) return { verified: false, reason: "max_attempts" };
 
-  const matches = hashOtp(code) === otp.codeHash;
+  const matches = hashOtp(normalizedCode) === otp.codeHash;
   if (!matches) {
+    const nextAttempts = otp.attempts + 1;
     await prisma.smsOtp.update({ where: { id: otp.id }, data: { attempts: { increment: 1 } } });
-    return { verified: false, reason: "invalid_code" };
+    return {
+      verified: false,
+      reason: nextAttempts >= otp.maxAttempts ? "max_attempts" : "invalid_code",
+    };
   }
 
   await prisma.smsOtp.update({ where: { id: otp.id }, data: { verifiedAt: new Date() } });
