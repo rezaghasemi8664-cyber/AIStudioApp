@@ -3,6 +3,7 @@
 const express = require('express');
 const authMiddleware = require('../middlewares/auth.middleware.cjs');
 const farazsmsAdmin = require('../services/farazsmsAdmin.service.cjs');
+const farazsmsSend = require('../services/farazsmsSend.service.cjs');
 
 const router = express.Router();
 
@@ -17,6 +18,10 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function handleError(res, error, fallback) {
+  return res.status(error.statusCode || 502).json({ success: false, message: error.message || fallback });
+}
+
 router.use(authMiddleware, requireAdmin);
 
 router.get('/status', async (_req, res) => {
@@ -25,12 +30,22 @@ router.get('/status', async (_req, res) => {
 
 router.get('/account/balance', async (_req, res) => {
   try { return res.json({ success: true, data: await farazsmsAdmin.getBalance() }); }
-  catch (error) { return res.status(error.statusCode || 502).json({ success: false, message: error.message || 'دریافت اعتبار فراز اس‌ام‌اس ناموفق بود.' }); }
+  catch (error) { return handleError(res, error, 'دریافت اعتبار فراز اس‌ام‌اس ناموفق بود.'); }
 });
 
 router.get('/account/profile', async (_req, res) => {
   try { return res.json({ success: true, data: await farazsmsAdmin.getProfile() }); }
-  catch (error) { return res.status(error.statusCode || 502).json({ success: false, message: error.message || 'دریافت اطلاعات حساب فراز اس‌ام‌اس ناموفق بود.' }); }
+  catch (error) { return handleError(res, error, 'دریافت اطلاعات حساب فراز اس‌ام‌اس ناموفق بود.'); }
+});
+
+router.post('/send-simple', async (req, res) => {
+  try { return res.json({ success: true, data: await farazsmsSend.sendSimple(req.body || {}) }); }
+  catch (error) { return handleError(res, error, 'ارسال پیامک ساده ناموفق بود.'); }
+});
+
+router.post('/send-pattern', async (req, res) => {
+  try { return res.json({ success: true, data: await farazsmsSend.sendPattern(req.body || {}) }); }
+  catch (error) { return handleError(res, error, 'ارسال پیامک الگویی ناموفق بود.'); }
 });
 
 module.exports = router;
