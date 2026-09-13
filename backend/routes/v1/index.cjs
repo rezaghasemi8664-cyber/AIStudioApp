@@ -43,4 +43,12 @@ tryMount('/roles', '../roles.routes.cjs', 'Roles');
 tryMount('/sms-otp', '../sms-otp.routes.cjs', 'SMS OTP');
 tryMount('/sms-password', '../sms-password.routes.cjs', 'SMS Password Reset');
 
+// Compatibility route: market history
+tryMount('/market-history', '../marketHistory.routes.cjs', 'Market History');
+
+// Root route
+router.get('/', (_req, res) => {
+  res.json({ success: true, message: 'Roniya Analyzer API v1' });
+});
+
 module.exports = router;
