@@ -15,7 +15,7 @@ const AdminPluginsPanel:React.FC=()=>{
     {file&&<div className="mt-3 rounded-xl bg-gray-50 p-3 text-sm dark:bg-gray-800/60"><b>{file.name}</b><span className="mr-3 text-gray-500">{(file.size/1024/1024).toFixed(2)} مگابایت</span></div>}
     <div className="mt-4 flex flex-wrap gap-2"><button type="button" disabled={!file||busy} onClick={()=>void install()} className="rounded-xl bg-cyan-600 px-5 py-2.5 font-semibold text-white disabled:opacity-50">{busy?'در حال نصب…':'نصب افزونه'}</button><button type="button" disabled={busy} onClick={()=>void load()} className="rounded-xl border border-[var(--card-border-color)] px-5 py-2.5 font-semibold">به‌روزرسانی فهرست</button></div>
    </div>
-   <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">افزونه هنگام نصب اجرا نمی‌شود. ZIP باید شامل <b>manifest.json</b> معتبر باشد؛ فایل تکی JS/CJS نیز با manifest خودکار نصب می‌شود.</div>
+   <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">ZIP لازم نیست <b>manifest.json</b> داشته باشد. در صورت نبود manifest، اطلاعات پایه افزونه هنگام نصب به‌صورت خودکار ساخته می‌شود.</div>
    {message&&<div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">{message}</div>}
    {error&&<div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
   </div>
