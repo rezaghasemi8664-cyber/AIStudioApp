@@ -177,7 +177,7 @@ model SmsLog {
 }
 
 model Message {
-  id         Int       @id(map: "PK__Message__3213E83F1C6A9185")
+  id         Int       @id(map: "PK__Message__3213E83F1C6A9185") @default(autoincrement())
   senderId   Int?
   receiverId Int?
   content    String?   @db.NVarChar(Max)
