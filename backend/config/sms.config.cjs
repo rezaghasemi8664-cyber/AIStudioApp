@@ -4,7 +4,7 @@ module.exports = {
   provider: process.env.SMS_PROVIDER || "farazsms",
   pattern: {
     initialPassword: process.env.FARAZSMS_INITIAL_PASSWORD_PATTERN || "uAUi9KUJPh",
-    otp: process.env.FARAZSMS_OTP_PATTERN || "",
+    otp: process.env.FARAZSMS_OTP_PATTERN || "WZ21k7HUZW",
     notification: process.env.FARAZSMS_NOTIFICATION_PATTERN || "",
   },
   sender: process.env.FARAZSMS_LINE_NUMBER || "90008361",
