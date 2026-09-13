@@ -17,12 +17,10 @@ async function ensurePermissions() {
 
     const adminRoles = await prisma.role.findMany({
       where: { name: { in: ['ADMIN', 'SUPERADMIN'] } },
-      select: { id: true, name: true, _count: { select: { permissions: true } } },
+      select: { id: true, name: true },
     });
 
     for (const role of adminRoles) {
-      if (role._count.permissions > 0) continue;
-
       for (const key of PERMISSIONS) {
         const permission = await prisma.permission.findUnique({
           where: { key },
