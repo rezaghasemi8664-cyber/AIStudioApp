@@ -1,6 +1,6 @@
 import * as apiClient from './apiClient';
 
-export const ADMIN_MODULES = ['dashboard','users','subscriptions','analysis','market','scalping','ai','prompts','history','notifications','monitoring','reports','security','settings','maintenance','updates','backup','payments','roles','audit','sessions','api','infrastructure'] as const;
+export const ADMIN_MODULES = ['dashboard','users','subscriptions','analysis','market','scalping','ai','prompts','history','plugins','farazsms','notifications','monitoring','reports','security','settings','maintenance','updates','backup','payments','roles','audit','sessions','api','infrastructure'] as const;
 export type AdminModuleKey = typeof ADMIN_MODULES[number];
 export interface AdminModuleRecord { id:number; moduleKey:AdminModuleKey; title:string; enabled:boolean; config:Record<string,unknown>; version:number; updatedBy?:number|null; createdAt?:string; updatedAt?:string; }
 export interface AdminSummary { users:number; activeUsers:number; analyses:number; apiKeys:number; notifications:number; sessions:number; auditEvents:number; moduleCount:number; }
