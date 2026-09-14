@@ -49,7 +49,9 @@ function numericDataQuality(metrics) {
 
 async function extractFinancialDocuments(financialAnnouncements) {
   const maxDocuments = Math.max(1, Math.min(5, Number(process.env.CODAL_MAX_FINANCIAL_DOCUMENTS) || 3));
-  const selected = financialAnnouncements.filter((item) => item && item.announcement && item.announcement.link_excel).slice(0, maxDocuments);
+  const selected = financialAnnouncements
+    .filter((item) => item && item.announcement && (item.announcement.link_excel || item.announcement.linkExcel))
+    .slice(0, maxDocuments);
   const documents = [];
 
   for (const item of selected) {
@@ -59,7 +61,7 @@ async function extractFinancialDocuments(financialAnnouncements) {
       classification: item.classification,
       available: result.available,
       sourceType: result.sourceType,
-      url: result.url || item.announcement.link_excel,
+      url: result.url || item.announcement.link_excel || item.announcement.linkExcel,
       bytes: result.bytes || 0,
       sheetCount: result.sheetCount || 0,
       metrics: result.metrics || {},
