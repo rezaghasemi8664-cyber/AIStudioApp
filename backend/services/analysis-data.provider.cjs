@@ -5,12 +5,12 @@
  *
  * Market data remains on BRS. CODAL is an optional fundamental-data provider;
  * when configured it is queried for the requested symbol and its normalized
- * announcements are classified without inventing financial metrics.
+ * announcements are classified and enriched from linked financial Excel files.
  */
 
 var brs = require('./brs.service.cjs');
 var codal = require('./codal.provider.cjs');
-var fundamental = require('./fundamental-analysis.service.cjs');
+var fundamental = require('./fundamental-analysis.v2.service.cjs');
 
 function isoNow() {
   return new Date().toISOString();
@@ -157,7 +157,7 @@ async function getFundamentalData(symbolClean) {
   if (!status.configured || !status.enabled) {
     return {
       data: null,
-      analysis: fundamental.analyzeAnnouncements(null),
+      analysis: await fundamental.analyzeAnnouncements(null),
       status: status,
       error: null
     };
@@ -167,14 +167,14 @@ async function getFundamentalData(symbolClean) {
     var result = await codal.getCompanyReports({ symbol: symbolClean });
     return {
       data: result,
-      analysis: fundamental.analyzeAnnouncements(result),
+      analysis: await fundamental.analyzeAnnouncements(result),
       status: status,
       error: null
     };
   } catch (error) {
     return {
       data: null,
-      analysis: fundamental.analyzeAnnouncements(null),
+      analysis: await fundamental.analyzeAnnouncements(null),
       status: status,
       error: {
         code: error && error.code ? error.code : 'CODAL_REQUEST_FAILED',
@@ -215,14 +215,7 @@ async function getMarketData(symbol, options) {
     candles: candles,
     fundamental: fundamentalResult.data,
     fundamentalAnalysis: fundamentalResult.analysis,
-    dataQuality: buildQuality(
-      candles,
-      history,
-      marketResult,
-      fundamentalStatus,
-      historyMeta,
-      fundamentalResult.analysis
-    ),
+    dataQuality: buildQuality(candles, history, marketResult, fundamentalStatus, historyMeta, fundamentalResult.analysis),
     sources: {
       market: 'BRS',
       history: 'BRS',
@@ -234,10 +227,7 @@ async function getMarketData(symbol, options) {
       market: getMeta(marketResult),
       history: historyMeta,
       fundamental: fundamentalResult.data
-        ? {
-            count: asArray(fundamentalResult.data.announcements).length,
-            fetchedAt: fundamentalResult.data.fetchedAt
-          }
+        ? { count: asArray(fundamentalResult.data.announcements).length, fetchedAt: fundamentalResult.data.fetchedAt }
         : null,
       fundamentalAnalysis: fundamentalResult.analysis,
       fundamentalError: fundamentalResult.error
@@ -248,14 +238,11 @@ async function getMarketData(symbol, options) {
 function getProviderStatus() {
   return {
     provider: 'analysis-data',
-    version: '1.5.0',
+    version: '1.6.0',
     market: {
       provider: 'BRS',
       enabled: true,
-      methods: [
-        'getSymbolData',
-        'getAdjustedDailyCandlestick'
-      ]
+      methods: ['getSymbolData', 'getAdjustedDailyCandlestick']
     },
     fundamental: codal.getStatus()
   };
