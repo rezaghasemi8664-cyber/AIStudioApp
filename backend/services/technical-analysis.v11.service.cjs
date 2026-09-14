@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Deterministic technical-analysis engine v1.1.
+ * Deterministic technical-analysis engine v1.1.1.
  * Isolated compatibility implementation; no AI, network, randomness, or external state.
  * Input candles must be ordered oldest -> newest.
  */
@@ -128,11 +128,11 @@ function supportResistance(candles, lookback = 20) {
 
 function analyze(candles, options = {}) {
   if (!Array.isArray(candles) || candles.length < 2) {
-    return { success: false, code: 'INSUFFICIENT_DATA', message: 'برای تحلیل تکنیکال حداقل داده کافی لازم است.', dataQuality: 'ضعیف' };
+    return { success: false, code: 'INSUFFICIENT_DATA', message: 'برای تحلیل تکنیکال حداقل داده کافی لازم است.', indicatorQuality: 'ضعیف' };
   }
   const values = closes(candles);
   if (values.length < 2) {
-    return { success: false, code: 'INVALID_CANDLES', message: 'داده قیمت معتبر نیست.', dataQuality: 'ضعیف' };
+    return { success: false, code: 'INVALID_CANDLES', message: 'داده قیمت معتبر نیست.', indicatorQuality: 'ضعیف' };
   }
 
   const rsiPeriod = Number(options.rsiPeriod) || 14;
@@ -152,6 +152,7 @@ function analyze(candles, options = {}) {
   let score = 50;
   const reasons = [];
   const scoreBreakdown = [];
+  const riskWarnings = [];
 
   function add(points, reason) {
     score += points;
@@ -163,9 +164,13 @@ function analyze(candles, options = {}) {
   if (sma50 !== null) add(current > sma50 ? 10 : -10, current > sma50 ? 'قیمت بالاتر از میانگین متحرک ۵۰ روزه است' : 'قیمت پایین‌تر از میانگین متحرک ۵۰ روزه است');
   if (ema20 !== null) add(current > ema20 ? 5 : -5, current > ema20 ? 'قیمت بالاتر از EMA20 است' : 'قیمت پایین‌تر از EMA20 است');
   if (rsiValue !== null) {
-    if (rsiValue >= 70) add(-8, 'RSI در ناحیه اشباع خرید است');
-    else if (rsiValue <= 30) add(8, 'RSI در ناحیه اشباع فروش است');
-    else if (rsiValue >= 50) add(3, 'RSI بالاتر از محدوده میانی است');
+    if (rsiValue >= 70) {
+      add(-8, 'RSI در ناحیه اشباع خرید است');
+      riskWarnings.push('RSI در ناحیه اشباع خرید قرار دارد؛ احتمال اصلاح کوتاه‌مدت وجود دارد.');
+    } else if (rsiValue <= 30) {
+      add(8, 'RSI در ناحیه اشباع فروش است');
+      riskWarnings.push('RSI در ناحیه اشباع فروش قرار دارد؛ احتمال نوسان و بازگشت قیمت وجود دارد.');
+    } else if (rsiValue >= 50) add(3, 'RSI بالاتر از محدوده میانی است');
     else add(-3, 'RSI پایین‌تر از محدوده میانی است');
   }
   if (macdValue !== null) {
@@ -179,27 +184,31 @@ function analyze(candles, options = {}) {
     else if (volumeValue.ratio <= 0.7) add(-2, 'حجم معاملات پایین‌تر از میانگین ۲۰ روزه است');
   }
 
+  let bollingerPosition = 'نامشخص';
+  if (bb) {
+    if (current >= bb.upper) {
+      bollingerPosition = 'بالاتر از باند بالایی';
+      riskWarnings.push('قیمت بالاتر از باند بالایی بولینگر قرار دارد؛ احتمال اصلاح یا بازگشت به میانگین وجود دارد.');
+    } else if (current <= bb.lower) {
+      bollingerPosition = 'پایین‌تر از باند پایینی';
+      riskWarnings.push('قیمت پایین‌تر از باند پایینی بولینگر قرار دارد؛ نوسان و احتمال بازگشت باید بررسی شود.');
+    } else if (current >= bb.middle) bollingerPosition = 'نیمه بالایی';
+    else bollingerPosition = 'نیمه پایینی';
+  }
+
   score = Math.max(0, Math.min(100, score));
   const recommendation = score >= 65 ? 'خرید' : score <= 35 ? 'فروش' : 'نگهداری';
   const trend = (sma20 !== null && current > sma20) && (sma50 === null || current > sma50)
     ? 'صعودی'
     : (sma20 !== null && current < sma20) && (sma50 === null || current < sma50) ? 'نزولی' : 'خنثی';
 
-  let bollingerPosition = 'نامشخص';
-  if (bb) {
-    if (current >= bb.upper) bollingerPosition = 'بالاتر از باند بالایی';
-    else if (current <= bb.lower) bollingerPosition = 'پایین‌تر از باند پایینی';
-    else if (current >= bb.middle) bollingerPosition = 'نیمه بالایی';
-    else bollingerPosition = 'نیمه پایینی';
-  }
-
   const available = [sma20, sma50, ema20, ema50, rsiValue, bb, macdValue, atr14, volumeValue].filter(v => v !== null).length;
-  const dataQuality = available >= 7 ? 'خوب' : available >= 5 ? 'متوسط' : 'ضعیف';
+  const indicatorQuality = available >= 7 ? 'خوب' : available >= 5 ? 'متوسط' : 'ضعیف';
 
   return {
     success: true,
     engine: 'deterministic-technical-analysis',
-    version: '1.1.0',
+    version: '1.1.1',
     currentPrice: current,
     indicators: {
       sma20, sma50, ema20, ema50,
@@ -215,7 +224,8 @@ function analyze(candles, options = {}) {
     scoreBreakdown,
     recommendation,
     trend,
-    dataQuality,
+    indicatorQuality,
+    riskWarnings,
     reasons,
     deterministic: true
   };
