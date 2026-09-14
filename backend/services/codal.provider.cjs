@@ -47,6 +47,7 @@ function asArray(value) {
   if (!value || typeof value !== 'object') return [];
 
   const candidates = [
+    value.announcement,
     value.data,
     value.result,
     value.items,
@@ -54,8 +55,10 @@ function asArray(value) {
     value.rows,
     value.records,
     value.announcements,
+    value.data && value.data.announcement,
     value.data && value.data.items,
     value.data && value.data.list,
+    value.result && value.result.announcement,
     value.result && value.result.items
   ];
 
