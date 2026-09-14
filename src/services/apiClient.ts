@@ -63,6 +63,10 @@ async function enrichStockAnalysis(payload: any, symbol: string, headers: Record
     const fundamentalScore = toFinite(fundamentalAnalysis?.score);
     const fundamentalUnavailable = fundamentalAnalysis?.scoreStatus === 'insufficient-data' || fundamentalAnalysis?.available === false;
     const supplementalMarket = supplementalData.market ?? {};
+    const realMoneyFlow = toFinite(supplementalMarket.realMoneyFlow);
+    const displayMoneyFlow = supplementalMarket.moneyFlow && typeof supplementalMarket.moneyFlow === 'object'
+      ? { ...supplementalMarket.moneyFlow, net: realMoneyFlow !== null ? realMoneyFlow : supplementalMarket.moneyFlow.net }
+      : supplementalMarket.moneyFlow;
 
     const mergedData: any = {
       ...currentData,
@@ -72,10 +76,10 @@ async function enrichStockAnalysis(payload: any, symbol: string, headers: Record
       marketData: {
         ...(currentData.marketData ?? {}),
         ...supplementalMarket,
-        moneyFlow: supplementalMarket.moneyFlow ?? currentData.marketData?.moneyFlow,
+        moneyFlow: displayMoneyFlow ?? currentData.marketData?.moneyFlow,
         realMoneyFlow: supplementalMarket.realMoneyFlow ?? currentData.marketData?.realMoneyFlow,
         legalMoneyFlow: supplementalMarket.legalMoneyFlow ?? currentData.marketData?.legalMoneyFlow,
-        netMoneyFlow: supplementalMarket.netMoneyFlow ?? currentData.marketData?.netMoneyFlow,
+        netMoneyFlow: realMoneyFlow !== null ? realMoneyFlow : supplementalMarket.netMoneyFlow ?? currentData.marketData?.netMoneyFlow,
       },
     };
 
@@ -90,11 +94,17 @@ async function enrichStockAnalysis(payload: any, symbol: string, headers: Record
     const currentSentiment = String(currentData.sentiment ?? '').trim().toLowerCase();
     if (!currentSentiment || currentSentiment === 'neutral' || currentSentiment === 'خنثی') mergedData.sentiment = deriveMarketSentiment(mergedData);
 
+    const finalMarketData = {
+      ...supplementalMarket,
+      moneyFlow: displayMoneyFlow,
+      netMoneyFlow: realMoneyFlow !== null ? realMoneyFlow : supplementalMarket.netMoneyFlow,
+    };
+
     return {
       ...payload,
       data: mergedData,
       marketMetrics: supplementalMarket,
-      marketData: supplementalMarket,
+      marketData: finalMarketData,
       fundamentalAnalysis: fundamentalAnalysis ?? payload.fundamentalAnalysis,
       dataQuality: supplementalData.dataQuality ?? payload.dataQuality,
     };
