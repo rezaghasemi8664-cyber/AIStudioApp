@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller.cjs');
 const { loginSecurity, passwordSecurity } = require('../middlewares/authSecurity.middleware.cjs');
+const { authLoginDebug } = require('../middlewares/authLoginDebug.middleware.cjs');
 
 let authMiddleware;
 for (const p of ['../middleware/auth.middleware.cjs','../middlewares/auth.middleware.cjs']) {
@@ -23,7 +24,7 @@ requiredMethods.forEach(method=>{
   if(typeof authController[method]!=='function') authController[method]=(_req,res)=>res.status(501).json({success:false,message:`متد ${method} هنوز پیاده‌سازی نشده`});
 });
 
-router.post('/login', loginSecurity, authController.login);
+router.post('/login', loginSecurity, authLoginDebug, authController.login);
 router.post('/register', authController.register);
 router.post('/signup', authController.register);
 router.post('/recover-password', authController.recoverPassword);
