@@ -1,0 +1,54 @@
+name: One-time Data Quality UI Integration
+
+on:
+  push:
+    branches:
+      - feature/deterministic-technical-engine
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: ${{ !contains(github.event.head_commit.message, 'integrate data quality card') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feature/deterministic-technical-engine
+          fetch-depth: 0
+
+      - name: Patch StockAnalysis
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/components/StockAnalysis.tsx')
+          s = p.read_text(encoding='utf-8-sig')
+
+          import_line = "import AnalysisDataQualityCard from './AnalysisDataQualityCard';"
+          if import_line not in s:
+              anchor = "import { exportElementToPdf } from '../utils/exportToPdf';"
+              if anchor not in s:
+                  raise SystemExit('Import anchor not found')
+              s = s.replace(anchor, anchor + "\n" + import_line, 1)
+
+          card = """              <AnalysisDataQualityCard\n                dataQuality={analysisData.dataQuality}\n                warnings={analysisData.dataQualityWarnings}\n              />\n"""
+          anchor = "                    <SectionHeader\n                      title=\"توضیحات تکنیکال\""
+          if 'AnalysisDataQualityCard' not in s or card not in s:
+              if anchor not in s:
+                  raise SystemExit('Technical section anchor not found')
+              s = s.replace(anchor, card + anchor, 1)
+
+          p.write_text(s, encoding='utf-8-sig')
+
+      - name: Verify and commit
+        shell: bash
+        run: |
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/StockAnalysis.tsx
+          git rm .github/workflows/one-time-data-quality-ui.yml
+          git commit -m "chore(ui): integrate data quality card"
+          git push origin HEAD:feature/deterministic-technical-engine
