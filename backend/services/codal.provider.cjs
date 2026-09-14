@@ -3,8 +3,9 @@
 /**
  * BRS CODAL Announcement provider.
  *
- * The provider only reads the public API contract configured through the
- * backend environment. The API key is never returned or logged.
+ * The provider reads the dedicated CODAL configuration when present and
+ * falls back to the existing BRS CODAL configuration used by the backend.
+ * API keys are never returned or logged.
  */
 
 const DEFAULT_TIMEOUT_MS = 15000;
@@ -13,8 +14,8 @@ const DEFAULT_DATE_RANGE_DAYS = 365;
 
 function getConfig() {
   return {
-    apiUrl: String(process.env.CODAL_API_URL || '').trim(),
-    apiKey: String(process.env.CODAL_API_KEY || '').trim(),
+    apiUrl: String(process.env.CODAL_API_URL || process.env.BRS_CODAL_URL || '').trim(),
+    apiKey: String(process.env.CODAL_API_KEY || process.env.BRS_API_KEY || '').trim(),
     category: String(process.env.CODAL_CATEGORY || '').trim(),
     audited: String(process.env.CODAL_AUDITED || 'true').trim(),
     unaudited: String(process.env.CODAL_UNAUDITED || 'true').trim(),
