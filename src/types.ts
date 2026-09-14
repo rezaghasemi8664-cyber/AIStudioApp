@@ -9,6 +9,26 @@ export interface PriceDataPoint { date: string; price: number; }
 export type AnalysisRiskLevel = 'low' | 'medium' | 'high';
 export type AnalysisSignalType = 'trend' | 'volume' | 'money_flow' | 'order_book' | 'index';
 export interface AnalysisSignal { type: AnalysisSignalType; strength: number; description: string; }
+export interface AnalysisDataQuality {
+  score: number;
+  level: string;
+  marketAvailable: boolean;
+  rawHistoryCount: number;
+  candleCount: number;
+  invalidCandleCount: number;
+  coverageRatio: number;
+  fallbackUsed: boolean;
+  stale: boolean;
+  chronology: string;
+  fundamentalAvailable: boolean;
+  deterministicReady: boolean;
+  reasons?: string[];
+}
+export interface AnalysisEngineInfo {
+  name: string;
+  version: string;
+  deterministic: boolean;
+}
 export interface StructuredStockAnalysisResult {
   summary: string; signals: AnalysisSignal[]; risk_level: AnalysisRiskLevel; confidence: number; ontology_version: '1.0.0';
   closingPrice: number; realMoneyFlow: number; legalMoneyFlow: number; tradedVolume: number; fundamentalScore: number; technicalScore: number;
@@ -18,6 +38,7 @@ export interface AnalysisResult extends StructuredStockAnalysisResult {
   isGoodForEntry: boolean; entryPrice: string; exitPrice: string; technicalAnalysis: string; fundamentalAnalysis: string; currentPrice: number;
   recommendation: 'BUY' | 'SELL' | 'HOLD'; symbol?: string; analysisDate?: string; model?: string; content?: string; usage?: unknown;
   riskLevel?: AnalysisRiskLevel; ontologyVersion?: string; targets?: Record<string, number>; stopLoss?: number;
+  dataQuality?: AnalysisDataQuality; dataQualityWarnings?: string[]; deterministic?: boolean; engine?: AnalysisEngineInfo;
   priceHistory: { daily: PriceDataPoint[]; weekly: PriceDataPoint[] };
 }
 export interface StockComparisonResult { symbol1_analysis: AnalysisResult; symbol2_analysis: AnalysisResult; comparison_summary: string; final_recommendation: string; }
@@ -67,7 +88,7 @@ export interface ChangePasswordResponse { message: string; }
 export interface SettingsProps { currentUser: User; initialTab?: string; onUserAccessChange?: (isDisconnected: boolean) => void; }
 export interface PasswordChangeFormProps { onPasswordChange: (currentPass: string, newPass: string) => Promise<void>; }
 export interface AnalysisHistoryItem { symbol: string; timestamp: number; result: AnalysisResult; summary?: string; }
-export interface AppNotification { id: string; message: string; timestamp: number; recipientUserId: string; read: boolean; attachment?: { name: string; type: string; data: string; }; }
+export interface AppNotification { id: string; message: string; timestamp: number; recipientUserId: string; message: string; read: boolean; attachment?: { name: string; type: string; data: string; }; }
 export interface Notification { id: number; message: string; type: 'success' | 'info' | 'error' | 'warning'; }
 export interface MarketIndexData { value: number; changeValue: number; changePercent: number; isMarketOpen: boolean; equalWeightedValue: number; equalWeightedChangeValue: number; equalWeightedChangePercent: number; }
 export interface MarketIndexCache { data: MarketIndexData; timestamp: number; }
