@@ -10,7 +10,6 @@
 
 const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_PAGE = 1;
-const DEFAULT_DATE_RANGE_DAYS = 365;
 
 function getConfig() {
   return {
@@ -21,8 +20,7 @@ function getConfig() {
     unaudited: String(process.env.CODAL_UNAUDITED || 'true').trim(),
     onlyMainCompany: String(process.env.CODAL_ONLY_MAIN_COMPANY || 'true').trim(),
     onlySubsidiaries: String(process.env.CODAL_ONLY_SUBSIDIARIES || 'false').trim(),
-    timeoutMs: Number(process.env.CODAL_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
-    dateRangeDays: Number(process.env.CODAL_DATE_RANGE_DAYS) || DEFAULT_DATE_RANGE_DAYS
+    timeoutMs: Number(process.env.CODAL_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS
   };
 }
 
@@ -99,22 +97,6 @@ function normalizeAnnouncement(item) {
   };
 }
 
-function toIsoDate(date) {
-  const value = date instanceof Date ? date : new Date(date);
-  if (Number.isNaN(value.getTime())) return null;
-  return value.toISOString().slice(0, 10);
-}
-
-function defaultDateStart() {
-  const date = new Date();
-  date.setUTCDate(date.getUTCDate() - getConfig().dateRangeDays);
-  return toIsoDate(date);
-}
-
-function defaultDateEnd() {
-  return toIsoDate(new Date());
-}
-
 function buildUrl(options = {}) {
   const config = getConfig();
   if (!config.apiUrl) {
@@ -138,12 +120,13 @@ function buildUrl(options = {}) {
     url.searchParams.set('category', config.category);
   }
 
+  // BRS Announcement.php accepts these filters, but date_start/date_end
+  // are not supported and cause HTTP 400 responses. Keep the supported
+  // announcement filters only.
   url.searchParams.set('audited', options.audited ?? config.audited);
   url.searchParams.set('unaudited', options.unaudited ?? config.unaudited);
   url.searchParams.set('only_main_company', options.onlyMainCompany ?? config.onlyMainCompany);
   url.searchParams.set('only_subsidiaries', options.onlySubsidiaries ?? config.onlySubsidiaries);
-  url.searchParams.set('date_start', options.dateStart || defaultDateStart());
-  url.searchParams.set('date_end', options.dateEnd || defaultDateEnd());
   url.searchParams.set('page', String(options.page || DEFAULT_PAGE));
 
   return url;
@@ -217,8 +200,6 @@ async function getCompanyReports(options = {}) {
     countAnnouncement: pick(payload, ['count_announcement', 'countAnnouncement']) ?? announcements.length,
     countPage: pick(payload, ['count_page', 'countPage']),
     page: Number(options.page || DEFAULT_PAGE),
-    dateStart: options.dateStart || defaultDateStart(),
-    dateEnd: options.dateEnd || defaultDateEnd(),
     fetchedAt: new Date().toISOString()
   };
 }
