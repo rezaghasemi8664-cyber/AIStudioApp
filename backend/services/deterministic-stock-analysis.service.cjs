@@ -24,18 +24,76 @@ function qualityWarning(q) {
   return `هشدار کیفیت داده: از ${raw} رکورد، ${valid} کندل معتبر و ${invalid} رکورد نامعتبر بوده است؛ پوشش OHLC برابر ${(Number(q.coverageRatio) * 100).toFixed(1)}٪ است.`;
 }
 
+function deriveFlowNet(flow, side, averagePrice) {
+  const direct = first(flow?.netValue, flow?.net);
+  if (direct !== null) return { value: direct, estimated: false };
+
+  const buyVolume = first(flow?.buyVolume, flow?.buyQty, flow?.inVolume);
+  const sellVolume = first(flow?.sellVolume, flow?.sellQty, flow?.outVolume);
+  if (buyVolume !== null && sellVolume !== null && averagePrice !== null && averagePrice > 0) {
+    return {
+      value: (buyVolume - sellVolume) * averagePrice,
+      estimated: true,
+      method: `حجم خرید و فروش ${side} × میانگین قیمت معامله`
+    };
+  }
+
+  return { value: null, estimated: false };
+}
+
 function normalizeMoneyFlow(market) {
   const flow = market?.moneyFlow || {};
   const real = flow.real || {};
   const legal = flow.legal || flow.institutional || {};
-  const realNet = first(market.realMoneyFlow, real.netValue, real.net);
-  const legalNet = first(market.legalMoneyFlow, legal.netValue, legal.net);
-  const net = first(flow.netValue, flow.net, market.moneyFlowNet, realNet !== null && legalNet !== null ? realNet + legalNet : null);
+  const averagePrice = first(market.averagePrice, market.price?.average, market.trading?.value && market.trading?.volume > 0 ? market.trading.value / market.trading.volume : null);
+  const realDirect = first(market.realMoneyFlow, real.netValue, real.net);
+  const legalDirect = first(market.legalMoneyFlow, legal.netValue, legal.net);
+  const realDerived = realDirect !== null ? { value: realDirect, estimated: false } : deriveFlowNet(real, 'حقیقی', averagePrice);
+  const legalDerived = legalDirect !== null ? { value: legalDirect, estimated: false } : deriveFlowNet(legal, 'حقوقی', averagePrice);
+  const net = first(flow.netValue, flow.net, market.moneyFlowNet, realDerived.value !== null && legalDerived.value !== null ? realDerived.value + legalDerived.value : null);
+
   return {
     net,
-    real: { inflow: first(real.inflow, real.buyValue), outflow: first(real.outflow, real.sellValue), net: realNet },
-    legal: { inflow: first(legal.inflow, legal.buyValue), outflow: first(legal.outflow, legal.sellValue), net: legalNet },
+    estimated: Boolean(realDerived.estimated || legalDerived.estimated),
+    real: {
+      inflow: first(real.inflow, real.buyValue),
+      outflow: first(real.outflow, real.sellValue),
+      net: realDerived.value,
+      estimated: realDerived.estimated,
+      estimateMethod: realDerived.method || null,
+    },
+    legal: {
+      inflow: first(legal.inflow, legal.buyValue),
+      outflow: first(legal.outflow, legal.sellValue),
+      net: legalDerived.value,
+      estimated: legalDerived.estimated,
+      estimateMethod: legalDerived.method || null,
+    },
   };
+}
+
+function deriveSentiment(marketData) {
+  const priceChange = first(
+    marketData.lastChangePercent,
+    marketData.priceChangePercent,
+    marketData.dailySummary?.priceChangePercent
+  );
+  const totalFlow = first(marketData.moneyFlow?.net);
+  const hasFlow = totalFlow !== null;
+
+  if (priceChange !== null && hasFlow) {
+    if (priceChange >= 1 && totalFlow > 0) return 'مثبت';
+    if (priceChange <= -1 && totalFlow < 0) return 'منفی';
+  }
+  if (priceChange !== null) {
+    if (priceChange >= 2) return 'مثبت';
+    if (priceChange <= -2) return 'منفی';
+  }
+  if (hasFlow) {
+    if (totalFlow > 0) return 'مثبت';
+    if (totalFlow < 0) return 'منفی';
+  }
+  return 'خنثی';
 }
 
 function buildMarketData(data) {
@@ -62,6 +120,9 @@ function buildMarketData(data) {
     moneyFlow,
     realMoneyFlow: moneyFlow.real.net,
     legalMoneyFlow: moneyFlow.legal.net,
+    netMoneyFlow: moneyFlow.net,
+    realMoneyFlowEstimated: moneyFlow.real.estimated,
+    legalMoneyFlowEstimated: moneyFlow.legal.estimated,
     dailyCandles: candles,
     adjustedDailyCandles: adjusted,
     dailyCandle: latest,
@@ -74,7 +135,7 @@ function buildMarketData(data) {
       average: first(market.averagePrice, market.price?.average),
       closingPrice,
       lastTradedPrice,
-      priceChangePercent: first(market.closingPriceChangePercent, market.closeChangePercent, market.pcp),
+      priceChangePercent: first(market.closingPriceChangePercent, market.closeChangePercent, market.pcp, market.priceChangePercent),
       tradedVolume: first(market.tradedVolume, market.volume, latest?.volume),
       tradedValue: first(market.tradedValue, market.value, latest?.value),
       pe: first(market.pe),
@@ -121,7 +182,8 @@ async function analyzeStock(params = {}) {
   const technicalScore = num(result.score) ?? 0;
   const recommendationFa = result.recommendation || 'نگهداری';
   const recommendation = recommendationFa === 'خرید' ? 'BUY' : recommendationFa === 'فروش' ? 'SELL' : 'HOLD';
-  const summary = [`روند سهم ${result.trend || 'خنثی'} است و امتیاز تکنیکال ${technicalScore} از ۱۰۰ ثبت شده است.`, `سیگنال موتور تکنیکال: ${recommendationFa}.`];
+  const sentiment = deriveSentiment(marketData);
+  const summary = [`روند سهم ${result.trend || 'خنثی'} است و امتیاز تکنیکال ${technicalScore} از ۱۰۰ ثبت شده است.`, `سیگنال موتور تکنیکال: ${recommendationFa}.`, `روند احساس بازار: ${sentiment}.`];
   if (warning) summary.push(warning);
 
   return {
@@ -129,6 +191,7 @@ async function analyzeStock(params = {}) {
     symbol: data.symbol,
     recommendation,
     recommendationFa,
+    sentiment,
     currentPrice: marketData.currentPrice,
     closingPrice: marketData.closingPrice,
     score: technicalScore,
@@ -138,6 +201,8 @@ async function analyzeStock(params = {}) {
     summary: summary.join(' '),
     technicalAnalysis: summary.join(' '),
     fundamentalAnalysis: String(fundamental.reason || 'برای محاسبه امتیاز بنیادی، داده عددی معتبر از صورت‌های مالی CODAL در دسترس نیست.'),
+    fundamentalAvailable: fundamental.available === true && fundamentalScore !== null,
+    fundamentalScore: fundamentalScore,
     scores: { fundamentalScore, technicalScore },
     signals,
     entryPoints: signals.entryPoints,
