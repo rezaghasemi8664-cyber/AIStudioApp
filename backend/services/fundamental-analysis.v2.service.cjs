@@ -1,6 +1,7 @@
 'use strict';
 
 var documentService = require('./codal-document.service.cjs');
+var fundamentalScoreService = require('./fundamental-score.service.cjs');
 
 const IMPORTANT_CATEGORIES = [
   { key: 'financial_statements', weight: 30, patterns: ['صورت مالی', 'صورت‌های مالی', 'صورت هاي مالي', 'گزارش مالی'] },
@@ -76,6 +77,8 @@ async function analyzeAnnouncements(input) {
   const documents = await extractFinancialDocuments(financial);
   const numericMetrics = aggregateNumericMetrics(documents.filter((item) => item.available));
   const quality = numericDataQuality(numericMetrics);
+  const calculatedScore = fundamentalScoreService.calculateFundamentalScore(numericMetrics);
+  const scoreReady = calculatedScore.score !== null;
 
   return {
     available: announcements.length > 0,
@@ -85,17 +88,17 @@ async function analyzeAnnouncements(input) {
     announcements: classified,
     financialDocuments: documents,
     numericData: { metrics: numericMetrics, quality },
-    score: null,
-    scoreStatus: quality.sufficientForScoring
-      ? 'ready-for-fundamental-scoring'
-      : financial.length > 0
-        ? 'requires-more-financial-document-data'
-        : 'insufficient-data',
-    reason: quality.sufficientForScoring
-      ? 'داده‌های عددی معتبر از فایل‌های مالی استخراج شدند و برای مرحله محاسبه امتیاز بنیادی آماده‌اند.'
-      : financial.length > 0
-        ? 'اطلاعیه‌های مالی شناسایی شدند، اما داده عددی کافی از فایل‌های Excel برای محاسبه امتیاز بنیادی استخراج نشد.'
-        : 'برای محاسبه امتیاز بنیادی، داده عددی معتبر از صورت‌های مالی CODAL در دسترس نیست.',
+    score: calculatedScore.score,
+    scoreStatus: scoreReady ? 'calculated' : calculatedScore.status,
+    scoreCoverage: calculatedScore.coverage,
+    scoreComponents: calculatedScore.components,
+    reason: scoreReady
+      ? calculatedScore.reason
+      : quality.sufficientForScoring
+        ? 'داده‌های عددی کافی شناسایی شدند، اما اجزای لازم برای محاسبه امتیاز بنیادی کامل نیستند.'
+        : financial.length > 0
+          ? 'اطلاعیه‌های مالی شناسایی شدند، اما داده عددی کافی از فایل‌های Excel برای محاسبه امتیاز بنیادی استخراج نشد.'
+          : 'برای محاسبه امتیاز بنیادی، داده عددی معتبر از صورت‌های مالی CODAL در دسترس نیست.',
   };
 }
 
