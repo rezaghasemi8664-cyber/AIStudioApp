@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // src/types.ts
 // Centralized shared type definitions for frontend modules
 // Last update: aligned with structured stock analysis output
