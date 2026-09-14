@@ -1,4 +1,4 @@
-﻿import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { API_BASE_URL } from './config';
 
 const TOKEN_KEYS = ['accessToken', 'token'];
@@ -19,14 +19,37 @@ function normalizeMoneyFlowPayload(payload: any): any {
   const market = data?.market ?? data?.marketData ?? payload?.marketData ?? data;
   if (!market || typeof market !== 'object') return payload;
 
-  const realNet = Number(market.realMoneyFlow ?? market.realMoneyFlow?.net);
-  if (!Number.isFinite(realNet)) return payload;
+  const realNet = Number(market.realMoneyFlow?.net ?? market.realMoneyFlow);
+  const legalNet = Number(market.legalMoneyFlow?.net ?? market.legalMoneyFlow);
 
+  if (!Number.isFinite(realNet) && !Number.isFinite(legalNet)) return payload;
+
+  // Keep the three concepts separate:
+  // total net = real net + legal net
+  // real net = real flow only
+  // legal net = legal flow only
   if (market.moneyFlow && typeof market.moneyFlow === 'object') {
-    market.moneyFlow = { ...market.moneyFlow, net: realNet };
+    const current = { ...market.moneyFlow };
+    if (Number.isFinite(realNet) && Number.isFinite(legalNet)) {
+      current.net = realNet + legalNet;
+    }
+    market.moneyFlow = current;
   }
-  market.netMoneyFlow = realNet;
-  market.moneyFlowNet = realNet;
+
+  if (Number.isFinite(realNet)) {
+    market.netRealMoneyFlow = realNet;
+    market.realMoneyFlowNet = realNet;
+  }
+
+  if (Number.isFinite(legalNet)) {
+    market.netLegalMoneyFlow = legalNet;
+    market.legalMoneyFlowNet = legalNet;
+  }
+
+  if (Number.isFinite(realNet) && Number.isFinite(legalNet)) {
+    market.netMoneyFlow = realNet + legalNet;
+    market.moneyFlowNet = realNet + legalNet;
+  }
 
   return payload;
 }
