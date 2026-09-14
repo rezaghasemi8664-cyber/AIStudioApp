@@ -341,7 +341,7 @@ async function extractFinancialDataFromExcel(rawUrl) {
 }
 
 async function extractFinancialDataFromAnnouncement(announcement) {
-  const excelUrl = announcement && announcement.link_excel;
+  const excelUrl = announcement && (announcement.link_excel || announcement.linkExcel);
   if (!excelUrl) {
     return {
       available: false,
