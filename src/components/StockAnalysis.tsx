@@ -800,8 +800,14 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     },
 
     scores: {
-      fundamentalScore: clamp(scores.fundamentalScore ?? source.fundamentalScore ?? scores.fundamental ?? source.fundamental, 0, 100, 0),
-      technicalScore: clamp(scores.technicalScore ?? source.technicalScore ?? scores.technical ?? source.technical, 0, 100, 0),
+      fundamentalScore: (() => {
+        const value = scores.fundamentalScore ?? source.fundamentalScore ?? scores.fundamental ?? source.fundamental;
+        return value === null || value === undefined || value === '' ? null : clamp(value, 0, 100, 0);
+      })(),
+      technicalScore: (() => {
+        const value = scores.technicalScore ?? source.technicalScore ?? scores.technical ?? source.technical;
+        return value === null || value === undefined || value === '' ? null : clamp(value, 0, 100, 0);
+      })(),
     },
 
     signals: {
@@ -1508,8 +1514,8 @@ const clearCurrentAnalysis = () => {
         sentimentMap
       ),
       confidence: analysisData.confidence ?? 0,
-      fundamentalScore: analysisData.scores?.fundamentalScore ?? 0,
-      technicalScore: analysisData.scores?.technicalScore ?? 0,
+      fundamentalScore: analysisData.scores?.fundamentalScore ?? null,
+      technicalScore: analysisData.scores?.technicalScore ?? null,
     };
   }, [analysisData]);
 
