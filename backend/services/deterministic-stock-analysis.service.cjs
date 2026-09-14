@@ -8,7 +8,20 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function buildTechnicalSummary(result) {
+function buildDataQualityWarning(quality) {
+  if (!quality || !Number.isFinite(Number(quality.coverageRatio))) return null;
+  const coverage = Number(quality.coverageRatio);
+  if (coverage >= 0.75) return null;
+
+  const raw = toNumber(quality.rawHistoryCount, 0);
+  const valid = toNumber(quality.candleCount, 0);
+  const invalid = toNumber(quality.invalidCandleCount, Math.max(0, raw - valid));
+  const percent = (coverage * 100).toFixed(1);
+
+  return `هشدار کیفیت داده: از ${raw} رکورد تاریخچه، ${valid} کندل دارای OHLC معتبر بوده و ${invalid} رکورد حذف شده است؛ پوشش OHLC برابر ${percent}٪ است. نتایج تکنیکال بر اساس کندل‌های معتبر محاسبه شده‌اند.`;
+}
+
+function buildTechnicalSummary(result, qualityWarning) {
   const trend = result.trend || 'خنثی';
   const recommendation = result.recommendation || 'نگهداری';
   const score = toNumber(result.score, 0);
@@ -16,12 +29,15 @@ function buildTechnicalSummary(result) {
   const macd = toNumber(result.indicators?.macd?.line, 0);
   const volumeRatio = toNumber(result.indicators?.volume?.ratio, 0);
 
-  return [
+  const summary = [
     `روند سهم ${trend} است و امتیاز تکنیکال ${score} از ۱۰۰ ثبت شده است.`,
     `RSI برابر ${rsi.toFixed(2)} و MACD برابر ${macd.toFixed(2)} است.`,
     `نسبت حجم معاملات به میانگین برابر ${volumeRatio.toFixed(2)} است.`,
-    `سیگنال قطعی موتور تکنیکال: ${recommendation}.`,
-  ].join(' ');
+    `سیگنال موتور تکنیکال: ${recommendation}.`,
+  ];
+
+  if (qualityWarning) summary.push(qualityWarning);
+  return summary.join(' ');
 }
 
 function buildRiskLevel(result) {
@@ -68,6 +84,9 @@ async function analyzeStock(params = {}) {
     'نگهداری': 'HOLD',
   };
 
+  const dataQualityWarning = buildDataQualityWarning(quality);
+  const technicalSummary = buildTechnicalSummary(result, dataQualityWarning);
+
   return {
     success: true,
     symbol: marketData.symbol,
@@ -79,12 +98,13 @@ async function analyzeStock(params = {}) {
     confidence: Math.min(100, Math.max(0, toNumber(result.score, 0))),
     trend: result.trend || 'خنثی',
     riskLevel: buildRiskLevel(result),
-    summary: buildTechnicalSummary(result),
-    technicalAnalysis: buildTechnicalSummary(result),
+    summary: technicalSummary,
+    technicalAnalysis: technicalSummary,
     fundamentalAnalysis: 'تحلیل بنیادی در این مرحله از موتور قطعی تکنیکال محاسبه نمی‌شود.',
     indicators: result.indicators,
     supportResistance: result.supportResistance,
     riskWarnings: result.riskWarnings || [],
+    dataQualityWarnings: dataQualityWarning ? [dataQualityWarning] : [],
     reasons: result.reasons || [],
     scoreBreakdown: result.scoreBreakdown || [],
     indicatorQuality: result.indicatorQuality || 'نامشخص',
