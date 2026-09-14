@@ -34,8 +34,30 @@ function toFinite(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function chronologyKey(item, index) {
+  var date = String(item && item.date || '').trim();
+  var time = String(item && item.time || '').trim();
+  var raw = date + ' ' + time;
+  var parsed = Date.parse(raw);
+  if (Number.isFinite(parsed)) return parsed;
+
+  // Jalali dates such as 1405-06-22 are not reliably parsed by JS Date.
+  // Keep their lexical ordering, with the original index as a stable tie-breaker.
+  var match = date.match(/^(\d{4})[-\/]?(\d{2})[-\/]?(\d{2})$/);
+  if (match) {
+    var dayNumber = Number(match[1]) * 10000 + Number(match[2]) * 100 + Number(match[3]);
+    var timeMatch = time.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    var timeNumber = timeMatch
+      ? Number(timeMatch[1]) * 3600 + Number(timeMatch[2]) * 60 + Number(timeMatch[3] || 0)
+      : 0;
+    return dayNumber * 86400 + timeNumber;
+  }
+
+  return Number.POSITIVE_INFINITY + index / 1000000;
+}
+
 function normalizeCandles(history) {
-  return asArray(history).map(function (item) {
+  return asArray(history).map(function (item, index) {
     if (!item || typeof item !== 'object') return null;
 
     var close = toFinite(item.close != null ? item.close : item.last);
@@ -63,17 +85,28 @@ function normalizeCandles(history) {
       yesterday: toFinite(item.yesterday),
       volume: volume != null && volume >= 0 ? volume : 0,
       value: toFinite(item.value != null ? item.value : item.tradedValue),
-      tradeCount: toFinite(item.tradeCount != null ? item.tradeCount : item.count)
+      tradeCount: toFinite(item.tradeCount != null ? item.tradeCount : item.count),
+      _sourceIndex: index
     };
-  }).filter(Boolean);
+  }).filter(Boolean).sort(function (a, b) {
+    var ka = chronologyKey(a, a._sourceIndex);
+    var kb = chronologyKey(b, b._sourceIndex);
+    return ka - kb;
+  }).map(function (item) {
+    delete item._sourceIndex;
+    return item;
+  });
 }
 
-function buildQuality(candles, history, marketResult, fundamentalStatus) {
+function buildQuality(candles, history, marketResult, fundamentalStatus, historyMeta) {
   var rawCount = asArray(history).length;
   var candleCount = candles.length;
   var marketAvailable = !!unwrap(marketResult);
   var fundamentalConfigured = !!(fundamentalStatus && fundamentalStatus.configured && fundamentalStatus.enabled);
   var invalidCandleCount = Math.max(0, rawCount - candleCount);
+  var coverageRatio = rawCount > 0 ? Number((candleCount / rawCount).toFixed(4)) : 0;
+  var fallbackUsed = !!(historyMeta && historyMeta.fallback && historyMeta.fallback.used);
+  var stale = !!(historyMeta && historyMeta.stale);
 
   var score = 0;
   if (marketAvailable) score += 30;
@@ -83,7 +116,19 @@ function buildQuality(candles, history, marketResult, fundamentalStatus) {
   else if (candleCount >= 5) score += 10;
   if (fundamentalConfigured) score += 30;
 
+  // Coverage/fallback/staleness are reported separately from the base score
+  // for now, so existing readiness thresholds remain backward compatible.
   var level = score >= 80 ? 'عالی' : score >= 55 ? 'متوسط' : 'ضعیف';
+
+  var reasons = [
+    marketAvailable ? 'داده بازار دریافت شد' : 'داده بازار در دسترس نیست',
+    candleCount >= 50 ? 'تاریخچه معتبر برای شاخص‌های اصلی کافی است' : candleCount >= 20 ? 'تاریخچه معتبر برای شاخص‌های اصلی قابل استفاده است' : 'تاریخچه معتبر برای برخی شاخص‌ها کافی نیست',
+    invalidCandleCount > 0 ? 'ردیف‌های فاقد OHLC معتبر از محاسبات تکنیکال حذف شدند' : 'تمام کندل‌های دریافتی OHLC معتبر دارند',
+    coverageRatio < 0.8 && rawCount > 0 ? 'پوشش OHLC تاریخچه کمتر از ۸۰ درصد است' : 'پوشش OHLC تاریخچه مناسب است',
+    fallbackUsed ? 'داده تاریخچه از مسیر جایگزین دریافت شده است' : 'داده تاریخچه از مسیر اصلی دریافت شده است',
+    stale ? 'داده تاریخچه ممکن است قدیمی باشد' : 'داده تاریخچه تازه یا بدون وضعیت قدیمی بودن است',
+    fundamentalConfigured ? 'داده بنیادی در دسترس است' : 'داده بنیادی هنوز پیکربندی نشده است'
+  ];
 
   return {
     score: score,
@@ -92,14 +137,13 @@ function buildQuality(candles, history, marketResult, fundamentalStatus) {
     rawHistoryCount: rawCount,
     candleCount: candleCount,
     invalidCandleCount: invalidCandleCount,
+    coverageRatio: coverageRatio,
+    fallbackUsed: fallbackUsed,
+    stale: stale,
+    chronology: 'ascending-oldest-to-newest',
     fundamentalAvailable: fundamentalConfigured,
     deterministicReady: candleCount >= 20,
-    reasons: [
-      marketAvailable ? 'داده بازار دریافت شد' : 'داده بازار در دسترس نیست',
-      candleCount >= 50 ? 'تاریخچه معتبر برای شاخص‌های اصلی کافی است' : candleCount >= 20 ? 'تاریخچه معتبر برای شاخص‌های اصلی قابل استفاده است' : 'تاریخچه معتبر برای برخی شاخص‌ها کافی نیست',
-      invalidCandleCount > 0 ? 'ردیف‌های فاقد OHLC معتبر از محاسبات تکنیکال حذف شدند' : 'تمام کندل‌های دریافتی OHLC معتبر دارند',
-      fundamentalConfigured ? 'داده بنیادی در دسترس است' : 'داده بنیادی هنوز پیکربندی نشده است'
-    ]
+    reasons: reasons
   };
 }
 
@@ -122,6 +166,7 @@ async function getMarketData(symbol, options) {
   var market = unwrap(marketResult);
   var history = asArray(unwrap(historyResult));
   var candles = normalizeCandles(history);
+  var historyMeta = getMeta(historyResult);
   var fundamentalStatus = codal.getStatus();
 
   return {
@@ -130,7 +175,7 @@ async function getMarketData(symbol, options) {
     history: history,
     candles: candles,
     fundamental: null,
-    dataQuality: buildQuality(candles, history, marketResult, fundamentalStatus),
+    dataQuality: buildQuality(candles, history, marketResult, fundamentalStatus, historyMeta),
     sources: {
       market: 'BRS',
       history: 'BRS',
@@ -139,7 +184,7 @@ async function getMarketData(symbol, options) {
     fetchedAt: isoNow(),
     meta: {
       market: getMeta(marketResult),
-      history: getMeta(historyResult)
+      history: historyMeta
     }
   };
 }
@@ -147,7 +192,7 @@ async function getMarketData(symbol, options) {
 function getProviderStatus() {
   return {
     provider: 'analysis-data',
-    version: '1.1.0',
+    version: '1.2.0',
     market: {
       provider: 'BRS',
       enabled: true,
