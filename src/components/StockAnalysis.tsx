@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChartBarIcon, ClockIcon, MarketIcon, TrashIcon } from './Icons';
 import api from '../api/apiClient';
 import { getLatestSummary, getSummaryHistory } from '../services/marketSummaryService';
 import { exportElementToPdf } from '../utils/exportToPdf';
+import AnalysisDataQualityCard from './AnalysisDataQualityCard';
 import toast from 'react-hot-toast';
 import * as analysisHistoryService from '../services/analysisHistoryService';
 import {
@@ -2266,6 +2267,10 @@ const clearCurrentAnalysis = () => {
                   </div>
 
                   <div className="rounded-2xl border border-slate-200 p-4">
+              <AnalysisDataQualityCard
+                dataQuality={analysisData.dataQuality}
+                warnings={analysisData.dataQualityWarnings}
+              />
                     <SectionHeader
                       title="توضیحات تکنیکال"
                       subtitle="برداشت تحلیلی از ساختار نمودار، روند، حمایت و مقاومت"
