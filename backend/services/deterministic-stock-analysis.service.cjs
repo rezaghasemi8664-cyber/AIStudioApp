@@ -25,17 +25,42 @@ function qualityWarning(q) {
 }
 
 function deriveFlowNet(flow, side, averagePrice) {
-  const direct = first(flow?.netValue, flow?.net);
-  if (direct !== null) return { value: direct, estimated: false };
-
   const buyVolume = first(flow?.buyVolume, flow?.buyQty, flow?.inVolume);
   const sellVolume = first(flow?.sellVolume, flow?.sellQty, flow?.outVolume);
+
+  // BRS may expose net/netValue as 0 while the underlying buy/sell volumes
+  // are populated. In that case the volume-based calculation is more useful
+  // and avoids masking a real money-flow direction as zero.
+  if (buyVolume !== null && sellVolume !== null && averagePrice !== null && averagePrice > 0 && buyVolume !== sellVolume) {
+    return {
+      value: (buyVolume - sellVolume) * averagePrice,
+      estimated: true,
+      method: `حجم خرید و فروش ${side} × میانگین قیمت معامله`
+    };
+  }
+
+  const direct = first(flow?.netValue, flow?.net);
+  if (direct !== null) return { value: direct, estimated: false, method: null };
+
   if (buyVolume !== null && sellVolume !== null && averagePrice !== null && averagePrice > 0) {
     return {
       value: (buyVolume - sellVolume) * averagePrice,
       estimated: true,
       method: `حجم خرید و فروش ${side} × میانگین قیمت معامله`
     };
+  }
+
+  return { value: null, estimated: false, method: null };
+}
+
+function deriveFlowValue(flow, field, averagePrice) {
+  const direct = first(flow?.[field]);
+  if (direct !== null) return { value: direct, estimated: false };
+
+  const volumeField = field === 'buyValue' ? 'buyVolume' : 'sellVolume';
+  const volume = first(flow?.[volumeField]);
+  if (volume !== null && averagePrice !== null && averagePrice > 0) {
+    return { value: volume * averagePrice, estimated: true };
   }
 
   return { value: null, estimated: false };
@@ -45,29 +70,51 @@ function normalizeMoneyFlow(market) {
   const flow = market?.moneyFlow || {};
   const real = flow.real || {};
   const legal = flow.legal || flow.institutional || {};
-  const averagePrice = first(market.averagePrice, market.price?.average, market.trading?.value && market.trading?.volume > 0 ? market.trading.value / market.trading.volume : null);
-  const realDirect = first(market.realMoneyFlow, real.netValue, real.net);
-  const legalDirect = first(market.legalMoneyFlow, legal.netValue, legal.net);
-  const realDerived = realDirect !== null ? { value: realDirect, estimated: false } : deriveFlowNet(real, 'حقیقی', averagePrice);
-  const legalDerived = legalDirect !== null ? { value: legalDirect, estimated: false } : deriveFlowNet(legal, 'حقوقی', averagePrice);
-  const net = first(flow.netValue, flow.net, market.moneyFlowNet, realDerived.value !== null && legalDerived.value !== null ? realDerived.value + legalDerived.value : null);
+  const averagePrice = first(
+    market.averagePrice,
+    market.price?.average,
+    market.trading?.value && market.trading?.volume > 0
+      ? market.trading.value / market.trading.volume
+      : null
+  );
+
+  const realBuy = deriveFlowValue(real, 'buyValue', averagePrice);
+  const realSell = deriveFlowValue(real, 'sellValue', averagePrice);
+  const legalBuy = deriveFlowValue(legal, 'buyValue', averagePrice);
+  const legalSell = deriveFlowValue(legal, 'sellValue', averagePrice);
+
+  const realDerived = deriveFlowNet(real, 'حقیقی', averagePrice);
+  const legalDerived = deriveFlowNet(legal, 'حقوقی', averagePrice);
+
+  const rawNet = first(flow.netValue, flow.net, market.moneyFlowNet);
+  const calculatedNet = realDerived.value !== null && legalDerived.value !== null
+    ? realDerived.value + legalDerived.value
+    : null;
+  const net = rawNet !== null && rawNet !== 0 ? rawNet : calculatedNet;
 
   return {
     net,
-    estimated: Boolean(realDerived.estimated || legalDerived.estimated),
+    estimated: Boolean(
+      realDerived.estimated ||
+      legalDerived.estimated ||
+      realBuy.estimated ||
+      realSell.estimated ||
+      legalBuy.estimated ||
+      legalSell.estimated
+    ),
     real: {
-      inflow: first(real.inflow, real.buyValue),
-      outflow: first(real.outflow, real.sellValue),
+      inflow: first(real.inflow, realBuy.value),
+      outflow: first(real.outflow, realSell.value),
       net: realDerived.value,
-      estimated: realDerived.estimated,
-      estimateMethod: realDerived.method || null,
+      estimated: Boolean(realDerived.estimated || realBuy.estimated || realSell.estimated),
+      estimateMethod: realDerived.method || (realBuy.estimated || realSell.estimated ? 'حجم معاملات حقیقی × میانگین قیمت معامله' : null),
     },
     legal: {
-      inflow: first(legal.inflow, legal.buyValue),
-      outflow: first(legal.outflow, legal.sellValue),
+      inflow: first(legal.inflow, legalBuy.value),
+      outflow: first(legal.outflow, legalSell.value),
       net: legalDerived.value,
-      estimated: legalDerived.estimated,
-      estimateMethod: legalDerived.method || null,
+      estimated: Boolean(legalDerived.estimated || legalBuy.estimated || legalSell.estimated),
+      estimateMethod: legalDerived.method || (legalBuy.estimated || legalSell.estimated ? 'حجم معاملات حقوقی × میانگین قیمت معامله' : null),
     },
   };
 }
