@@ -3,9 +3,9 @@
 /**
  * Shared data boundary for deterministic analysis.
  *
- * This layer deliberately delegates market-data access to the existing BRS
- * service instead of changing that service. Codal is exposed as an optional
- * fundamental provider and remains disabled until its real API contract is configured.
+ * Market data remains on BRS. CODAL is an optional fundamental-data provider;
+ * when configured it is queried for the requested symbol and its normalized
+ * announcements are returned without inventing financial metrics.
  */
 
 var brs = require('./brs.service.cjs');
@@ -42,7 +42,6 @@ function chronologyKey(item, index) {
   if (Number.isFinite(parsed)) return parsed;
 
   // Jalali dates such as 1405-06-22 are not reliably parsed by JS Date.
-  // Keep their lexical ordering, with the original index as a stable tie-breaker.
   var match = date.match(/^(\d{4})[-\/]?(\d{2})[-\/]?(\d{2})$/);
   if (match) {
     var dayNumber = Number(match[1]) * 10000 + Number(match[2]) * 100 + Number(match[3]);
@@ -66,9 +65,6 @@ function normalizeCandles(history) {
     var low = toFinite(item.low);
     var volume = toFinite(item.volume != null ? item.volume : item.tradedVolume);
 
-    // Technical indicators require a real OHLC candle. Do not let the
-    // historical fallback's zero-OHLC placeholder rows contaminate ATR,
-    // Bollinger, support/resistance or future volume indicators.
     if (close == null || close <= 0) return null;
     if (open == null || high == null || low == null) return null;
     if (open <= 0 || high <= 0 || low <= 0) return null;
@@ -108,9 +104,6 @@ function buildQuality(candles, history, marketResult, fundamentalStatus, history
   var fallbackUsed = !!(historyMeta && historyMeta.fallback && historyMeta.fallback.used);
   var stale = !!(historyMeta && historyMeta.stale);
 
-  // Keep the existing readiness rule (20 valid candles) but make the quality
-  // score reflect OHLC coverage instead of treating 50 valid candles as fully
-  // healthy regardless of how many raw rows were rejected.
   var marketPoints = marketAvailable ? 30 : 0;
   var historyBasePoints = candleCount >= 50 ? 40 : candleCount >= 20 ? 35 : candleCount >= 10 ? 20 : candleCount >= 5 ? 10 : 0;
   var historyPoints = Math.round(historyBasePoints * coverageRatio);
@@ -136,7 +129,7 @@ function buildQuality(candles, history, marketResult, fundamentalStatus, history
         : 'پوشش OHLC تاریخچه مناسب است',
     fallbackUsed ? 'داده تاریخچه از مسیر جایگزین دریافت شده است' : 'داده تاریخچه از مسیر اصلی دریافت شده است',
     stale ? 'داده تاریخچه ممکن است قدیمی باشد' : 'داده تاریخچه تازه یا بدون وضعیت قدیمی بودن است',
-    fundamentalConfigured ? 'داده بنیادی در دسترس است' : 'داده بنیادی هنوز پیکربندی نشده است'
+    fundamentalConfigured ? 'اتصال CODAL پیکربندی شده است' : 'اتصال CODAL هنوز پیکربندی نشده است'
   ];
 
   return {
@@ -156,6 +149,35 @@ function buildQuality(candles, history, marketResult, fundamentalStatus, history
   };
 }
 
+async function getFundamentalData(symbolClean) {
+  var status = codal.getStatus();
+  if (!status.configured || !status.enabled) {
+    return {
+      data: null,
+      status: status,
+      error: null
+    };
+  }
+
+  try {
+    var result = await codal.getCompanyReports({ symbol: symbolClean });
+    return {
+      data: result,
+      status: status,
+      error: null
+    };
+  } catch (error) {
+    return {
+      data: null,
+      status: status,
+      error: {
+        code: error && error.code ? error.code : 'CODAL_REQUEST_FAILED',
+        message: error && error.message ? error.message : 'CODAL request failed'
+      }
+    };
+  }
+}
+
 async function getMarketData(symbol, options) {
   var opts = options || {};
   var symbolClean = String(symbol || '').trim();
@@ -167,33 +189,40 @@ async function getMarketData(symbol, options) {
 
   var results = await Promise.all([
     brs.getSymbolData(symbolClean),
-    brs.getAdjustedDailyCandlestick(symbolClean, historyCount)
+    brs.getAdjustedDailyCandlestick(symbolClean, historyCount),
+    getFundamentalData(symbolClean)
   ]);
 
   var marketResult = results[0];
   var historyResult = results[1];
+  var fundamentalResult = results[2];
   var market = unwrap(marketResult);
   var history = asArray(unwrap(historyResult));
   var candles = normalizeCandles(history);
   var historyMeta = getMeta(historyResult);
-  var fundamentalStatus = codal.getStatus();
+  var fundamentalStatus = fundamentalResult.status;
 
   return {
     symbol: symbolClean,
     market: market,
     history: history,
     candles: candles,
-    fundamental: null,
+    fundamental: fundamentalResult.data,
     dataQuality: buildQuality(candles, history, marketResult, fundamentalStatus, historyMeta),
     sources: {
       market: 'BRS',
       history: 'BRS',
-      fundamental: fundamentalStatus
+      fundamental: fundamentalStatus,
+      fundamentalRequest: fundamentalResult.error
     },
     fetchedAt: isoNow(),
     meta: {
       market: getMeta(marketResult),
-      history: historyMeta
+      history: historyMeta,
+      fundamental: fundamentalResult.data
+        ? { count: asArray(fundamentalResult.data.announcements).length, fetchedAt: fundamentalResult.data.fetchedAt }
+        : null,
+      fundamentalError: fundamentalResult.error
     }
   };
 }
@@ -201,7 +230,7 @@ async function getMarketData(symbol, options) {
 function getProviderStatus() {
   return {
     provider: 'analysis-data',
-    version: '1.3.0',
+    version: '1.4.0',
     market: {
       provider: 'BRS',
       enabled: true,
