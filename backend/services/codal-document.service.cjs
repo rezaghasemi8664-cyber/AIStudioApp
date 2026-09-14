@@ -8,7 +8,105 @@ function normalizeText(v){return normalizeDigits(v).replace(/[\u200c\u200f\u200e
 function parseNumber(v){if(typeof v==='number'&&Number.isFinite(v))return v;const t=normalizeDigits(v).replace(/[٬،,]/g,'').replace(/\s+/g,'').replace(/[٪%]/g,'').trim();if(!t||t==='-'||t==='—')return null;const neg=/^\(.*\)$/.test(t)||t.startsWith('-');const c=t.replace(/[()]/g,'').replace(/[^0-9.+-]/g,'');if(!c||c==='-'||c==='.')return null;const n=Number(c);return Number.isFinite(n)?(neg?-Math.abs(n):n):null;}
 function getAllowedHosts(){return String(process.env.CODAL_DOCUMENT_ALLOWED_HOSTS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);}
 function validateDocumentUrl(raw){if(!raw)return{ok:false,reason:'empty-url'};let url;try{url=new URL(raw);}catch{return{ok:false,reason:'invalid-url'};}if(url.username||url.password)return{ok:false,reason:'credentials-not-allowed'};if(url.protocol!=='https:')return{ok:false,reason:'https-required'};const allowed=getAllowedHosts();if(allowed.length&&!allowed.includes(url.hostname.toLowerCase()))return{ok:false,reason:'host-not-allowed'};return{ok:true,url};}
-async function downloadDocument(raw){const validation=validateDocumentUrl(raw);if(!validation.ok)throw new Error(`CODAL document URL rejected: ${validation.reason}`);const timeoutMs=envNumber('CODAL_DOCUMENT_TIMEOUT_MS',DEFAULT_TIMEOUT_MS,3000,60000);const maxBytes=envNumber('CODAL_DOCUMENT_MAX_BYTES',DEFAULT_MAX_BYTES,256*1024,32*1024*1024);const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),timeoutMs);try{const response=await fetch(validation.url,{method:'GET',redirect:'follow',signal:controller.signal,headers:{Accept:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/octet-stream;q=0.8,*/*;q=0.1','User-Agent':'RoniyaAnalyzer/5.2.1'}});if(!response.ok)throw new Error(`CODAL document HTTP ${response.status}`);const length=Number(response.headers.get('content-length'));if(Number.isFinite(length)&&length>maxBytes)throw new Error(`CODAL document exceeds ${maxBytes} bytes`);const chunks=[];let total=0;for await(const chunk of response.body){total+=chunk.length;if(total>maxBytes)throw new Error(`CODAL document exceeds ${maxBytes} bytes`);chunks.push(Buffer.from(chunk));}const buffer=Buffer.concat(chunks);return{buffer,contentType:String(response.headers.get('content-type')||'').toLowerCase(),finalUrl:response.url,bytes:buffer.length};}finally{clearTimeout(timer);}}
+async function downloadDocument(raw) {
+  const validation = validateDocumentUrl(raw);
+
+  if (!validation.ok) {
+    throw new Error(`CODAL document URL rejected: ${validation.reason}`);
+  }
+
+  const timeoutMs = envNumber(
+    'CODAL_DOCUMENT_TIMEOUT_MS',
+    DEFAULT_TIMEOUT_MS,
+    3000,
+    60000
+  );
+
+  const maxBytes = envNumber(
+    'CODAL_DOCUMENT_MAX_BYTES',
+    DEFAULT_MAX_BYTES,
+    256 * 1024,
+    32 * 1024 * 1024
+  );
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const relayBase = String(
+      process.env.CODAL_DOCUMENT_RELAY_URL || ''
+    ).trim();
+
+    let requestUrl = validation.url.toString();
+
+    if (relayBase) {
+      const relayUrl = new URL(relayBase);
+      relayUrl.searchParams.set(
+        'url',
+        validation.url.toString()
+      );
+
+      requestUrl = relayUrl.toString();
+    }
+
+    const response = await fetch(requestUrl, {
+      method: 'GET',
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: {
+        Accept:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,' +
+          'application/vnd.ms-excel,' +
+          'application/octet-stream;q=0.8,*/*;q=0.1',
+        'User-Agent': 'RoniyaAnalyzer/5.2.1'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `CODAL document HTTP ${response.status}`
+      );
+    }
+
+    const length = Number(
+      response.headers.get('content-length')
+    );
+
+    if (Number.isFinite(length) && length > maxBytes) {
+      throw new Error(
+        `CODAL document exceeds ${maxBytes} bytes`
+      );
+    }
+
+    const chunks = [];
+    let total = 0;
+
+    for await (const chunk of response.body) {
+      total += chunk.length;
+
+      if (total > maxBytes) {
+        throw new Error(
+          `CODAL document exceeds ${maxBytes} bytes`
+        );
+      }
+
+      chunks.push(Buffer.from(chunk));
+    }
+
+    const buffer = Buffer.concat(chunks);
+
+    return {
+      buffer,
+      contentType: String(
+        response.headers.get('content-type') || ''
+      ).toLowerCase(),
+      finalUrl: response.url,
+      bytes: buffer.length
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
 function looksLikeExcel(contentType,url){return /spreadsheet|excel|vnd\.ms-excel|officedocument\.spreadsheet/.test(contentType)||/\.(xlsx|xls)(?:$|[?#])/i.test(url);}
 function findEndOfCentralDirectory(buffer){const start=Math.max(0,buffer.length-65557);for(let o=buffer.length-22;o>=start;o--)if(buffer.readUInt32LE(o)===0x06054b50)return o;throw new Error('Invalid XLSX ZIP: end of central directory not found');}
 function extractZipEntries(buffer){const e=findEndOfCentralDirectory(buffer),count=buffer.readUInt16LE(e+10),size=buffer.readUInt32LE(e+12),offset=buffer.readUInt32LE(e+16),entries=new Map();let cursor=offset;const end=offset+size;for(let i=0;i<count&&cursor<end;i++){if(buffer.readUInt32LE(cursor)!==0x02014b50)throw new Error('Invalid XLSX ZIP: central directory entry not found');const method=buffer.readUInt16LE(cursor+10),cs=buffer.readUInt32LE(cursor+20),us=buffer.readUInt32LE(cursor+24),nl=buffer.readUInt16LE(cursor+28),el=buffer.readUInt16LE(cursor+30),cl=buffer.readUInt16LE(cursor+32),lo=buffer.readUInt32LE(cursor+42),name=buffer.slice(cursor+46,cursor+46+nl).toString('utf8');if(cs>32*1024*1024||us>64*1024*1024)throw new Error('XLSX entry exceeds safety limits');const lnl=buffer.readUInt16LE(lo+26),lel=buffer.readUInt16LE(lo+28),dataStart=lo+30+lnl+lel,compressed=buffer.slice(dataStart,dataStart+cs);let content;if(method===0)content=compressed;else if(method===8)content=zlib.inflateRawSync(compressed);else throw new Error(`Unsupported XLSX compression method: ${method}`);if(content.length!==us)throw new Error(`Invalid XLSX entry size for ${name}`);entries.set(name,content);cursor+=46+nl+el+cl;}return entries;}
