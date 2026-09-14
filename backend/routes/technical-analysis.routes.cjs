@@ -2,12 +2,12 @@
 
 var express = require('express');
 var provider = require('../services/analysis-data.provider.cjs');
-var technical = require('../services/technical-analysis.service.cjs');
+var technical = require('../services/technical-analysis.v11.service.cjs');
 
 var router = express.Router();
 
 // Deterministic technical analysis endpoint.
-// This is additive and does not replace the existing AI analysis routes.
+// The core engine is now v1.1.x; the previous v1.0 engine remains available as a rollback artifact.
 router.get('/symbol/:symbol', async function (req, res) {
   try {
     var symbol = String(req.params.symbol || '').trim();
@@ -45,7 +45,7 @@ router.get('/symbol/:symbol', async function (req, res) {
         fetchedAt: data.fetchedAt,
         engine: {
           name: 'deterministic-technical-analysis',
-          version: result.version || '1.0.0',
+          version: result.version || '1.1.1',
           deterministic: true
         }
       }
