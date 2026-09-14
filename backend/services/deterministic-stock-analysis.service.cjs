@@ -3,241 +3,167 @@
 const provider = require('./analysis-data.provider.cjs');
 const technical = require('./technical-analysis.v11.service.cjs');
 
-function toNumber(value, fallback = 0) {
+function num(value) {
   const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
+  return Number.isFinite(n) ? n : null;
 }
 
-function firstNumber(...values) {
+function first(...values) {
   for (const value of values) {
-    const n = Number(value);
-    if (Number.isFinite(n)) return n;
+    const n = num(value);
+    if (n !== null) return n;
   }
   return null;
 }
 
-function buildDataQualityWarning(quality) {
-  if (!quality || !Number.isFinite(Number(quality.coverageRatio))) return null;
-  const coverage = Number(quality.coverageRatio);
-  if (coverage >= 0.75) return null;
-
-  const raw = toNumber(quality.rawHistoryCount, 0);
-  const valid = toNumber(quality.candleCount, 0);
-  const invalid = toNumber(quality.invalidCandleCount, Math.max(0, raw - valid));
-  const percent = (coverage * 100).toFixed(1);
-
-  return `هشدار کیفیت داده: از ${raw} رکورد تاریخچه، ${valid} کندل دارای OHLC معتبر بوده و ${invalid} رکورد حذف شده است؛ پوشش OHLC برابر ${percent}٪ است. نتایج تکنیکال بر اساس کندل‌های معتبر محاسبه شده‌اند.`;
+function qualityWarning(q) {
+  if (!q || !Number.isFinite(Number(q.coverageRatio)) || Number(q.coverageRatio) >= 0.75) return null;
+  const raw = Number(q.rawHistoryCount || 0);
+  const valid = Number(q.candleCount || 0);
+  const invalid = Number(q.invalidCandleCount || Math.max(0, raw - valid));
+  return `هشدار کیفیت داده: از ${raw} رکورد، ${valid} کندل معتبر و ${invalid} رکورد نامعتبر بوده است؛ پوشش OHLC برابر ${(Number(q.coverageRatio) * 100).toFixed(1)}٪ است.`;
 }
 
-function buildTechnicalSummary(result, qualityWarning) {
-  const trend = result.trend || 'خنثی';
-  const recommendation = result.recommendation || 'نگهداری';
-  const score = toNumber(result.score, 0);
-  const rsi = toNumber(result.indicators?.rsi, 0);
-  const macd = toNumber(result.indicators?.macd?.line, 0);
-  const volumeRatio = toNumber(result.indicators?.volume?.ratio, 0);
-
-  const summary = [
-    `روند سهم ${trend} است و امتیاز تکنیکال ${score} از ۱۰۰ ثبت شده است.`,
-    `RSI برابر ${rsi.toFixed(2)} و MACD برابر ${macd.toFixed(2)} است.`,
-    `نسبت حجم معاملات به میانگین برابر ${volumeRatio.toFixed(2)} است.`,
-    `سیگنال موتور تکنیکال: ${recommendation}.`,
-  ];
-
-  if (qualityWarning) summary.push(qualityWarning);
-  return summary.join(' ');
-}
-
-function buildRiskLevel(result) {
-  const warnings = Array.isArray(result.riskWarnings) ? result.riskWarnings.length : 0;
-  const score = toNumber(result.score, 50);
-  if (warnings >= 2 || score < 35) return 'زیاد';
-  if (warnings === 1 || score < 50 || score > 80) return 'متوسط';
-  return 'کم';
-}
-
-function buildDailySummary(market, candle, currentPrice, closingPrice) {
-  const source = market && typeof market === 'object' ? market : {};
-  const close = firstNumber(source.closingPrice, source.close, closingPrice, candle?.close, currentPrice);
-  const last = firstNumber(source.lastPrice, source.lastTradedPrice, source.currentPrice, currentPrice, close);
-  const yesterday = firstNumber(source.yesterdayClose, source.previousClose, source.yesterday);
-  const changePercent = firstNumber(
-    source.lastChangePercent,
-    source.priceChangePercent,
-    yesterday !== null && yesterday !== 0 && last !== null ? ((last - yesterday) / yesterday) * 100 : null
-  );
-
+function normalizeMoneyFlow(market) {
+  const flow = market?.moneyFlow || {};
+  const real = flow.real || {};
+  const legal = flow.legal || flow.institutional || {};
+  const realNet = first(market.realMoneyFlow, real.netValue, real.net);
+  const legalNet = first(market.legalMoneyFlow, legal.netValue, legal.net);
+  const net = first(flow.netValue, flow.net, market.moneyFlowNet, realNet !== null && legalNet !== null ? realNet + legalNet : null);
   return {
-    date: candle?.date || source.date || new Date().toISOString(),
-    openingPrice: firstNumber(source.openingPrice, source.open, candle?.open),
-    high: firstNumber(source.highPrice, source.high, candle?.high),
-    low: firstNumber(source.lowPrice, source.low, candle?.low),
-    closingPrice: close,
-    lastTradedPrice: last,
-    priceChangePercent: changePercent,
-    tradedVolume: firstNumber(source.tradedVolume, source.volume, candle?.volume),
-    tradedValue: firstNumber(source.tradedValue, source.value, candle?.value),
-    pe: firstNumber(source.pe),
-    eps: firstNumber(source.eps),
-    marketCap: firstNumber(source.marketCap),
+    net,
+    real: { inflow: first(real.inflow, real.buyValue), outflow: first(real.outflow, real.sellValue), net: realNet },
+    legal: { inflow: first(legal.inflow, legal.buyValue), outflow: first(legal.outflow, legal.sellValue), net: legalNet },
   };
 }
 
-function buildMarketData(marketData, result) {
-  const market = marketData.market && typeof marketData.market === 'object' ? marketData.market : {};
-  const candles = Array.isArray(marketData.candles) ? marketData.candles : [];
-  const latest = candles.length ? candles[candles.length - 1] : null;
-
-  const currentPrice = firstNumber(
-    result.currentPrice,
-    market.lastPrice,
-    market.lastTradedPrice,
-    market.currentPrice,
-    market.closingPrice,
-    latest?.close
-  );
-  const closingPrice = firstNumber(market.closingPrice, market.close, latest?.close, currentPrice);
-  const lastTradedPrice = firstNumber(market.lastPrice, market.lastTradedPrice, market.currentPrice, currentPrice);
-
-  const moneyFlow = market.moneyFlow ?? null;
-  const realMoneyFlow = market.realMoneyFlow ?? moneyFlow?.real ?? null;
-  const legalMoneyFlow = market.legalMoneyFlow ?? moneyFlow?.legal ?? null;
+function buildMarketData(data) {
+  const market = data.market || {};
+  const candles = Array.isArray(data.candles) ? data.candles : [];
+  const latest = candles[candles.length - 1] || null;
+  const currentPrice = first(market.lastPrice, market.lastTradedPrice, market.pDrCotVal, market.pl, market.currentPrice, market.price?.last);
+  const closingPrice = first(market.closingPrice, market.closePrice, market.pClosing, market.pc, market.close, market.price?.closing);
+  const lastTradedPrice = first(market.lastPrice, market.lastTradedPrice, market.pDrCotVal, market.pl, currentPrice);
+  const moneyFlow = normalizeMoneyFlow(market);
+  const adjusted = Array.isArray(data.adjustedDailyCandles) && data.adjustedDailyCandles.length ? data.adjustedDailyCandles : candles;
 
   return {
     ...market,
+    currentPrice,
     closingPrice,
     lastClosePrice: closingPrice,
     lastTradedPrice,
-    currentPrice,
-    closingPriceChangePercent: firstNumber(market.closingChangePercent, market.priceChangePercent, market.pct),
-    lastPriceChangePercent: firstNumber(market.lastChangePercent, market.priceChangePercent),
-    pe: firstNumber(market.pe),
-    eps: firstNumber(market.eps),
-    marketCap: firstNumber(market.marketCap),
-    tradedVolume: firstNumber(market.tradedVolume, market.volume),
-    tradedValue: firstNumber(market.tradedValue, market.value, market.tradeValue),
+    pe: first(market.pe, market.fundamental?.pe),
+    eps: first(market.eps, market.fundamental?.eps),
+    marketCap: first(market.marketCap, market.fundamental?.marketCap),
+    tradedVolume: first(market.tradedVolume, market.volume, market.trading?.volume),
+    tradedValue: first(market.tradedValue, market.value, market.tradeValue, market.trading?.value),
     moneyFlow,
-    realMoneyFlow,
-    legalMoneyFlow,
+    realMoneyFlow: moneyFlow.real.net,
+    legalMoneyFlow: moneyFlow.legal.net,
     dailyCandles: candles,
-    adjustedDailyCandles: candles,
-    hasAnyAdjustedDailyRawSource: candles.length > 0,
+    adjustedDailyCandles: adjusted,
     dailyCandle: latest,
-    adjustedDailyCandle: latest,
-    dailySummary: buildDailySummary(market, latest, currentPrice, closingPrice),
-    marketMetrics: market.marketMetrics ?? null,
+    adjustedDailyCandle: adjusted[adjusted.length - 1] || latest,
+    dailySummary: {
+      date: latest?.date || market.date || data.fetchedAt,
+      openingPrice: first(market.openingPrice, market.open, latest?.open),
+      high: first(market.highPrice, market.high, latest?.high),
+      low: first(market.lowPrice, market.low, latest?.low),
+      average: first(market.averagePrice, market.price?.average),
+      closingPrice,
+      lastTradedPrice,
+      priceChangePercent: first(market.closingPriceChangePercent, market.closeChangePercent, market.pcp),
+      tradedVolume: first(market.tradedVolume, market.volume, latest?.volume),
+      tradedValue: first(market.tradedValue, market.value, latest?.value),
+      pe: first(market.pe),
+      eps: first(market.eps),
+      marketCap: first(market.marketCap),
+      moneyFlow: moneyFlow.net,
+      realMoneyFlow: moneyFlow.real.net,
+      legalMoneyFlow: moneyFlow.legal.net,
+    },
+    marketMetrics: market.marketMetrics || null,
   };
 }
 
 function buildSignals(result) {
-  const support = firstNumber(result.supportResistance?.support);
-  const resistance = firstNumber(result.supportResistance?.resistance);
-
-  const entryPoints = support !== null
-    ? [{ price: support, reason: 'حمایت تکنیکال اخیر' }]
-    : [];
-  const exitPoints = resistance !== null
-    ? [{ price: resistance, reason: 'مقاومت تکنیکال اخیر' }]
-    : [];
-
-  const stopLoss = support !== null && support > 0 ? Math.round(support * 0.97) : null;
-  const targets = resistance !== null ? { target1: resistance } : {};
-
-  return { entryPoints, exitPoints, stopLoss, targets };
+  const support = first(result.supportResistance?.support);
+  const resistance = first(result.supportResistance?.resistance);
+  return {
+    entryPoints: support === null ? [] : [{ price: support, reason: 'حمایت تکنیکال اخیر' }],
+    exitPoints: resistance === null ? [] : [{ price: resistance, reason: 'مقاومت تکنیکال اخیر' }],
+    stopLoss: support !== null && support > 0 ? Math.round(support * 0.97) : null,
+    targets: resistance === null ? {} : { target1: resistance },
+  };
 }
 
 async function analyzeStock(params = {}) {
   const symbol = String(params.symbol || params.stock || '').trim();
-  if (!symbol) {
-    const error = new Error('نماد سهم برای تحلیل مشخص نیست.');
-    error.statusCode = 400;
-    error.code = 'SYMBOL_REQUIRED';
-    throw error;
+  if (!symbol) throw Object.assign(new Error('نماد سهم برای تحلیل مشخص نیست.'), { statusCode: 400, code: 'SYMBOL_REQUIRED' });
+
+  const historyCount = Math.max(50, Math.min(500, Number(params.historyCount ?? params.dailyCount ?? 120)));
+  const data = await provider.getMarketData(symbol, { historyCount });
+  if (!data.dataQuality?.deterministicReady) {
+    throw Object.assign(new Error('تاریخچه معتبر برای تحلیل تکنیکال کافی نیست.'), { statusCode: 422, code: 'INSUFFICIENT_VALID_HISTORY', dataQuality: data.dataQuality, source: data.sources });
   }
 
-  const historyCount = Math.max(50, Math.min(500, toNumber(params.historyCount ?? params.dailyCount, 120)));
-  const lookback = params.lookback === undefined ? undefined : toNumber(params.lookback, undefined);
-  const rsiPeriod = params.rsiPeriod === undefined ? undefined : toNumber(params.rsiPeriod, undefined);
-
-  const marketData = await provider.getMarketData(symbol, { historyCount });
-  const quality = marketData.dataQuality || {};
-
-  if (!quality.deterministicReady) {
-    const error = new Error('تاریخچه معتبر برای تحلیل تکنیکال کافی نیست.');
-    error.statusCode = 422;
-    error.code = 'INSUFFICIENT_VALID_HISTORY';
-    error.dataQuality = quality;
-    error.source = marketData.sources;
-    throw error;
-  }
-
-  const result = technical.analyze(marketData.candles, {
-    lookback,
-    rsiPeriod,
+  const result = technical.analyze(data.candles, {
+    lookback: params.lookback === undefined ? undefined : Number(params.lookback),
+    rsiPeriod: params.rsiPeriod === undefined ? undefined : Number(params.rsiPeriod),
   });
-
-  const recommendationMap = {
-    'خرید': 'BUY',
-    'فروش': 'SELL',
-    'نگهداری': 'HOLD',
-  };
-
-  const dataQualityWarning = buildDataQualityWarning(quality);
-  const technicalSummary = buildTechnicalSummary(result, dataQualityWarning);
-  const responseMarketData = buildMarketData(marketData, result);
+  const marketData = buildMarketData(data);
   const signals = buildSignals(result);
+  const warning = qualityWarning(data.dataQuality);
+  const fundamental = data.fundamentalAnalysis || {};
+  const fundamentalScore = num(fundamental.score);
+  const technicalScore = num(result.score) ?? 0;
+  const recommendationFa = result.recommendation || 'نگهداری';
+  const recommendation = recommendationFa === 'خرید' ? 'BUY' : recommendationFa === 'فروش' ? 'SELL' : 'HOLD';
+  const summary = [`روند سهم ${result.trend || 'خنثی'} است و امتیاز تکنیکال ${technicalScore} از ۱۰۰ ثبت شده است.`, `سیگنال موتور تکنیکال: ${recommendationFa}.`];
+  if (warning) summary.push(warning);
 
   return {
     success: true,
-    symbol: marketData.symbol,
-    recommendation: recommendationMap[result.recommendation] || 'HOLD',
-    recommendationFa: result.recommendation || 'نگهداری',
-    currentPrice: toNumber(result.currentPrice, 0),
-    closingPrice: responseMarketData.closingPrice ?? toNumber(result.currentPrice, 0),
-    score: toNumber(result.score, 0),
-    confidence: Math.min(100, Math.max(0, toNumber(result.score, 0))),
+    symbol: data.symbol,
+    recommendation,
+    recommendationFa,
+    currentPrice: marketData.currentPrice,
+    closingPrice: marketData.closingPrice,
+    score: technicalScore,
+    confidence: Math.max(0, Math.min(100, technicalScore)),
     trend: result.trend || 'خنثی',
-    riskLevel: buildRiskLevel(result),
-    summary: technicalSummary,
-    technicalAnalysis: technicalSummary,
-    fundamentalAnalysis: 'داده بنیادی تفصیلی در حال حاضر از CODAL پیکربندی نشده است؛ امتیاز بنیادی عمداً محاسبه نشده است.',
-    scores: {
-      fundamentalScore: null,
-      technicalScore: toNumber(result.score, 0),
-    },
+    riskLevel: Array.isArray(result.riskWarnings) && result.riskWarnings.length > 1 ? 'زیاد' : 'متوسط',
+    summary: summary.join(' '),
+    technicalAnalysis: summary.join(' '),
+    fundamentalAnalysis: String(fundamental.reason || 'برای محاسبه امتیاز بنیادی، داده عددی معتبر از صورت‌های مالی CODAL در دسترس نیست.'),
+    scores: { fundamentalScore, technicalScore },
     signals,
     entryPoints: signals.entryPoints,
     exitPoints: signals.exitPoints,
     stopLoss: signals.stopLoss,
     targets: signals.targets,
-    marketData: responseMarketData,
-    marketMetrics: responseMarketData.marketMetrics,
-    dailySummary: responseMarketData.dailySummary,
-    adjustedDailyCandle: responseMarketData.adjustedDailyCandle,
+    marketData,
+    marketMetrics: marketData.marketMetrics,
+    dailySummary: marketData.dailySummary,
+    adjustedDailyCandle: marketData.adjustedDailyCandle,
     indicators: result.indicators,
     supportResistance: result.supportResistance,
     riskWarnings: result.riskWarnings || [],
-    dataQualityWarnings: dataQualityWarning ? [dataQualityWarning] : [],
+    dataQualityWarnings: warning ? [warning] : [],
     reasons: result.reasons || [],
     scoreBreakdown: result.scoreBreakdown || [],
     indicatorQuality: result.indicatorQuality || 'نامشخص',
     deterministic: true,
-    engine: {
-      name: 'deterministic-technical-analysis',
-      version: result.version || '1.1.1',
-      deterministic: true,
-    },
-    dataQuality: quality,
-    source: marketData.sources,
-    fetchedAt: marketData.fetchedAt,
-    priceHistory: {
-      daily: Array.isArray(marketData.candles) ? marketData.candles : [],
-      weekly: [],
-    },
-    analysisDate: marketData.fetchedAt || new Date().toISOString(),
+    engine: { name: 'deterministic-technical-analysis', version: result.version || '1.1.1', deterministic: true },
+    dataQuality: data.dataQuality,
+    source: data.sources,
+    fetchedAt: data.fetchedAt,
+    fundamentalMeta: data.meta?.fundamentalAnalysis || null,
+    priceHistory: { daily: data.candles, adjustedDaily: marketData.adjustedDailyCandles, weekly: [] },
+    analysisDate: data.fetchedAt || new Date().toISOString(),
   };
 }
 
-module.exports = {
-  analyzeStock,
-};
+module.exports = { analyzeStock };
