@@ -1,17 +1,14 @@
 'use strict';
 
 /**
- * Downloads and extracts structured numeric data from CODAL financial
- * attachments. Excel is preferred because it preserves tabular values.
+ * Bounded CODAL financial-document downloader and Excel extractor.
  *
- * Security boundaries:
- * - HTTPS is required by default.
- * - Hosts must be in CODAL_DOCUMENT_ALLOWED_HOSTS when configured.
- * - Response size and timeout are bounded.
- * - No URL containing credentials is followed.
+ * The backend intentionally avoids adding a new runtime dependency here.
+ * XLSX is a ZIP container, so this reader uses Node's built-in zlib and
+ * parses the worksheet XML needed for financial tables.
  */
 
-const XLSX = require('xlsx');
+const zlib = require('zlib');
 
 const DEFAULT_TIMEOUT_MS = 20000;
 const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
@@ -80,7 +77,7 @@ function validateDocumentUrl(rawUrl) {
   return { ok: true, url };
 }
 
-async function downloadDocument(rawUrl, options = {}) {
+async function downloadDocument(rawUrl) {
   const validation = validateDocumentUrl(rawUrl);
   if (!validation.ok) {
     throw new Error(`CODAL document URL rejected: ${validation.reason}`);
@@ -134,26 +131,156 @@ function looksLikeExcel(contentType, url) {
     || /\.(xlsx|xls)(?:$|[?#])/i.test(url);
 }
 
+function findEndOfCentralDirectory(buffer) {
+  const start = Math.max(0, buffer.length - 65557);
+  for (let offset = buffer.length - 22; offset >= start; offset -= 1) {
+    if (buffer.readUInt32LE(offset) === 0x06054b50) return offset;
+  }
+  throw new Error('Invalid XLSX ZIP: end of central directory not found');
+}
+
+function extractZipEntries(buffer) {
+  const eocd = findEndOfCentralDirectory(buffer);
+  const entryCount = buffer.readUInt16LE(eocd + 10);
+  const centralSize = buffer.readUInt32LE(eocd + 12);
+  const centralOffset = buffer.readUInt32LE(eocd + 16);
+  const entries = new Map();
+  let cursor = centralOffset;
+  const centralEnd = centralOffset + centralSize;
+
+  for (let index = 0; index < entryCount && cursor < centralEnd; index += 1) {
+    if (buffer.readUInt32LE(cursor) !== 0x02014b50) {
+      throw new Error('Invalid XLSX ZIP: central directory entry not found');
+    }
+
+    const method = buffer.readUInt16LE(cursor + 10);
+    const compressedSize = buffer.readUInt32LE(cursor + 20);
+    const uncompressedSize = buffer.readUInt32LE(cursor + 24);
+    const nameLength = buffer.readUInt16LE(cursor + 28);
+    const extraLength = buffer.readUInt16LE(cursor + 30);
+    const commentLength = buffer.readUInt16LE(cursor + 32);
+    const localOffset = buffer.readUInt32LE(cursor + 42);
+    const name = buffer.slice(cursor + 46, cursor + 46 + nameLength).toString('utf8');
+
+    if (compressedSize > 32 * 1024 * 1024 || uncompressedSize > 64 * 1024 * 1024) {
+      throw new Error('XLSX entry exceeds safety limits');
+    }
+
+    const localNameLength = buffer.readUInt16LE(localOffset + 26);
+    const localExtraLength = buffer.readUInt16LE(localOffset + 28);
+    const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+    const compressed = buffer.slice(dataStart, dataStart + compressedSize);
+
+    let content;
+    if (method === 0) content = compressed;
+    else if (method === 8) content = zlib.inflateRawSync(compressed);
+    else throw new Error(`Unsupported XLSX compression method: ${method}`);
+
+    if (content.length !== uncompressedSize) {
+      throw new Error(`Invalid XLSX entry size for ${name}`);
+    }
+
+    entries.set(name, content);
+    cursor += 46 + nameLength + extraLength + commentLength;
+  }
+
+  return entries;
+}
+
+function decodeXml(value) {
+  return String(value || '')
+    .replace(/&#(x[0-9a-f]+|[0-9]+);/gi, (_, code) => {
+      const number = code.toLowerCase().startsWith('x')
+        ? parseInt(code.slice(1), 16)
+        : parseInt(code, 10);
+      return Number.isFinite(number) ? String.fromCodePoint(number) : '';
+    })
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
+function attr(tag, name) {
+  const expression = new RegExp(`${name}=["']([^"']*)["']`, 'i');
+  const match = String(tag || '').match(expression);
+  return match ? decodeXml(match[1]) : null;
+}
+
+function parseSharedStrings(xml) {
+  if (!xml) return [];
+  return [...xml.matchAll(/<si\b[\s\S]*?<\/si>/g)].map((match) => {
+    return [...match[0].matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)]
+      .map((item) => decodeXml(item[1]))
+      .join('');
+  });
+}
+
+function columnIndex(column) {
+  let result = 0;
+  for (const char of String(column || '').toUpperCase()) {
+    if (char < 'A' || char > 'Z') continue;
+    result = result * 26 + (char.charCodeAt(0) - 64);
+  }
+  return Math.max(0, result - 1);
+}
+
+function parseWorksheet(xml, sharedStrings) {
+  const rows = [];
+  const rowMatches = [...String(xml || '').matchAll(/<row\b([^>]*)>([\s\S]*?)<\/row>/g)];
+
+  for (const rowMatch of rowMatches) {
+    const rowNumber = Number(attr(rowMatch[1], 'r')) || rows.length + 1;
+    const row = [];
+    const cells = [...rowMatch[2].matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)];
+
+    for (const cellMatch of cells) {
+      const attributes = cellMatch[1];
+      const body = cellMatch[2];
+      const reference = attr(attributes, 'r') || '';
+      const column = reference.replace(/[0-9]/g, '');
+      const index = columnIndex(column);
+      const type = attr(attributes, 't');
+      const valueMatch = body.match(/<v\b[^>]*>([\s\S]*?)<\/v>/);
+      const inlineMatch = body.match(/<is\b[\s\S]*?<t\b[^>]*>([\s\S]*?)<\/t>[\s\S]*?<\/is>/);
+      let value = valueMatch ? decodeXml(valueMatch[1]) : null;
+
+      if (type === 's' && value !== null) {
+        const sharedIndex = Number(value);
+        value = Number.isInteger(sharedIndex) ? (sharedStrings[sharedIndex] || '') : '';
+      } else if (type === 'inlineStr') {
+        value = inlineMatch ? decodeXml(inlineMatch[1]) : '';
+      } else if (value !== null) {
+        const numeric = parseNumber(value);
+        if (numeric !== null) value = numeric;
+      }
+
+      row[index] = value;
+    }
+
+    rows[rowNumber - 1] = row;
+  }
+
+  return rows.filter((row) => Array.isArray(row));
+}
+
 function extractExcelRows(buffer) {
-  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: false, raw: true });
+  const entries = extractZipEntries(buffer);
+  const sharedStrings = parseSharedStrings(
+    entries.has('xl/sharedStrings.xml') ? entries.get('xl/sharedStrings.xml').toString('utf8') : ''
+  );
   const sheets = [];
 
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, {
-      header: 1,
-      raw: true,
-      defval: null,
-      blankrows: false,
-    });
-
+  for (const [name, content] of entries) {
+    if (!/^xl\/worksheets\/sheet\d+\.xml$/i.test(name)) continue;
     sheets.push({
-      name: sheetName,
-      rows: rows.slice(0, 2000),
+      name,
+      rows: parseWorksheet(content.toString('utf8'), sharedStrings).slice(0, 2000),
     });
   }
 
-  return sheets;
+  return sheets.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 const METRIC_PATTERNS = {
@@ -246,6 +373,7 @@ module.exports = {
   parseNumber,
   validateDocumentUrl,
   downloadDocument,
+  extractZipEntries,
   extractExcelRows,
   findMetricValues,
   extractFinancialDataFromExcel,
