@@ -77,6 +77,16 @@ type UnifiedAnalysisResult = AnalysisResult & {
   ontology_version?: string;
   rawData?: unknown;
   marketMetrics?: AnalysisMarketMetrics;
+
+  // Deterministic technical-analysis metadata
+  dataQuality?: unknown;
+  dataQualityWarnings?: string[];
+  deterministic?: boolean;
+  engine?: {
+    name: string;
+    version: string;
+    deterministic: boolean;
+  };
 };
 
 type NormalizedAnalysis = {
@@ -751,6 +761,21 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     ontology_version: source.ontology_version,
     risk_level: source.risk_level,
     marketMetrics: mergedMetrics,
+    // Preserve deterministic analysis metadata from the backend
+    dataQuality: source.dataQuality,
+    dataQualityWarnings: Array.isArray(source.dataQualityWarnings)
+      ? source.dataQualityWarnings.filter((item: unknown): item is string => typeof item === 'string')
+      : [],
+    deterministic: source.deterministic,
+    engine: source.engine,
+
+    recommendationFa: source.recommendationFa,
+    indicators: source.indicators,
+    supportResistance: source.supportResistance,
+    riskWarnings: source.riskWarnings,
+    scoreBreakdown: source.scoreBreakdown,
+    reasons: source.reasons,
+    source: source.source,
 
     marketData: {
       closingPrice,
