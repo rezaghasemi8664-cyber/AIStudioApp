@@ -14,6 +14,23 @@ const getStoredToken = (): string | null => {
   return null;
 };
 
+function normalizeMoneyFlowPayload(payload: any): any {
+  const data = payload?.data;
+  const market = data?.market ?? data?.marketData ?? payload?.marketData ?? data;
+  if (!market || typeof market !== 'object') return payload;
+
+  const realNet = Number(market.realMoneyFlow ?? market.realMoneyFlow?.net);
+  if (!Number.isFinite(realNet)) return payload;
+
+  if (market.moneyFlow && typeof market.moneyFlow === 'object') {
+    market.moneyFlow = { ...market.moneyFlow, net: realNet };
+  }
+  market.netMoneyFlow = realNet;
+  market.moneyFlowNet = realNet;
+
+  return payload;
+}
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
@@ -37,7 +54,10 @@ api.interceptors.request.use(
 );
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    response.data = normalizeMoneyFlowPayload(response.data);
+    return response;
+  },
   (error: AxiosError) => {
     const status = error.response?.status;
 
