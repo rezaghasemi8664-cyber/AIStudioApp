@@ -5,8 +5,7 @@
  *
  * This layer deliberately delegates market-data access to the existing BRS
  * service instead of changing that service. Codal is exposed as an optional
- * fundamental provider and remains disabled until its real API contract is
- * configured.
+ * fundamental provider and remains disabled until its real API contract is configured.
  */
 
 var brs = require('./brs.service.cjs');
@@ -30,24 +29,58 @@ function getMeta(result) {
   return result && result._meta ? result._meta : null;
 }
 
-function countValidCandles(history) {
-  return asArray(history).filter(function (item) {
-    if (!item || typeof item !== 'object') return false;
-    var close = Number(item.close != null ? item.close : item.last);
-    return Number.isFinite(close) && close > 0;
-  }).length;
+function toFinite(value) {
+  var number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
-function buildQuality(history, marketResult, fundamentalStatus) {
-  var candleCount = countValidCandles(history);
+function normalizeCandles(history) {
+  return asArray(history).map(function (item) {
+    if (!item || typeof item !== 'object') return null;
+
+    var close = toFinite(item.close != null ? item.close : item.last);
+    var open = toFinite(item.open);
+    var high = toFinite(item.high);
+    var low = toFinite(item.low);
+    var volume = toFinite(item.volume != null ? item.volume : item.tradedVolume);
+
+    // Technical indicators require a real OHLC candle. Do not let the
+    // historical fallback's zero-OHLC placeholder rows contaminate ATR,
+    // Bollinger, support/resistance or future volume indicators.
+    if (close == null || close <= 0) return null;
+    if (open == null || high == null || low == null) return null;
+    if (open <= 0 || high <= 0 || low <= 0) return null;
+    if (high < low || high < open || high < close || low > open || low > close) return null;
+
+    return {
+      date: item.date || null,
+      time: item.time || null,
+      open: open,
+      high: high,
+      low: low,
+      close: close,
+      last: toFinite(item.last),
+      yesterday: toFinite(item.yesterday),
+      volume: volume != null && volume >= 0 ? volume : 0,
+      value: toFinite(item.value != null ? item.value : item.tradedValue),
+      tradeCount: toFinite(item.tradeCount != null ? item.tradeCount : item.count)
+    };
+  }).filter(Boolean);
+}
+
+function buildQuality(candles, history, marketResult, fundamentalStatus) {
+  var rawCount = asArray(history).length;
+  var candleCount = candles.length;
   var marketAvailable = !!unwrap(marketResult);
   var fundamentalConfigured = !!(fundamentalStatus && fundamentalStatus.configured && fundamentalStatus.enabled);
+  var invalidCandleCount = Math.max(0, rawCount - candleCount);
 
   var score = 0;
   if (marketAvailable) score += 30;
-  if (candleCount >= 20) score += 40;
-  else if (candleCount >= 10) score += 25;
-  else if (candleCount >= 5) score += 15;
+  if (candleCount >= 50) score += 40;
+  else if (candleCount >= 20) score += 35;
+  else if (candleCount >= 10) score += 20;
+  else if (candleCount >= 5) score += 10;
   if (fundamentalConfigured) score += 30;
 
   var level = score >= 80 ? 'عالی' : score >= 55 ? 'متوسط' : 'ضعیف';
@@ -56,12 +89,15 @@ function buildQuality(history, marketResult, fundamentalStatus) {
     score: score,
     level: level,
     marketAvailable: marketAvailable,
+    rawHistoryCount: rawCount,
     candleCount: candleCount,
+    invalidCandleCount: invalidCandleCount,
     fundamentalAvailable: fundamentalConfigured,
-    deterministicReady: candleCount >= 5,
+    deterministicReady: candleCount >= 20,
     reasons: [
       marketAvailable ? 'داده بازار دریافت شد' : 'داده بازار در دسترس نیست',
-      candleCount >= 20 ? 'تاریخچه کافی برای شاخص‌های اصلی وجود دارد' : 'تاریخچه برای برخی شاخص‌ها کافی نیست',
+      candleCount >= 50 ? 'تاریخچه معتبر برای شاخص‌های اصلی کافی است' : candleCount >= 20 ? 'تاریخچه معتبر برای شاخص‌های اصلی قابل استفاده است' : 'تاریخچه معتبر برای برخی شاخص‌ها کافی نیست',
+      invalidCandleCount > 0 ? 'ردیف‌های فاقد OHLC معتبر از محاسبات تکنیکال حذف شدند' : 'تمام کندل‌های دریافتی OHLC معتبر دارند',
       fundamentalConfigured ? 'داده بنیادی در دسترس است' : 'داده بنیادی هنوز پیکربندی نشده است'
     ]
   };
@@ -85,14 +121,16 @@ async function getMarketData(symbol, options) {
   var historyResult = results[1];
   var market = unwrap(marketResult);
   var history = asArray(unwrap(historyResult));
+  var candles = normalizeCandles(history);
   var fundamentalStatus = codal.getStatus();
 
   return {
     symbol: symbolClean,
     market: market,
     history: history,
+    candles: candles,
     fundamental: null,
-    dataQuality: buildQuality(history, marketResult, fundamentalStatus),
+    dataQuality: buildQuality(candles, history, marketResult, fundamentalStatus),
     sources: {
       market: 'BRS',
       history: 'BRS',
@@ -109,7 +147,7 @@ async function getMarketData(symbol, options) {
 function getProviderStatus() {
   return {
     provider: 'analysis-data',
-    version: '1.0.0',
+    version: '1.1.0',
     market: {
       provider: 'BRS',
       enabled: true,
