@@ -2,8 +2,8 @@ import type { AnalysisDataQuality } from '../types';
 
 // Deterministic analysis quality is intentionally shown separately from the trading signal.
 type Props = {
-  dataQuality?: AnalysisDataQuality | null;
-  warnings?: string[];
+  dataQuality?: unknown;
+  warnings?: unknown;
 };
 
 function fa(value: number | string | null | undefined, digits = 0): string {
@@ -23,7 +23,19 @@ function levelLabel(level?: string): string {
   }
 }
 
-export default function AnalysisDataQualityCard({ dataQuality, warnings = [] }: Props) {
+function asQuality(value: unknown): AnalysisDataQuality | null | undefined {
+  if (!value || typeof value !== 'object') return value as null | undefined;
+  return value as AnalysisDataQuality;
+}
+
+function asWarnings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+export default function AnalysisDataQualityCard({ dataQuality: rawDataQuality, warnings: rawWarnings }: Props) {
+  const dataQuality = asQuality(rawDataQuality);
+  const warnings = asWarnings(rawWarnings);
+
   if (!dataQuality) return null;
 
   const coverage = Math.max(0, Math.min(1, Number(dataQuality.coverageRatio) || 0));
