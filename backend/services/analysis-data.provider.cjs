@@ -108,23 +108,32 @@ function buildQuality(candles, history, marketResult, fundamentalStatus, history
   var fallbackUsed = !!(historyMeta && historyMeta.fallback && historyMeta.fallback.used);
   var stale = !!(historyMeta && historyMeta.stale);
 
-  var score = 0;
-  if (marketAvailable) score += 30;
-  if (candleCount >= 50) score += 40;
-  else if (candleCount >= 20) score += 35;
-  else if (candleCount >= 10) score += 20;
-  else if (candleCount >= 5) score += 10;
-  if (fundamentalConfigured) score += 30;
+  // Keep the existing readiness rule (20 valid candles) but make the quality
+  // score reflect OHLC coverage instead of treating 50 valid candles as fully
+  // healthy regardless of how many raw rows were rejected.
+  var marketPoints = marketAvailable ? 30 : 0;
+  var historyBasePoints = candleCount >= 50 ? 40 : candleCount >= 20 ? 35 : candleCount >= 10 ? 20 : candleCount >= 5 ? 10 : 0;
+  var historyPoints = Math.round(historyBasePoints * coverageRatio);
+  var fundamentalPoints = fundamentalConfigured ? 30 : 0;
+  var score = Math.max(0, Math.min(100, marketPoints + historyPoints + fundamentalPoints));
 
-  // Coverage/fallback/staleness are reported separately from the base score
-  // for now, so existing readiness thresholds remain backward compatible.
-  var level = score >= 80 ? 'عالی' : score >= 55 ? 'متوسط' : 'ضعیف';
+  var level = coverageRatio >= 0.9 && score >= 80
+    ? 'عالی'
+    : coverageRatio >= 0.75 && score >= 60
+      ? 'خوب'
+      : coverageRatio >= 0.6 && score >= 45
+        ? 'متوسط'
+        : 'ضعیف';
 
   var reasons = [
     marketAvailable ? 'داده بازار دریافت شد' : 'داده بازار در دسترس نیست',
     candleCount >= 50 ? 'تاریخچه معتبر برای شاخص‌های اصلی کافی است' : candleCount >= 20 ? 'تاریخچه معتبر برای شاخص‌های اصلی قابل استفاده است' : 'تاریخچه معتبر برای برخی شاخص‌ها کافی نیست',
     invalidCandleCount > 0 ? 'ردیف‌های فاقد OHLC معتبر از محاسبات تکنیکال حذف شدند' : 'تمام کندل‌های دریافتی OHLC معتبر دارند',
-    coverageRatio < 0.8 && rawCount > 0 ? 'پوشش OHLC تاریخچه کمتر از ۸۰ درصد است' : 'پوشش OHLC تاریخچه مناسب است',
+    coverageRatio < 0.6 && rawCount > 0
+      ? 'پوشش OHLC تاریخچه ضعیف است'
+      : coverageRatio < 0.75 && rawCount > 0
+        ? 'پوشش OHLC تاریخچه متوسط است'
+        : 'پوشش OHLC تاریخچه مناسب است',
     fallbackUsed ? 'داده تاریخچه از مسیر جایگزین دریافت شده است' : 'داده تاریخچه از مسیر اصلی دریافت شده است',
     stale ? 'داده تاریخچه ممکن است قدیمی باشد' : 'داده تاریخچه تازه یا بدون وضعیت قدیمی بودن است',
     fundamentalConfigured ? 'داده بنیادی در دسترس است' : 'داده بنیادی هنوز پیکربندی نشده است'
@@ -192,7 +201,7 @@ async function getMarketData(symbol, options) {
 function getProviderStatus() {
   return {
     provider: 'analysis-data',
-    version: '1.2.0',
+    version: '1.3.0',
     market: {
       provider: 'BRS',
       enabled: true,
