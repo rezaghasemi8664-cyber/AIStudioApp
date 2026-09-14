@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 const express = require('express');
 const router = express.Router();
@@ -23,6 +23,13 @@ try {
   aiService = require('../services/ai.service.cjs');
 } catch (error) {
   console.error('[ANALYZE-ROUTES] AI service load failed:', error.message);
+}
+
+let deterministicStockService = null;
+try {
+  deterministicStockService = require('../services/deterministic-stock-analysis.service.cjs');
+} catch (error) {
+  console.error('[ANALYZE-ROUTES] Deterministic stock service load failed:', error.message);
 }
 
 const PERSIAN_COMPARE_CRITERIA = [
@@ -74,10 +81,41 @@ router.post('/', authMiddleware, function (req, res) {
   return res.status(503).json({ success: false, message: 'سرویس تحلیل در دسترس نیست.', code: 'ANALYZE_SERVICE_UNAVAILABLE', requestId: req.requestId });
 });
 
-router.post('/stock', authMiddleware, function (req, res) {
-  if (typeof ctrl.analyzeStock === 'function') return ctrl.analyzeStock(req, res);
-  if (typeof ctrl.analyze === 'function') return ctrl.analyze(req, res);
-  return res.status(503).json({ success: false, message: 'سرویس تحلیل سهم در دسترس نیست.', code: 'STOCK_ANALYSIS_UNAVAILABLE', requestId: req.requestId });
+router.post('/stock', authMiddleware, async function (req, res) {
+  try {
+    if (deterministicStockService && typeof deterministicStockService.analyzeStock === 'function') {
+      const body = req.body || {};
+      const result = await deterministicStockService.analyzeStock({
+        symbol: body.symbol || body.stock || body.stockSymbol || body.ticker,
+        dailyCount: body.dailyCount,
+        historyCount: body.historyCount,
+        lookback: body.lookback,
+        rsiPeriod: body.rsiPeriod,
+      });
+
+      return res.json({
+        success: true,
+        data: result,
+        deterministic: true,
+        engine: result.engine,
+        dataQuality: result.dataQuality,
+      });
+    }
+
+    if (typeof ctrl.analyzeStock === 'function') return ctrl.analyzeStock(req, res);
+    if (typeof ctrl.analyze === 'function') return ctrl.analyze(req, res);
+    return res.status(503).json({ success: false, message: 'سرویس تحلیل سهم در دسترس نیست.', code: 'STOCK_ANALYSIS_UNAVAILABLE', requestId: req.requestId });
+  } catch (error) {
+    console.error('[ANALYZE-ROUTES] Deterministic stock analysis error:', error.message);
+    return res.status(Number(error.statusCode) >= 400 ? Number(error.statusCode) : 500).json({
+      success: false,
+      message: error.message || 'خطا در تحلیل تکنیکال سهم',
+      code: error.code || 'STOCK_ANALYSIS_ERROR',
+      dataQuality: error.dataQuality,
+      source: error.source,
+      requestId: req.requestId,
+    });
+  }
 });
 
 router.post('/compare', authMiddleware, async function (req, res) {
