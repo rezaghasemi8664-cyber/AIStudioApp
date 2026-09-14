@@ -1,5 +1,6 @@
 import type { AnalysisDataQuality } from '../types';
 
+// Deterministic analysis quality is intentionally shown separately from the trading signal.
 type Props = {
   dataQuality?: AnalysisDataQuality | null;
   warnings?: string[];
