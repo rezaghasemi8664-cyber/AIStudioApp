@@ -32,6 +32,13 @@ try {
   console.error('[ANALYZE-ROUTES] Deterministic stock service load failed:', error.message);
 }
 
+let analysisDataProvider = null;
+try {
+  analysisDataProvider = require('../services/analysis-data.provider.cjs');
+} catch (error) {
+  console.error('[ANALYZE-ROUTES] Analysis data provider load failed:', error.message);
+}
+
 const PERSIAN_COMPARE_CRITERIA = [
   'خروجی مقایسه باید از ابتدا و در تمام فیلدهای متنی فقط به زبان فارسی تولید شود.',
   'تمام عنوان‌ها، خلاصه‌ها، تحلیل‌های تکنیکال و بنیادی، دلایل، نتیجه‌گیری‌ها، سطح ریسک و توصیه نهایی باید فارسی باشند.',
@@ -79,6 +86,33 @@ router.post('/', authMiddleware, function (req, res) {
   if (typeof ctrl.analyze === 'function') return ctrl.analyze(req, res);
   if (typeof ctrl.analyzeStock === 'function') return ctrl.analyzeStock(req, res);
   return res.status(503).json({ success: false, message: 'سرویس تحلیل در دسترس نیست.', code: 'ANALYZE_SERVICE_UNAVAILABLE', requestId: req.requestId });
+});
+
+// Expose the same deterministic data boundary used by /stock analysis.
+// This prevents the frontend from depending on an unmounted /analysis-data route.
+router.get('/stock-data/:symbol', authMiddleware, async function (req, res) {
+  try {
+    if (!analysisDataProvider || typeof analysisDataProvider.getMarketData !== 'function') {
+      return res.status(503).json({ success: false, message: 'سرویس داده تحلیل در دسترس نیست.', code: 'ANALYSIS_DATA_UNAVAILABLE' });
+    }
+
+    const symbol = String(req.params.symbol || '').trim();
+    if (!symbol) {
+      return res.status(400).json({ success: false, message: 'نماد سهم الزامی است.', code: 'SYMBOL_REQUIRED' });
+    }
+
+    const historyCount = Math.max(20, Math.min(120, Number(req.query.historyCount) || 30));
+    const data = await analysisDataProvider.getMarketData(symbol, { historyCount });
+    return res.json({ success: true, data });
+  } catch (error) {
+    console.error('[ANALYZE-ROUTES] Stock data error:', error.message);
+    return res.status(Number(error.statusCode) >= 400 ? Number(error.statusCode) : 500).json({
+      success: false,
+      message: error.message || 'خطا در دریافت داده تحلیل',
+      code: error.code || 'ANALYSIS_DATA_ERROR',
+      requestId: req.requestId,
+    });
+  }
 });
 
 router.post('/stock', authMiddleware, async function (req, res) {
