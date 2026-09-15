@@ -36,6 +36,7 @@ var env = {
   CORS_ORIGINS: corsRaw, CORS_ORIGIN: corsRaw, ALLOWED_ORIGINS: allowedOrigins,
   FRONTEND_PATH: process.env.FRONTEND_PATH || path.join(__dirname, '..', 'build'), FRONTEND_URL: process.env.FRONTEND_URL || '',
   JSON_LIMIT: process.env.JSON_LIMIT || '1mb', STATIC_MAX_AGE: toInt(process.env.STATIC_MAX_AGE, 31536000),
+  FARAZ_SMS_PLUGIN_ZIP: process.env.FARAZ_SMS_PLUGIN_ZIP || path.resolve(__dirname, '..', '..', 'temporary', 'faraz-sms-3.22.212.zip'),
   BRS_API_KEY: process.env.BRS_API_KEY || '', BRS_API_URL: process.env.BRS_SYMBOL_URL || process.env.BRS_API_URL || '',
   BRS_SYMBOL_URL: brsSymbolUrl, BRS_ALL_SYMBOLS_URL: brsAllSymbolsUrl, BRS_INDEX_URL: brsIndexUrl,
   BRS_HISTORY_URL: brsHistoryUrl, BRS_CANDLESTICK_URL: brsCandlestickUrl, BRS_AVAILABLE: !!process.env.BRS_API_KEY,
