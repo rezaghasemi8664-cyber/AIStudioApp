@@ -4,7 +4,7 @@ const DEFAULT_TIMEOUT_MS = 20000;
 const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
 function envNumber(name,fallback,min,max){const v=Number(process.env[name]);return Number.isFinite(v)?Math.min(max,Math.max(min,v)):fallback;}
 function normalizeDigits(v){return String(v??'').replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));}
-function normalizeText(v){return normalizeDigits(v).replace(/[\u200c\u200f\u200e]/g,' ').replace(/\s+/g,' ').trim();}
+function normalizeText(v){return normalizeDigits(v).replace(/[\u200c\u200f\u200e]/g,' ').replace(/[يى]/g,'ی').replace(/ك/g,'ک').replace(/ة/g,'ه').replace(/\s+/g,' ').trim();}
 function normalizeMetricLabel(v){return normalizeText(v).toLowerCase().replace(/[()\[\]{}،,؛:٫٬–—-]/g,' ').replace(/\s+/g,' ').trim();}
 function parseNumber(v){if(typeof v==='number'&&Number.isFinite(v))return v;const t=normalizeDigits(v).replace(/[٬،,]/g,'').replace(/\s+/g,'').replace(/[٪%]/g,'').trim();if(!t||t==='-'||t==='—')return null;const neg=/^\(.*\)$/.test(t)||t.startsWith('-');const c=t.replace(/[()]/g,'').replace(/[^0-9.+-]/g,'');if(!c||c==='-'||c==='.')return null;const n=Number(c);return Number.isFinite(n)?(neg?-Math.abs(n):n):null;}
 function getAllowedHosts(){return String(process.env.CODAL_DOCUMENT_ALLOWED_HOSTS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);}
