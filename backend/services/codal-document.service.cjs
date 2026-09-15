@@ -5,107 +5,44 @@ const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
 function envNumber(name,fallback,min,max){const v=Number(process.env[name]);return Number.isFinite(v)?Math.min(max,Math.max(min,v)):fallback;}
 function normalizeDigits(v){return String(v??'').replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));}
 function normalizeText(v){return normalizeDigits(v).replace(/[\u200c\u200f\u200e]/g,' ').replace(/\s+/g,' ').trim();}
+function normalizeMetricLabel(v){return normalizeText(v).toLowerCase().replace(/[()\[\]{}،,؛:٫٬–—-]/g,' ').replace(/\s+/g,' ').trim();}
 function parseNumber(v){if(typeof v==='number'&&Number.isFinite(v))return v;const t=normalizeDigits(v).replace(/[٬،,]/g,'').replace(/\s+/g,'').replace(/[٪%]/g,'').trim();if(!t||t==='-'||t==='—')return null;const neg=/^\(.*\)$/.test(t)||t.startsWith('-');const c=t.replace(/[()]/g,'').replace(/[^0-9.+-]/g,'');if(!c||c==='-'||c==='.')return null;const n=Number(c);return Number.isFinite(n)?(neg?-Math.abs(n):n):null;}
 function getAllowedHosts(){return String(process.env.CODAL_DOCUMENT_ALLOWED_HOSTS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);}
 function validateDocumentUrl(raw){if(!raw)return{ok:false,reason:'empty-url'};let url;try{url=new URL(raw);}catch{return{ok:false,reason:'invalid-url'};}if(url.username||url.password)return{ok:false,reason:'credentials-not-allowed'};if(url.protocol!=='https:')return{ok:false,reason:'https-required'};const allowed=getAllowedHosts();if(allowed.length&&!allowed.includes(url.hostname.toLowerCase()))return{ok:false,reason:'host-not-allowed'};return{ok:true,url};}
 async function downloadDocument(raw) {
   const validation = validateDocumentUrl(raw);
-
-  if (!validation.ok) {
-    throw new Error(`CODAL document URL rejected: ${validation.reason}`);
-  }
-
-  const timeoutMs = envNumber(
-    'CODAL_DOCUMENT_TIMEOUT_MS',
-    DEFAULT_TIMEOUT_MS,
-    3000,
-    60000
-  );
-
-  const maxBytes = envNumber(
-    'CODAL_DOCUMENT_MAX_BYTES',
-    DEFAULT_MAX_BYTES,
-    256 * 1024,
-    32 * 1024 * 1024
-  );
-
+  if (!validation.ok) throw new Error(`CODAL document URL rejected: ${validation.reason}`);
+  const timeoutMs = envNumber('CODAL_DOCUMENT_TIMEOUT_MS', DEFAULT_TIMEOUT_MS, 3000, 60000);
+  const maxBytes = envNumber('CODAL_DOCUMENT_MAX_BYTES', DEFAULT_MAX_BYTES, 256 * 1024, 32 * 1024 * 1024);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
-    const relayBase = String(
-      process.env.CODAL_DOCUMENT_RELAY_URL || ''
-    ).trim();
-
+    const relayBase = String(process.env.CODAL_DOCUMENT_RELAY_URL || '').trim();
     let requestUrl = validation.url.toString();
-
     if (relayBase) {
       const relayUrl = new URL(relayBase);
-      relayUrl.searchParams.set(
-        'url',
-        validation.url.toString()
-      );
-
+      relayUrl.searchParams.set('url', validation.url.toString());
       requestUrl = relayUrl.toString();
     }
-
     const response = await fetch(requestUrl, {
-      method: 'GET',
-      redirect: 'follow',
-      signal: controller.signal,
+      method: 'GET', redirect: 'follow', signal: controller.signal,
       headers: {
-        Accept:
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,' +
-          'application/vnd.ms-excel,' +
-          'application/octet-stream;q=0.8,*/*;q=0.1',
+        Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/octet-stream;q=0.8,*/*;q=0.1',
         'User-Agent': 'RoniyaAnalyzer/5.2.1'
       }
     });
-
-    if (!response.ok) {
-      throw new Error(
-        `CODAL document HTTP ${response.status}`
-      );
-    }
-
-    const length = Number(
-      response.headers.get('content-length')
-    );
-
-    if (Number.isFinite(length) && length > maxBytes) {
-      throw new Error(
-        `CODAL document exceeds ${maxBytes} bytes`
-      );
-    }
-
-    const chunks = [];
-    let total = 0;
-
+    if (!response.ok) throw new Error(`CODAL document HTTP ${response.status}`);
+    const length = Number(response.headers.get('content-length'));
+    if (Number.isFinite(length) && length > maxBytes) throw new Error(`CODAL document exceeds ${maxBytes} bytes`);
+    const chunks = []; let total = 0;
     for await (const chunk of response.body) {
       total += chunk.length;
-
-      if (total > maxBytes) {
-        throw new Error(
-          `CODAL document exceeds ${maxBytes} bytes`
-        );
-      }
-
+      if (total > maxBytes) throw new Error(`CODAL document exceeds ${maxBytes} bytes`);
       chunks.push(Buffer.from(chunk));
     }
-
     const buffer = Buffer.concat(chunks);
-
-    return {
-      buffer,
-      contentType: String(
-        response.headers.get('content-type') || ''
-      ).toLowerCase(),
-      finalUrl: response.url,
-      bytes: buffer.length
-    };
-  } finally {
-    clearTimeout(timer);
-  }
+    return {buffer, contentType: String(response.headers.get('content-type') || '').toLowerCase(), finalUrl: response.url, bytes: buffer.length};
+  } finally { clearTimeout(timer); }
 }
 function looksLikeExcel(contentType,url){return /spreadsheet|excel|vnd\.ms-excel|officedocument\.spreadsheet/.test(contentType)||/\.(xlsx|xls)(?:$|[?#])/i.test(url);}
 function findEndOfCentralDirectory(buffer){const start=Math.max(0,buffer.length-65557);for(let o=buffer.length-22;o>=start;o--)if(buffer.readUInt32LE(o)===0x06054b50)return o;throw new Error('Invalid XLSX ZIP: end of central directory not found');}
@@ -118,8 +55,8 @@ function parseWorksheet(xml,shared){const rows=[];for(const rm of String(xml||''
 function stripHtml(v){return decodeXml(String(v||'').replace(/<!--[\s\S]*?-->/g,' ').replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<br\s*\/?>/gi,' ').replace(/<[^>]+>/g,' '));}
 function parseHtmlWorkbook(buffer){const html=buffer.toString('utf8').replace(/^\uFEFF/,'');if(!/<(?:html|table|tr|td|th)\b/i.test(html))throw new Error('Unsupported legacy Excel document format');const rows=[];for(const rm of html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)){const cells=[...rm[1].matchAll(/<(?:td|th)\b[^>]*>([\s\S]*?)<\/(?:td|th)>/gi)].map(c=>normalizeText(stripHtml(c[1])));if(cells.length)rows.push(cells);}if(!rows.length)throw new Error('Legacy Excel workbook contains no HTML table rows');return[{name:'codal-html-workbook',rows:rows.slice(0,5000)}];}
 function extractExcelRows(buffer){if(buffer.slice(0,4).toString('hex')!=='504b0304')return parseHtmlWorkbook(buffer);const entries=extractZipEntries(buffer),shared=parseSharedStrings(entries.has('xl/sharedStrings.xml')?entries.get('xl/sharedStrings.xml').toString('utf8'):''),sheets=[];for(const [name,content] of entries){if(!/^xl\/worksheets\/sheet\d+\.xml$/i.test(name))continue;sheets.push({name,rows:parseWorksheet(content.toString('utf8'),shared).slice(0,2000)});}return sheets.sort((a,b)=>a.name.localeCompare(b.name));}
-const METRIC_PATTERNS={revenue:['فروش','درآمد عملیاتی','درآمد حاصل از فروش','درآمد'],operatingProfit:['سود عملیاتی','سود (زیان) عملیاتی','سود و زیان عملیاتی'],netProfit:['سود خالص','سود (زیان) خالص','سود زیان خالص'],assets:['جمع دارایی','جمع داراییها','جمع دارایی ها'],liabilities:['جمع بدهی','جمع بدهیها','جمع بدهی ها'],equity:['حقوق مالکانه','حقوق صاحبان سهام','جمع حقوق مالکانه'],cash:['وجه نقد','موجودی نقد','نقد و معادل نقد'],eps:['سود هر سهم','eps']};
-function findMetricValues(sheets){const metrics={};for(const sheet of sheets)for(const row of sheet.rows){const cells=row.map(normalizeText);for(let i=0;i<cells.length;i++){const label=cells[i];if(!label)continue;for(const [metric,patterns] of Object.entries(METRIC_PATTERNS)){if(metrics[metric]!==undefined)continue;if(!patterns.some(p=>label.toLowerCase().includes(normalizeText(p).toLowerCase())))continue;const candidates=cells.slice(i+1).map(parseNumber).filter(v=>v!==null);if(candidates.length)metrics[metric]={value:candidates[0],sheet:sheet.name,label};}}}return metrics;}
+const METRIC_PATTERNS={revenue:['فروش','درآمد عملیاتی','درآمد حاصل از فروش','درآمد'],operatingProfit:['سود عملیاتی','سود زیان عملیاتی','سود و زیان عملیاتی'],netProfit:['سود خالص','سود زیان خالص','سود و زیان خالص'],assets:['جمع دارایی','جمع داراییها','جمع دارایی ها','داراییهای کل','دارایی های کل'],liabilities:['جمع بدهی','جمع بدهیها','جمع بدهی ها','بدهیهای کل','بدهی های کل'],equity:['حقوق مالکانه','حقوق صاحبان سهام','جمع حقوق مالکانه'],cash:['وجه نقد','موجودی نقد','نقد و معادل نقد'],eps:['سود هر سهم','سود پایه هر سهم','سود زیان خالص هر سهم','سود و زیان خالص هر سهم','eps']};
+function findMetricValues(sheets){const metrics={};for(const sheet of sheets)for(const row of sheet.rows){const cells=row.map(normalizeText),normalizedCells=cells.map(normalizeMetricLabel);for(let i=0;i<cells.length;i++){const label=cells[i],normalizedLabel=normalizedCells[i];if(!normalizedLabel)continue;for(const [metric,patterns] of Object.entries(METRIC_PATTERNS)){if(metrics[metric]!==undefined)continue;if(!patterns.some(p=>normalizedLabel.includes(normalizeMetricLabel(p))))continue;const candidates=cells.slice(i+1).map(parseNumber).filter(v=>v!==null);if(candidates.length)metrics[metric]={value:candidates[0],sheet:sheet.name,label};}}}return metrics;}
 async function extractFinancialDataFromExcel(rawUrl){const downloaded=await downloadDocument(rawUrl);if(!looksLikeExcel(downloaded.contentType,downloaded.finalUrl))throw new Error('CODAL attachment is not recognized as an Excel document');const sheets=extractExcelRows(downloaded.buffer);return{sourceType:'excel',url:downloaded.finalUrl,bytes:downloaded.bytes,sheetCount:sheets.length,metrics:findMetricValues(sheets)};}
 async function extractFinancialDataFromAnnouncement(announcement){const excelUrl=announcement&&(announcement.link_excel||announcement.linkExcel);if(!excelUrl)return{available:false,sourceType:null,reason:'excel-link-not-available',metrics:{}};try{const result=await extractFinancialDataFromExcel(excelUrl);return{available:Object.keys(result.metrics).length>0,...result};}catch(error){return{available:false,sourceType:'excel',reason:error.message,metrics:{}};}}
-module.exports={normalizeDigits,normalizeText,parseNumber,validateDocumentUrl,downloadDocument,extractZipEntries,extractExcelRows,findMetricValues,extractFinancialDataFromExcel,extractFinancialDataFromAnnouncement};
+module.exports={normalizeDigits,normalizeText,normalizeMetricLabel,parseNumber,validateDocumentUrl,downloadDocument,extractZipEntries,extractExcelRows,findMetricValues,extractFinancialDataFromExcel,extractFinancialDataFromAnnouncement};
