@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const { prisma } = require('../config/prisma.cjs');
 
@@ -131,3 +131,4 @@ module.exports = {
   listRolePermissions,
   setRolePermissions,
 };
+

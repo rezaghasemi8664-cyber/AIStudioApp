@@ -1,15 +1,28 @@
+﻿'use strict';
+
 const express = require('express');
+const authenticate = require('../middlewares/auth.middleware.cjs');
+const requirePermission = require('../middlewares/requirePermission.middleware.cjs');
 
 const router = express.Router();
 
-const WORDPRESS_BASE_URL = process.env.WORDPRESS_FARAZ_URL || 'http://127.0.0.1:8090';
+const WORDPRESS_BASE_URL =
+  process.env.WORDPRESS_FARAZ_URL || 'http://127.0.0.1:8090';
 
-router.get('/status', async (_req, res) => {
+const requireFarazSmsAdmin = [
+  authenticate,
+  authenticate.requireAdmin,
+  requirePermission('admin.farazsms.manage'),
+];
+
+router.get('/status', ...requireFarazSmsAdmin, async (_req, res) => {
   try {
     const response = await fetch(`${WORDPRESS_BASE_URL}/wp-json/`, {
       method: 'GET',
       signal: AbortSignal.timeout(5000),
-      headers: { Accept: 'application/json' },
+      headers: {
+        Accept: 'application/json',
+      },
     });
 
     res.json({
@@ -21,10 +34,18 @@ router.get('/status', async (_req, res) => {
       },
     });
   } catch (error) {
+    console.error(
+      '[FARAZ_SMS] WordPress status check failed:',
+      error?.message || error
+    );
+
     res.status(503).json({
       success: false,
       message: 'اتصال به WordPress داخلی برقرار نشد.',
-      data: { reachable: false, wordpressUrl: WORDPRESS_BASE_URL },
+      data: {
+        reachable: false,
+        wordpressUrl: WORDPRESS_BASE_URL,
+      },
     });
   }
 });
