@@ -1,17 +1,11 @@
-﻿// controllers/analyze.controller.cjs
+// controllers/analyze.controller.cjs
 // Controller for AI-powered stock analysis
 'use strict';
 
 const aiService = require('../services/ai.service.cjs');
 const brsService = require('../services/brs.service.cjs');
 
-let prisma = null;
-try {
-  const { PrismaClient } = require('@prisma/client');
-  prisma = new PrismaClient();
-} catch (err) {
-  console.warn('[Analyze] Prisma not available:', err.message);
-}
+const prisma = require('../config/prisma.cjs');
 
 function normalizeSymbol(symbol) {
   return typeof symbol === 'string' ? symbol.trim() : '';
@@ -357,4 +351,3 @@ const healthHandler=async(req,res)=>{try{const health=await aiService.healthChec
 async function shutdownPrisma(){if(prisma&&typeof prisma.$disconnect==='function'){try{await prisma.$disconnect();}catch(err){console.warn('[Analyze] Prisma disconnect failed:',err.message);}}}
 process.once('SIGINT',shutdownPrisma);process.once('SIGTERM',shutdownPrisma);
 module.exports={analyzeStockHandler,analyzeGeneralHandler,compareStocksHandler,optimizePortfolioHandler,chatHandler,healthHandler,analyzeStock:analyzeStockHandler,analyze:analyzeGeneralHandler,compare:compareStocksHandler};
-

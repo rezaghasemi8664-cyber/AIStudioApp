@@ -14,15 +14,7 @@
 const bcrypt = require('bcryptjs');
 
 // --- FIX: Use shared Prisma instance ---
-let prisma;
-try {
-  prisma = require('../config/prisma.cjs');
-} catch (e) {
-  // Fallback: create new instance if config not available
-  const { PrismaClient } = require('@prisma/client');
-  prisma = new PrismaClient();
-  console.warn('[PROFILE CTRL] Using local PrismaClient (shared not available)');
-}
+const prisma = require('../config/prisma.cjs');
 
 // FIX: Complete USER_SELECT with all schema.prisma fields
 const USER_SELECT = {

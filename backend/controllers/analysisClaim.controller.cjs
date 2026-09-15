@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../config/prisma.cjs');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

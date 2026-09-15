@@ -4,8 +4,7 @@
 // Shared across all controllers
 // ===================================================
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../config/prisma.cjs');
 
 /**
  * Split a full name into firstName and lastName

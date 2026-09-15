@@ -1,8 +1,7 @@
 // controllers/appConfig.controller.cjs
 'use strict';
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../config/prisma.cjs');
 
 // ═══════════════════════════════════════════════════════════════
 // داده‌های پیش‌فرض (Fallback)
