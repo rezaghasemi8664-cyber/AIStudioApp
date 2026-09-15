@@ -68,7 +68,18 @@ async function extractFinancialDocuments(financialAnnouncements) {
       metrics: result.metrics || {},
       reason: result.reason || null,
     });
+
+    // Most financial statements contain all core metrics. Avoid downloading
+    // several Excel files sequentially when the first useful document already
+    // provides enough data for a reliable fundamental score.
+    const currentMetrics = aggregateNumericMetrics(documents.filter((doc) => doc.available));
+    const currentQuality = numericDataQuality(currentMetrics);
+    const currentScore = fundamentalScoreService.calculateFundamentalScore(currentMetrics);
+    if (currentQuality.sufficientForScoring && currentScore.score !== null) {
+      break;
+    }
   }
+
   return documents;
 }
 
