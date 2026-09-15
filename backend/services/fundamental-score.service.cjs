@@ -13,6 +13,23 @@ function bandScore(value, bands) {
   return null;
 }
 
+function buildFundamentalReason(components, score) {
+  const details = components.map(item => {
+    if (item.key === 'eps') {
+      return `${item.label}: ${item.value} ریال، امتیاز ${item.score} از ${item.max}. ${item.reason}`;
+    }
+
+    const percent = Number(item.value);
+    const valueText = Number.isFinite(percent)
+      ? `${(percent * 100).toFixed(2)}٪`
+      : 'نامشخص';
+
+    return `${item.label}: ${valueText}، امتیاز ${item.score} از ${item.max}. ${item.reason}`;
+  });
+
+  return `امتیاز بنیادی ${score} از ۱۰۰ محاسبه شد. ${details.join(' ')}`;
+}
+
 function calculateFundamentalScore(metrics) {
   const revenue = numberOrNull(metrics?.revenue?.value);
   const operatingProfit = numberOrNull(metrics?.operatingProfit?.value);
@@ -87,13 +104,14 @@ function calculateFundamentalScore(metrics) {
 
   const maxScore = components.reduce((sum, item) => sum + item.max, 0);
   const rawScore = components.reduce((sum, item) => sum + item.score, 0);
+  const score = Math.max(0, Math.min(100, Math.round((rawScore / maxScore) * 100)));
 
   return {
-    score: Math.max(0, Math.min(100, Math.round((rawScore / maxScore) * 100))),
+    score,
     status: 'calculated',
     coverage: Number((components.length / 5).toFixed(2)),
     components,
-    reason: 'امتیاز بنیادی فقط از داده‌های عددی استخراج‌شده از اسناد مالی محاسبه شد.',
+    reason: buildFundamentalReason(components, score),
   };
 }
 
