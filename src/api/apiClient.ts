@@ -57,7 +57,7 @@ function normalizeMoneyFlowPayload(payload: any): any {
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
-  timeout: 30000,
+  timeout: 90000,
   headers: {
     Accept: 'application/json',
   },
