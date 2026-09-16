@@ -6,21 +6,8 @@
 var express = require('express');
 var router = express.Router();
 
-// ---- Prisma singleton (NO new PrismaClient in normal path) ----
-var prisma;
-try {
-  prisma = require('../config/prisma.cjs');
-} catch (e) {
-  console.warn('[USER-ROUTES] config/prisma.cjs not found, trying direct');
-  try {
-    var PrismaClient = require('@prisma/client').PrismaClient;
-    prisma = new PrismaClient();
-    console.warn('[USER-ROUTES] WARNING: Using standalone PrismaClient instance');
-  } catch (e2) {
-    console.error('[USER-ROUTES] Prisma not available:', e2.message);
-    prisma = null;
-  }
-}
+// ---- Prisma singleton ----
+var prisma = require('../config/prisma.cjs');
 
 // ---- Auth middleware (safe search) ----
 var authMiddleware;
