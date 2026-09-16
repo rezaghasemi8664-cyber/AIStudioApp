@@ -338,8 +338,12 @@ try {
       return req.ip || req.connection.remoteAddress || 'unknown';
     },
     skip: function (req) {
-      return rateLimitSkipPaths.has(req.path);
-    },
+  const ip = req.ip || req.connection.remoteAddress || '';
+  return rateLimitSkipPaths.has(req.path) ||
+    ip === '127.0.0.1' ||
+    ip === '::1' ||
+    ip === '::ffff:127.0.0.1';
+},
   });
   app.use('/api/', apiLimiter);
 
