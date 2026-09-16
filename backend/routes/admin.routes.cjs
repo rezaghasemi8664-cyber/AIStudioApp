@@ -4,8 +4,8 @@
 
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prismaModule = require('../config/prisma.cjs');
+const prisma = prismaModule.prisma || prismaModule;
 const path = require('path');
 const fs = require('fs');
 const authMiddleware = require('../middlewares/auth.middleware.cjs');
