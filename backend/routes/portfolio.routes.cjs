@@ -3,8 +3,8 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/auth.middleware.cjs');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prismaModule = require('../config/prisma.cjs');
+const prisma = prismaModule.prisma || prismaModule;
 
 function getUserId(req) {
   const raw = req.user && (req.user.id ?? req.user.userId);
