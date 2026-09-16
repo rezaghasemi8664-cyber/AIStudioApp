@@ -4,8 +4,8 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const authMiddleware = require('../middlewares/auth.middleware.cjs');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prismaModule = require('../config/prisma.cjs');
+const prisma = prismaModule.prisma || prismaModule;
 
 // GET /api/logs - ?????? ??????
 router.get('/', authMiddleware, async (req, res) => {
