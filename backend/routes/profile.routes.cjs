@@ -5,8 +5,8 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prismaModule = require('../config/prisma.cjs');
+const prisma = prismaModule.prisma || prismaModule;
 
 // ─── Load auth middleware (safe search) ─────────────────────────────
 let authMiddleware;
