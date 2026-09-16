@@ -2,18 +2,11 @@
 const express = require('express');
 const router = express.Router();
 
-const { PrismaClient } = require('@prisma/client');
+const prismaModule = require('../config/prisma.cjs');
 const authMiddleware = require('../middlewares/auth.middleware.cjs');
 
-// تلاش برای استفاده از Prisma مشترک پروژه (در صورت وجود)
-let prisma;
-try {
-  // اگر در پروژه‌ات مسیر دیگری دارد، همین require را مطابق پروژه اصلاح کن
-  prisma = require('../lib/prisma.cjs');
-  if (!prisma || typeof prisma !== 'object') throw new Error('Invalid shared prisma export');
-} catch (_) {
-  prisma = new PrismaClient();
-}
+// استفاده از Prisma مشترک پروژه
+const prisma = prismaModule.prisma || prismaModule;
 
 const globalSettingsController = require('../controllers/globalSettings.controller.cjs');
 
