@@ -1,11 +1,11 @@
 'use strict';
 
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
+const prismaModule = require('../config/prisma.cjs');
 const authMiddleware = require('../middlewares/auth.middleware.cjs');
 
 const router = express.Router();
-const prisma = new PrismaClient();
+const prisma = prismaModule.prisma || prismaModule;
 
 function subscriptionStatus(user) {
   const end = user && user.subscriptionEnd ? new Date(user.subscriptionEnd) : null;
