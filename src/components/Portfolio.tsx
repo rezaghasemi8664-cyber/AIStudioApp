@@ -6,6 +6,7 @@ import * as portfolioService from '../services/portfolioService';
 import { analyzeStock, getPortfolioOptimization } from '../services/gapgptService';
 import { useNotification } from './NotificationSystem';
 import { PlusIcon, TrashIcon, SparklesIcon, ChevronDownIcon, CheckCircleIcon, XCircleIcon, XMarkIcon } from './Icons';
+import SoldPortfolioSection from './SoldPortfolioSection';
 
 interface AnalyzedPortfolioItem extends PortfolioItem {
   name?: string;
@@ -184,14 +185,12 @@ const Portfolio: React.FC<PortfolioProps> = ({ onAlertChange, currentUser, isOnl
     const items = [...portfolioRef.current];
     if (!items.length) return addNotification('سبد سهام خالی است.', 'error');
     if (bulkAnalysisLoading) return;
-
     setBulkAnalysisLoading(true);
     setBulkAnalysisProgress({ current: 0, total: items.length });
     try {
       const settingsKey = `user_settings_${currentUser.id}`;
       let settings: any = {};
       try { const raw = localStorage.getItem(settingsKey); settings = raw ? JSON.parse(raw) : {}; } catch (_) {}
-
       for (let index = 0; index < items.length; index += 1) {
         const item = items[index];
         setPortfolio(prev => prev.map(x => x.id === item.id ? { ...x, analysisLoading: true, analysisError: undefined } : x));
@@ -202,14 +201,10 @@ const Portfolio: React.FC<PortfolioProps> = ({ onAlertChange, currentUser, isOnl
           setPortfolio(prev => prev.map(x => x.id === item.id ? { ...x, analysis, analysisLoading: false, analysisError: undefined } : x));
         } catch (error: any) {
           setPortfolio(prev => prev.map(x => x.id === item.id ? { ...x, analysisLoading: false, analysisError: error?.message || 'خطا در تحلیل سهم' } : x));
-        } finally {
-          setBulkAnalysisProgress({ current: index + 1, total: items.length });
-        }
+        } finally { setBulkAnalysisProgress({ current: index + 1, total: items.length }); }
       }
       addNotification(`تحلیل ${items.length} سهم سبد به پایان رسید.`, 'info');
-    } finally {
-      setBulkAnalysisLoading(false);
-    }
+    } finally { setBulkAnalysisLoading(false); }
   }, [addNotification, bulkAnalysisLoading, currentUser, isOnline]);
 
   const handleOptimizePortfolio = async () => {
@@ -251,7 +246,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onAlertChange, currentUser, isOnl
             <button type="submit" disabled={!isOnline} className="font-bold rounded flex items-center justify-center gap-2 disabled:opacity-50" style={{ backgroundColor: 'var(--btn-primary-bg)', color: 'var(--btn-primary-color)' }}><PlusIcon /> افزودن</button>
           </div>
         </form>
-        <p className="text-xs text-gray-500 mt-2">تاریخ خرید به‌صورت شمسی وارد و همان مقدار در دیتابیس ذخیره می‌شود.</p>
+        <p className="text-xs text-gray-500 mt-2">هر رکورد خرید مستقل ذخیره می‌شود و به‌عنوان یک Lot قابل تخصیص در فروش است.</p>
       </div>
 
       {loading ? <div className="text-center py-10">در حال دریافت سبد از دیتابیس...</div> : <div className="space-y-4">
@@ -262,6 +257,8 @@ const Portfolio: React.FC<PortfolioProps> = ({ onAlertChange, currentUser, isOnl
         <button onClick={handleBulkAnalysis} disabled={bulkAnalysisLoading || !isOnline} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-lg shadow-lg disabled:opacity-50 inline-flex items-center justify-center gap-2">{bulkAnalysisLoading ? <><div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin" /> تحلیل {bulkAnalysisProgress.current} از {bulkAnalysisProgress.total}</> : <><SparklesIcon /> تحلیل کل سهام سبد</>}</button>
         <button onClick={handleOptimizePortfolio} disabled={optimizationLoading || bulkAnalysisLoading || !isOnline} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-lg shadow-lg disabled:opacity-50 inline-flex items-center justify-center gap-2">{optimizationLoading ? <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin" /> : <SparklesIcon />} تحلیل و بهینه‌سازی کل سبد</button>
       </div>}
+
+      <SoldPortfolioSection lots={portfolio} isOnline={isOnline} onChanged={loadPortfolio} />
 
       {optimizationError && <div className="mt-4 p-3 rounded bg-red-50 text-red-700 text-center">{optimizationError}</div>}
 
