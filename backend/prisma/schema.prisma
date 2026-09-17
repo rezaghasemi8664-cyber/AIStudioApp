@@ -58,8 +58,9 @@ model User {
   scalpingOpportunities ScalpingOpportunity[]
   scalpingRuns          ScalpingRun[]
   smsOtps               SmsOtp[]
-  smsQueues             SmsQueue[]
-  smsLogs               SmsLog[]
+  smsQueues              SmsQueue[]
+  smsLogs                SmsLog[]
+  subscriptions         Subscription[]
 
   @@index([isActive])
   @@index([isDeleted])
@@ -423,6 +424,45 @@ model ScalpingResult {
   @@schema("dbo")
 }
 
+model SubscriptionPlan {
+  id              Int            @id @default(autoincrement())
+  name            String         @db.NVarChar(150)
+  code            String         @unique @db.NVarChar(100)
+  durationMonths  Int
+  price           Decimal        @db.Decimal(18, 2)
+  currency        String         @default("IRR") @db.NVarChar(10)
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  subscriptions   Subscription[]
+
+  @@index([isActive])
+  @@index([durationMonths])
+  @@map("SubscriptionPlan")
+  @@schema("dbo")
+}
+
+model Subscription {
+  id          Int              @id @default(autoincrement())
+  userId      Int
+  planId      Int?
+  type        String           @db.NVarChar(30)
+  status      String           @db.NVarChar(30)
+  startsAt    DateTime
+  expiresAt   DateTime
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan        SubscriptionPlan? @relation(fields: [planId], references: [id], onDelete: NoAction)
+
+  @@index([userId, expiresAt])
+  @@index([status, expiresAt])
+  @@index([planId])
+  @@index([userId, createdAt])
+  @@map("Subscription")
+  @@schema("dbo")
+}
+
 model Role {
   id          Int              @id @default(autoincrement())
   name        String           @unique
@@ -452,7 +492,7 @@ model RolePermission {
 model admin_scheduler_rules {
   id              Int       @id(map: "PK__admin_sc__3213E83FC6214E82") @default(autoincrement())
   ruleType        String    @db.NVarChar(50)
-  isEnabled       Boolean   @default(true, map: "DF__admin_sch__isEna__058EC7FB")
+  isEnabled       Boolean   @default(true, map: "DF__admin_sc__isEna__058EC7FB")
   daysOfWeek      String    @db.NVarChar(50)
   startTime       DateTime? @db.Time
   endTime         DateTime? @db.Time
@@ -461,8 +501,8 @@ model admin_scheduler_rules {
   lastRunAt       DateTime?
   nextRunAt       DateTime?
   createdBy       Int
-  createdAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sch__creat__0682EC34")
-  updatedAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sch__updat__0777106D")
+  createdAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sc__creat__0682EC34")
+  updatedAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sc__updat__0777106D")
   User            User      @relation(fields: [createdBy], references: [id], onUpdate: NoAction, map: "FK_admin_scheduler_rules_user")
   @@schema("dbo")
 }
