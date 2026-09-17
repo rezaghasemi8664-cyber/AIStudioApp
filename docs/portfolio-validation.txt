@@ -1,0 +1,1 @@
+Portfolio lot/sold-trade validation marker. Not part of production main.
