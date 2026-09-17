@@ -3,6 +3,7 @@ import api from '../api/apiClient';
 import * as portfolioService from '../services/portfolioService';
 
 interface Props { isOnline: boolean; }
+interface HistoryPoint { date: string; value: number; cost: number; pnl: number; returnPercent: number; }
 interface Holding { id: string; symbol: string; name?: string; quantity: number; entryPrice: number; currentPrice: number | null; changePercent: number | null; value: number | null; cost: number; pnl: number | null; pnlPercent: number | null; }
 
 const num = (value: unknown): number | null => { const n = Number(value); return Number.isFinite(n) ? n : null; };
@@ -13,15 +14,30 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 async function quote(symbol: string): Promise<{ price: number | null; change: number | null }> {
   const response = await api.get(`/brs/symbol/${encodeURIComponent(symbol)}`);
   const raw = response?.data?.data ?? response?.data ?? {};
-  const price = num(raw.lastPrice ?? raw.last_price ?? raw.currentPrice ?? raw.closePrice ?? raw.closingPrice);
-  const change = num(raw.lastChangePercent ?? raw.last_change_percent ?? raw.changePercent ?? raw.percentChange);
-  return { price, change };
+  return {
+    price: num(raw.lastPrice ?? raw.last_price ?? raw.currentPrice ?? raw.closePrice ?? raw.closingPrice),
+    change: num(raw.lastChangePercent ?? raw.last_change_percent ?? raw.changePercent ?? raw.percentChange),
+  };
+}
+
+async function history(symbol: string): Promise<Array<{ date: string; close: number }>> {
+  const response = await api.get(`/brs/symbol/${encodeURIComponent(symbol)}/history`, { params: { limit: 365 } });
+  const raw = response?.data?.data ?? response?.data ?? [];
+  if (!Array.isArray(raw)) return [];
+  return raw.map(row => ({
+    date: String(row.date ?? row.tradeDate ?? row.jalaliDate ?? row.timestamp ?? ''),
+    close: num(row.close ?? row.closePrice ?? row.closingPrice ?? row.lastPrice) ?? 0,
+  })).filter(row => row.date && row.close > 0);
 }
 
 const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
   const [items, setItems] = useState<Holding[]>([]);
+  const [historyPoints, setHistoryPoints] = useState<HistoryPoint[]>([]);
+  const [range, setRange] = useState<30 | 90 | 180 | 365>(30);
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -46,7 +62,31 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
     finally { setLoading(false); }
   }, [isOnline]);
 
+  const loadHistory = useCallback(async () => {
+    if (!isOnline) { setHistoryError('برای دریافت سابقه سبد باید آنلاین باشید.'); return; }
+    setHistoryLoading(true); setHistoryError(null);
+    try {
+      const portfolio = await portfolioService.getPortfolio();
+      if (!portfolio.length) { setHistoryPoints([]); return; }
+      const rows = await Promise.all(portfolio.map(async item => {
+        try { return { item, rows: await history(item.symbol) }; } catch (_) { return { item, rows: [] }; }
+      }));
+      const byDate = new Map<string, { value: number; cost: number }>();
+      rows.forEach(({ item, rows: quotes }) => {
+        const cost = item.entryPrice * item.quantity;
+        quotes.forEach(point => {
+          const current = byDate.get(point.date) || { value: 0, cost: 0 };
+          byDate.set(point.date, { value: current.value + point.close * item.quantity, cost: current.cost + cost });
+        });
+      });
+      const points = Array.from(byDate.entries()).map(([date, data]) => ({ date, value: data.value, cost: data.cost, pnl: data.value - data.cost, returnPercent: data.cost > 0 ? ((data.value - data.cost) / data.cost) * 100 : 0 })).sort((a, b) => a.date.localeCompare(b.date)).slice(-range);
+      setHistoryPoints(points);
+    } catch (e: any) { setHistoryError(e?.response?.data?.message || e?.message || 'دریافت سابقه عملکرد سبد ناموفق بود.'); }
+    finally { setHistoryLoading(false); }
+  }, [isOnline, range]);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadHistory(); }, [loadHistory]);
 
   const stats = useMemo(() => {
     const valued = items.filter(x => x.value != null) as Array<Holding & { value: number }>;
@@ -74,10 +114,19 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
     return { totalValue, totalCost, pnl, pnlPercent, positive, negative, neutral, concentration, top3Concentration, diversification, weightedDailyChange, gainShare, lossShare, topSymbol: top?.symbol || null };
   }, [items]);
 
+  const chart = useMemo(() => {
+    if (!historyPoints.length) return null;
+    const values = historyPoints.map(p => p.value);
+    const min = Math.min(...values); const max = Math.max(...values); const span = max - min || 1;
+    const width = 760; const height = 220; const pad = 24;
+    const points = historyPoints.map((p, i) => `${pad + (i * (width - pad * 2)) / Math.max(1, historyPoints.length - 1)},${height - pad - ((p.value - min) / span) * (height - pad * 2)}`).join(' ');
+    return { points, first: historyPoints[0], last: historyPoints[historyPoints.length - 1], min, max };
+  }, [historyPoints]);
+
   return <div dir="rtl" className="space-y-5">
     <div className="flex items-center justify-between gap-3 flex-wrap">
-      <div><h2 className="text-2xl font-black">هوشمندی سبد سهام</h2><p className="text-sm text-gray-500 dark:text-gray-400 mt-1">ارزش‌گذاری، عملکرد، توزیع سرمایه و سنجش تمرکز ریسک بر اساس داده واقعی بازار</p></div>
-      <button type="button" onClick={load} disabled={loading || !isOnline} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading ? 'در حال بروزرسانی...' : 'بروزرسانی'}</button>
+      <div><h2 className="text-2xl font-black">هوشمندی سبد سهام</h2><p className="text-sm text-gray-500 dark:text-gray-400 mt-1">ارزش‌گذاری، عملکرد، توزیع سرمایه و سابقه بازدهی بر اساس داده واقعی بازار</p></div>
+      <button type="button" onClick={() => { load(); loadHistory(); }} disabled={loading || historyLoading || !isOnline} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading || historyLoading ? 'در حال بروزرسانی...' : 'بروزرسانی'}</button>
     </div>
     {error && <div className="rounded-xl border border-red-300 bg-red-50 dark:bg-red-950/20 p-4 text-red-700 dark:text-red-300">{error}</div>}
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -85,6 +134,12 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
     </div>
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {[['سهم‌های سودده', String(stats.positive)], ['سهم‌های زیان‌ده', String(stats.negative)], ['بدون تغییر', String(stats.neutral)], ['تغییر روزانه وزنی', pct(stats.weightedDailyChange)]].map(([label, value]) => <div key={label} className="rounded-2xl border border-[var(--color-border)] bg-white/70 dark:bg-gray-900/50 p-4"><p className="text-xs text-gray-500">{label}</p><p className="mt-2 text-lg font-black font-mono">{value}</p></div>)}
+    </div>
+    <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4 space-y-4">
+      <div><h3 className="font-black text-lg">عملکرد تاریخی سبد</h3><p className="text-xs text-gray-500 mt-1">ارزش تاریخی با قیمت پایانی واقعی هر نماد و تعداد ثبت‌شده در سبد محاسبه می‌شود.</p></div>
+      <div className="flex flex-wrap gap-2">{([[30, '۱ ماه'], [90, '۳ ماه'], [180, '۶ ماه'], [365, '۱ سال']] as const).map(([days, label]) => <button key={days} type="button" onClick={() => setRange(days)} className={`rounded-lg px-3 py-2 text-sm font-bold ${range === days ? 'bg-cyan-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>{label}</button>)}</div>
+      {historyError && <div className="text-sm text-red-600 dark:text-red-400">{historyError}</div>}
+      {historyLoading ? <div className="h-56 flex items-center justify-center text-gray-500">در حال دریافت سابقه...</div> : !chart ? <div className="h-56 flex items-center justify-center text-gray-500">برای این سبد سابقه قیمت کافی در دسترس نیست.</div> : <div className="space-y-3"><svg viewBox="0 0 760 220" className="w-full h-56" role="img" aria-label="نمودار ارزش تاریخی سبد"><polyline fill="none" stroke="currentColor" strokeWidth="3" points={chart.points} /></svg><div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm"><div><span className="text-gray-500">ابتدای دوره</span><div className="font-black font-mono">{money(chart.first.value)}</div></div><div><span className="text-gray-500">انتهای دوره</span><div className="font-black font-mono">{money(chart.last.value)}</div></div><div><span className="text-gray-500">کمینه</span><div className="font-black font-mono">{money(chart.min)}</div></div><div><span className="text-gray-500">بیشینه</span><div className="font-black font-mono">{money(chart.max)}</div></div></div></div>}
     </div>
     <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4 space-y-4">
       <div><h3 className="font-black text-lg">توزیع سرمایه و ریسک تمرکز</h3><p className="text-xs text-gray-500 mt-1">محاسبات فقط از ارزش واقعی موقعیت‌های دارای قیمت بازار استفاده می‌کنند.</p></div>
