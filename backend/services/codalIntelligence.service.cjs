@@ -100,14 +100,16 @@ function buildPeriodicTrend(items) {
   const previous = periods.length > 1 ? periods[periods.length - 2] : null;
   const latestCount = latest ? byPeriod[latest] : 0;
   const previousCount = previous ? byPeriod[previous] : null;
-  return {
-    periods: periods.map(period => ({ period, reports: byPeriod[period] })),
-    latestPeriod: latest,
-    latestReports: latestCount,
-    previousPeriod: previous,
-    previousReports: previousCount,
-    changePercent: previousCount === null || previousCount === 0 ? null : ((latestCount - previousCount) / previousCount) * 100,
-  };
+  return { periods: periods.map(period => ({ period, reports: byPeriod[period] })), latestPeriod: latest, latestReports: latestCount, previousPeriod: previous, previousReports: previousCount, changePercent: previousCount === null || previousCount === 0 ? null : ((latestCount - previousCount) / previousCount) * 100 };
+}
+function buildSensitiveEvents(items) {
+  const categories = ['capital-increase', 'dividend', 'financial-statement', 'contract'];
+  const counts = Object.fromEntries(categories.map(category => [category, items.filter(item => item.category === category).length]));
+  const latest = {};
+  for (const category of categories) {
+    latest[category] = items.filter(item => item.category === category).sort((a, b) => String(b.publishDate).localeCompare(String(a.publishDate)))[0] || null;
+  }
+  return { categories, counts, total: categories.reduce((sum, category) => sum + counts[category], 0), latest };
 }
 function buildSummary(items) {
   const reports = items.length;
@@ -116,7 +118,7 @@ function buildSummary(items) {
   const byType = items.reduce((map, item) => { const key = item.reportType || 'نامشخص'; map[key] = (map[key] || 0) + 1; return map; }, {});
   const byCategory = items.reduce((map, item) => { map[item.category] = (map[item.category] || 0) + 1; return map; }, {});
   const metricReports = items.filter(item => Object.keys(item.financialMetrics).length > 0).length;
-  return { reports, audited, attachments, byType, byCategory, metricReports, periodicTrend: buildPeriodicTrend(items) };
+  return { reports, audited, attachments, byType, byCategory, metricReports, periodicTrend: buildPeriodicTrend(items), sensitiveEvents: buildSensitiveEvents(items) };
 }
 async function getReports({ symbol = '', from = '', to = '', limit = 50 } = {}) {
   const baseUrl = process.env.CODAL_API_URL || '';
@@ -128,4 +130,4 @@ async function getReports({ symbol = '', from = '', to = '', limit = 50 } = {}) 
   const items = extractItems(response.data).map(normalizeItem).filter(item => item.title || item.symbol || item.publishDate || item.url);
   return { items, summary: buildSummary(items), fetchedAt: new Date().toISOString(), source: 'codal', configured: true };
 }
-module.exports = { getReports, normalizeNumber, classifyReport, extractFinancialMetrics, buildPeriodicTrend };
+module.exports = { getReports, normalizeNumber, classifyReport, extractFinancialMetrics, buildPeriodicTrend, buildSensitiveEvents };
