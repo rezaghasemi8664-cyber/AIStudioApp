@@ -13,7 +13,7 @@ const MODULE_ACTIONS = {
   users: ['activate-user', 'deactivate-user'], subscriptions: ['set-subscription'], analysis: ['delete-analysis'], history: ['delete-history-item'], notifications: ['broadcast'],
   sessions: ['list-sessions', 'revoke-session', 'revoke-all-user-sessions'], api: ['list-api-keys', 'revoke-api-key'], roles: ['list-roles', 'assign-role'],
   security: ['set-policy'], settings: ['set-setting'], maintenance: ['enable', 'disable'], ai: ['set-config'], prompts: ['set-prompt'], market: ['health-check'], scalping: ['health-check'], monitoring: ['health-check'], reports: ['snapshot'], infrastructure: ['health-check'],
-  updates: ['set-channel', 'record-deployment', 'get-deployments'], backup: ['set-policy', 'get-policy', 'create-backup', 'get-status', 'validate-backup', 'list-restorable', 'prepare-restore', 'restore-backup'], payments: ['create-transaction', 'set-status', 'list-transactions'], audit: [], dashboard: [],
+  updates: ['set-channel', 'record-deployment', 'get-deployments'], backup: ['set-policy', 'get-policy', 'create-backup', 'get-status', 'validate-backup', 'list-restorable', 'prepare-restore', 'prepare-application-restore', 'restore-backup'], payments: ['create-transaction', 'set-status', 'list-transactions'], audit: [], dashboard: [],
 };
 const VIEW_ONLY_MODULES = new Set(['dashboard', 'monitoring', 'reports', 'audit']);
 function userId(req) { return Number(req.user?.id ?? req.user?.userId ?? 0) || null; }
@@ -65,3 +65,4 @@ case 'reports:snapshot':case 'dashboard:':data={ok:true};break;
 default:return fail(res,400,'عملیات تعریف نشده است.');}
 await audit(req,moduleKey,action,200,{targetId:body.userId??body.id??body.sessionId??body.apiKeyId??body.transactionId??body.jobId,success:true,backupId:body.jobId??body.backupId??null,commitSha:body.commitSha??null});return res.json({success:true,data});}catch(error){await audit(req,moduleKey,action,500,{targetId:body.userId??body.id??body.sessionId??body.apiKeyId??body.transactionId??body.jobId,success:false,error:String(error.message).slice(0,500),backupId:body.jobId??body.backupId??null,commitSha:body.commitSha??null});return fail(res,500,error.message||'خطای داخلی سرور.');}});
 module.exports=router;
+
