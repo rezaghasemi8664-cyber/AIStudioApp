@@ -18,7 +18,7 @@ const formatNumber = (num: number) => Number(num || 0).toLocaleString('fa-IR');
 const todayJalali = () => new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()).replace(/-/g, '/');
 
 function normalizeJalaliDate(value: string) {
-  return value.replace(/[^0-9۰-۹/]/g, '').replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/\\/+/g, '/').replace(/^\\/+|\\/+$/g, '');
+  return value.replace(/[^0-9۰-۹/]/g, '').replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/\/+/g, '/').replace(/^\/+|\/+$/g, '');
 }
 
 function normalizeAnalysis(raw: AnalysisResult, symbol: string): AnalysisResult {
@@ -38,10 +38,11 @@ interface CardProps {
   item: AnalyzedPortfolioItem;
   onRemove: (id: string) => void;
   onEdit: (item: AnalyzedPortfolioItem) => void;
+  onAnalyze: (id: string) => void;
   isOnline: boolean;
 }
 
-const PortfolioItemCard: React.FC<CardProps> = ({ item, onRemove, onEdit, isOnline }) => {
+const PortfolioItemCard: React.FC<CardProps> = ({ item, onRemove, onEdit, onAnalyze, isOnline }) => {
   const [open, setOpen] = useState(false);
   const hasAnalysis = !!item.analysis && Number(item.analysis.currentPrice) > 0;
   const costBasis = item.entryPrice * item.quantity;
@@ -64,6 +65,9 @@ const PortfolioItemCard: React.FC<CardProps> = ({ item, onRemove, onEdit, isOnli
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
           {hasAnalysis && <div className="text-right hidden md:block"><PnLDisplay value={pnl} /><br /><PnLDisplay value={pnlPercent} isPercent /></div>}
+          <button onClick={() => onAnalyze(item.id)} disabled={item.analysisLoading || !isOnline} className="p-2 text-yellow-500 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 rounded-full disabled:opacity-50" title="تحلیل سهم" aria-label="تحلیل سهم">
+            {item.analysisLoading ? <div className="w-5 h-5 border-2 border-t-transparent border-yellow-500 rounded-full animate-spin" /> : <SparklesIcon />}
+          </button>
           <button onClick={() => onEdit(item)} className="px-2 py-1 text-xs font-semibold text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 rounded" title="ویرایش سهم">ویرایش</button>
           <button onClick={() => onRemove(item.id)} className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full" title="حذف سهم"><TrashIcon /></button>
           <button onClick={() => setOpen(v => !v)} className="p-2 text-gray-500" title="جزئیات"><ChevronDownIcon className={open ? 'rotate-180 transition-transform' : 'transition-transform'} /></button>
@@ -84,7 +88,7 @@ const PortfolioItemCard: React.FC<CardProps> = ({ item, onRemove, onEdit, isOnli
           <p className="leading-7">{item.analysis!.summary}</p>
           {item.analysis!.exitPrice && <p><strong>توصیه خروج:</strong> {item.analysis!.exitPrice}</p>}
         </div>}
-        {!hasAnalysis && !item.analysisError && !item.analysisLoading && <p className="text-center text-gray-500">برای مشاهده تحلیل، از دکمه «تحلیل کل سهام سبد» استفاده کنید.</p>}
+        {!hasAnalysis && !item.analysisError && !item.analysisLoading && <p className="text-center text-gray-500">برای مشاهده تحلیل، روی آیکون هوش مصنوعی کلیک کنید.</p>}
       </div>}
     </div>
   );
@@ -107,8 +111,6 @@ const Portfolio: React.FC<PortfolioProps> = ({ onAlertChange, currentUser, isOnl
   const [optimizationResult, setOptimizationResult] = useState<PortfolioOptimizationResult | null>(null);
   const [optimizationLoading, setOptimizationLoading] = useState(false);
   const [optimizationError, setOptimizationError] = useState<string | null>(null);
-  const [bulkAnalysisLoading, setBulkAnalysisLoading] = useState(false);
-  const [bulkAnalysisCompleted, setBulkAnalysisCompleted] = useState(0);
   const portfolioRef = useRef(portfolio);
   portfolioRef.current = portfolio;
 
@@ -179,46 +181,25 @@ const Portfolio: React.FC<PortfolioProps> = ({ onAlertChange, currentUser, isOnl
     } catch (error: any) { addNotification(error?.response?.data?.message || 'ویرایش سهم ناموفق بود.', 'error'); }
   };
 
-  const analyzeOne = useCallback(async (item: AnalyzedPortfolioItem) => {
-    const settingsKey = `user_settings_${currentUser.id}`;
-    let settings: any = {};
-    try { const raw = localStorage.getItem(settingsKey); settings = raw ? JSON.parse(raw) : {}; } catch (_) {}
-    const result = await analyzeStock(item.symbol, settings.chartDays || 30, settings.chartWeeks || 24, 'portfolio');
-    return normalizeAnalysis(result, item.symbol);
-  }, [currentUser]);
-
-  const handleAnalyzeAll = useCallback(async () => {
-    const items = portfolioRef.current;
-    if (!isOnline) return addNotification('برای تحلیل سبد باید آنلاین باشید.', 'error');
-    if (!items.length) return addNotification('سبد سهام خالی است.', 'error');
-    if (bulkAnalysisLoading) return;
-
-    setBulkAnalysisLoading(true);
-    setBulkAnalysisCompleted(0);
-    setPortfolio(prev => prev.map(item => ({ ...item, analysisLoading: true, analysisError: undefined })));
-
-    let successCount = 0;
-    let failedCount = 0;
+  const handleAnalyzeItem = useCallback(async (id: string) => {
+    const item = portfolioRef.current.find(x => x.id === id);
+    if (!item || item.analysisLoading) return;
+    if (!isOnline) return addNotification('برای تحلیل سهم باید آنلاین باشید.', 'error');
     try {
-      for (const item of items) {
-        try {
-          analysisUsageService.beginAnalysis(currentUser);
-          const analysis = await analyzeOne(item);
-          successCount += 1;
-          setPortfolio(prev => prev.map(x => x.id === item.id ? { ...x, analysis, analysisLoading: false, analysisError: undefined } : x));
-        } catch (error: any) {
-          failedCount += 1;
-          setPortfolio(prev => prev.map(x => x.id === item.id ? { ...x, analysisLoading: false, analysisError: error?.message || 'خطا در تحلیل سهم' } : x));
-        } finally {
-          setBulkAnalysisCompleted(prev => prev + 1);
-        }
-      }
-      if (failedCount === 0) addNotification(`تحلیل هر ${successCount} سهم سبد با موفقیت انجام شد.`, 'info');
-      else addNotification(`تحلیل ${successCount} سهم انجام شد و ${failedCount} سهم با خطا مواجه شد.`, 'error');
-    } finally {
-      setBulkAnalysisLoading(false);
+      analysisUsageService.beginAnalysis(currentUser);
+      setPortfolio(prev => prev.map(x => x.id === id ? { ...x, analysisLoading: true, analysisError: undefined } : x));
+      const settingsKey = `user_settings_${currentUser.id}`;
+      let settings: any = {};
+      try { const raw = localStorage.getItem(settingsKey); settings = raw ? JSON.parse(raw) : {}; } catch (_) {}
+      const result = await analyzeStock(item.symbol, settings.chartDays || 30, settings.chartWeeks || 24, 'portfolio');
+      const analysis = normalizeAnalysis(result, item.symbol);
+      setPortfolio(prev => prev.map(x => x.id === id ? { ...x, analysis, analysisLoading: false } : x));
+      addNotification(`تحلیل سهم ${item.symbol} با موفقیت انجام شد.`, 'info');
+    } catch (error: any) {
+      setPortfolio(prev => prev.map(x => x.id === id ? { ...x, analysisLoading: false, analysisError: error?.message || 'خطا در تحلیل سهم' } : x));
+      addNotification(error?.message || 'تحلیل سهم ناموفق بود.', 'error');
     }
-  }, [addNotification, analyzeOne, bulkAnalysisLoading, currentUser, isOnline]);
+  }, [addNotification, currentUser, isOnline]);
 
   const handleOptimizePortfolio = async () => {
     if (!isOnline) return addNotification('برای تحلیل و بهینه‌سازی باید آنلاین باشید.', 'error');
@@ -242,18 +223,6 @@ const Portfolio: React.FC<PortfolioProps> = ({ onAlertChange, currentUser, isOnl
       <h2 className="text-2xl font-bold text-cyan-600 dark:text-cyan-400 mb-2">مدیریت سبد سهام</h2>
       <p className="text-gray-600 dark:text-gray-400 mb-6">اطلاعات سبد برای هر کاربر به‌صورت جداگانه در دیتابیس ذخیره می‌شود.</p>
 
-      {portfolio.length > 0 && <div className="mb-6 p-4 rounded-lg shadow-md bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-right">
-            <h3 className="font-bold text-cyan-700 dark:text-cyan-300">تحلیل یکپارچه سبد</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">با یک بار کلیک، تحلیل تمام سهم‌های موجود در سبد اجرا می‌شود.</p>
-          </div>
-          <button onClick={handleAnalyzeAll} disabled={bulkAnalysisLoading || !isOnline} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-lg shadow-lg disabled:opacity-50 inline-flex items-center justify-center gap-2 min-w-[230px]">
-            {bulkAnalysisLoading ? <><div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin" /> تحلیل {bulkAnalysisCompleted} از {portfolio.length}</> : <><SparklesIcon /> تحلیل کل سهام سبد</>}
-          </button>
-        </div>
-      </div>}
-
       {pieData.length > 0 && <div className="p-4 rounded-lg shadow-md mb-8 bg-gray-50 dark:bg-gray-800/50">
         <h3 className="text-lg font-semibold mb-2 text-center">ترکیب سبد دارایی</h3>
         <ResponsiveContainer width="100%" height={250}><PieChart><Pie data={pieData} cx="50%" cy="50%" outerRadius={80} dataKey="value">{pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip formatter={(v: number) => `${formatNumber(v)} ریال`} /><Legend /></PieChart></ResponsiveContainer>
@@ -275,7 +244,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onAlertChange, currentUser, isOnl
       </div>
 
       {loading ? <div className="text-center py-10">در حال دریافت سبد از دیتابیس...</div> : <div className="space-y-4">
-        {portfolio.length ? portfolio.map(item => <PortfolioItemCard key={item.id} item={item} onRemove={handleRemoveItem} onEdit={startEdit} isOnline={isOnline} />) : <div className="text-center py-10 bg-gray-100 dark:bg-gray-800/50 rounded-lg">سبد سهام شما خالی است.</div>}
+        {portfolio.length ? portfolio.map(item => <PortfolioItemCard key={item.id} item={item} onRemove={handleRemoveItem} onEdit={startEdit} onAnalyze={handleAnalyzeItem} isOnline={isOnline} />) : <div className="text-center py-10 bg-gray-100 dark:bg-gray-800/50 rounded-lg">سبد سهام شما خالی است.</div>}
       </div>}
 
       {portfolio.length > 0 && <div className="mt-8 text-center"><button onClick={handleOptimizePortfolio} disabled={optimizationLoading || !isOnline} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-lg shadow-lg disabled:opacity-50 inline-flex items-center gap-2">{optimizationLoading ? <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin" /> : <SparklesIcon />} تحلیل و بهینه‌سازی کل سبد</button></div>}
