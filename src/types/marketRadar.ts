@@ -1,3 +1,5 @@
+export type MarketRadarHistoryRange = '1d' | '1w' | '1m' | '3m' | '6m' | '1y';
+
 export interface MarketRadarIndex {
   name: string;
   value: number | null;
@@ -40,6 +42,22 @@ export interface MarketRadarBreadth {
     laggards: MarketRadarSector[];
     rows: MarketRadarSector[];
   };
+  generatedAt: string | null;
+}
+
+export interface MarketRadarHistoryPoint {
+  timestamp: string;
+  index: number | null;
+  equalWeightedIndex: number | null;
+  totalValue: number | null;
+  totalVolume: number | null;
+  totalTrades: number | null;
+}
+
+export interface MarketRadarHistory {
+  range: MarketRadarHistoryRange;
+  available: boolean;
+  points: MarketRadarHistoryPoint[];
   generatedAt: string | null;
 }
 
