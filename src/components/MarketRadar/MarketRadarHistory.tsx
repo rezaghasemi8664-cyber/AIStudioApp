@@ -17,9 +17,14 @@ const metrics: Array<{ value: Metric; label: string; key: keyof MarketRadarHisto
 const fa = (value: number | null | undefined, digits = 0) => value === null || value === undefined || !Number.isFinite(value) ? '—' : new Intl.NumberFormat('fa-IR', { maximumFractionDigits: digits }).format(value);
 const compactFa = (value: number | null | undefined) => value === null || value === undefined || !Number.isFinite(value) ? '—' : new Intl.NumberFormat('fa-IR', { notation: 'compact', maximumFractionDigits: 2 }).format(value);
 const dateFa = (value: string) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date); };
+const valueIsValid = (value: number | null | undefined): value is number => value !== null && value !== undefined && Number.isFinite(value);
+
+function percentChange(first: number | null | undefined, last: number | null | undefined) {
+  return valueIsValid(first) && valueIsValid(last) && first !== 0 ? ((last - first) / Math.abs(first)) * 100 : null;
+}
 
 type ChartLineProps = { values: Array<number | null>; secondaryValues?: Array<number | null>; width?: number; height?: number; padding?: number; onHover?: (index: number, x: number, y: number) => void };
-function ChartLine({ values, secondaryValues, width = 760, height = 270, padding = 32, onHover }: ChartLineProps) {
+function ChartLine({ values, secondaryValues, width = 760, height = 270, padding = 42, onHover }: ChartLineProps) {
   const all = [...values, ...(secondaryValues ?? [])];
   const valid = all.map((value, index) => ({ value, index })).filter((item): item is { value: number; index: number } => valueIsValid(item.value));
   if (!valid.length) return null;
@@ -27,15 +32,18 @@ function ChartLine({ values, secondaryValues, width = 760, height = 270, padding
   const max = Math.max(...valid.map((item) => item.value));
   const span = max - min || Math.max(Math.abs(max) * 0.01, 1);
   const toPoint = (value: number, index: number) => ({ x: padding + (index / Math.max(values.length - 1, 1)) * (width - padding * 2), y: height - padding - ((value - min) / span) * (height - padding * 2) });
-  const buildPoints = (series: Array<number | null>) => series.map((value, index) => valueIsValid(value) ? `${toPoint(value as number, index).x},${toPoint(value as number, index).y}` : null).filter(Boolean).join(' ');
+  const buildPoints = (series: Array<number | null>) => series.map((value, index) => valueIsValid(value) ? `${toPoint(value, index).x},${toPoint(value, index).y}` : null).filter(Boolean).join(' ');
+  const tickValues = Array.from({ length: 5 }, (_, index) => min + ((max - min) * index) / 4);
   return <>
+    {tickValues.map((tick, index) => {
+      const y = height - padding - ((tick - min) / span) * (height - padding * 2);
+      return <g key={`grid-${index}`} pointerEvents="none"><line x1={padding} x2={width - padding} y1={y} y2={y} stroke="currentColor" strokeOpacity="0.10" strokeDasharray="3 5" /><text x={padding - 8} y={y + 4} textAnchor="end" className="fill-slate-500 text-[10px]">{fa(tick, 0)}</text></g>;
+    })}
     <polyline points={buildPoints(values)} fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
     {secondaryValues && <polyline points={buildPoints(secondaryValues)} fill="none" stroke="currentColor" strokeOpacity="0.45" strokeWidth="3" strokeDasharray="7 5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
-    {values.map((value, index) => valueIsValid(value) ? (() => { const point = toPoint(value as number, index); return <circle key={`p-${index}`} cx={point.x} cy={point.y} r="5" fill="currentColor" stroke="var(--color-surface)" strokeWidth="2" className="cursor-pointer" onMouseEnter={() => onHover?.(index, point.x, point.y)} onFocus={() => onHover?.(index, point.x, point.y)} tabIndex={0} aria-label={`نقطه ${index + 1}`} />; })() : null)}
+    {values.map((value, index) => valueIsValid(value) ? (() => { const point = toPoint(value, index); return <circle key={`p-${index}`} cx={point.x} cy={point.y} r="5" fill="currentColor" stroke="var(--color-surface)" strokeWidth="2" className="cursor-pointer" onMouseEnter={() => onHover?.(index, point.x, point.y)} onFocus={() => onHover?.(index, point.x, point.y)} tabIndex={0} aria-label={`نقطه ${index + 1}`} />; })() : null)}
   </>;
 }
-
-function valueIsValid(value: number | null | undefined): value is number { return value !== null && value !== undefined && Number.isFinite(value); }
 
 const MarketRadarHistory: React.FC = () => {
   const [range, setRange] = useState<MarketRadarHistoryRange>('1d');
@@ -56,15 +64,21 @@ const MarketRadarHistory: React.FC = () => {
   const selectedMetric = metrics.find((item) => item.value === metric) ?? metrics[0];
   const values = useMemo(() => data?.points.map((point) => point[selectedMetric.key] as number | null) ?? [], [data, selectedMetric.key]);
   const equalValues = useMemo(() => data?.points.map((point) => point.equalWeightedIndex) ?? [], [data]);
+  const validValues = values.filter(valueIsValid);
+  const validEqualValues = equalValues.filter(valueIsValid);
   const last = data?.points[data.points.length - 1];
-  const firstValid = values.find(valueIsValid);
+  const firstValid = validValues[0];
   const lastValue = last?.[selectedMetric.key] as number | null | undefined;
   const hoveredPoint = hovered && data?.points[hovered.index];
   const hoveredValue = hoveredPoint ? hoveredPoint[selectedMetric.key] as number | null : null;
   const hoveredEqual = hoveredPoint?.equalWeightedIndex ?? null;
   const valueLabel = (value: number | null | undefined) => selectedMetric.format === 'compact' ? compactFa(value) : fa(value, 2);
-  const rangeChange = valueIsValid(firstValid) && valueIsValid(lastValue) && firstValid !== 0 ? ((lastValue - firstValid) / Math.abs(firstValid)) * 100 : null;
+  const rangeChange = percentChange(firstValid, lastValue);
+  const equalRangeChange = percentChange(validEqualValues[0], last?.equalWeightedIndex);
   const rangeChangeLabel = rangeChange === null ? '—' : `${rangeChange >= 0 ? '+' : ''}${fa(rangeChange, 2)}٪`;
+  const equalRangeChangeLabel = equalRangeChange === null ? '—' : `${equalRangeChange >= 0 ? '+' : ''}${fa(equalRangeChange, 2)}٪`;
+  const high = validValues.length ? Math.max(...validValues) : null;
+  const low = validValues.length ? Math.min(...validValues) : null;
 
   return <article dir="rtl" className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -95,12 +109,13 @@ const MarketRadarHistory: React.FC = () => {
           {metric === 'index' && compareIndex && <div className="flex justify-center gap-5 pb-2 text-[11px] font-bold text-slate-500"><span className="inline-flex items-center gap-2"><i className="h-2 w-6 rounded-full bg-sky-400" /> شاخص کل</span><span className="inline-flex items-center gap-2"><i className="h-0.5 w-6 border-t-2 border-dashed border-violet-400" /> شاخص هم‌وزن</span></div>}
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-6">
         <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">متریک انتخاب‌شده</div><div className="mt-1 font-black text-slate-200">{selectedMetric.label}</div></div>
         <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">آخرین مقدار</div><div className="mt-1 font-black tabular-nums text-slate-200">{valueLabel(lastValue)}</div></div>
-        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">تغییر بازه</div><div className={`mt-1 font-black tabular-nums ${rangeChange === null ? 'text-slate-200' : rangeChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{rangeChangeLabel}</div></div>
-        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">آخرین تاریخ</div><div className="mt-1 font-black text-slate-200">{last ? dateFa(last.timestamp) : '—'}</div></div>
-        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">تعداد نقاط</div><div className="mt-1 font-black tabular-nums text-slate-200">{fa(data.points.length)}</div></div>
+        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">بیشترین مقدار</div><div className="mt-1 font-black tabular-nums text-emerald-400">{valueLabel(high)}</div></div>
+        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">کمترین مقدار</div><div className="mt-1 font-black tabular-nums text-rose-400">{valueLabel(low)}</div></div>
+        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">تغییر بازه</div><div className={`mt-1 font-black tabular-nums ${rangeChange === null ? 'text-slate-200' : rangeChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{rangeChangeLabel}</div>{metric === 'index' && compareIndex && <div className={`mt-1 text-[10px] font-bold ${equalRangeChange === null ? 'text-slate-500' : equalRangeChange >= 0 ? 'text-emerald-400/80' : 'text-rose-400/80'}`}>هم‌وزن: {equalRangeChangeLabel}</div>}</div>
+        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">آخرین تاریخ / نقاط</div><div className="mt-1 font-black text-slate-200">{last ? dateFa(last.timestamp) : '—'}</div><div className="mt-1 text-[10px] text-slate-500">{fa(data.points.length)} نقطه</div></div>
       </div>
     </>}
   </article>;
