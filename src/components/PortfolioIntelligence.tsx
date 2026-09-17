@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../api/apiClient';
 import * as portfolioService from '../services/portfolioService';
+import { getMarketRadarHistory } from '../services/marketRadarService';
 
 interface Props { isOnline: boolean; }
 interface HistoryPoint { date: string; value: number; cost: number; pnl: number; returnPercent: number; drawdownPercent?: number; peakValue?: number; }
+interface BenchmarkPoint { timestamp: string; index: number; }
 interface Holding { id: string; symbol: string; name?: string; quantity: number; entryPrice: number; currentPrice: number | null; changePercent: number | null; value: number | null; cost: number; pnl: number | null; pnlPercent: number | null; }
 
 const num = (value: unknown): number | null => { const n = Number(value); return Number.isFinite(n) ? n : null; };
@@ -27,11 +29,14 @@ async function history(symbol: string): Promise<Array<{ date: string; close: num
 const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
   const [items, setItems] = useState<Holding[]>([]);
   const [historyPoints, setHistoryPoints] = useState<HistoryPoint[]>([]);
+  const [benchmarkPoints, setBenchmarkPoints] = useState<BenchmarkPoint[]>([]);
   const [range, setRange] = useState<30 | 90 | 180 | 365>(30);
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [benchmarkLoading, setBenchmarkLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [benchmarkError, setBenchmarkError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -59,18 +64,27 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
       const byDate = new Map<string, { value: number; cost: number }>();
       rows.forEach(({ item, rows: quotes }) => { const cost = item.entryPrice * item.quantity; quotes.forEach(point => { const current = byDate.get(point.date) || { value: 0, cost: 0 }; byDate.set(point.date, { value: current.value + point.close * item.quantity, cost: current.cost + cost }); }); });
       let peak = 0;
-      const points = Array.from(byDate.entries()).map(([date, data]) => {
-        peak = Math.max(peak, data.value);
-        const drawdownPercent = peak > 0 ? ((data.value - peak) / peak) * 100 : 0;
-        return { date, value: data.value, cost: data.cost, pnl: data.value - data.cost, returnPercent: data.cost > 0 ? ((data.value - data.cost) / data.cost) * 100 : 0, drawdownPercent, peakValue: peak };
-      }).sort((a, b) => a.date.localeCompare(b.date));
+      const points = Array.from(byDate.entries()).map(([date, data]) => { peak = Math.max(peak, data.value); const drawdownPercent = peak > 0 ? ((data.value - peak) / peak) * 100 : 0; return { date, value: data.value, cost: data.cost, pnl: data.value - data.cost, returnPercent: data.cost > 0 ? ((data.value - data.cost) / data.cost) * 100 : 0, drawdownPercent, peakValue: peak }; }).sort((a, b) => a.date.localeCompare(b.date));
       setHistoryPoints(points.slice(-range));
     } catch (e: any) { setHistoryError(e?.response?.data?.message || e?.message || 'دریافت سابقه عملکرد سبد ناموفق بود.'); }
     finally { setHistoryLoading(false); }
   }, [isOnline, range]);
 
+  const loadBenchmark = useCallback(async () => {
+    if (!isOnline) { setBenchmarkError('برای مقایسه با شاخص بازار باید آنلاین باشید.'); return; }
+    setBenchmarkLoading(true); setBenchmarkError(null);
+    try {
+      const rangeKey = range === 30 ? '1m' : range === 90 ? '3m' : range === 180 ? '6m' : '1y';
+      const result = await getMarketRadarHistory(rangeKey);
+      const points = (result.points || []).filter(point => point.index != null).map(point => ({ timestamp: point.timestamp, index: point.index as number })).filter(point => Number.isFinite(point.index));
+      setBenchmarkPoints(points);
+      if (!points.length) setBenchmarkError('تاریخچه شاخص کل برای این بازه در دسترس نیست.');
+    } catch (e: any) { setBenchmarkPoints([]); setBenchmarkError(e?.message || 'دریافت تاریخچه شاخص کل ناموفق بود.'); }
+    finally { setBenchmarkLoading(false); }
+  }, [isOnline, range]);
+
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { loadHistory(); }, [loadHistory]);
+  useEffect(() => { loadHistory(); loadBenchmark(); }, [loadHistory, loadBenchmark]);
 
   const stats = useMemo(() => {
     const valued = items.filter(x => x.value != null) as Array<Holding & { value: number }>;
@@ -82,8 +96,11 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
     const gainValue = valued.reduce((s, x) => s + Math.max(x.pnl || 0, 0), 0); const lossValue = valued.reduce((s, x) => s + Math.min(x.pnl || 0, 0), 0); const gainShare = totalValue > 0 ? (gainValue / totalValue) * 100 : null; const lossShare = totalValue > 0 ? (Math.abs(lossValue) / totalValue) * 100 : null;
     const drawdowns = historyPoints.map(x => x.drawdownPercent ?? 0); const maxDrawdown = drawdowns.length ? Math.min(...drawdowns) : null; const currentDrawdown = drawdowns.length ? drawdowns[drawdowns.length - 1] : null; const recoveryPeak = historyPoints.length ? historyPoints[historyPoints.length - 1].peakValue ?? null : null;
     const positiveDays = historyPoints.filter(x => x.pnl > 0).length; const negativeDays = historyPoints.filter(x => x.pnl < 0).length; const winRate = historyPoints.length ? (positiveDays / historyPoints.length) * 100 : null;
-    return { totalValue, totalCost, pnl, pnlPercent, positive, negative, neutral, concentration, top3Concentration, diversification, weightedDailyChange, gainShare, lossShare, topSymbol: top?.symbol || null, maxDrawdown, currentDrawdown, recoveryPeak, positiveDays, negativeDays, winRate };
-  }, [items, historyPoints]);
+    const portfolioReturn = historyPoints.length > 1 && historyPoints[0].value > 0 ? ((historyPoints[historyPoints.length - 1].value / historyPoints[0].value) - 1) * 100 : null;
+    const benchmarkReturn = benchmarkPoints.length > 1 && benchmarkPoints[0].index > 0 ? ((benchmarkPoints[benchmarkPoints.length - 1].index / benchmarkPoints[0].index) - 1) * 100 : null;
+    const benchmarkAlpha = portfolioReturn != null && benchmarkReturn != null ? portfolioReturn - benchmarkReturn : null;
+    return { totalValue, totalCost, pnl, pnlPercent, positive, negative, neutral, concentration, top3Concentration, diversification, weightedDailyChange, gainShare, lossShare, topSymbol: top?.symbol || null, maxDrawdown, currentDrawdown, recoveryPeak, positiveDays, negativeDays, winRate, portfolioReturn, benchmarkReturn, benchmarkAlpha };
+  }, [items, historyPoints, benchmarkPoints]);
 
   const attribution = useMemo(() => {
     const valued = items.filter(x => x.value != null && x.pnl != null) as Array<Holding & { value: number; pnl: number }>;
@@ -99,10 +116,11 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
   }, [historyPoints]);
 
   return <div dir="rtl" className="space-y-5">
-    <div className="flex items-center justify-between gap-3 flex-wrap"><div><h2 className="text-2xl font-black">هوشمندی سبد سهام</h2><p className="text-sm text-gray-500 dark:text-gray-400 mt-1">ارزش‌گذاری، عملکرد، توزیع سرمایه، سهم سود/زیان و ریسک افت بر اساس داده واقعی بازار</p></div><button type="button" onClick={() => { load(); loadHistory(); }} disabled={loading || historyLoading || !isOnline} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading || historyLoading ? 'در حال بروزرسانی...' : 'بروزرسانی'}</button></div>
+    <div className="flex items-center justify-between gap-3 flex-wrap"><div><h2 className="text-2xl font-black">هوشمندی سبد سهام</h2><p className="text-sm text-gray-500 dark:text-gray-400 mt-1">ارزش‌گذاری، عملکرد، توزیع سرمایه، ریسک افت و مقایسه با شاخص بازار بر اساس داده واقعی</p></div><button type="button" onClick={() => { load(); loadHistory(); loadBenchmark(); }} disabled={loading || historyLoading || benchmarkLoading || !isOnline} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading || historyLoading || benchmarkLoading ? 'در حال بروزرسانی...' : 'بروزرسانی'}</button></div>
     {error && <div className="rounded-xl border border-red-300 bg-red-50 dark:bg-red-950/20 p-4 text-red-700 dark:text-red-300">{error}</div>}
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[['ارزش فعلی سبد', money(stats.totalValue)], ['بهای تمام‌شده', money(stats.totalCost)], ['سود/زیان کل', money(stats.pnl)], ['بازدهی کل', pct(stats.pnlPercent)]].map(([label, value]) => <div key={label} className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4"><p className="text-xs text-gray-500">{label}</p><p className="mt-2 text-xl font-black font-mono">{value}</p></div>)}</div>
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[['سهم‌های سودده', String(stats.positive)], ['سهم‌های زیان‌ده', String(stats.negative)], ['بدون تغییر', String(stats.neutral)], ['تغییر روزانه وزنی', pct(stats.weightedDailyChange)]].map(([label, value]) => <div key={label} className="rounded-2xl border border-[var(--color-border)] bg-white/70 dark:bg-gray-900/50 p-4"><p className="text-xs text-gray-500">{label}</p><p className="mt-2 text-lg font-black font-mono">{value}</p></div>)}</div>
+    <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4 space-y-4"><div><h3 className="font-black text-lg">مقایسه عملکرد سبد با شاخص کل</h3><p className="text-xs text-gray-500 mt-1">بازدهی سبد و شاخص کل در همان بازه تاریخی مقایسه می‌شوند؛ هیچ داده یا امتیاز مصنوعی استفاده نمی‌شود.</p></div>{benchmarkError && <div className="text-sm text-amber-700 dark:text-amber-300">{benchmarkError}</div>}<div className="grid grid-cols-1 md:grid-cols-3 gap-3"><div className="rounded-xl border border-[var(--color-border)] p-4"><p className="text-xs text-gray-500">بازدهی سبد</p><p className="mt-2 text-xl font-black font-mono">{pct(stats.portfolioReturn)}</p></div><div className="rounded-xl border border-[var(--color-border)] p-4"><p className="text-xs text-gray-500">بازدهی شاخص کل</p><p className="mt-2 text-xl font-black font-mono">{pct(stats.benchmarkReturn)}</p></div><div className="rounded-xl border border-[var(--color-border)] p-4"><p className="text-xs text-gray-500">اختلاف بازدهی</p><p className="mt-2 text-xl font-black font-mono">{pct(stats.benchmarkAlpha)}</p></div></div><p className="text-xs text-gray-500">اختلاف بازدهی = بازدهی سبد منهای بازدهی شاخص کل و صرفاً یک معیار توصیفی عملکرد تاریخی است.</p></div>
     <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4 space-y-4"><div><h3 className="font-black text-lg">عملکرد تاریخی سبد</h3><p className="text-xs text-gray-500 mt-1">ارزش تاریخی با قیمت پایانی واقعی هر نماد و تعداد ثبت‌شده در سبد محاسبه می‌شود.</p></div><div className="flex flex-wrap gap-2">{([[30, '۱ ماه'], [90, '۳ ماه'], [180, '۶ ماه'], [365, '۱ سال']] as const).map(([days, label]) => <button key={days} type="button" onClick={() => setRange(days)} className={`rounded-lg px-3 py-2 text-sm font-bold ${range === days ? 'bg-cyan-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>{label}</button>)}</div>{historyError && <div className="text-sm text-red-600 dark:text-red-400">{historyError}</div>}{historyLoading ? <div className="h-56 flex items-center justify-center text-gray-500">در حال دریافت سابقه...</div> : !chart ? <div className="h-56 flex items-center justify-center text-gray-500">برای این سبد سابقه قیمت کافی در دسترس نیست.</div> : <div className="space-y-3"><svg viewBox="0 0 760 220" className="w-full h-56" role="img" aria-label="نمودار ارزش تاریخی سبد"><polyline fill="none" stroke="currentColor" strokeWidth="3" points={chart.points} /></svg><div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm"><div><span className="text-gray-500">ابتدای دوره</span><div className="font-black font-mono">{money(chart.first.value)}</div></div><div><span className="text-gray-500">انتهای دوره</span><div className="font-black font-mono">{money(chart.last.value)}</div></div><div><span className="text-gray-500">کمینه</span><div className="font-black font-mono">{money(chart.min)}</div></div><div><span className="text-gray-500">بیشینه</span><div className="font-black font-mono">{money(chart.max)}</div></div></div></div>}</div>
     <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4 space-y-4"><div><h3 className="font-black text-lg">ریسک افت سبد (Drawdown)</h3><p className="text-xs text-gray-500 mt-1">افت از سقف تاریخی ارزش سبد در بازه انتخاب‌شده، فقط با داده واقعی محاسبه می‌شود.</p></div><div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[['حداکثر افت', pct(stats.maxDrawdown)], ['افت فعلی از سقف', pct(stats.currentDrawdown)], ['سقف محاسباتی', money(stats.recoveryPeak)], ['نرخ روزهای مثبت', pct(stats.winRate)]].map(([label, value]) => <div key={label} className="rounded-xl border border-[var(--color-border)] p-4"><p className="text-xs text-gray-500">{label}</p><p className="mt-2 text-lg font-black font-mono">{value}</p></div>)}</div><div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl border border-[var(--color-border)] p-3">روزهای مثبت: <b>{stats.positiveDays.toLocaleString('fa-IR')}</b></div><div className="rounded-xl border border-[var(--color-border)] p-3">روزهای منفی: <b>{stats.negativeDays.toLocaleString('fa-IR')}</b></div></div></div>
     <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4 space-y-4"><div><h3 className="font-black text-lg">سهم هر نماد در سود و زیان</h3><p className="text-xs text-gray-500 mt-1">Attribution بر اساس سود/زیان تحقق‌نیافته فعلی هر موقعیت و بدون مدل هوش مصنوعی محاسبه می‌شود.</p></div>{!attribution.length ? <div className="p-6 text-center text-gray-500">داده کافی برای محاسبه سهم سود و زیان در دسترس نیست.</div> : <div className="space-y-3">{attribution.map(item => <div key={item.id} className="rounded-xl border border-[var(--color-border)] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><span className="font-black">{item.symbol}</span><span className="text-xs text-gray-500 mr-2">{item.name}</span></div><div className={`font-black font-mono ${item.pnl > 0 ? 'text-[var(--color-positive)]' : item.pnl < 0 ? 'text-[var(--color-negative)]' : ''}`}>{money(item.pnl)}</div></div><div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3 text-sm"><div><span className="text-gray-500">بازدهی</span><div className="font-bold font-mono">{pct(item.pnlPercent)}</div></div><div><span className="text-gray-500">وزن سرمایه</span><div className="font-bold font-mono">{stats.totalValue > 0 ? `${((item.value / stats.totalValue) * 100).toFixed(1)}%` : '—'}</div></div><div><span className="text-gray-500">سهم از P/L مطلق</span><div className="font-bold font-mono">{item.contributionPercent.toFixed(1)}%</div></div></div><div className="mt-3 h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden"><div className={`h-full ${item.pnl >= 0 ? 'bg-[var(--color-positive)]' : 'bg-[var(--color-negative)]'}`} style={{ width: `${Math.min(100, item.contributionPercent)}%` }} /></div></div>)}</div>}</div>
