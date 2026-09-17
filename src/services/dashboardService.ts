@@ -1,4 +1,6 @@
 import { apiFetch } from './apiConfigService';
+import * as watchlistService from './watchlistService';
+import * as portfolioService from './portfolioService';
 import type { DashboardData, DashboardMarketIndex, DashboardMover } from '../types/dashboard';
 
 const asNumber = (value: unknown): number | null => {
@@ -87,7 +89,44 @@ export async function getDashboardMovers(): Promise<{ gainers: DashboardMover[];
   }
 }
 
-export async function getDashboardData(): Promise<DashboardData> {
-  const [market, movers] = await Promise.all([getDashboardMarket(), getDashboardMovers()]);
-  return { market, ...movers, fetchedAt: new Date().toISOString() };
+export async function getDashboardPersonalSummary(
+  unreadAlertCount: number,
+  subscriptionDaysRemaining: number | null,
+  subscriptionExpired: boolean,
+): Promise<DashboardData['personal']> {
+  const [watchlistsResult, portfolioResult] = await Promise.allSettled([
+    watchlistService.getWatchlists(),
+    portfolioService.getPortfolio(),
+  ]);
+
+  const watchlists = watchlistsResult.status === 'fulfilled' ? watchlistsResult.value : [];
+  const portfolio = portfolioResult.status === 'fulfilled' ? portfolioResult.value : [];
+  const watchlistSymbolCount = watchlists.reduce((sum, item) => sum + item.symbols.length, 0);
+  const portfolioInvestedValue = portfolio.reduce(
+    (sum, item) => sum + (Number(item.entryPrice) || 0) * (Number(item.quantity) || 0),
+    0,
+  );
+
+  return {
+    watchlistCount: watchlists.length,
+    watchlistSymbolCount,
+    portfolioCount: portfolio.length,
+    portfolioInvestedValue,
+    unreadAlertCount: Math.max(0, Number(unreadAlertCount) || 0),
+    subscriptionDaysRemaining,
+    subscriptionExpired,
+  };
+}
+
+export async function getDashboardData(
+  unreadAlertCount = 0,
+  subscriptionDaysRemaining: number | null = null,
+  subscriptionExpired = false,
+): Promise<DashboardData> {
+  const [market, movers, personal] = await Promise.all([
+    getDashboardMarket(),
+    getDashboardMovers(),
+    getDashboardPersonalSummary(unreadAlertCount, subscriptionDaysRemaining, subscriptionExpired),
+  ]);
+  return { market, ...movers, personal, fetchedAt: new Date().toISOString() };
 }
