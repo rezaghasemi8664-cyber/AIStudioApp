@@ -31,6 +31,19 @@ export interface SubscriptionState {
   subscription: CurrentSubscription | null;
 }
 
+export interface SubscriptionPaymentResponse {
+  transactionId: number;
+  authority: string;
+  redirectUrl: string;
+  amount: number;
+  currency: string;
+  plan: {
+    id: number;
+    name: string;
+    durationMonths: number;
+  };
+}
+
 export async function getMySubscription(): Promise<SubscriptionState> {
   const response = await apiClient.get<SubscriptionState>('/v1/subscriptions/me');
   const payload = response?.data;
@@ -49,7 +62,17 @@ export async function getSubscriptionPlans(): Promise<SubscriptionPlan[]> {
   return payload;
 }
 
+export async function createSubscriptionPayment(planId: number): Promise<SubscriptionPaymentResponse> {
+  const response = await apiClient.post<SubscriptionPaymentResponse>('/v1/subscriptions/payments/create', { planId });
+  const payload = response?.data;
+  if (!response?.success || !payload?.redirectUrl) {
+    throw new Error(response?.message || 'ایجاد درخواست پرداخت ناموفق بود.');
+  }
+  return payload;
+}
+
 export default {
   getMySubscription,
   getSubscriptionPlans,
+  createSubscriptionPayment,
 };
