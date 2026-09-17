@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { getDashboardData } from '../../services/dashboardService';
+import { createSubscriptionPayment, getMySubscription } from '../../services/subscriptionService';
+import type { SubscriptionState } from '../../services/subscriptionService';
 import type { DashboardData, DashboardMover } from '../../types/dashboard';
 
 interface DashboardProps {
@@ -15,6 +17,11 @@ const formatPercent = (value: number): string => {
   const text = new Intl.NumberFormat('fa-IR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(value));
   return value > 0 ? `+${text}٪` : value < 0 ? `−${text}٪` : '۰٫۰۰٪';
 };
+const formatDate = (value?: string | null): string => {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('fa-IR', { dateStyle: 'medium' }).format(date);
+};
 
 const MoverList: React.FC<{ title: string; items: DashboardMover[]; showVolume?: boolean }> = ({ title, items, showVolume = false }) => (
   <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-sm">
@@ -27,18 +34,56 @@ const SummaryCard: React.FC<{ title: string; value: string; detail?: string; onC
   <button type="button" onClick={onClick} className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 text-right shadow-sm transition hover:-translate-y-0.5 hover:bg-black/[0.03] dark:hover:bg-white/[0.03]"><div className="text-sm font-bold text-slate-500">{title}</div><div className="mt-3 text-2xl font-black tabular-nums text-[var(--color-text-primary)]">{value}</div>{detail && <div className="mt-1 text-xs text-slate-500">{detail}</div>}</button>
 );
 
+const SubscriptionCard: React.FC<{ state: SubscriptionState | null; fallbackDays: number | null; fallbackExpired: boolean; onRenew: () => Promise<void>; renewing: boolean; onNavigate?: (target: string) => void }> = ({ state, fallbackDays, fallbackExpired, onRenew, renewing, onNavigate }) => {
+  const subscription = state?.subscription ?? null;
+  const expired = state ? !state.hasAccess || !state.isActive : fallbackExpired;
+  const days = state ? state.daysRemaining : fallbackDays;
+  const planName = subscription?.plan?.name || (state?.hasAccess ? 'اشتراک فعال' : 'بدون اشتراک فعال');
+  const statusText = expired ? 'پایان‌یافته' : days == null ? 'فعال' : `${formatNumber(days)} روز باقی‌مانده`;
+  return <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-sm">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div><div className="text-sm font-bold text-slate-500">وضعیت اشتراک</div><div className="mt-2 text-xl font-black text-[var(--color-text-primary)]">{planName}</div><div className={`mt-1 text-sm font-bold ${expired ? 'text-[var(--color-negative)]' : 'text-[var(--color-positive)]'}`}>{statusText}</div>{subscription?.expiresAt && <div className="mt-1 text-xs text-slate-500">تاریخ پایان: {formatDate(subscription.expiresAt)}</div>}</div>
+      <div className="flex flex-wrap gap-2"><button type="button" onClick={() => onNavigate?.('profile')} className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-sm font-bold text-[var(--color-text-primary)]">جزئیات اشتراک</button><button type="button" disabled={renewing} onClick={() => void onRenew()} className="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{renewing ? 'در حال انتقال…' : 'تمدید اشتراک'}</button></div>
+    </div>
+  </section>;
+};
+
 const Dashboard: React.FC<DashboardProps> = ({ isOnline = true, onNavigate, unreadAlertCount = 0, subscriptionDaysRemaining = null, subscriptionExpired = false }) => {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionState | null>(null);
   const [loading, setLoading] = useState(true);
+  const [renewing, setRenewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
     if (!isOnline) { setError('اتصال به سرور در دسترس نیست.'); setLoading(false); return; }
     setError(null); setLoading(true);
-    try { setData(await getDashboardData(unreadAlertCount, subscriptionDaysRemaining, subscriptionExpired)); }
-    catch (err) { console.error('[Dashboard]', err); setError('دریافت اطلاعات داشبورد انجام نشد.'); }
+    try {
+      const [dashboardResult, subscriptionResult] = await Promise.allSettled([
+        getDashboardData(unreadAlertCount, subscriptionDaysRemaining, subscriptionExpired),
+        getMySubscription(),
+      ]);
+      if (dashboardResult.status === 'fulfilled') setData(dashboardResult.value);
+      else throw dashboardResult.reason;
+      if (subscriptionResult.status === 'fulfilled') setSubscription(subscriptionResult.value);
+    } catch (err) { console.error('[Dashboard]', err); setError('دریافت اطلاعات داشبورد انجام نشد.'); }
     finally { setLoading(false); }
   }, [isOnline, unreadAlertCount, subscriptionDaysRemaining, subscriptionExpired]);
+
   useEffect(() => { void load(); }, [load]);
+
+  const handleRenew = useCallback(async () => {
+    const planId = subscription?.subscription?.planId;
+    if (!planId) { onNavigate?.('profile'); return; }
+    setRenewing(true);
+    try {
+      const payment = await createSubscriptionPayment(planId);
+      window.location.assign(payment.redirectUrl);
+    } catch (err) {
+      console.error('[Dashboard] renewal', err);
+      setError('ایجاد درخواست تمدید اشتراک انجام نشد.');
+    } finally { setRenewing(false); }
+  }, [onNavigate, subscription]);
+
   const marketStatus = useMemo(() => data?.market?.indices[0]?.isMarketOpen ? 'بازار باز است' : 'بازار بسته است', [data]);
   const personal = data?.personal;
 
@@ -50,7 +95,9 @@ const Dashboard: React.FC<DashboardProps> = ({ isOnline = true, onNavigate, unre
 
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{(data?.market?.indices ?? []).map((index) => <div key={index.name} className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-sm"><div className="text-sm font-bold text-slate-500">{index.name}</div><div className="mt-3 text-2xl font-black tabular-nums text-[var(--color-text-primary)]">{formatNumber(index.value)}</div><div className={`mt-2 text-sm font-bold ${index.changeValue >= 0 ? 'text-[var(--color-positive)]' : 'text-[var(--color-negative)]'}`}>{formatNumber(index.changeValue)} ({formatPercent(index.changePercent)})</div></div>)}<div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"><div className="text-sm font-bold text-slate-500">ارزش معاملات</div><div className="mt-3 text-2xl font-black text-[var(--color-text-primary)]">{formatNumber(data?.market?.totalValue)}</div></div><div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"><div className="text-sm font-bold text-slate-500">حجم معاملات</div><div className="mt-3 text-2xl font-black text-[var(--color-text-primary)]">{formatNumber(data?.market?.totalVolume)}</div></div><div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"><div className="text-sm font-bold text-slate-500">تعداد معاملات</div><div className="mt-3 text-2xl font-black text-[var(--color-text-primary)]">{formatNumber(data?.market?.totalTrades)}</div></div></section>
 
-    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><SummaryCard title="دیده‌بان‌ها" value={formatNumber(personal?.watchlistCount ?? 0)} detail={`${formatNumber(personal?.watchlistSymbolCount ?? 0)} نماد در دیده‌بان`} onClick={() => onNavigate?.('portfolio')} /><SummaryCard title="سبد سهام" value={formatNumber(personal?.portfolioCount ?? 0)} detail={`سرمایه ثبت‌شده: ${formatNumber(personal?.portfolioInvestedValue ?? 0)} ریال`} onClick={() => onNavigate?.('portfolio')} /><SummaryCard title="هشدارها و اطلاعیه‌های خوانده‌نشده" value={formatNumber(personal?.unreadAlertCount ?? 0)} detail="مشاهده اطلاعیه‌ها" onClick={() => onNavigate?.('notifications')} /><SummaryCard title="وضعیت اشتراک" value={subscriptionExpired ? 'پایان‌یافته' : subscriptionDaysRemaining == null ? 'فعال' : `${formatNumber(subscriptionDaysRemaining)} روز`} detail={subscriptionExpired ? 'تمدید اشتراک' : 'تمام امکانات با اشتراک فعال در دسترس است'} onClick={() => onNavigate?.('profile')} /></section>
+    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"><SummaryCard title="دیده‌بان‌ها" value={formatNumber(personal?.watchlistCount ?? 0)} detail={`${formatNumber(personal?.watchlistSymbolCount ?? 0)} نماد در دیده‌بان`} onClick={() => onNavigate?.('portfolio')} /><SummaryCard title="سبد سهام" value={formatNumber(personal?.portfolioCount ?? 0)} detail={`سرمایه ثبت‌شده: ${formatNumber(personal?.portfolioInvestedValue ?? 0)} ریال`} onClick={() => onNavigate?.('portfolio')} /><SummaryCard title="هشدارها و اطلاعیه‌های خوانده‌نشده" value={formatNumber(personal?.unreadAlertCount ?? 0)} detail="مشاهده اطلاعیه‌ها" onClick={() => onNavigate?.('notifications')} /></section>
+
+    <SubscriptionCard state={subscription} fallbackDays={subscriptionDaysRemaining} fallbackExpired={subscriptionExpired} onRenew={handleRenew} renewing={renewing} onNavigate={onNavigate} />
 
     <div className="grid gap-5 lg:grid-cols-3"><MoverList title="بیشترین رشد" items={data?.gainers ?? []} /><MoverList title="بیشترین افت" items={data?.losers ?? []} /><MoverList title="بیشترین حجم" items={data?.highVolume ?? []} showVolume /></div>
 
