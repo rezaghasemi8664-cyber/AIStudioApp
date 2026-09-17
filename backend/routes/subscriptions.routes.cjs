@@ -3,6 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const controller = require('../controllers/subscriptions.controller.cjs');
+const paymentController = require('../controllers/zarinpal-payment.controller.cjs');
 
 let auth;
 try {
@@ -19,5 +20,11 @@ if (typeof authenticate !== 'function') {
 
 router.get('/me', authenticate, controller.me);
 router.get('/plans', authenticate, controller.plans);
+
+// Payment creation requires the authenticated user.
+router.post('/payments/create', authenticate, paymentController.create);
+
+// ZarinPal callback is public because the gateway redirects the browser here.
+router.get('/payments/callback', paymentController.callback);
 
 module.exports = router;
