@@ -94,6 +94,11 @@ export const getPortfolioOptimization = async (portfolio: PortfolioItem[], analy
     return { symbol: item.symbol, name: item.name, totalQuantity: item.totalQuantity, averageEntryPrice, totalCost: item.totalCost, currentPrice: item.currentPrice, currentValue, pnl, pnlPercent };
   });
 
+  const totalCost = holdingsSummary.reduce((sum, item) => sum + Number(item.totalCost || 0), 0);
+  const totalCurrentValue = holdingsSummary.reduce((sum, item) => sum + Number(item.currentValue || 0), 0);
+  const totalPnl = totalCurrentValue - totalCost;
+  const totalPnlPercent = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
+
   let realizedPerformance = { tradeCount: 0, proceeds: 0, costBasis: 0, realizedPnl: 0, realizedPnlPercent: 0, trades: [] as any[] };
   try {
     const tradesResponse = await appApiFetch<any>('/portfolio/trades', { method: 'GET' });
@@ -111,6 +116,13 @@ export const getPortfolioOptimization = async (portfolio: PortfolioItem[], analy
   const formatPercent = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
   const portfolioAccountingSection = [
     '━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    'خلاصه کل سبد فعلی',
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    `ارزش خرید/بهای تمام‌شده کل سبد: ${formatMoney(totalCost)} ریال`,
+    `ارزش فعلی کل دارایی‌های سبد: ${formatMoney(totalCurrentValue)} ریال`,
+    `سود/زیان کل سبد: ${totalPnl >= 0 ? '+' : ''}${formatMoney(totalPnl)} ریال`,
+    `بازده کل سبد: ${formatPercent(totalPnlPercent)}`,
+    '────────────────────────────',
     'خلاصه تجمیعی نمادهای همنام در سبد',
     '━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
     ...holdingsSummary.map(item => [
@@ -132,10 +144,11 @@ export const getPortfolioOptimization = async (portfolio: PortfolioItem[], analy
     'سبد سرمایه‌گذاری کاربر را به صورت حرفه‌ای تحلیل و بهینه‌سازی کن.',
     'فقط بر اساس داده‌های زیر تصمیم بگیر و عدد یا قیمت فرضی نساز.',
     'دارایی‌های فعلی را از معاملات بسته‌شده جدا نگه دار؛ معاملات فروخته‌شده نباید ارزش فعلی یا وزن فعلی سبد را تشکیل دهند.',
+    'ارزش کل فعلی، بهای تمام‌شده کل و سود/زیان کل سبد را دقیقاً از داده‌های واقعی محاسبه‌شده در بخش خلاصه کل سبد در نظر بگیر.',
     'سود/زیان تحقق‌یافته و سابقه معاملات بسته‌شده را به عنوان اطلاعات تاریخی عملکرد کاربر در تحلیل لحاظ کن.',
     'برای هر سهم اقدام خرید، فروش یا نگهداری و دلیل ارائه کن.',
     'خروجی فقط JSON معتبر باشد با ساختار: summary, riskScore, diversificationScore, recommendations.',
-    JSON.stringify({ currentHoldings: context, realizedPerformance }, null, 2),
+    JSON.stringify({ currentHoldings: context, portfolioTotals: { totalCost, totalCurrentValue, totalPnl, totalPnlPercent }, realizedPerformance }, null, 2),
   ].join('\n\n');
   const response = await appApiFetch<any>('/analyze', { method: 'POST', body: JSON.stringify({ prompt, analysisType: 'portfolio', featureKey: 'portfolio' }) });
   const result = unwrap<any>(response);
