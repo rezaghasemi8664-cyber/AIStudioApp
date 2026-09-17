@@ -28,7 +28,7 @@ const PortfolioEnhanced: React.FC<PortfolioEnhancedProps> = ({ onAlertChange, cu
           onClick={() => setActiveSection('watchlist')}
           className={`shrink-0 px-5 py-3 rounded-t-xl font-bold transition ${activeSection === 'watchlist' ? 'bg-cyan-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
         >
-          دیده‌بان
+          دیده‌بان حرفه‌ای
         </button>
       </div>
 
