@@ -31,14 +31,8 @@ export interface SubscriptionState {
   subscription: CurrentSubscription | null;
 }
 
-interface ApiEnvelope<T> {
-  success?: boolean;
-  data?: T;
-  message?: string;
-}
-
 export async function getMySubscription(): Promise<SubscriptionState> {
-  const response = await apiClient.get<ApiEnvelope<SubscriptionState>>('/v1/subscriptions/me');
+  const response = await apiClient.get<SubscriptionState>('/v1/subscriptions/me');
   const payload = response?.data;
   if (!response?.success || !payload) {
     throw new Error(response?.message || 'دریافت وضعیت اشتراک ناموفق بود.');
@@ -47,7 +41,7 @@ export async function getMySubscription(): Promise<SubscriptionState> {
 }
 
 export async function getSubscriptionPlans(): Promise<SubscriptionPlan[]> {
-  const response = await apiClient.get<ApiEnvelope<SubscriptionPlan[]>>('/v1/subscriptions/plans');
+  const response = await apiClient.get<SubscriptionPlan[]>('/v1/subscriptions/plans');
   const payload = response?.data;
   if (!response?.success || !Array.isArray(payload)) {
     throw new Error(response?.message || 'دریافت پلن‌های اشتراک ناموفق بود.');
