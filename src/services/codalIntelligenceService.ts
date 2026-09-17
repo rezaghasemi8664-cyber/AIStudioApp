@@ -5,6 +5,7 @@ export interface CodalReport {
   symbol: string;
   companyName: string;
   reportType: string;
+  category: string;
   publishDate: string;
   period: string;
   periodEnd: string;
@@ -18,6 +19,7 @@ export interface CodalSummary {
   audited: number;
   attachments: number;
   byType: Record<string, number>;
+  byCategory: Record<string, number>;
 }
 
 export interface CodalReportsResult {
@@ -36,8 +38,6 @@ export async function getCodalReports(params: {
 } = {}): Promise<CodalReportsResult> {
   const response = await api.get('/codal-intelligence/reports', { params });
   const data = response?.data?.data ?? response?.data;
-  if (!data || !Array.isArray(data.items)) {
-    throw new Error('پاسخ اطلاعیه‌های کدال معتبر نیست.');
-  }
+  if (!data || !Array.isArray(data.items)) throw new Error('پاسخ اطلاعیه‌های کدال معتبر نیست.');
   return data as CodalReportsResult;
 }
