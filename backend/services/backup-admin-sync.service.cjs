@@ -15,7 +15,8 @@ async function syncFilesystemBackups(prisma, createdBy = null) {
     if (!safePath) continue;
     const key = safePath.toLowerCase();
     if (known.has(key)) {
-      synced.push({ ...file, jobId: known.get(key) });
+      const jobId = known.get(key);
+      synced.push({ ...file, id: jobId, jobId });
       continue;
     }
 
@@ -33,7 +34,7 @@ async function syncFilesystemBackups(prisma, createdBy = null) {
 
     const jobId = Number(rows[0].id);
     known.set(key, jobId);
-    synced.push({ ...file, jobId });
+    synced.push({ ...file, id: jobId, jobId });
   }
 
   return synced;
