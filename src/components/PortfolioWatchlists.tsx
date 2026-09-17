@@ -71,6 +71,7 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
   const [quotes, setQuotes] = useState<Record<string, watchlistService.WatchlistQuote>>({});
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
+  const [marketOpen, setMarketOpen] = useState(() => isTehranTradingSession());
 
   const [showNewWatchlist, setShowNewWatchlist] = useState(false);
   const [newWatchlistName, setNewWatchlistName] = useState('');
@@ -88,6 +89,52 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
     () => watchlists.find(item => item.id === activeId) || watchlists[0] || null,
     [watchlists, activeId],
   );
+
+  const watchlistSummary = useMemo(() => {
+    const rows = (activeWatchlist?.symbols || []).map(item => {
+      const quote = quotes[item.symbol];
+      return {
+        symbol: quote?.symbol || item.symbol,
+        name: quote?.name || item.name,
+        change: Number(quote?.lastChangePercent),
+        volume: Number(quote?.volume),
+        updatedAt: quote?.updatedAt ? new Date(quote.updatedAt).getTime() : NaN,
+      };
+    });
+
+    const validRows = rows.filter(row => Number.isFinite(row.change));
+    const totalChange = validRows.reduce((sum, row) => sum + row.change, 0);
+    const averageChange = validRows.length > 0 ? totalChange / validRows.length : null;
+    const positive = validRows.filter(row => row.change > 0).length;
+    const negative = validRows.filter(row => row.change < 0).length;
+    const neutral = validRows.filter(row => row.change === 0).length;
+    const maxGain = validRows.length > 0 ? validRows.reduce((best, row) => row.change > best.change ? row : best) : null;
+    const maxLoss = validRows.length > 0 ? validRows.reduce((worst, row) => row.change < worst.change ? row : worst) : null;
+    const volumeRows = rows.filter(row => Number.isFinite(row.volume));
+    const maxVolume = volumeRows.length > 0 ? volumeRows.reduce((best, row) => row.volume > best.volume ? row : best) : null;
+    const updatedRows = rows.filter(row => Number.isFinite(row.updatedAt));
+    const lastUpdated = updatedRows.length > 0 ? Math.max(...updatedRows.map(row => row.updatedAt)) : null;
+
+    return {
+      total: rows.length,
+      quoted: validRows.length,
+      positive,
+      negative,
+      neutral,
+      averageChange,
+      maxGain,
+      maxLoss,
+      maxVolume,
+      lastUpdated,
+    };
+  }, [activeWatchlist, quotes]);
+
+  useEffect(() => {
+    const updateMarketState = () => setMarketOpen(isTehranTradingSession());
+    const timer = window.setInterval(updateMarketState, CLOSED_CHECK_MS);
+    updateMarketState();
+    return () => window.clearInterval(timer);
+  }, []);
 
   const loadWatchlists = useCallback(async () => {
     setLoading(true);
@@ -302,43 +349,90 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
             {watchlists.map(item => <button key={item.id} onClick={() => setActiveId(item.id)} className={`shrink-0 px-4 py-2.5 rounded-t-lg font-semibold transition ${activeWatchlist?.id === item.id ? 'bg-cyan-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>{item.name}<span className="mr-2 text-xs opacity-80">({item.symbols.length.toLocaleString('fa-IR')})</span></button>)}
           </div>
 
-          {activeWatchlist && <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm overflow-hidden">
-            <div className="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-[var(--color-border)]">
-              <div>
-                <h3 className="text-xl font-bold">{activeWatchlist.name}</h3>
-                <p className="text-xs text-gray-500 mt-1">اطلاعات بازار در زمان باز بودن بازار، به‌صورت خودکار هر ۲ دقیقه به‌روزرسانی می‌شود.</p>
+          {activeWatchlist && <>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-sm">
+                <div className="text-xs text-gray-500 dark:text-gray-400">تعداد نمادها</div>
+                <div className="mt-2 text-2xl font-black">{watchlistSummary.total.toLocaleString('fa-IR')}</div>
+                <div className="mt-1 text-xs text-gray-500">دارای اطلاعات معتبر: {watchlistSummary.quoted.toLocaleString('fa-IR')}</div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button onClick={() => { setShowAddSymbol(true); setValidatedSymbol(null); }} disabled={!isOnline} className="px-4 py-2 rounded-lg bg-cyan-600 text-white font-bold inline-flex items-center gap-2 disabled:opacity-50"><PlusIcon /> افزودن نماد به دیده‌بان</button>
-                {activeWatchlist.symbols.length > 0 && <button onClick={() => { setEditMode(value => !value); setSelectedSymbols([]); }} className={`px-4 py-2 rounded-lg border font-semibold ${editMode ? 'border-cyan-500 text-cyan-600 bg-cyan-50 dark:bg-cyan-900/20' : 'border-[var(--color-border)]'}`}>ویرایش نمادها</button>}
-                {editMode && <button onClick={removeSelected} disabled={saving || selectedSymbols.length === 0} className="px-4 py-2 rounded-lg bg-red-600 text-white font-bold disabled:opacity-40 inline-flex items-center gap-2"><TrashIcon /> حذف انتخاب‌شده‌ها</button>}
+              <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-sm">
+                <div className="text-xs text-gray-500 dark:text-gray-400">وضعیت نمادها</div>
+                <div className="mt-2 flex items-center gap-3 text-sm font-bold">
+                  <span className="text-[var(--color-positive)]">مثبت {watchlistSummary.positive.toLocaleString('fa-IR')}</span>
+                  <span className="text-[var(--color-negative)]">منفی {watchlistSummary.negative.toLocaleString('fa-IR')}</span>
+                </div>
+                <div className="mt-1 text-xs text-gray-500">خنثی: {watchlistSummary.neutral.toLocaleString('fa-IR')}</div>
+              </div>
+              <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-sm">
+                <div className="text-xs text-gray-500 dark:text-gray-400">میانگین تغییر</div>
+                <div className={`mt-2 text-2xl font-black ${percentClass(watchlistSummary.averageChange)}`}>{formatPercent(watchlistSummary.averageChange)}</div>
+                <div className="mt-1 text-xs text-gray-500">بر اساس نمادهای دارای قیمت</div>
+              </div>
+              <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-sm">
+                <div className="text-xs text-gray-500 dark:text-gray-400">وضعیت بازار</div>
+                <div className={`mt-2 text-lg font-black ${marketOpen ? 'text-[var(--color-positive)]' : 'text-gray-500 dark:text-gray-400'}`}>{marketOpen ? 'بازار باز است' : 'بازار بسته است'}</div>
+                <div className="mt-1 text-xs text-gray-500">محاسبه بر اساس ساعت تهران</div>
               </div>
             </div>
 
-            {activeWatchlist.symbols.length === 0 ? <div className="p-10 text-center text-gray-500">این دیده‌بان هنوز نمادی ندارد.</div> : <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-sm text-right">
-                <thead className="bg-gray-50 dark:bg-gray-800/70 border-b border-[var(--color-border)]"><tr>
-                  {editMode && <th className="px-3 py-3 w-12 text-center">انتخاب</th>}
-                  <th className="px-4 py-3 font-bold">ردیف</th><th className="px-4 py-3 font-bold">نام نماد</th><th className="px-4 py-3 font-bold">حجم معامله</th><th className="px-4 py-3 font-bold">قیمت لحظه‌ای</th><th className="px-4 py-3 font-bold">درصد تغییر</th><th className="px-4 py-3 font-bold">قیمت پایانی</th><th className="px-4 py-3 font-bold">درصد تغییر</th>
-                </tr></thead>
-                <tbody className="divide-y divide-[var(--color-border)]">
-                  {activeWatchlist.symbols.map((item, index) => {
-                    const quote = quotes[item.symbol];
-                    return <tr key={item.symbol} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                      {editMode && <td className="px-3 py-3 text-center"><input type="checkbox" checked={selectedSymbols.includes(item.symbol)} onChange={() => toggleSymbol(item.symbol)} className="h-4 w-4 accent-cyan-600" /></td>}
-                      <td className="px-4 py-3 text-gray-500">{(index + 1).toLocaleString('fa-IR')}</td>
-                      <td className="px-4 py-3"><div className="font-bold text-cyan-600 dark:text-cyan-400">{quote?.symbol || item.symbol}</div><div className="text-xs text-gray-500 mt-0.5">{quote?.name || item.name}</div></td>
-                      <td className="px-4 py-3 font-mono">{formatNumber(quote?.volume)}</td><td className="px-4 py-3 font-mono font-semibold">{formatNumber(quote?.lastPrice)}</td><td className={`px-4 py-3 font-mono font-bold ${percentClass(quote?.lastChangePercent)}`}>{formatPercent(quote?.lastChangePercent)}</td><td className="px-4 py-3 font-mono font-semibold">{formatNumber(quote?.closePrice)}</td><td className={`px-4 py-3 font-mono font-bold ${percentClass(quote?.closeChangePercent)}`}>{formatPercent(quote?.closeChangePercent)}</td>
-                    </tr>;
-                  })}
-                </tbody>
-              </table>
-            </div>}
-            <div className="px-4 py-3 text-xs text-gray-500 border-t border-[var(--color-border)] flex items-center justify-between gap-3">
-              <span>{activeWatchlist.symbols.length.toLocaleString('fa-IR')} نماد در این دیده‌بان</span>
-              <span>{quoteLoading ? 'در حال دریافت آخرین اطلاعات بازار…' : 'به‌روزرسانی اطلاعات در ساعات بازار به‌صورت خودکار انجام می‌شود.'}</span>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-sm">
+                <div className="text-xs text-gray-500 dark:text-gray-400">بیشترین رشد</div>
+                <div className="mt-2 flex items-center justify-between gap-3"><span className="font-bold truncate">{watchlistSummary.maxGain?.symbol || '—'}</span><span className={`font-black ${percentClass(watchlistSummary.maxGain?.change)}`}>{formatPercent(watchlistSummary.maxGain?.change)}</span></div>
+                <div className="mt-1 text-xs text-gray-500 truncate">{watchlistSummary.maxGain?.name || 'اطلاعات کافی نیست'}</div>
+              </div>
+              <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-sm">
+                <div className="text-xs text-gray-500 dark:text-gray-400">بیشترین افت</div>
+                <div className="mt-2 flex items-center justify-between gap-3"><span className="font-bold truncate">{watchlistSummary.maxLoss?.symbol || '—'}</span><span className={`font-black ${percentClass(watchlistSummary.maxLoss?.change)}`}>{formatPercent(watchlistSummary.maxLoss?.change)}</span></div>
+                <div className="mt-1 text-xs text-gray-500 truncate">{watchlistSummary.maxLoss?.name || 'اطلاعات کافی نیست'}</div>
+              </div>
+              <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-sm">
+                <div className="text-xs text-gray-500 dark:text-gray-400">بیشترین حجم معامله</div>
+                <div className="mt-2 flex items-center justify-between gap-3"><span className="font-bold truncate">{watchlistSummary.maxVolume?.symbol || '—'}</span><span className="font-black">{formatNumber(watchlistSummary.maxVolume?.volume)}</span></div>
+                <div className="mt-1 text-xs text-gray-500 truncate">{watchlistSummary.maxVolume?.name || 'اطلاعات کافی نیست'}</div>
+              </div>
             </div>
-          </div>}
+
+            <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm overflow-hidden">
+              <div className="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-[var(--color-border)]">
+                <div>
+                  <h3 className="text-xl font-bold">{activeWatchlist.name}</h3>
+                  <p className="text-xs text-gray-500 mt-1">اطلاعات بازار در زمان باز بودن بازار، به‌صورت خودکار هر ۲ دقیقه به‌روزرسانی می‌شود.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => { setShowAddSymbol(true); setValidatedSymbol(null); }} disabled={!isOnline} className="px-4 py-2 rounded-lg bg-cyan-600 text-white font-bold inline-flex items-center gap-2 disabled:opacity-50"><PlusIcon /> افزودن نماد به دیده‌بان</button>
+                  {activeWatchlist.symbols.length > 0 && <button onClick={() => { setEditMode(value => !value); setSelectedSymbols([]); }} className={`px-4 py-2 rounded-lg border font-semibold ${editMode ? 'border-cyan-500 text-cyan-600 bg-cyan-50 dark:bg-cyan-900/20' : 'border-[var(--color-border)]'}`}>ویرایش نمادها</button>}
+                  {editMode && <button onClick={removeSelected} disabled={saving || selectedSymbols.length === 0} className="px-4 py-2 rounded-lg bg-red-600 text-white font-bold disabled:opacity-40 inline-flex items-center gap-2"><TrashIcon /> حذف انتخاب‌شده‌ها</button>}
+                </div>
+              </div>
+
+              {activeWatchlist.symbols.length === 0 ? <div className="p-10 text-center text-gray-500">این دیده‌بان هنوز نمادی ندارد.</div> : <div className="overflow-x-auto">
+                <table className="w-full min-w-[900px] text-sm text-right">
+                  <thead className="bg-gray-50 dark:bg-gray-800/70 border-b border-[var(--color-border)]"><tr>
+                    {editMode && <th className="px-3 py-3 w-12 text-center">انتخاب</th>}
+                    <th className="px-4 py-3 font-bold">ردیف</th><th className="px-4 py-3 font-bold">نام نماد</th><th className="px-4 py-3 font-bold">حجم معامله</th><th className="px-4 py-3 font-bold">قیمت لحظه‌ای</th><th className="px-4 py-3 font-bold">درصد تغییر</th><th className="px-4 py-3 font-bold">قیمت پایانی</th><th className="px-4 py-3 font-bold">درصد تغییر</th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-[var(--color-border)]">
+                    {activeWatchlist.symbols.map((item, index) => {
+                      const quote = quotes[item.symbol];
+                      return <tr key={item.symbol} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                        {editMode && <td className="px-3 py-3 text-center"><input type="checkbox" checked={selectedSymbols.includes(item.symbol)} onChange={() => toggleSymbol(item.symbol)} className="h-4 w-4 accent-cyan-600" /></td>}
+                        <td className="px-4 py-3 text-gray-500">{(index + 1).toLocaleString('fa-IR')}</td>
+                        <td className="px-4 py-3"><div className="font-bold text-cyan-600 dark:text-cyan-400">{quote?.symbol || item.symbol}</div><div className="text-xs text-gray-500 mt-0.5">{quote?.name || item.name}</div></td>
+                        <td className="px-4 py-3 font-mono">{formatNumber(quote?.volume)}</td><td className="px-4 py-3 font-mono font-semibold">{formatNumber(quote?.lastPrice)}</td><td className={`px-4 py-3 font-mono font-bold ${percentClass(quote?.lastChangePercent)}`}>{formatPercent(quote?.lastChangePercent)}</td><td className="px-4 py-3 font-mono font-semibold">{formatNumber(quote?.closePrice)}</td><td className={`px-4 py-3 font-mono font-bold ${percentClass(quote?.closeChangePercent)}`}>{formatPercent(quote?.closeChangePercent)}</td>
+                      </tr>;
+                    })}
+                  </tbody>
+                </table>
+              </div>}
+              <div className="px-4 py-3 text-xs text-gray-500 border-t border-[var(--color-border)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <span>{activeWatchlist.symbols.length.toLocaleString('fa-IR')} نماد در این دیده‌بان</span>
+                <span>{watchlistSummary.lastUpdated ? `آخرین بروزرسانی: ${new Date(watchlistSummary.lastUpdated).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}` : 'زمان بروزرسانی هنوز ثبت نشده است.'}</span>
+                <span>{quoteLoading ? 'در حال دریافت آخرین اطلاعات بازار…' : 'به‌روزرسانی اطلاعات در ساعات بازار به‌صورت خودکار انجام می‌شود.'}</span>
+              </div>
+            </div>
+          </>}
         </>
       )}
 
