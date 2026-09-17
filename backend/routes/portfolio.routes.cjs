@@ -24,6 +24,30 @@ function normalizeItem(item) {
   return { id, symbol, name, quantity, buyPrice, entryDate: entryDate || new Date().toISOString() };
 }
 
+function normalizeSoldTrade(trade) {
+  if (!trade || typeof trade !== 'object') return null;
+  const id = String(trade.id ?? '');
+  const symbol = String(trade.symbol ?? '').trim().toUpperCase();
+  const name = String(trade.name ?? symbol).trim() || symbol;
+  const soldQuantity = Number(trade.soldQuantity);
+  const sellPrice = Number(trade.sellPrice);
+  const sellDate = String(trade.sellDate ?? '').trim();
+  const allocations = Array.isArray(trade.allocations) ? trade.allocations.map(a => ({
+    lotId: String(a.lotId ?? ''),
+    quantity: Number(a.quantity),
+    buyPrice: Number(a.buyPrice),
+    buyDate: String(a.buyDate ?? '').trim(),
+    costBasis: Number(a.costBasis),
+    holdingDays: Number.isFinite(Number(a.holdingDays)) ? Number(a.holdingDays) : null,
+  })).filter(a => a.lotId && Number.isFinite(a.quantity) && a.quantity > 0) : [];
+  const proceeds = Number(trade.proceeds ?? soldQuantity * sellPrice);
+  const costBasis = Number(trade.costBasis ?? allocations.reduce((sum, a) => sum + a.costBasis, 0));
+  const realizedPnl = Number(trade.realizedPnl ?? proceeds - costBasis);
+  const realizedPnlPercent = Number(trade.realizedPnlPercent ?? (costBasis > 0 ? (realizedPnl / costBasis) * 100 : 0));
+  if (!id || !symbol || !Number.isFinite(soldQuantity) || soldQuantity <= 0 || !Number.isFinite(sellPrice) || sellPrice <= 0 || !sellDate) return null;
+  return { id, symbol, name, soldQuantity, sellPrice, sellDate, allocationMethod: String(trade.allocationMethod || 'MANUAL'), allocations, proceeds, costBasis, realizedPnl, realizedPnlPercent, createdAt: String(trade.createdAt || new Date().toISOString()) };
+}
+
 async function readPortfolio(userId) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { marketSummary: true } });
   let root = {};
@@ -36,6 +60,7 @@ async function readPortfolio(userId) {
     portfolio: {
       items: Array.isArray(raw && raw.items) ? raw.items.map(normalizeItem).filter(Boolean) : [],
       totalValue: Number(raw && raw.totalValue) || 0,
+      soldTrades: Array.isArray(raw && raw.soldTrades) ? raw.soldTrades.map(normalizeSoldTrade).filter(Boolean) : [],
     },
   };
 }
@@ -87,10 +112,106 @@ router.get('/summary', authMiddleware, async (req, res) => {
     if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
     const state = await readPortfolio(userId);
     const totalInvested = state.portfolio.items.reduce((sum, item) => sum + item.quantity * item.buyPrice, 0);
-    return res.json({ success: true, data: { totalItems: state.portfolio.items.length, totalInvested, items: state.portfolio.items } });
+    const realizedPnl = state.portfolio.soldTrades.reduce((sum, trade) => sum + trade.realizedPnl, 0);
+    return res.json({ success: true, data: { totalItems: state.portfolio.items.length, totalInvested, realizedPnl, soldTrades: state.portfolio.soldTrades, items: state.portfolio.items } });
   } catch (error) {
     console.error('[PORTFOLIO] SUMMARY failed:', error);
     return res.status(500).json({ success: false, message: 'خطا در دریافت خلاصه سبد.', error: error.message });
+  }
+});
+
+router.get('/trades', authMiddleware, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
+    const state = await readPortfolio(userId);
+    const realizedPnl = state.portfolio.soldTrades.reduce((sum, trade) => sum + trade.realizedPnl, 0);
+    const proceeds = state.portfolio.soldTrades.reduce((sum, trade) => sum + trade.proceeds, 0);
+    const costBasis = state.portfolio.soldTrades.reduce((sum, trade) => sum + trade.costBasis, 0);
+    return res.json({ success: true, data: { trades: state.portfolio.soldTrades, realizedPnl, proceeds, costBasis } });
+  } catch (error) {
+    console.error('[PORTFOLIO] TRADES GET failed:', error);
+    return res.status(500).json({ success: false, message: 'خطا در دریافت معاملات فروخته‌شده.', error: error.message });
+  }
+});
+
+router.post('/sales', authMiddleware, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
+    const symbol = String(req.body?.symbol || '').trim().toUpperCase();
+    const name = String(req.body?.name || symbol).trim() || symbol;
+    const soldQuantity = Number(req.body?.soldQuantity);
+    const sellPrice = Number(req.body?.sellPrice);
+    const sellDate = String(req.body?.sellDate || '').trim();
+    const allocationMethod = String(req.body?.allocationMethod || 'MANUAL').toUpperCase();
+    const requestedAllocations = Array.isArray(req.body?.allocations) ? req.body.allocations : [];
+    if (!symbol || !Number.isFinite(soldQuantity) || soldQuantity <= 0 || !Number.isFinite(sellPrice) || sellPrice <= 0 || !sellDate) {
+      return res.status(400).json({ success: false, message: 'نماد، تعداد فروش، قیمت فروش و تاریخ فروش الزامی است.' });
+    }
+    if (allocationMethod !== 'MANUAL') return res.status(400).json({ success: false, message: 'در این نسخه تخصیص دستی Lot فعال است.' });
+    const state = await readPortfolio(userId);
+    const allocations = [];
+    let remaining = soldQuantity;
+    for (const request of requestedAllocations) {
+      if (remaining <= 0) break;
+      const lotId = String(request?.lotId || '');
+      const requestedQty = Number(request?.quantity);
+      const lot = state.portfolio.items.find(item => String(item.id) === lotId && item.symbol === symbol);
+      if (!lot || !Number.isFinite(requestedQty) || requestedQty <= 0) return res.status(400).json({ success: false, message: `Lot نامعتبر برای نماد ${symbol}.` });
+      const qty = Math.min(requestedQty, remaining);
+      if (qty > lot.quantity) return res.status(400).json({ success: false, message: `تعداد انتخاب‌شده از Lot ${lot.id} بیشتر از موجودی آن است.` });
+      allocations.push({ lotId: lot.id, quantity: qty, buyPrice: lot.buyPrice, buyDate: lot.entryDate, costBasis: qty * lot.buyPrice, holdingDays: null });
+      remaining -= qty;
+    }
+    if (remaining > 0.000001) return res.status(400).json({ success: false, message: 'تعداد تخصیص‌یافته به Lotها با تعداد فروش برابر نیست.' });
+
+    for (const allocation of allocations) {
+      const index = state.portfolio.items.findIndex(item => String(item.id) === allocation.lotId);
+      if (index < 0) continue;
+      const nextQuantity = state.portfolio.items[index].quantity - allocation.quantity;
+      if (nextQuantity <= 0.000001) state.portfolio.items.splice(index, 1);
+      else state.portfolio.items[index] = { ...state.portfolio.items[index], quantity: nextQuantity };
+    }
+
+    const proceeds = soldQuantity * sellPrice;
+    const costBasis = allocations.reduce((sum, allocation) => sum + allocation.costBasis, 0);
+    const realizedPnl = proceeds - costBasis;
+    const realizedPnlPercent = costBasis > 0 ? (realizedPnl / costBasis) * 100 : 0;
+    const trade = normalizeSoldTrade({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      symbol, name, soldQuantity, sellPrice, sellDate, allocationMethod,
+      allocations, proceeds, costBasis, realizedPnl, realizedPnlPercent, createdAt: new Date().toISOString(),
+    });
+    state.portfolio.soldTrades.unshift(trade);
+    await writePortfolio(userId, state);
+    return res.status(201).json({ success: true, data: trade, portfolio: state.portfolio });
+  } catch (error) {
+    console.error('[PORTFOLIO] SALE POST failed:', error);
+    return res.status(500).json({ success: false, message: 'ثبت فروش سهم ناموفق بود.', error: error.message });
+  }
+});
+
+router.delete('/sales/:id', authMiddleware, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
+    const tradeId = String(req.params.id);
+    const state = await readPortfolio(userId);
+    const index = state.portfolio.soldTrades.findIndex(trade => String(trade.id) === tradeId);
+    if (index < 0) return res.status(404).json({ success: false, message: 'معامله فروش موردنظر یافت نشد.' });
+    const trade = state.portfolio.soldTrades[index];
+    for (const allocation of trade.allocations) {
+      const existing = state.portfolio.items.find(item => String(item.id) === String(allocation.lotId));
+      if (existing) existing.quantity += allocation.quantity;
+      else state.portfolio.items.push({ id: String(allocation.lotId), symbol: trade.symbol, name: trade.name, quantity: allocation.quantity, buyPrice: allocation.buyPrice, entryDate: allocation.buyDate });
+    }
+    state.portfolio.soldTrades.splice(index, 1);
+    await writePortfolio(userId, state);
+    return res.json({ success: true, data: { id: tradeId }, portfolio: state.portfolio });
+  } catch (error) {
+    console.error('[PORTFOLIO] SALE DELETE failed:', error);
+    return res.status(500).json({ success: false, message: 'حذف معامله فروش ناموفق بود.', error: error.message });
   }
 });
 
