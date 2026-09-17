@@ -2,206 +2,50 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../api/apiClient';
 import * as watchlistService from '../services/watchlistService';
 
-interface Props {
-  isOnline: boolean;
-}
-
+interface Props { isOnline: boolean; }
 type RawData = Record<string, unknown>;
-
+type HistoryPoint = { date: string; time: string; open: number|null; high: number|null; low: number|null; close: number|null; last: number|null; volume: number|null; value: number|null; };
 type ProfileData = {
-  symbol: string;
-  name: string;
-  lastPrice: number | null;
-  closePrice: number | null;
-  lastChangePercent: number | null;
-  closeChangePercent: number | null;
-  volume: number | null;
-  value: number | null;
-  marketCap: number | null;
-  pe: number | null;
-  eps: number | null;
-  high: number | null;
-  low: number | null;
-  yearHigh: number | null;
-  yearLow: number | null;
-  bidPrice: number | null;
-  bidVolume: number | null;
-  askPrice: number | null;
-  askVolume: number | null;
-  sector: string;
-  market: string;
-  capturedAt: string;
+  symbol:string; name:string; lastPrice:number|null; closePrice:number|null; lastChangePercent:number|null; closeChangePercent:number|null;
+  volume:number|null; value:number|null; marketCap:number|null; pe:number|null; eps:number|null; high:number|null; low:number|null; yearHigh:number|null; yearLow:number|null;
+  bidPrice:number|null; bidVolume:number|null; askPrice:number|null; askVolume:number|null; sector:string; market:string; capturedAt:string;
 };
-
-const number = (...values: unknown[]): number | null => {
-  for (const value of values) {
-    if (value === null || value === undefined || value === '') continue;
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return null;
-};
-
-const text = (...values: unknown[]): string => {
-  for (const value of values) {
-    if (value !== null && value !== undefined && String(value).trim()) return String(value).trim();
-  }
-  return '—';
-};
-
-const formatNumber = (value: number | null) => value == null ? '—' : value.toLocaleString('fa-IR', { maximumFractionDigits: 2 });
-const formatPercent = (value: number | null) => value == null ? '—' : `${value.toLocaleString('fa-IR', { maximumFractionDigits: 2 })}٪`;
-
-function normalize(raw: RawData, fallbackSymbol: string): ProfileData {
-  const lastPrice = number(raw.pDrCotVal, raw.pl, raw.last, raw.lastPrice, raw.priceLast);
-  const closePrice = number(raw.pClosing, raw.pc, raw.close, raw.closingPrice);
-  const yesterday = number(raw.pYest, raw.py, raw.yesterdayPrice, raw.previousClose, raw.yesterday);
-  const lastChangePercent = number(raw.plp, raw.lastChangePercent, raw.percentChange, raw.priceChangePercent)
-    ?? (lastPrice != null && yesterday ? ((lastPrice - yesterday) / yesterday) * 100 : null);
-  const closeChangePercent = number(raw.pcp, raw.closeChangePercent, raw.closingChangePercent)
-    ?? (closePrice != null && yesterday ? ((closePrice - yesterday) / yesterday) * 100 : null);
-
-  return {
-    symbol: text(raw.symbol, raw.l18, raw.lVal18AFC, raw.ticker, fallbackSymbol).toUpperCase(),
-    name: text(raw.name, raw.l30, raw.lVal30, raw.companyName, raw.title),
-    lastPrice,
-    closePrice,
-    lastChangePercent,
-    closeChangePercent,
-    volume: number(raw.tvol, raw.qTotTran5J, raw.volume, raw.tradeVolume),
-    value: number(raw.tval, raw.qTotCap, raw.value, raw.tradedValue, raw.tradeValue),
-    marketCap: number(raw.marketCap, raw.marketCapital, raw.mktCap),
-    pe: number(raw.pe, raw.pE, raw.peRatio, raw.priceToEarnings),
-    eps: number(raw.eps, raw.EPS, raw.earningsPerShare),
-    high: number(raw.pmax, raw.max, raw.high, raw.highPrice),
-    low: number(raw.pmin, raw.min, raw.low, raw.lowPrice),
-    yearHigh: number(raw.yearHigh, raw.max52Week, raw.high52Week, raw.high52),
-    yearLow: number(raw.yearLow, raw.min52Week, raw.low52Week, raw.low52),
-    bidPrice: number(raw.pMeDem, raw.bidPrice, raw.bestBidPrice, raw.buyPrice),
-    bidVolume: number(raw.qTitMeDem, raw.bidVolume, raw.buyQueueVolume),
-    askPrice: number(raw.pMeOf, raw.askPrice, raw.bestAskPrice, raw.sellPrice),
-    askVolume: number(raw.qTitMeOf, raw.askVolume, raw.sellQueueVolume),
-    sector: text(raw.sector, raw.industry, raw.industryName),
-    market: text(raw.market, raw.marketName, raw.exchange),
-    capturedAt: new Date().toISOString(),
-  };
+const number = (...values: unknown[]): number|null => { for (const value of values) { if (value===null||value===undefined||value==='') continue; const parsed=Number(value); if(Number.isFinite(parsed)) return parsed; } return null; };
+const text = (...values: unknown[]): string => { for(const value of values){if(value!==null&&value!==undefined&&String(value).trim()) return String(value).trim();} return '—'; };
+const formatNumber=(value:number|null)=>value==null?'—':value.toLocaleString('fa-IR',{maximumFractionDigits:2});
+const formatPercent=(value:number|null)=>value==null?'—':`${value.toLocaleString('fa-IR',{maximumFractionDigits:2})}٪`;
+function normalize(raw:RawData,fallbackSymbol:string):ProfileData{
+ const lastPrice=number(raw.pDrCotVal,raw.pl,raw.last,raw.lastPrice,raw.priceLast), closePrice=number(raw.pClosing,raw.pc,raw.close,raw.closingPrice), yesterday=number(raw.pYest,raw.py,raw.yesterdayPrice,raw.previousClose,raw.yesterday);
+ return {symbol:text(raw.symbol,raw.l18,raw.lVal18AFC,raw.ticker,fallbackSymbol).toUpperCase(),name:text(raw.name,raw.l30,raw.lVal30,raw.companyName,raw.title),lastPrice,closePrice,lastChangePercent:number(raw.plp,raw.lastChangePercent,raw.percentChange,raw.priceChangePercent)??(lastPrice!=null&&yesterday?((lastPrice-yesterday)/yesterday)*100:null),closeChangePercent:number(raw.pcp,raw.closeChangePercent,raw.closingChangePercent)??(closePrice!=null&&yesterday?((closePrice-yesterday)/yesterday)*100:null),volume:number(raw.tvol,raw.qTotTran5J,raw.volume,raw.tradeVolume),value:number(raw.tval,raw.qTotCap,raw.value,raw.tradedValue,raw.tradeValue),marketCap:number(raw.marketCap,raw.marketCapital,raw.mktCap),pe:number(raw.pe,raw.pE,raw.peRatio,raw.priceToEarnings),eps:number(raw.eps,raw.EPS,raw.earningsPerShare),high:number(raw.pmax,raw.max,raw.high,raw.highPrice),low:number(raw.pmin,raw.min,raw.low,raw.lowPrice),yearHigh:number(raw.yearHigh,raw.max52Week,raw.high52Week,raw.high52),yearLow:number(raw.yearLow,raw.min52Week,raw.low52Week,raw.low52),bidPrice:number(raw.pMeDem,raw.bidPrice,raw.bestBidPrice,raw.buyPrice),bidVolume:number(raw.qTitMeDem,raw.bidVolume,raw.buyQueueVolume),askPrice:number(raw.pMeOf,raw.askPrice,raw.bestAskPrice,raw.sellPrice),askVolume:number(raw.qTitMeOf,raw.askVolume,raw.sellQueueVolume),sector:text(raw.sector,raw.industry,raw.industryName),market:text(raw.market,raw.marketName,raw.exchange),capturedAt:new Date().toISOString()};
 }
+const MetricCard:React.FC<{label:string;value:string;hint?:string}>=({label,value,hint})=><div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4"><div className="text-xs text-gray-500 dark:text-gray-400">{label}</div><div className="mt-1 text-xl font-black tracking-tight">{value}</div>{hint&&<div className="mt-1 text-[11px] text-gray-400">{hint}</div>}</div>;
 
-const MetricCard: React.FC<{ label: string; value: string; hint?: string }> = ({ label, value, hint }) => (
-  <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4">
-    <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
-    <div className="mt-1 text-xl font-black tracking-tight">{value}</div>
-    {hint && <div className="mt-1 text-[11px] text-gray-400">{hint}</div>}
-  </div>
-);
-
-const StockProfile: React.FC<Props> = ({ isOnline }) => {
-  const [symbol, setSymbol] = useState('');
-  const [input, setInput] = useState('');
-  const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [symbols, setSymbols] = useState<watchlistService.WatchlistSymbol[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [activeView, setActiveView] = useState<'overview' | 'trading' | 'valuation'>('overview');
-
-  const loadSymbols = useCallback(async () => {
-    try {
-      const lists = await watchlistService.getWatchlists();
-      const map = new Map<string, watchlistService.WatchlistSymbol>();
-      lists.forEach(list => list.symbols.forEach(item => map.set(item.symbol, item)));
-      setSymbols(Array.from(map.values()));
-    } catch { /* watchlist is optional */ }
-  }, []);
-
-  const loadProfile = useCallback(async (requested: string) => {
-    const clean = requested.trim().toUpperCase();
-    if (!clean) return;
-    if (!isOnline) { setError('برای دریافت پروفایل سهم باید آنلاین باشید.'); return; }
-    setLoading(true);
-    setError('');
-    try {
-      const response = await api.get(`/brs/symbol/${encodeURIComponent(clean)}`);
-      const raw = (response?.data?.data ?? response?.data ?? {}) as RawData;
-      if (!raw || typeof raw !== 'object' || raw.available === false) throw new Error('اطلاعات این نماد در سرویس بازار موجود نیست.');
-      setSymbol(clean);
-      setProfile(normalize(raw, clean));
-    } catch (err: any) {
-      setProfile(null);
-      setError(err?.response?.data?.message || err?.message || 'دریافت اطلاعات نماد ناموفق بود.');
-    } finally { setLoading(false); }
-  }, [isOnline]);
-
-  useEffect(() => { void loadSymbols(); }, [loadSymbols]);
-
-  const selectedWatchlist = useMemo(() => symbols.find(item => item.symbol === symbol), [symbols, symbol]);
-
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    void loadProfile(input);
-  };
-
-  return (
-    <div dir="rtl" className="max-w-7xl mx-auto space-y-5">
-      <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4">
-        <div className="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
-          <div>
-            <h2 className="text-xl font-black">پروفایل حرفه‌ای سهم</h2>
-            <p className="text-xs text-gray-500 mt-1">اطلاعات واقعی نماد از سرویس بازار؛ بدون تحلیل یا داده ساختگی</p>
-          </div>
-          <form onSubmit={submit} className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
-            <select value={symbol} onChange={e => { setSymbol(e.target.value); setInput(e.target.value); }} className="rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2 min-w-52">
-              <option value="">انتخاب از دیده‌بان</option>
-              {symbols.map(item => <option key={item.symbol} value={item.symbol}>{item.symbol} — {item.name}</option>)}
-            </select>
-            <input value={input} onChange={e => setInput(e.target.value)} placeholder="مثلاً فملی" className="rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2 min-w-40" />
-            <button type="submit" disabled={loading || !isOnline} className="rounded-xl bg-cyan-600 text-white px-5 py-2 font-bold disabled:opacity-50">{loading ? 'در حال دریافت…' : 'نمایش پروفایل'}</button>
-          </form>
-        </div>
-      </div>
-
-      {error && <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900/40 text-red-700 dark:text-red-300 p-4 text-sm">{error}</div>}
-
-      {!profile && !loading && !error && <div className="rounded-2xl border border-dashed border-[var(--color-border)] p-12 text-center text-gray-500">یک نماد را انتخاب یا وارد کنید تا پروفایل واقعی آن نمایش داده شود.</div>}
-
-      {profile && <>
-        <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-5">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div><div className="flex items-center gap-3"><span className="text-3xl font-black">{profile.symbol}</span><span className="text-sm text-gray-500">{selectedWatchlist?.name || profile.name}</span></div><div className="mt-2 text-xs text-gray-500">{profile.market} · {profile.sector}</div></div>
-            <div className="text-right"><div className="text-3xl font-black">{formatNumber(profile.lastPrice)}</div><div className={`text-sm font-bold ${profile.lastChangePercent == null ? 'text-gray-500' : profile.lastChangePercent >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatPercent(profile.lastChangePercent)}</div><div className="text-[11px] text-gray-400 mt-1">آخرین دریافت: {new Date(profile.capturedAt).toLocaleTimeString('fa-IR')}</div></div>
-          </div>
-        </div>
-
-        <div className="flex gap-1 overflow-x-auto border-b border-[var(--color-border)]">
-          {[['overview', 'نمای کلی'], ['trading', 'معاملات و سفارش‌ها'], ['valuation', 'ارزش‌گذاری']].map(([value, label]) => <button key={value} type="button" onClick={() => setActiveView(value as typeof activeView)} className={`px-5 py-3 font-bold shrink-0 rounded-t-xl ${activeView === value ? 'bg-cyan-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>{label}</button>)}
-        </div>
-
-        {activeView === 'overview' && <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <MetricCard label="قیمت پایانی" value={formatNumber(profile.closePrice)} />
-          <MetricCard label="تغییر پایانی" value={formatPercent(profile.closeChangePercent)} />
-          <MetricCard label="حجم معاملات" value={formatNumber(profile.volume)} />
-          <MetricCard label="ارزش معاملات" value={formatNumber(profile.value)} />
-          <MetricCard label="سقف روز" value={formatNumber(profile.high)} />
-          <MetricCard label="کف روز" value={formatNumber(profile.low)} />
-          <MetricCard label="سقف سال" value={formatNumber(profile.yearHigh)} />
-          <MetricCard label="کف سال" value={formatNumber(profile.yearLow)} />
-        </div>}
-
-        {activeView === 'trading' && <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <MetricCard label="بهترین خرید" value={formatNumber(profile.bidPrice)} hint={`حجم: ${formatNumber(profile.bidVolume)}`} />
-          <MetricCard label="بهترین فروش" value={formatNumber(profile.askPrice)} hint={`حجم: ${formatNumber(profile.askVolume)}`} />
-          <MetricCard label="حجم صف خرید" value={formatNumber(profile.bidVolume)} />
-          <MetricCard label="حجم صف فروش" value={formatNumber(profile.askVolume)} />
-        </div>}
-
-        {activeView === 'valuation' && <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <MetricCard label="EPS" value={formatNumber(profile.eps)} />
-          <MetricCard label="P/E" value={formatNumber(profile.pe)} />
-          <MetricCard label="ارزش بازار" value={formatNumber(profile.marketCap)} />
-          <MetricCard label="قیمت پایانی" value={formatNumber(profile.closePrice)} />
-        </div>}
-      </>}
-    </div>
-  );
+const HistoryChart:React.FC<{points:HistoryPoint[]}>=({points})=>{
+ const valid=points.filter(p=>p.close!=null); if(valid.length<2)return <div className="rounded-2xl border border-dashed border-[var(--color-border)] p-8 text-center text-gray-500">تاریخچه معتبر کافی برای نمودار موجود نیست.</div>;
+ const width=900,height=280,pad=28,values=valid.map(p=>p.close as number),min=Math.min(...values),max=Math.max(...values),range=max-min||1;
+ const path=valid.map((p,i)=>{const x=pad+(i/(valid.length-1))*(width-pad*2);const y=height-pad-(((p.close as number)-min)/range)*(height-pad*2);return `${i?'L':'M'} ${x.toFixed(1)} ${y.toFixed(1)}`;}).join(' ');
+ return <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4"><div className="flex justify-between items-center mb-3"><div className="font-black">روند قیمت پایانی</div><div className="text-xs text-gray-500">{valid.length} رکورد واقعی BRS</div></div><svg viewBox={`0 0 ${width} ${height}`} className="w-full h-64" role="img" aria-label="نمودار تاریخچه قیمت"><path d={`M ${pad} ${height-pad} H ${width-pad}`} fill="none" stroke="currentColor" opacity=".12"/><path d={path} fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-cyan-500"/><text x={width-pad} y={pad} textAnchor="end" fontSize="12" fill="currentColor" opacity=".55">{formatNumber(max)}</text><text x={width-pad} y={height-pad} textAnchor="end" fontSize="12" fill="currentColor" opacity=".55">{formatNumber(min)}</text></svg><div className="grid grid-cols-2 gap-2 text-xs text-gray-500"><span>قدیمی‌ترین: {valid[0].date||'—'}</span><span className="text-left">جدیدترین: {valid[valid.length-1].date||'—'}</span></div></div>;
 };
 
+const StockProfile:React.FC<Props>=({isOnline})=>{
+ const [symbol,setSymbol]=useState(''),[input,setInput]=useState(''),[profile,setProfile]=useState<ProfileData|null>(null),[history,setHistory]=useState<HistoryPoint[]>([]),[symbols,setSymbols]=useState<watchlistService.WatchlistSymbol[]>([]),[loading,setLoading]=useState(false),[historyLoading,setHistoryLoading]=useState(false),[error,setError]=useState(''),[historyError,setHistoryError]=useState(''),[activeView,setActiveView]=useState<'overview'|'trading'|'valuation'>('overview');
+ const loadSymbols=useCallback(async()=>{try{const lists=await watchlistService.getWatchlists();const map=new Map<string,watchlistService.WatchlistSymbol>();lists.forEach(list=>list.symbols.forEach(item=>map.set(item.symbol,item)));setSymbols(Array.from(map.values()));}catch{}},[]);
+ const loadHistory=useCallback(async(clean:string)=>{setHistoryLoading(true);setHistoryError('');try{const response=await api.get(`/brs/symbol/${encodeURIComponent(clean)}/history?limit=60`);const rows=(response?.data?.data??[]) as RawData[];setHistory(rows.map(row=>({date:text(row.date,row.d),time:text(row.time,row.t),open:number(row.open,row.pf),high:number(row.high,row.pmax),low:number(row.low,row.pmin),close:number(row.close,row.pc),last:number(row.last,row.pl),volume:number(row.volume,row.tvol),value:number(row.value,row.tval)})).filter(row=>row.close!=null));}catch(err:any){setHistory([]);setHistoryError(err?.response?.data?.message||err?.message||'دریافت تاریخچه ناموفق بود.');}finally{setHistoryLoading(false);}},[]);
+ const loadProfile=useCallback(async(requested:string)=>{const clean=requested.trim().toUpperCase();if(!clean)return;if(!isOnline){setError('برای دریافت پروفایل سهم باید آنلاین باشید.');return;}setLoading(true);setError('');try{const response=await api.get(`/brs/symbol/${encodeURIComponent(clean)}`);const raw=(response?.data?.data??response?.data??{}) as RawData;if(!raw||typeof raw!=='object'||raw.available===false)throw new Error('اطلاعات این نماد در سرویس بازار موجود نیست.');setSymbol(clean);setProfile(normalize(raw,clean));void loadHistory(clean);}catch(err:any){setProfile(null);setHistory([]);setError(err?.response?.data?.message||err?.message||'دریافت اطلاعات نماد ناموفق بود.');}finally{setLoading(false);}},[isOnline,loadHistory]);
+ useEffect(()=>{void loadSymbols();},[loadSymbols]);
+ const selectedWatchlist=useMemo(()=>symbols.find(item=>item.symbol===symbol),[symbols,symbol]);
+ const submit=(event:React.FormEvent)=>{event.preventDefault();void loadProfile(input);};
+ return <div dir="rtl" className="max-w-7xl mx-auto space-y-5">
+  <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4"><div className="flex flex-col lg:flex-row lg:items-center gap-3 justify-between"><div><h2 className="text-xl font-black">پروفایل حرفه‌ای سهم</h2><p className="text-xs text-gray-500 mt-1">اطلاعات واقعی نماد و تاریخچه معاملاتی از سرویس بازار؛ بدون تحلیل یا داده ساختگی</p></div><form onSubmit={submit} className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto"><select value={symbol} onChange={e=>{setSymbol(e.target.value);setInput(e.target.value);}} className="rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2 min-w-52"><option value="">انتخاب از دیده‌بان</option>{symbols.map(item=><option key={item.symbol} value={item.symbol}>{item.symbol} — {item.name}</option>)}</select><input value={input} onChange={e=>setInput(e.target.value)} placeholder="مثلاً فملی" className="rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2 min-w-40"/><button type="submit" disabled={loading||!isOnline} className="rounded-xl bg-cyan-600 text-white px-5 py-2 font-bold disabled:opacity-50">{loading?'در حال دریافت…':'نمایش پروفایل'}</button></form></div></div>
+  {error&&<div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900/40 text-red-700 dark:text-red-300 p-4 text-sm">{error}</div>}
+  {!profile&&!loading&&!error&&<div className="rounded-2xl border border-dashed border-[var(--color-border)] p-12 text-center text-gray-500">یک نماد را انتخاب یا وارد کنید تا پروفایل واقعی آن نمایش داده شود.</div>}
+  {profile&&<>
+   <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-5"><div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div><div className="flex items-center gap-3"><span className="text-3xl font-black">{profile.symbol}</span><span className="text-sm text-gray-500">{selectedWatchlist?.name||profile.name}</span></div><div className="mt-2 text-xs text-gray-500">{profile.market} · {profile.sector}</div></div><div className="text-right"><div className="text-3xl font-black">{formatNumber(profile.lastPrice)}</div><div className={`text-sm font-bold ${profile.lastChangePercent==null?'text-gray-500':profile.lastChangePercent>=0?'text-emerald-600':'text-red-600'}`}>{formatPercent(profile.lastChangePercent)}</div><div className="text-[11px] text-gray-400 mt-1">آخرین دریافت: {new Date(profile.capturedAt).toLocaleTimeString('fa-IR')}</div></div></div></div>
+   <div className="flex gap-1 overflow-x-auto border-b border-[var(--color-border)]">{[['overview','نمای کلی'],['trading','معاملات و سفارش‌ها'],['valuation','ارزش‌گذاری']].map(([value,label])=><button key={value} type="button" onClick={()=>setActiveView(value as typeof activeView)} className={`px-5 py-3 font-bold shrink-0 rounded-t-xl ${activeView===value?'bg-cyan-600 text-white':'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>{label}</button>)}</div>
+   {activeView==='overview'&&<><div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"><MetricCard label="قیمت پایانی" value={formatNumber(profile.closePrice)}/><MetricCard label="تغییر پایانی" value={formatPercent(profile.closeChangePercent)}/><MetricCard label="حجم معاملات" value={formatNumber(profile.volume)}/><MetricCard label="ارزش معاملات" value={formatNumber(profile.value)}/><MetricCard label="سقف روز" value={formatNumber(profile.high)}/><MetricCard label="کف روز" value={formatNumber(profile.low)}/><MetricCard label="سقف سال" value={formatNumber(profile.yearHigh)}/><MetricCard label="کف سال" value={formatNumber(profile.yearLow)}/></div><div className="mt-4">{historyLoading?<div className="rounded-2xl border border-[var(--color-border)] p-8 text-center text-gray-500">در حال دریافت تاریخچه واقعی…</div>:historyError?<div className="rounded-2xl border border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20 p-4 text-sm text-yellow-700 dark:text-yellow-300">{historyError}</div>:<HistoryChart points={history}/>}</div></>}
+   {activeView==='trading'&&<div className="grid grid-cols-2 md:grid-cols-4 gap-3"><MetricCard label="بهترین خرید" value={formatNumber(profile.bidPrice)} hint={`حجم: ${formatNumber(profile.bidVolume)}`}/><MetricCard label="بهترین فروش" value={formatNumber(profile.askPrice)} hint={`حجم: ${formatNumber(profile.askVolume)}`}/><MetricCard label="حجم صف خرید" value={formatNumber(profile.bidVolume)}/><MetricCard label="حجم صف فروش" value={formatNumber(profile.askVolume)}/></div>}
+   {activeView==='valuation'&&<div className="grid grid-cols-2 md:grid-cols-4 gap-3"><MetricCard label="EPS" value={formatNumber(profile.eps)}/><MetricCard label="P/E" value={formatNumber(profile.pe)}/><MetricCard label="ارزش بازار" value={formatNumber(profile.marketCap)}/><MetricCard label="قیمت پایانی" value={formatNumber(profile.closePrice)}/></div>}
+  </>}
+ </div>;
+};
 export default StockProfile;
