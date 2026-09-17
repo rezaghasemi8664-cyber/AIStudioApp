@@ -56,8 +56,14 @@ export async function getDashboardMarket(): Promise<DashboardData['market']> {
 
 const normalizeMovers = (payload: unknown): DashboardMover[] => {
   const value = unwrap(payload);
-  const source = Array.isArray(value) ? value : Array.isArray(record(value).items) ? record(value).items : [];
-  return source.slice(0, 10).map((item) => {
+  const root = record(value);
+  const source: unknown[] = Array.isArray(value)
+    ? value
+    : Array.isArray(root.items)
+      ? root.items
+      : [];
+
+  return source.slice(0, 10).map((item: unknown) => {
     const row = record(item);
     return {
       symbol: String(row.symbol ?? row.ticker ?? row.code ?? '—'),
