@@ -5,12 +5,23 @@ var router = express.Router();
 
 var marketHistoryController = require('../controllers/marketHistory.controller.cjs');
 var marketSummaryController = require('../controllers/marketSummary.controller.cjs');
+var marketBreadth = require('../services/marketBreadth.service.cjs');
 
 // شاخص بازار
 router.get('/index', marketHistoryController.getMarketIndex);
 
 // خلاصه بازار
 router.get('/summary', marketSummaryController.getLatestMarketSummary);
+
+// عرض بازار - محاسبه قطعی و بدون هوش مصنوعی
+router.get('/breadth', async function getMarketBreadth(_req, res, next) {
+  try {
+    const data = await marketBreadth.getMarketBreadth();
+    return res.json({ success: true, data });
+  } catch (error) {
+    return next(error);
+  }
+});
 
 // شاخص BRS
 // تا وقتی handler مجزا وجود ندارد، این route alias رسمی همان market index است.
