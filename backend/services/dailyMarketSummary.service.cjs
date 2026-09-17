@@ -6,6 +6,7 @@ const prisma = require('../config/prisma.cjs');
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
 const INTERNAL_PORT = Number(process.env.PORT || 3001);
 const LIVE_ENDPOINT = `http://127.0.0.1:${INTERNAL_PORT}/api/v1/market-summary/live`;
+const SCHEDULED_TIMES = new Set(['12:35', '12:40', '12:45', '12:55', '13:10', '13:30', '18:00']);
 
 function tehranParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -82,7 +83,6 @@ function isLiveDataForToday(live, expectedGregorian, expectedJalali) {
     .filter(Boolean);
 
   for (const candidate of candidates) {
-    // تاریخ ۱۴۰۵-... جلالی است؛ تاریخ ۲۰۲۶-... میلادی است.
     if (/^1[34]\d{2}-/.test(candidate)) return candidate === expectedJalali;
     if (/^20\d{2}-/.test(candidate)) return candidate === expectedGregorian;
   }
@@ -103,13 +103,19 @@ function isLiveDataForToday(live, expectedGregorian, expectedJalali) {
   return false;
 }
 
-async function generateDailyMarketSummary() {
+async function generateDailyMarketSummary(options = {}) {
+  const scheduledRun = options?.scheduledRun === true;
   const now = new Date();
   const p = tehranParts(now);
   const minute = Number(p.minute);
   const hour = Number(p.hour);
+  const currentTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 
-  if (hour !== 12 || minute !== 35) {
+  if (scheduledRun) {
+    if (!SCHEDULED_TIMES.has(currentTime)) {
+      return { success: false, generated: false, skipped: true, reason: 'OUTSIDE_SCHEDULED_WINDOW', currentTime };
+    }
+  } else if (hour !== 12 || minute !== 35) {
     return { success: false, generated: false, skipped: true, reason: 'OUTSIDE_12_35_WINDOW' };
   }
 
@@ -161,7 +167,6 @@ async function generateDailyMarketSummary() {
     return { success: false, generated: false, skipped: true, reason: 'NO_TRADING_ACTIVITY' };
   }
 
-  // summaryDate همیشه از تاریخ میلادی امروز ساخته می‌شود؛ date موجود در BRS ممکن است جلالی باشد.
   const summaryDate = toDateOnly(expectedGregorian);
   if (!summaryDate) throw new Error('INVALID_SUMMARY_DATE');
 
@@ -190,7 +195,6 @@ async function generateDailyMarketSummary() {
     topGainers: JSON.stringify(live.topGainers || []),
     topLosers: JSON.stringify(live.topLosers || []),
     topVolumes: JSON.stringify(live.topVolumes || []),
-    // همان متن واقعی ۱۴بخشی تولیدشده توسط liveMarketSummary.controller.cjs ذخیره می‌شود.
     content,
     summary: content,
     rawJson: JSON.stringify({
@@ -219,7 +223,7 @@ async function generateDailyMarketSummary() {
     id: record.id,
     data: record,
     sourceType: 'daily-live-analysis',
-    reason: existing ? 'UPDATED_EXISTING_DAY' : 'CREATED_AT_12_35'
+    reason: existing ? 'UPDATED_EXISTING_DAY' : 'CREATED_AT_SCHEDULED_RUN'
   };
 }
 
