@@ -1,5 +1,5 @@
 import { apiFetch } from './apiConfigService';
-import type { MarketRadarBreadth, MarketRadarIndex, MarketRadarSnapshot, MarketRadarMover, MarketRadarSector } from '../types/marketRadar';
+import type { MarketRadarBreadth, MarketRadarHistory, MarketRadarHistoryRange, MarketRadarIndex, MarketRadarSnapshot, MarketRadarMover, MarketRadarSector } from '../types/marketRadar';
 
 type RecordValue = Record<string, unknown>;
 type MarketRadarCacheEnvelope = { version: 1; cachedAt: number; snapshot: MarketRadarSnapshot };
@@ -62,4 +62,26 @@ export async function getMarketRadarSnapshot(): Promise<MarketRadarSnapshot> {
   if (indexResult.status === 'rejected' && breadthResult.status === 'rejected') throw new Error('Market Radar data unavailable');
   const root = record(unwrap(indexPayload)); const marketOpen = typeof root.isMarketOpen === 'boolean' ? root.isMarketOpen : true;
   return { fetchedAt: new Date().toISOString(), marketOpen, indices: normalizeIndexRows(indexPayload), totalValue: numberFrom(root, ['totalValue', 'marketValue', 'tradeValue', 'valueTraded']), totalVolume: numberFrom(root, ['totalVolume', 'volume', 'tradeVolume']), totalTrades: numberFrom(root, ['totalTrades', 'trades', 'tradeCount']), breadth: normalizeBreadth(breadthPayload) };
+}
+
+export async function getMarketRadarHistory(range: MarketRadarHistoryRange): Promise<MarketRadarHistory> {
+  const payload = await apiFetch(`/market/history/radar?range=${encodeURIComponent(range)}`);
+  const root = record(unwrap(payload));
+  const points = Array.isArray(root.points) ? root.points : [];
+  return {
+    range: (root.range as MarketRadarHistoryRange) || range,
+    available: Boolean(root.available) && points.length > 0,
+    points: points.map((item) => {
+      const row = record(item);
+      return {
+        timestamp: String(row.timestamp ?? ''),
+        index: numberFrom(row, ['index', 'overallIndex']),
+        equalWeightedIndex: numberFrom(row, ['equalWeightedIndex', 'equalIndex']),
+        totalValue: numberFrom(row, ['totalValue']),
+        totalVolume: numberFrom(row, ['totalVolume']),
+        totalTrades: numberFrom(row, ['totalTrades'])
+      };
+    }),
+    generatedAt: typeof root.generatedAt === 'string' ? root.generatedAt : null
+  };
 }
