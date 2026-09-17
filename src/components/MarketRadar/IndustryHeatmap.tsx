@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import type { MarketRadarSector } from '../../types/marketRadar';
+
+type SortKey = 'change' | 'symbols' | 'value' | 'name';
 
 const fa = (value: number | null | undefined, maximumFractionDigits = 0): string =>
   value === null || value === undefined || !Number.isFinite(value)
@@ -23,7 +25,18 @@ const heatClass = (changePercent: number): string => {
 };
 
 const IndustryHeatmap: React.FC<{ rows: MarketRadarSector[] }> = ({ rows }) => {
-  const maxSymbols = rows.reduce((max, row) => Math.max(max, row.symbols || 0), 0);
+  const [sortKey, setSortKey] = useState<SortKey>('change');
+
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      if (sortKey === 'name') return a.name.localeCompare(b.name, 'fa');
+      if (sortKey === 'symbols') return (b.symbols || 0) - (a.symbols || 0);
+      if (sortKey === 'value') return (b.value || 0) - (a.value || 0);
+      return (b.changePercent || 0) - (a.changePercent || 0);
+    });
+  }, [rows, sortKey]);
+
+  const maxSymbols = sortedRows.reduce((max, row) => Math.max(max, row.symbols || 0), 0);
 
   if (!rows.length) {
     return <div className="rounded-2xl border border-white/5 bg-white/[0.02] py-10 text-center text-sm text-slate-500">داده کافی برای نقشه صنایع در دسترس نیست.</div>;
@@ -31,17 +44,27 @@ const IndustryHeatmap: React.FC<{ rows: MarketRadarSector[] }> = ({ rows }) => {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+      <div className="mb-4 flex flex-col gap-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-emerald-400" />رشد</span>
           <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-slate-400" />خنثی</span>
           <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-rose-400" />افت</span>
         </div>
-        <span>اندازه کارت متناسب با تعداد نمادهای صنعت</span>
+        <label className="flex items-center gap-2 text-xs text-slate-400">
+          <span>مرتب‌سازی:</span>
+          <select value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)} className="rounded-xl border border-white/10 bg-[var(--color-surface)] px-3 py-2 text-xs font-bold text-slate-200 outline-none focus:border-sky-400/40">
+            <option value="change">درصد تغییر</option>
+            <option value="symbols">تعداد نماد</option>
+            <option value="value">ارزش معاملات</option>
+            <option value="name">نام صنعت</option>
+          </select>
+        </label>
       </div>
 
+      <div className="mb-3 text-[11px] text-slate-500">اندازه کارت متناسب با تعداد نمادهای صنعت است؛ رنگ بر اساس درصد تغییر واقعی بازار محاسبه می‌شود.</div>
+
       <div className="flex flex-wrap gap-2">
-        {rows.map((row) => {
+        {sortedRows.map((row) => {
           const ratio = maxSymbols > 0 ? Math.max(0.75, Math.min(2.5, (row.symbols || 0) / maxSymbols * 2.5)) : 1;
           const change = Number.isFinite(row.changePercent) ? row.changePercent : 0;
           return (
