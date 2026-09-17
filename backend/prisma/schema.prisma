@@ -492,7 +492,7 @@ model RolePermission {
 model admin_scheduler_rules {
   id              Int       @id(map: "PK__admin_sc__3213E83FC6214E82") @default(autoincrement())
   ruleType        String    @db.NVarChar(50)
-  isEnabled       Boolean   @default(true, map: "DF__admin_sc__isEna__058EC7FB")
+  isEnabled       Boolean   @default(true, map: "DF__admin_sch__isEna__058EC7FB")
   daysOfWeek      String    @db.NVarChar(50)
   startTime       DateTime? @db.Time
   endTime         DateTime? @db.Time
@@ -501,8 +501,8 @@ model admin_scheduler_rules {
   lastRunAt       DateTime?
   nextRunAt       DateTime?
   createdBy       Int
-  createdAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sc__creat__0682EC34")
-  updatedAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sc__updat__0777106D")
+  createdAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sch__creat__0682EC34")
+  updatedAt       DateTime  @default(dbgenerated("sysdatetime()"), map: "DF__admin_sch__updat__0777106D")
   User            User      @relation(fields: [createdBy], references: [id], onUpdate: NoAction, map: "FK_admin_scheduler_rules_user")
   @@schema("dbo")
 }
