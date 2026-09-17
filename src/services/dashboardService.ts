@@ -1,7 +1,8 @@
 import { apiFetch } from './apiConfigService';
 import * as watchlistService from './watchlistService';
 import * as portfolioService from './portfolioService';
-import type { DashboardData, DashboardIndustry, DashboardMarketIndex, DashboardMover } from '../types/dashboard';
+import { getNotifications } from './notificationService';
+import type { DashboardData, DashboardIndustry, DashboardMarketIndex, DashboardMover, DashboardAlert, DashboardCodalEvent } from '../types/dashboard';
 
 const asNumber = (value: unknown): number | null => {
   if (value === null || value === undefined || value === '') return null;
@@ -109,6 +110,61 @@ export async function getDashboardIndustries(): Promise<DashboardIndustry[]> {
   }
 }
 
+const normalizeAlerts = (payload: unknown): DashboardAlert[] => {
+  const value = unwrap(payload);
+  const root = record(value);
+  const source: unknown[] = Array.isArray(value) ? value : Array.isArray(root.items) ? root.items : [];
+  return source
+    .map((item) => {
+      const row = record(item);
+      return {
+        id: String(row.id ?? row._id ?? ''),
+        message: String(row.message ?? row.title ?? row.text ?? ''),
+        createdAt: String(row.createdAt ?? row.timestamp ?? new Date().toISOString()),
+        read: Boolean(row.read),
+      };
+    })
+    .filter((item) => item.id && item.message)
+    .filter((item) => !item.read)
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    .slice(0, 8);
+};
+
+export async function getDashboardAlerts(): Promise<DashboardAlert[]> {
+  try {
+    const response = await getNotifications();
+    return response.success ? normalizeAlerts(response.data) : [];
+  } catch {
+    return [];
+  }
+}
+
+const normalizeCodalEvents = (payload: unknown): DashboardCodalEvent[] => {
+  const value = unwrap(payload);
+  const root = record(value);
+  const source: unknown[] = Array.isArray(value) ? value : Array.isArray(root.items) ? root.items : [];
+  return source.slice(0, 8).map((item, index) => {
+    const row = record(item);
+    return {
+      id: String(row.id ?? row.reportId ?? row.newsId ?? index),
+      title: String(row.title ?? row.subject ?? row.description ?? 'اطلاعیه کدال'),
+      symbol: typeof row.symbol === 'string' ? row.symbol : typeof row.ticker === 'string' ? row.ticker : undefined,
+      publishedAt: typeof row.publishedAt === 'string' ? row.publishedAt : typeof row.date === 'string' ? row.date : null,
+      url: typeof row.url === 'string' ? row.url : typeof row.link === 'string' ? row.link : null,
+    };
+  });
+};
+
+/** Real-data-only Codal adapter. It never fabricates events when the source is unavailable. */
+export async function getDashboardCodalEvents(): Promise<DashboardCodalEvent[]> {
+  try {
+    const response = await apiFetch('/codal/recent');
+    return normalizeCodalEvents(response);
+  } catch {
+    return [];
+  }
+}
+
 export async function getDashboardPersonalSummary(unreadAlertCount: number, subscriptionDaysRemaining: number | null, subscriptionExpired: boolean): Promise<DashboardData['personal']> {
   const [watchlistsResult, portfolioResult] = await Promise.allSettled([watchlistService.getWatchlists(), portfolioService.getPortfolio()]);
   const watchlists = watchlistsResult.status === 'fulfilled' ? watchlistsResult.value : [];
@@ -119,11 +175,13 @@ export async function getDashboardPersonalSummary(unreadAlertCount: number, subs
 }
 
 export async function getDashboardData(unreadAlertCount = 0, subscriptionDaysRemaining: number | null = null, subscriptionExpired = false): Promise<DashboardData> {
-  const [market, movers, industries, personal] = await Promise.all([
+  const [market, movers, industries, alerts, codalEvents, personal] = await Promise.all([
     getDashboardMarket(),
     getDashboardMovers(),
     getDashboardIndustries(),
+    getDashboardAlerts(),
+    getDashboardCodalEvents(),
     getDashboardPersonalSummary(unreadAlertCount, subscriptionDaysRemaining, subscriptionExpired),
   ]);
-  return { market, ...movers, industries, personal, fetchedAt: new Date().toISOString() };
+  return { market, ...movers, industries, alerts, codalEvents, personal, fetchedAt: new Date().toISOString() };
 }
