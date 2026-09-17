@@ -18,7 +18,7 @@ const formatNumber = (num: number) => Number(num || 0).toLocaleString('fa-IR');
 const todayJalali = () => new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()).replace(/-/g, '/');
 
 function normalizeJalaliDate(value: string) {
-  return value.replace(/[^0-9۰-۹/]/g, '').replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/\\+/g, '/').replace(/^\\/+|\\/+$/g, '');
+  return value.replace(/[^0-9۰-۹/]/g, '').replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/\\/+/g, '/').replace(/^\\/+|\\/+$/g, '');
 }
 
 function normalizeAnalysis(raw: AnalysisResult, symbol: string): AnalysisResult {
