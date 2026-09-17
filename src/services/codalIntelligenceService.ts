@@ -1,5 +1,17 @@
 import api from '../api/apiClient';
 
+export interface CodalFinancialMetrics {
+  revenue?: number;
+  netProfit?: number;
+  eps?: number;
+  assets?: number;
+  liabilities?: number;
+  cash?: number;
+  salesVolume?: number;
+  revenueGrowthPercent?: number;
+  netProfitGrowthPercent?: number;
+}
+
 export interface CodalReport {
   title: string;
   symbol: string;
@@ -12,6 +24,7 @@ export interface CodalReport {
   url: string;
   audited: boolean;
   attachment: boolean;
+  financialMetrics: CodalFinancialMetrics;
 }
 
 export interface CodalSummary {
@@ -20,6 +33,7 @@ export interface CodalSummary {
   attachments: number;
   byType: Record<string, number>;
   byCategory: Record<string, number>;
+  metricReports: number;
 }
 
 export interface CodalReportsResult {
