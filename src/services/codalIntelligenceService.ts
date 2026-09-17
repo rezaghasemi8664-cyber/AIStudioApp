@@ -12,6 +12,20 @@ export interface CodalFinancialMetrics {
   netProfitGrowthPercent?: number;
 }
 
+export interface CodalPeriodicTrendPoint {
+  period: string;
+  reports: number;
+}
+
+export interface CodalPeriodicTrend {
+  periods: CodalPeriodicTrendPoint[];
+  latestPeriod: string | null;
+  latestReports: number;
+  previousPeriod: string | null;
+  previousReports: number | null;
+  changePercent: number | null;
+}
+
 export interface CodalReport {
   title: string;
   symbol: string;
@@ -34,6 +48,7 @@ export interface CodalSummary {
   byType: Record<string, number>;
   byCategory: Record<string, number>;
   metricReports: number;
+  periodicTrend: CodalPeriodicTrend;
 }
 
 export interface CodalReportsResult {
