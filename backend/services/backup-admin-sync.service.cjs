@@ -35,13 +35,20 @@ async function syncFilesystemBackups(prisma, createdBy = null) {
     const safePath = safeBackupPath(file.path);
     if (!safePath) continue;
     const key = safePath.toLowerCase();
+    const startedAt = new Date(file.modifiedAt);
+    const metadata = {
+      status: 'completed',
+      startedAt: startedAt.toISOString(),
+      finishedAt: startedAt.toISOString(),
+      errorMessage: null
+    };
+
     if (known.has(key)) {
       const jobId = known.get(key);
-      synced.push({ ...file, id: jobId, jobId });
+      synced.push({ ...file, ...metadata, id: jobId, jobId });
       continue;
     }
 
-    const startedAt = new Date(file.modifiedAt);
     const rows = await prisma.$queryRawUnsafe(
       `INSERT INTO dbo.AdminBackupJob(type,filePath,status,startedAt,finishedAt,sizeBytes,createdBy)
        OUTPUT INSERTED.id
@@ -55,7 +62,7 @@ async function syncFilesystemBackups(prisma, createdBy = null) {
 
     const jobId = Number(rows[0].id);
     known.set(key, jobId);
-    synced.push({ ...file, id: jobId, jobId });
+    synced.push({ ...file, ...metadata, id: jobId, jobId });
   }
 
   return synced;
