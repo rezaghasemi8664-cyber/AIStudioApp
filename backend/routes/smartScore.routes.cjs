@@ -11,9 +11,15 @@ router.get('/symbol/:symbol', authenticate, async (req, res) => {
   try {
     const symbol = String(req.params.symbol || '').trim().toUpperCase();
     if (!symbol) return res.status(400).json({ success: false, message: 'نماد الزامی است.' });
-    const result = await sharedBrsService.getSymbolData(symbol);
-    const data = result?.data || result || {};
-    return res.json({ success: true, data: calculateSmartScore(data), symbol, source: 'brs' });
+
+    const [currentResult, historyResult] = await Promise.all([
+      sharedBrsService.getSymbolData(symbol),
+      sharedBrsService.getSymbolHistory(symbol, 365)
+    ]);
+
+    const data = currentResult?.data || currentResult || {};
+    const history = Array.isArray(historyResult?.data) ? historyResult.data : [];
+    return res.json({ success: true, data: calculateSmartScore(data, history), symbol, source: 'brs', historyRecords: history.length });
   } catch (error) {
     return res.status(502).json({ success: false, message: error?.message || 'دریافت امتیاز هوشمند ناموفق بود.' });
   }
