@@ -36,10 +36,7 @@ function ChartLine({ values, width = 760, height = 270, padding = 32, onHover }:
   const points = valid.map(toPoint).map(({ x, y }) => `${x},${y}`).join(' ');
   return <>
     <polyline points={points} fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-    {valid.map((item) => {
-      const point = toPoint(item);
-      return <circle key={item.index} cx={point.x} cy={point.y} r="5" fill="currentColor" stroke="var(--color-surface)" strokeWidth="2" className="cursor-pointer" onMouseEnter={() => onHover?.(item.index, point.x, point.y)} onFocus={() => onHover?.(item.index, point.x, point.y)} tabIndex={0} aria-label={`نقطه ${item.index + 1}`} />;
-    })}
+    {valid.map((item) => { const point = toPoint(item); return <circle key={item.index} cx={point.x} cy={point.y} r="5" fill="currentColor" stroke="var(--color-surface)" strokeWidth="2" className="cursor-pointer" onMouseEnter={() => onHover?.(item.index, point.x, point.y)} onFocus={() => onHover?.(item.index, point.x, point.y)} tabIndex={0} aria-label={`نقطه ${item.index + 1}`} />; })}
   </>;
 }
 
@@ -53,24 +50,21 @@ const MarketRadarHistory: React.FC = () => {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    setError(false);
-    setHovered(null);
-    getMarketRadarHistory(range).then((result) => {
-      if (active) setData(result);
-    }).catch((err) => {
-      console.error('[MarketRadarHistory] load failed:', err);
-      if (active) { setData(null); setError(true); }
-    }).finally(() => { if (active) setLoading(false); });
+    setLoading(true); setError(false); setHovered(null);
+    getMarketRadarHistory(range).then((result) => { if (active) setData(result); }).catch((err) => { console.error('[MarketRadarHistory] load failed:', err); if (active) { setData(null); setError(true); } }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [range]);
 
   const selectedMetric = metrics.find((item) => item.value === metric) ?? metrics[0];
   const values = useMemo(() => data?.points.map((point) => point[selectedMetric.key] as number | null) ?? [], [data, selectedMetric.key]);
   const last = data?.points[data.points.length - 1];
+  const firstValid = values.find((value) => value !== null && Number.isFinite(value)) as number | undefined;
+  const lastValue = last?.[selectedMetric.key] as number | null | undefined;
   const hoveredPoint = hovered && data?.points[hovered.index];
   const hoveredValue = hoveredPoint ? hoveredPoint[selectedMetric.key] as number | null : null;
   const valueLabel = (value: number | null | undefined) => selectedMetric.format === 'compact' ? compactFa(value) : fa(value, 2);
+  const rangeChange = firstValid !== undefined && lastValue !== null && lastValue !== undefined && Number.isFinite(lastValue) && firstValid !== 0 ? ((lastValue - firstValid) / Math.abs(firstValid)) * 100 : null;
+  const rangeChangeLabel = rangeChange === null ? '—' : `${rangeChange >= 0 ? '+' : ''}${fa(rangeChange, 2)}٪`;
 
   return <article dir="rtl" className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -98,9 +92,10 @@ const MarketRadarHistory: React.FC = () => {
           </svg>
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
         <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">متریک انتخاب‌شده</div><div className="mt-1 font-black text-slate-200">{selectedMetric.label}</div></div>
-        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">آخرین مقدار</div><div className="mt-1 font-black tabular-nums text-slate-200">{valueLabel(last?.[selectedMetric.key] as number | null)}</div></div>
+        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">آخرین مقدار</div><div className="mt-1 font-black tabular-nums text-slate-200">{valueLabel(lastValue)}</div></div>
+        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">تغییر بازه</div><div className={`mt-1 font-black tabular-nums ${rangeChange === null ? 'text-slate-200' : rangeChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{rangeChangeLabel}</div></div>
         <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">آخرین تاریخ</div><div className="mt-1 font-black text-slate-200">{last ? dateFa(last.timestamp) : '—'}</div></div>
         <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">تعداد نقاط</div><div className="mt-1 font-black tabular-nums text-slate-200">{fa(data.points.length)}</div></div>
       </div>
