@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNotification } from './NotificationSystem';
 import * as alertService from '../services/watchlistAlertService';
 import { WATCHLIST_ALERT_METRICS, WATCHLIST_ALERT_OPERATORS } from '../types/watchlistAlert';
 import type { WatchlistAlertMetric, WatchlistAlertOperator, WatchlistAlertRule } from '../types/watchlistAlert';
+import type { WatchlistAlertHistoryItem } from '../services/watchlistAlertService';
 import * as watchlistService from '../services/watchlistService';
 
 interface Props { isOnline: boolean; }
@@ -14,6 +15,7 @@ const statusLabel: Record<WatchlistAlertRule['status'], string> = { armed: 'فع
 const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
   const { addNotification } = useNotification();
   const [alerts, setAlerts] = useState<WatchlistAlertRule[]>([]);
+  const [history, setHistory] = useState<WatchlistAlertHistoryItem[]>([]);
   const [symbols, setSymbols] = useState<watchlistService.WatchlistSymbol[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -24,19 +26,27 @@ const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
   const [threshold, setThreshold] = useState('');
   const [note, setNote] = useState('');
 
-  const load = async () => {
-    setLoading(true);
+  const load = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
-      const [loadedAlerts, lists] = await Promise.all([alertService.getAlerts(), watchlistService.getWatchlists()]);
+      const [loadedAlerts, loadedHistory, lists] = await Promise.all([alertService.getAlerts(), alertService.getAlertHistory(), watchlistService.getWatchlists()]);
       setAlerts(loadedAlerts);
+      setHistory(loadedHistory);
       const map = new Map<string, watchlistService.WatchlistSymbol>();
       lists.forEach(list => list.symbols.forEach(item => map.set(item.symbol, item)));
       setSymbols(Array.from(map.values()));
     } catch (error: any) {
-      addNotification(error?.response?.data?.message || 'دریافت هشدارها ناموفق بود.', 'error');
-    } finally { setLoading(false); }
-  };
-  useEffect(() => { void load(); }, []);
+      if (showLoading) addNotification(error?.response?.data?.message || 'دریافت هشدارها ناموفق بود.', 'error');
+    } finally { if (showLoading) setLoading(false); }
+  }, [addNotification]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!isOnline) return undefined;
+    const timer = window.setInterval(() => { void load(false); }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [isOnline, load]);
 
   const stats = useMemo(() => ({
     total: alerts.length,
@@ -67,6 +77,7 @@ const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
     try {
       const updated = await alertService.updateAlert(alert.id, { status: next });
       setAlerts(previous => previous.map(item => item.id === updated.id ? updated : item));
+      if (next === 'armed') await load(false);
     } catch (error: any) { addNotification(error?.response?.data?.message || 'تغییر وضعیت هشدار ناموفق بود.', 'error'); }
   };
 
@@ -79,8 +90,11 @@ const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
   const evaluate = async () => {
     if (!isOnline) return addNotification('برای بررسی هشدارها باید آنلاین باشید.', 'error');
     setEvaluating(true);
-    try { const result = await alertService.evaluateAlerts(); await load(); addNotification(`${result.evaluated.toLocaleString('fa-IR')} هشدار بررسی شد و ${result.triggered.toLocaleString('fa-IR')} مورد فعال شد.`, 'info'); }
-    catch (error: any) { addNotification(error?.response?.data?.message || 'اجرای موتور هشدار ناموفق بود.', 'error'); }
+    try {
+      const result = await alertService.evaluateAlerts();
+      await load(false);
+      addNotification(`${result.evaluated.toLocaleString('fa-IR')} هشدار بررسی شد و ${result.triggered.toLocaleString('fa-IR')} مورد فعال شد.`, 'info');
+    } catch (error: any) { addNotification(error?.response?.data?.message || 'اجرای موتور هشدار ناموفق بود.', 'error'); }
     finally { setEvaluating(false); }
   };
 
@@ -88,9 +102,7 @@ const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
     <div dir="rtl" className="space-y-5">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[['کل هشدارها', stats.total], ['فعال', stats.armed], ['فعال‌شده', stats.triggered], ['غیرفعال', stats.disabled]].map(([label, value]) => (
-          <div key={String(label)} className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4">
-            <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div><div className="mt-1 text-2xl font-black">{Number(value).toLocaleString('fa-IR')}</div>
-          </div>
+          <div key={String(label)} className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4"><div className="text-xs text-gray-500 dark:text-gray-400">{label}</div><div className="mt-1 text-2xl font-black">{Number(value).toLocaleString('fa-IR')}</div></div>
         ))}
       </div>
 
@@ -108,6 +120,11 @@ const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
 
       <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden">
         {loading ? <div className="p-8 text-center text-gray-500">در حال دریافت هشدارها…</div> : alerts.length === 0 ? <div className="p-8 text-center text-gray-500">هنوز هشداری ایجاد نشده است.</div> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-800/80"><tr><th className="p-3 text-right">نماد</th><th className="p-3 text-right">شرط</th><th className="p-3 text-right">آستانه</th><th className="p-3 text-right">وضعیت</th><th className="p-3 text-right">عملیات</th></tr></thead><tbody>{alerts.map(alert => <tr key={alert.id} className="border-t border-[var(--color-border)]"><td className="p-3 font-bold">{alert.symbol}</td><td className="p-3">{metricLabel(alert.metric)} {operatorLabel(alert.operator)}</td><td className="p-3 font-mono">{Number(alert.threshold).toLocaleString('fa-IR')}</td><td className="p-3"><span className="px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-800">{statusLabel[alert.status]}</span></td><td className="p-3 flex gap-2"><button type="button" onClick={() => toggle(alert)} className="px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800">{alert.status === 'disabled' ? 'فعال‌سازی' : 'غیرفعال‌سازی'}</button><button type="button" onClick={() => remove(alert.id)} className="px-2.5 py-1.5 rounded-lg text-red-600 bg-red-50 dark:bg-red-950/20">حذف</button></td></tr>)}</tbody></table></div>}
+      </div>
+
+      <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden">
+        <div className="px-4 py-3 border-b border-[var(--color-border)] flex items-center justify-between"><h3 className="font-black">تاریخچه فعال‌شدن هشدارها</h3><span className="text-xs text-gray-500">{history.length.toLocaleString('fa-IR')} رکورد</span></div>
+        {history.length === 0 ? <div className="p-8 text-center text-gray-500">هنوز هیچ هشداری فعال نشده است.</div> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-800/80"><tr><th className="p-3 text-right">زمان</th><th className="p-3 text-right">نماد</th><th className="p-3 text-right">شرط</th><th className="p-3 text-right">آستانه</th><th className="p-3 text-right">مقدار واقعی</th></tr></thead><tbody>{history.map(item => <tr key={item.id} className="border-t border-[var(--color-border)]"><td className="p-3 whitespace-nowrap">{new Date(item.triggeredAt).toLocaleString('fa-IR')}</td><td className="p-3 font-bold">{item.symbol}</td><td className="p-3">{metricLabel(item.metric)} {operatorLabel(item.operator)}</td><td className="p-3 font-mono">{Number(item.threshold).toLocaleString('fa-IR')}</td><td className="p-3 font-mono font-bold">{Number(item.value).toLocaleString('fa-IR')}</td></tr>)}</tbody></table></div>}
       </div>
     </div>
   );
