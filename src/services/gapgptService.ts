@@ -70,17 +70,7 @@ export const getPortfolioOptimization = async (portfolio: PortfolioItem[], analy
   }));
   if (context.some(item => !item.symbol)) throw new Error('یکی از سهم‌های سبد نماد معتبر ندارد.');
 
-  // Aggregate duplicate holdings by symbol. This is calculated from the user's
-  // actual lots and the current price returned by the stock analysis; no AI
-  // generated number is used for the portfolio accounting section.
-  const grouped = new Map<string, {
-    symbol: string;
-    name: string;
-    totalQuantity: number;
-    totalCost: number;
-    currentPrice: number;
-  }>();
-
+  const grouped = new Map<string, { symbol: string; name: string; totalQuantity: number; totalCost: number; currentPrice: number; }>();
   context.forEach((item, index) => {
     const symbol = item.symbol.trim().toUpperCase();
     const quantity = Number(item.quantity) || 0;
@@ -92,13 +82,7 @@ export const getPortfolioOptimization = async (portfolio: PortfolioItem[], analy
       existing.totalCost += entryPrice * quantity;
       if (currentPrice > 0) existing.currentPrice = currentPrice;
     } else {
-      grouped.set(symbol, {
-        symbol,
-        name: item.name,
-        totalQuantity: quantity,
-        totalCost: entryPrice * quantity,
-        currentPrice,
-      });
+      grouped.set(symbol, { symbol, name: item.name, totalQuantity: quantity, totalCost: entryPrice * quantity, currentPrice });
     }
   });
 
@@ -107,18 +91,21 @@ export const getPortfolioOptimization = async (portfolio: PortfolioItem[], analy
     const currentValue = item.currentPrice * item.totalQuantity;
     const pnl = currentValue - item.totalCost;
     const pnlPercent = item.totalCost > 0 ? (pnl / item.totalCost) * 100 : 0;
-    return {
-      symbol: item.symbol,
-      name: item.name,
-      totalQuantity: item.totalQuantity,
-      averageEntryPrice,
-      totalCost: item.totalCost,
-      currentPrice: item.currentPrice,
-      currentValue,
-      pnl,
-      pnlPercent,
-    };
+    return { symbol: item.symbol, name: item.name, totalQuantity: item.totalQuantity, averageEntryPrice, totalCost: item.totalCost, currentPrice: item.currentPrice, currentValue, pnl, pnlPercent };
   });
+
+  let realizedPerformance = { tradeCount: 0, proceeds: 0, costBasis: 0, realizedPnl: 0, realizedPnlPercent: 0, trades: [] as any[] };
+  try {
+    const tradesResponse = await appApiFetch<any>('/portfolio/trades', { method: 'GET' });
+    const tradesData = unwrap<any>(tradesResponse);
+    const trades = Array.isArray(tradesData?.trades) ? tradesData.trades : [];
+    const proceeds = Number(tradesData?.proceeds ?? trades.reduce((sum: number, t: any) => sum + Number(t.proceeds || 0), 0));
+    const costBasis = Number(tradesData?.costBasis ?? trades.reduce((sum: number, t: any) => sum + Number(t.costBasis || 0), 0));
+    const realizedPnl = Number(tradesData?.realizedPnl ?? proceeds - costBasis);
+    realizedPerformance = { tradeCount: trades.length, proceeds, costBasis, realizedPnl, realizedPnlPercent: costBasis > 0 ? (realizedPnl / costBasis) * 100 : 0, trades };
+  } catch (_) {
+    // Existing optimization remains usable when the optional realized-trade endpoint is unavailable.
+  }
 
   const formatMoney = (value: number) => Math.round(value || 0).toLocaleString('fa-IR');
   const formatPercent = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
@@ -133,9 +120,23 @@ export const getPortfolioOptimization = async (portfolio: PortfolioItem[], analy
       `مبلغ سود/زیان: ${item.pnl >= 0 ? '+' : ''}${formatMoney(item.pnl)} ریال | درصد سود/زیان: ${formatPercent(item.pnlPercent)}`,
       '────────────────────────────',
     ].join('\n')),
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    'عملکرد معاملات بسته‌شده',
+    `تعداد معاملات فروش: ${formatMoney(realizedPerformance.tradeCount)}`,
+    `مبلغ فروش تحقق‌یافته: ${formatMoney(realizedPerformance.proceeds)} ریال`,
+    `بهای تمام‌شده معاملات بسته‌شده: ${formatMoney(realizedPerformance.costBasis)} ریال`,
+    `سود/زیان تحقق‌یافته: ${realizedPerformance.realizedPnl >= 0 ? '+' : ''}${formatMoney(realizedPerformance.realizedPnl)} ریال | بازده: ${formatPercent(realizedPerformance.realizedPnlPercent)}`,
   ].join('\n');
 
-  const prompt = ['سبد سرمایه‌گذاری کاربر را به صورت حرفه‌ای تحلیل و بهینه‌سازی کن.','فقط بر اساس داده‌های زیر تصمیم بگیر و عدد یا قیمت فرضی نساز.','برای هر سهم اقدام خرید، فروش یا نگهداری و دلیل ارائه کن.','خروجی فقط JSON معتبر باشد با ساختار: summary, riskScore, diversificationScore, recommendations.',JSON.stringify(context, null, 2)].join('\n\n');
+  const prompt = [
+    'سبد سرمایه‌گذاری کاربر را به صورت حرفه‌ای تحلیل و بهینه‌سازی کن.',
+    'فقط بر اساس داده‌های زیر تصمیم بگیر و عدد یا قیمت فرضی نساز.',
+    'دارایی‌های فعلی را از معاملات بسته‌شده جدا نگه دار؛ معاملات فروخته‌شده نباید ارزش فعلی یا وزن فعلی سبد را تشکیل دهند.',
+    'سود/زیان تحقق‌یافته و سابقه معاملات بسته‌شده را به عنوان اطلاعات تاریخی عملکرد کاربر در تحلیل لحاظ کن.',
+    'برای هر سهم اقدام خرید، فروش یا نگهداری و دلیل ارائه کن.',
+    'خروجی فقط JSON معتبر باشد با ساختار: summary, riskScore, diversificationScore, recommendations.',
+    JSON.stringify({ currentHoldings: context, realizedPerformance }, null, 2),
+  ].join('\n\n');
   const response = await appApiFetch<any>('/analyze', { method: 'POST', body: JSON.stringify({ prompt, analysisType: 'portfolio', featureKey: 'portfolio' }) });
   const result = unwrap<any>(response);
   if (!result || typeof result !== 'object') throw new Error('پاسخ معتبر از سرویس بهینه‌سازی سبد دریافت نشد.');
