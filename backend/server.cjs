@@ -1,4 +1,4 @@
-﻿// backend/server.cjs - Complete Production Server v5.2.1 FIXED + Socket.IO (PATCH-ONLY)
+// backend/server.cjs - Complete Production Server v5.2.1 FIXED + Socket.IO (PATCH-ONLY)
 // ══════════════════════════════════════════════════════════════════
 // v5.2.1 Patch-only changes:
 //   - Harden API path guard (strict /api and /api/* only) in SPA fallback and API 404
@@ -644,6 +644,7 @@ mountRoute('/api/v1/api-keys', './routes/apiKey.routes.cjs',           'API Keys
 
 mountRoute('/api/admin',       './routes/admin.routes.cjs',            'Admin Panel');
 mountRoute('/api/v1/admin',    './routes/admin.routes.cjs',            'Admin Panel v1 alias');
+mountRoute('/api/admin-actions', './routes/adminActions.routes.cjs', 'Admin Actions');
 mountRoute('/api/admin/faraz-sms', './routes/wordpress-farazsms.cjs', 'Faraz SMS WordPress Bridge');
 
 mountRoute('/api/logs',        './routes/log.routes.cjs',              'System Logs');

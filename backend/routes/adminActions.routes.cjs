@@ -7,6 +7,9 @@ const { hasPermission } = require('../services/rbac.service.cjs');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const backupService = require('../services/backup.service.cjs');
+const applicationRestoreService = require('../services/application-restore.service.cjs');
+const { ensureBackupJobTable } = require('../services/backup-admin-sync.service.cjs');
 
 const router = express.Router();
 const MODULE_ACTIONS = {
@@ -56,7 +59,72 @@ case 'backup:create-backup':{await ensureOperationalTables();const dir=process.e
 case 'backup:validate-backup':{await ensureOperationalTables();const id=Number(body.jobId);if(!id)return fail(res,400,'شناسه Backup الزامی است.');const rows=await prisma.$queryRawUnsafe(`SELECT TOP 1 id,filePath,status,sizeBytes FROM dbo.AdminBackupJob WHERE id=@p1`,id);if(!rows.length)return fail(res,404,'Backup پیدا نشد.');const row=rows[0],resolved=safeBackupPath(row.filePath);let exists=false,sizeBytes=0;try{exists=!!resolved&&fs.existsSync(resolved);sizeBytes=exists?fs.statSync(resolved).size:0;}catch(_){exists=false;}let verifyOnly=false,errorMessage=null;if(exists&&sizeBytes>0){try{await prisma.$executeRawUnsafe(`RESTORE VERIFYONLY FROM DISK=@p1 WITH CHECKSUM`,resolved);verifyOnly=true;}catch(error){errorMessage=String(error.message).slice(0,1000);}}data={jobId:id,filePath:row.filePath,exists,sizeBytes,nonEmpty:sizeBytes>0,verifyOnly,valid:exists&&sizeBytes>0&&verifyOnly,errorMessage};break;}
 case 'backup:list-restorable':{await ensureOperationalTables();const rows=await prisma.$queryRawUnsafe(`SELECT TOP 20 id,filePath,status,startedAt,finishedAt,sizeBytes,errorMessage FROM dbo.AdminBackupJob WHERE status=N'completed' ORDER BY id DESC`);data=rows.map(r=>{const resolved=safeBackupPath(r.filePath);let exists=false,sizeBytes=Number(r.sizeBytes||0);try{exists=!!resolved&&fs.existsSync(resolved);if(exists)sizeBytes=fs.statSync(resolved).size;}catch(_){exists=false;}return {...r,exists,nonEmpty:sizeBytes>0,sizeBytes,restorableCandidate:exists&&sizeBytes>0};}).filter(r=>r.restorableCandidate);break;}
 case 'backup:prepare-restore':{await ensureOperationalTables();const id=Number(body.jobId);if(!id)return fail(res,400,'شناسه Backup الزامی است.');const rows=await prisma.$queryRawUnsafe(`SELECT TOP 1 id,filePath,status FROM dbo.AdminBackupJob WHERE id=@p1`,id);if(!rows.length||rows[0].status!=='completed')return fail(res,400,'Backup انتخاب‌شده قابل آماده‌سازی برای بازیابی نیست.');const resolved=safeBackupPath(rows[0].filePath);if(!resolved||!fs.existsSync(resolved)||fs.statSync(resolved).size<=0)return fail(res,400,'فایل Backup معتبر نیست.');await prisma.$executeRawUnsafe(`RESTORE VERIFYONLY FROM DISK=@p1 WITH CHECKSUM`,resolved);const token=crypto.randomBytes(18).toString('hex');await setGlobalSetting(`backup.restore.challenge.${id}`,{token,expiresAt:Date.now()+10*60*1000},'backup');data={jobId:id,confirmationToken:token,expiresInSeconds:600,warning:'این مرحله فقط مجوز موقت ایجاد می‌کند و هنوز Restore انجام نشده است.'};break;}
-case 'backup:restore-backup':{await ensureOperationalTables();const id=Number(body.jobId);const token=String(body.confirmationToken||'');const target=String(body.targetDatabase||'').trim();if(!id||!token||!target)return fail(res,400,'Backup، توکن تأیید و دیتابیس مقصد الزامی است.');const productionDb=currentDbName();if(process.env.ADMIN_RESTORE_ENABLED!=='true')return fail(res,403,'Restore از پنل غیرفعال است؛ ابتدا ADMIN_RESTORE_ENABLED=true را صریحاً فعال کنید.');if(process.env.ADMIN_ALLOW_PRODUCTION_RESTORE!=='true'&&target===productionDb)return fail(res,403,'Restore مستقیم روی دیتابیس Production مسدود است.');if(process.env.ADMIN_RESTORE_TARGET&&target!==process.env.ADMIN_RESTORE_TARGET)return fail(res,403,'دیتابیس مقصد با مقصد مجاز Restore یکسان نیست.');const settingRows=await prisma.$queryRawUnsafe(`SELECT TOP 1 [value] FROM dbo.GlobalSetting WHERE [key]=@p1`,`backup.restore.challenge.${id}`);let challenge=null;try{challenge=settingRows.length?JSON.parse(settingRows[0].value):null;}catch(_){ }if(!challenge||challenge.token!==token||Number(challenge.expiresAt||0)<Date.now())return fail(res,403,'توکن تأیید Restore نامعتبر یا منقضی شده است.');const rows=await prisma.$queryRawUnsafe(`SELECT TOP 1 id,filePath,status FROM dbo.AdminBackupJob WHERE id=@p1`,id);if(!rows.length||rows[0].status!=='completed')return fail(res,400,'Backup قابل بازیابی نیست.');const resolved=safeBackupPath(rows[0].filePath);if(!resolved||!fs.existsSync(resolved)||fs.statSync(resolved).size<=0)return fail(res,400,'فایل Backup معتبر نیست.');await prisma.$executeRawUnsafe(`RESTORE VERIFYONLY FROM DISK=@p1 WITH CHECKSUM`,resolved);await prisma.$executeRawUnsafe(`RESTORE DATABASE [${target.replace(/]/g,']]')}] FROM DISK=@p1 WITH REPLACE, RECOVERY`,resolved);await setGlobalSetting(`backup.restore.challenge.${id}`,{usedAt:Date.now()},'backup');data={restored:true,jobId:id,targetDatabase:target};break;}
+case "backup:prepare-application-restore":{
+  await ensureBackupJobTable(prisma);
+  applicationRestoreService.cleanupStaging();
+
+  const id=Number(body.jobId);
+  if(!id)return fail(res,400,"شناسه Application Backup الزامی است.");
+
+  const rows=await prisma.$queryRawUnsafe(
+    "SELECT TOP 1 id,filePath,type,status,sizeBytes FROM dbo.AdminBackupJob WHERE id=@p1",
+    id
+  );
+
+  if(!rows.length||rows[0].status!=="completed"){
+    return fail(res,400,"Application Backup انتخابشده تکمیل نشده است.");
+  }
+
+  if(
+    String(rows[0].type).toLowerCase()!=="application" &&
+    path.extname(String(rows[0].filePath||"")).toLowerCase()!==".zip"
+  ){
+    return fail(res,400,"این Backup از نوع Application نیست.");
+  }
+
+  const resolved=backupService.safeBackupPath(rows[0].filePath);
+
+  if(
+    !resolved ||
+    !fs.existsSync(resolved) ||
+    !fs.statSync(resolved).isFile()
+  ){
+    return fail(res,400,"فایل Application Backup معتبر نیست.");
+  }
+
+  const prepared=await applicationRestoreService.prepare(resolved,id);
+
+  const token=crypto.randomBytes(18).toString("hex");
+
+  const challenge={
+    token,
+    jobId:id,
+    zipFileName:prepared.zipFileName,
+    zipSha256:prepared.zipSha256,
+    stagingId:prepared.stagingId,
+    expiresAt:Date.now()+10*60*1000
+  };
+
+  await prisma.$executeRawUnsafe(
+    "MERGE dbo.GlobalSetting AS target USING (SELECT @p1 AS [key],@p2 AS [value],N'backup' AS [category]) AS source ON target.[key]=source.[key] WHEN MATCHED THEN UPDATE SET [value]=source.[value],updatedAt=SYSDATETIME(),version=target.version+1 WHEN NOT MATCHED THEN INSERT ([category],[key],[value],[version],[isPublic],[updatedAt]) VALUES(source.[category],source.[key],source.[value],1,0,SYSDATETIME());",
+    "backup.application.restore.challenge."+id,
+    JSON.stringify(challenge)
+  );
+
+  data={
+    jobId:id,
+    confirmationToken:token,
+    expiresInSeconds:600,
+    stagingId:prepared.stagingId,
+    fileName:prepared.zipFileName,
+    zipSha256:prepared.zipSha256,
+    fileCount:prepared.fileCount,
+    totalUncompressedBytes:prepared.totalUncompressedBytes,
+    warning:"این مرحله فقط Backup را در محیط موقت بررسی و ماده میکند هیچ فایل Production جایگزین نشده است."
+  };
+
+  break;
+}case 'backup:restore-backup':{await ensureOperationalTables();const id=Number(body.jobId);const token=String(body.confirmationToken||'');const target=String(body.targetDatabase||'').trim();if(!id||!token||!target)return fail(res,400,'Backup، توکن تأیید و دیتابیس مقصد الزامی است.');const productionDb=currentDbName();if(process.env.ADMIN_RESTORE_ENABLED!=='true')return fail(res,403,'Restore از پنل غیرفعال است؛ ابتدا ADMIN_RESTORE_ENABLED=true را صریحاً فعال کنید.');if(process.env.ADMIN_ALLOW_PRODUCTION_RESTORE!=='true'&&target===productionDb)return fail(res,403,'Restore مستقیم روی دیتابیس Production مسدود است.');if(process.env.ADMIN_RESTORE_TARGET&&target!==process.env.ADMIN_RESTORE_TARGET)return fail(res,403,'دیتابیس مقصد با مقصد مجاز Restore یکسان نیست.');const settingRows=await prisma.$queryRawUnsafe(`SELECT TOP 1 [value] FROM dbo.GlobalSetting WHERE [key]=@p1`,`backup.restore.challenge.${id}`);let challenge=null;try{challenge=settingRows.length?JSON.parse(settingRows[0].value):null;}catch(_){ }if(!challenge||challenge.token!==token||Number(challenge.expiresAt||0)<Date.now())return fail(res,403,'توکن تأیید Restore نامعتبر یا منقضی شده است.');const rows=await prisma.$queryRawUnsafe(`SELECT TOP 1 id,filePath,status FROM dbo.AdminBackupJob WHERE id=@p1`,id);if(!rows.length||rows[0].status!=='completed')return fail(res,400,'Backup قابل بازیابی نیست.');const resolved=safeBackupPath(rows[0].filePath);if(!resolved||!fs.existsSync(resolved)||fs.statSync(resolved).size<=0)return fail(res,400,'فایل Backup معتبر نیست.');await prisma.$executeRawUnsafe(`RESTORE VERIFYONLY FROM DISK=@p1 WITH CHECKSUM`,resolved);await prisma.$executeRawUnsafe(`RESTORE DATABASE [${target.replace(/]/g,']]')}] FROM DISK=@p1 WITH REPLACE, RECOVERY`,resolved);await setGlobalSetting(`backup.restore.challenge.${id}`,{usedAt:Date.now()},'backup');data={restored:true,jobId:id,targetDatabase:target};break;}
 case 'payments:create-transaction':{await ensureOperationalTables();const uid=Number(body.userId),amount=Number(body.amount);if(!uid||!Number.isFinite(amount)||amount<=0)return fail(res,400,'کاربر و مبلغ معتبر الزامی است.');await prisma.user.findUniqueOrThrow({where:{id:uid}});const rows=await prisma.$queryRawUnsafe(`INSERT INTO dbo.AdminPaymentTransaction(userId,amount,currency,gateway,authority,description,status) OUTPUT INSERTED.id VALUES(@p1,@p2,@p3,@p4,@p5,@p6,N'pending')`,uid,amount,String(body.currency||'IRR').slice(0,10),String(body.gateway||'').slice(0,50),String(body.authority||'').slice(0,200),String(body.description||'').slice(0,500));data={id:Number(rows[0].id),status:'pending'};break;}
 case 'payments:set-status':{await ensureOperationalTables();const id=Number(body.transactionId),status=String(body.status||'').toLowerCase();if(!id||!['pending','paid','failed','cancelled','refunded'].includes(status))return fail(res,400,'شناسه تراکنش و وضعیت معتبر الزامی است.');const rows=await prisma.$queryRawUnsafe(`UPDATE dbo.AdminPaymentTransaction SET status=@p1,referenceNo=@p2,updatedAt=SYSDATETIME(),paidAt=CASE WHEN @p1=N'paid' THEN SYSDATETIME() ELSE paidAt END OUTPUT INSERTED.id,INSERTED.status WHERE id=@p3`,status,String(body.referenceNo||'').slice(0,200),id);if(!rows.length)return fail(res,404,'تراکنش پیدا نشد.');data={id:Number(rows[0].id),status:rows[0].status};break;}
 case 'payments:list-transactions':{await ensureOperationalTables();data=await prisma.$queryRawUnsafe(`SELECT TOP 25 id,userId,amount,currency,gateway,referenceNo,status,description,createdAt,paidAt FROM dbo.AdminPaymentTransaction ORDER BY id DESC`);break;}
