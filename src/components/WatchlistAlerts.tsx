@@ -8,14 +8,28 @@ import * as watchlistService from '../services/watchlistService';
 
 interface Props { isOnline: boolean; }
 
+const READ_HISTORY_KEY = 'roniya_watchlist_alert_history_read';
 const metricLabel = (metric: WatchlistAlertMetric) => WATCHLIST_ALERT_METRICS.find(item => item.value === metric)?.label || metric;
 const operatorLabel = (operator: WatchlistAlertOperator) => WATCHLIST_ALERT_OPERATORS.find(item => item.value === operator)?.label || operator;
 const statusLabel: Record<WatchlistAlertRule['status'], string> = { armed: 'فعال', triggered: 'فعال‌شده', disabled: 'غیرفعال' };
+
+const readReadIds = (): string[] => {
+  try {
+    const value = JSON.parse(localStorage.getItem(READ_HISTORY_KEY) || '[]');
+    return Array.isArray(value) ? value.map(String) : [];
+  } catch { return []; }
+};
+
+const persistReadIds = (ids: string[]) => {
+  try { localStorage.setItem(READ_HISTORY_KEY, JSON.stringify(ids.slice(-500))); } catch { /* ignore storage failures */ }
+};
 
 const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
   const { addNotification } = useNotification();
   const [alerts, setAlerts] = useState<WatchlistAlertRule[]>([]);
   const [history, setHistory] = useState<WatchlistAlertHistoryItem[]>([]);
+  const [readIds, setReadIds] = useState<string[]>(readReadIds);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [symbols, setSymbols] = useState<watchlistService.WatchlistSymbol[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -32,13 +46,18 @@ const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
       const [loadedAlerts, loadedHistory, lists] = await Promise.all([alertService.getAlerts(), alertService.getAlertHistory(), watchlistService.getWatchlists()]);
       setAlerts(loadedAlerts);
       setHistory(loadedHistory);
+      const knownReadIds = readReadIds();
+      const newItems = loadedHistory.filter(item => !knownReadIds.includes(item.id));
+      if (newItems.length && history.length) {
+        addNotification(`${newItems.length.toLocaleString('fa-IR')} هشدار جدید در مرکز اعلان‌ها ثبت شد.`, 'info');
+      }
       const map = new Map<string, watchlistService.WatchlistSymbol>();
       lists.forEach(list => list.symbols.forEach(item => map.set(item.symbol, item)));
       setSymbols(Array.from(map.values()));
     } catch (error: any) {
       if (showLoading) addNotification(error?.response?.data?.message || 'دریافت هشدارها ناموفق بود.', 'error');
     } finally { if (showLoading) setLoading(false); }
-  }, [addNotification]);
+  }, [addNotification, history.length]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -53,7 +72,22 @@ const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
     armed: alerts.filter(item => item.status === 'armed').length,
     triggered: alerts.filter(item => item.status === 'triggered').length,
     disabled: alerts.filter(item => item.status === 'disabled').length,
-  }), [alerts]);
+    unread: history.filter(item => !readIds.includes(item.id)).length,
+  }), [alerts, history, readIds]);
+
+  const markRead = (id: string) => {
+    if (readIds.includes(id)) return;
+    const next = [...readIds, id];
+    setReadIds(next);
+    persistReadIds(next);
+  };
+
+  const markAllRead = () => {
+    const next = history.map(item => item.id);
+    setReadIds(next);
+    persistReadIds(next);
+    addNotification('همه هشدارهای تاریخچه خوانده شدند.', 'success');
+  };
 
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -100,9 +134,9 @@ const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
 
   return (
     <div dir="rtl" className="space-y-5">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[['کل هشدارها', stats.total], ['فعال', stats.armed], ['فعال‌شده', stats.triggered], ['غیرفعال', stats.disabled]].map(([label, value]) => (
-          <div key={String(label)} className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4"><div className="text-xs text-gray-500 dark:text-gray-400">{label}</div><div className="mt-1 text-2xl font-black">{Number(value).toLocaleString('fa-IR')}</div></div>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {[['کل هشدارها', stats.total], ['فعال', stats.armed], ['فعال‌شده', stats.triggered], ['غیرفعال', stats.disabled], ['خوانده‌نشده', stats.unread]].map(([label, value]) => (
+          <div key={String(label)} className={`rounded-2xl border p-4 ${label === 'خوانده‌نشده' && Number(value) > 0 ? 'border-amber-400 bg-amber-50/80 dark:bg-amber-950/20' : 'border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60'}`}><div className="text-xs text-gray-500 dark:text-gray-400">{label}</div><div className="mt-1 text-2xl font-black">{Number(value).toLocaleString('fa-IR')}</div></div>
         ))}
       </div>
 
@@ -123,8 +157,31 @@ const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
       </div>
 
       <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden">
-        <div className="px-4 py-3 border-b border-[var(--color-border)] flex items-center justify-between"><h3 className="font-black">تاریخچه فعال‌شدن هشدارها</h3><span className="text-xs text-gray-500">{history.length.toLocaleString('fa-IR')} رکورد</span></div>
-        {history.length === 0 ? <div className="p-8 text-center text-gray-500">هنوز هیچ هشداری فعال نشده است.</div> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-800/80"><tr><th className="p-3 text-right">زمان</th><th className="p-3 text-right">نماد</th><th className="p-3 text-right">شرط</th><th className="p-3 text-right">آستانه</th><th className="p-3 text-right">مقدار واقعی</th></tr></thead><tbody>{history.map(item => <tr key={item.id} className="border-t border-[var(--color-border)]"><td className="p-3 whitespace-nowrap">{new Date(item.triggeredAt).toLocaleString('fa-IR')}</td><td className="p-3 font-bold">{item.symbol}</td><td className="p-3">{metricLabel(item.metric)} {operatorLabel(item.operator)}</td><td className="p-3 font-mono">{Number(item.threshold).toLocaleString('fa-IR')}</td><td className="p-3 font-mono font-bold">{Number(item.value).toLocaleString('fa-IR')}</td></tr>)}</tbody></table></div>}
+        <div className="px-4 py-3 border-b border-[var(--color-border)] flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-black">مرکز اعلان‌های هشدار</h3><p className="text-xs text-gray-500 mt-1">Triggerهای واقعی موتور هشدار، با وضعیت خوانده‌شده و Snapshot بازار</p></div><div className="flex items-center gap-2"><span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300 text-xs font-bold">{stats.unread.toLocaleString('fa-IR')} خوانده‌نشده</span><button type="button" onClick={markAllRead} disabled={!stats.unread} className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-xs font-bold disabled:opacity-40">همه را خواندم</button></div></div>
+        {history.length === 0 ? <div className="p-8 text-center text-gray-500">هنوز هیچ هشداری فعال نشده است.</div> : <div className="divide-y divide-[var(--color-border)]">{history.map(item => {
+          const unread = !readIds.includes(item.id);
+          const expanded = expandedId === item.id;
+          return <div key={item.id} className={`${unread ? 'bg-amber-50/70 dark:bg-amber-950/10' : ''}`}>
+            <button type="button" onClick={() => { markRead(item.id); setExpandedId(expanded ? null : item.id); }} className="w-full text-right px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-4">
+                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${unread ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'}`} aria-label={unread ? 'خوانده نشده' : 'خوانده شده'} />
+                <span className="text-xs text-gray-500 whitespace-nowrap">{new Date(item.triggeredAt).toLocaleString('fa-IR')}</span>
+                <span className="font-black">{item.symbol}</span>
+                <span className="text-sm">{metricLabel(item.metric)} {operatorLabel(item.operator)}</span>
+                <span className="text-sm">آستانه: <b>{Number(item.threshold).toLocaleString('fa-IR')}</b></span>
+                <span className="text-sm">مقدار: <b>{Number(item.value).toLocaleString('fa-IR')}</b></span>
+                <span className="mr-auto text-xs text-cyan-600">{expanded ? 'بستن جزئیات' : 'مشاهده Snapshot'}</span>
+              </div>
+            </button>
+            {expanded && <div className="px-4 pb-4"><div className="rounded-xl bg-gray-50 dark:bg-gray-800/70 p-3 grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+              <div><span className="text-gray-500">قیمت آخر</span><b className="block mt-1">{item.snapshot?.lastPrice != null ? item.snapshot.lastPrice.toLocaleString('fa-IR') : '—'}</b></div>
+              <div><span className="text-gray-500">درصد آخر</span><b className="block mt-1">{item.snapshot?.lastChangePercent != null ? `${item.snapshot.lastChangePercent.toLocaleString('fa-IR')}٪` : '—'}</b></div>
+              <div><span className="text-gray-500">حجم</span><b className="block mt-1">{item.snapshot?.volume != null ? item.snapshot.volume.toLocaleString('fa-IR') : '—'}</b></div>
+              <div><span className="text-gray-500">قیمت پایانی</span><b className="block mt-1">{item.snapshot?.closePrice != null ? item.snapshot.closePrice.toLocaleString('fa-IR') : '—'}</b></div>
+              <div><span className="text-gray-500">زمان Snapshot</span><b className="block mt-1">{item.snapshot?.capturedAt ? new Date(item.snapshot.capturedAt).toLocaleString('fa-IR') : '—'}</b></div>
+            </div></div>}
+          </div>;
+        })}</div>}
       </div>
     </div>
   );
