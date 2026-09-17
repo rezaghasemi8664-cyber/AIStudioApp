@@ -29,6 +29,21 @@ export interface DashboardIndustry {
   symbolCount?: number | null;
 }
 
+export interface DashboardAlert {
+  id: string;
+  message: string;
+  createdAt: string;
+  read: boolean;
+}
+
+export interface DashboardCodalEvent {
+  id: string;
+  title: string;
+  symbol?: string;
+  publishedAt?: string | null;
+  url?: string | null;
+}
+
 export interface DashboardPersonalSummary {
   watchlistCount: number;
   watchlistSymbolCount: number;
@@ -45,6 +60,8 @@ export interface DashboardData {
   losers: DashboardMover[];
   highVolume: DashboardMover[];
   industries: DashboardIndustry[];
+  alerts: DashboardAlert[];
+  codalEvents: DashboardCodalEvent[];
   personal: DashboardPersonalSummary;
   fetchedAt: string;
 }
