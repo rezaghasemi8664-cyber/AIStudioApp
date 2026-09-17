@@ -7,7 +7,6 @@ function normalizeNumber(value) {
   const n = Number(String(value).replace(/,/g, '').replace(/٪/g, '').trim());
   return Number.isFinite(n) ? n : null;
 }
-
 function toBoolean(value) {
   if (typeof value === 'boolean') return value;
   const text = String(value ?? '').trim().toLowerCase();
@@ -15,26 +14,16 @@ function toBoolean(value) {
   if (['false', '0', 'no', 'n', ''].includes(text)) return false;
   return Boolean(value);
 }
-
 function first(obj, keys) {
-  for (const key of keys) {
-    const value = obj?.[key];
-    if (value !== undefined && value !== null && value !== '') return value;
-  }
+  for (const key of keys) { const value = obj?.[key]; if (value !== undefined && value !== null && value !== '') return value; }
   return null;
 }
-
-function metric(row, keys) {
-  return normalizeNumber(first(row, keys));
-}
-
+function metric(row, keys) { return normalizeNumber(first(row, keys)); }
 function growth(row, currentKeys, previousKeys) {
-  const current = metric(row, currentKeys);
-  const previous = metric(row, previousKeys);
+  const current = metric(row, currentKeys); const previous = metric(row, previousKeys);
   if (current === null || previous === null || previous === 0) return null;
   return ((current - previous) / Math.abs(previous)) * 100;
 }
-
 function extractFinancialMetrics(row) {
   const metrics = {
     revenue: metric(row, ['revenue', 'Revenue', 'salesRevenue', 'SalesRevenue', 'netSales', 'NetSales', 'درآمد', 'درآمد فروش']),
@@ -51,7 +40,6 @@ function extractFinancialMetrics(row) {
   };
   return Object.fromEntries(Object.entries({ ...metrics, ...growthFields }).filter(([, value]) => value !== null));
 }
-
 function classifyReport(title, reportType) {
   const text = `${title || ''} ${reportType || ''}`.toLowerCase();
   const rules = [
@@ -69,7 +57,6 @@ function classifyReport(title, reportType) {
   for (const [category, keywords] of rules) if (keywords.some(keyword => text.includes(keyword))) return category;
   return 'other';
 }
-
 function normalizeItem(item) {
   const row = item && typeof item === 'object' ? item : {};
   const title = String(first(row, ['title', 'Title', 'reportTitle', 'subject', 'Subject']) || '').trim();
@@ -90,14 +77,38 @@ function normalizeItem(item) {
     raw: row,
   };
 }
-
 function extractItems(payload) {
   if (Array.isArray(payload)) return payload;
   if (!payload || typeof payload !== 'object') return [];
   for (const key of ['data', 'items', 'results', 'reports', 'Rows', 'Data']) if (Array.isArray(payload[key])) return payload[key];
   return [];
 }
-
+function dateKey(value) {
+  const text = String(value || '').trim();
+  const match = text.match(/^(\d{4}[-/]\d{1,2})/);
+  return match ? match[1].replace('/', '-') : null;
+}
+function buildPeriodicTrend(items) {
+  const byPeriod = items.reduce((map, item) => {
+    const key = dateKey(item.publishDate);
+    if (!key) return map;
+    map[key] = (map[key] || 0) + 1;
+    return map;
+  }, {});
+  const periods = Object.keys(byPeriod).sort();
+  const latest = periods.length ? periods[periods.length - 1] : null;
+  const previous = periods.length > 1 ? periods[periods.length - 2] : null;
+  const latestCount = latest ? byPeriod[latest] : 0;
+  const previousCount = previous ? byPeriod[previous] : null;
+  return {
+    periods: periods.map(period => ({ period, reports: byPeriod[period] })),
+    latestPeriod: latest,
+    latestReports: latestCount,
+    previousPeriod: previous,
+    previousReports: previousCount,
+    changePercent: previousCount === null || previousCount === 0 ? null : ((latestCount - previousCount) / previousCount) * 100,
+  };
+}
 function buildSummary(items) {
   const reports = items.length;
   const audited = items.filter(item => item.audited).length;
@@ -105,28 +116,16 @@ function buildSummary(items) {
   const byType = items.reduce((map, item) => { const key = item.reportType || 'نامشخص'; map[key] = (map[key] || 0) + 1; return map; }, {});
   const byCategory = items.reduce((map, item) => { map[item.category] = (map[item.category] || 0) + 1; return map; }, {});
   const metricReports = items.filter(item => Object.keys(item.financialMetrics).length > 0).length;
-  return { reports, audited, attachments, byType, byCategory, metricReports };
+  return { reports, audited, attachments, byType, byCategory, metricReports, periodicTrend: buildPeriodicTrend(items) };
 }
-
 async function getReports({ symbol = '', from = '', to = '', limit = 50 } = {}) {
   const baseUrl = process.env.CODAL_API_URL || '';
-  if (!baseUrl) {
-    const error = new Error('CODAL_API_URL تنظیم نشده است.');
-    error.code = 'CODAL_NOT_CONFIGURED';
-    throw error;
-  }
+  if (!baseUrl) { const error = new Error('CODAL_API_URL تنظیم نشده است.'); error.code = 'CODAL_NOT_CONFIGURED'; throw error; }
   const params = {};
-  if (symbol) params.symbol = symbol;
-  if (from) params.from = from;
-  if (to) params.to = to;
+  if (symbol) params.symbol = symbol; if (from) params.from = from; if (to) params.to = to;
   params.limit = Math.min(Math.max(Number(limit) || 50, 1), 200);
-  const response = await axios.get(baseUrl, {
-    params,
-    timeout: Number(process.env.CODAL_TIMEOUT_MS) || 15000,
-    headers: { Accept: 'application/json', 'User-Agent': process.env.CODAL_USER_AGENT || 'Roniya-Analyzer/1.0' },
-  });
+  const response = await axios.get(baseUrl, { params, timeout: Number(process.env.CODAL_TIMEOUT_MS) || 15000, headers: { Accept: 'application/json', 'User-Agent': process.env.CODAL_USER_AGENT || 'Roniya-Analyzer/1.0' } });
   const items = extractItems(response.data).map(normalizeItem).filter(item => item.title || item.symbol || item.publishDate || item.url);
   return { items, summary: buildSummary(items), fetchedAt: new Date().toISOString(), source: 'codal', configured: true };
 }
-
-module.exports = { getReports, normalizeNumber, classifyReport, extractFinancialMetrics };
+module.exports = { getReports, normalizeNumber, classifyReport, extractFinancialMetrics, buildPeriodicTrend };
