@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import * as profileService from '../services/profileService';
+import { createSubscriptionPayment } from '../services/subscriptionService';
 import type { SubscriptionPlan } from '../services/subscriptionService';
 
 interface SubscriptionPlansProps {
@@ -50,6 +51,8 @@ const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [payingPlanId, setPayingPlanId] = useState<number | null>(null);
+  const [paymentError, setPaymentError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -80,6 +83,22 @@ const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
     () => [...plans].sort((a, b) => Number(a.durationMonths) - Number(b.durationMonths)),
     [plans],
   );
+
+  const handleRenew = async (plan: SubscriptionPlan) => {
+    if (payingPlanId !== null) return;
+
+    setPaymentError('');
+    setPayingPlanId(Number(plan.id));
+    onRenew?.(plan);
+
+    try {
+      const payment = await createSubscriptionPayment(Number(plan.id));
+      window.location.assign(payment.redirectUrl);
+    } catch (err: any) {
+      setPaymentError(err?.message || 'ایجاد درخواست پرداخت ناموفق بود.');
+      setPayingPlanId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -117,9 +136,16 @@ const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
         </p>
       </div>
 
+      {paymentError && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300">
+          {paymentError}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {orderedPlans.map((plan) => {
           const isCurrent = currentPlanId != null && Number(plan.id) === Number(currentPlanId);
+          const isPaying = payingPlanId === Number(plan.id);
 
           return (
             <article
@@ -162,10 +188,11 @@ const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
                 <span className="text-xs text-gray-500 dark:text-gray-400">دسترسی کامل امکانات</span>
                 <button
                   type="button"
-                  onClick={() => onRenew?.(plan)}
-                  className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  disabled={payingPlanId !== null}
+                  onClick={() => void handleRenew(plan)}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isCurrent ? 'تمدید اشتراک' : 'انتخاب و تمدید'}
+                  {isPaying ? 'در حال اتصال به درگاه...' : isCurrent ? 'تمدید اشتراک' : 'انتخاب و پرداخت'}
                 </button>
               </div>
             </article>
