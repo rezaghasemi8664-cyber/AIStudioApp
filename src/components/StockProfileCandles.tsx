@@ -1,12 +1,12 @@
 import React, { useMemo } from 'react';
 
-type Candle = { date:string; open:number|null; high:number|null; low:number|null; close:number|null; volume:number|null };
+type Candle = { date:string; time?:string; open:number|null; high:number|null; low:number|null; close:number|null; volume:number|null };
 
-interface Props { candles:Candle[]; }
+interface Props { data:Candle[]; }
 const fmt=(v:number|null)=>v==null?'—':v.toLocaleString('fa-IR',{maximumFractionDigits:2});
 
-const StockProfileCandles:React.FC<Props>=({candles})=>{
- const valid=useMemo(()=>candles.filter(c=>c.open!=null&&c.high!=null&&c.low!=null&&c.close!=null),[candles]);
+const StockProfileCandles:React.FC<Props>=({data})=>{
+ const valid=useMemo(()=>data.filter(c=>c.open!=null&&c.high!=null&&c.low!=null&&c.close!=null),[data]);
  if(valid.length<2)return <div className="rounded-2xl border border-dashed border-[var(--color-border)] p-8 text-center text-gray-500">داده کندلی معتبر کافی برای این بازه موجود نیست.</div>;
  const visible=valid.slice(-90), width=1000,height=360,left=56,right=18,top=20,bottom=48;
  const prices=visible.flatMap(c=>[c.high as number,c.low as number]);
