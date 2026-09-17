@@ -6,6 +6,7 @@ import * as guestSettingsService from '../services/guestSettingsService';
 import * as profileService from '../services/profileService';
 import { useNotification } from './NotificationSystem';
 import PasswordChangeForm from './PasswordChangeForm';
+import SubscriptionPlans from './SubscriptionPlans';
 import {
   PencilIcon,
   CheckIcon,
@@ -756,10 +757,20 @@ const UserProfile: React.FC<UserProfileProps> = ({
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500" />
             </div>
           ) : (
-            <SubscriptionCard
-              currentUser={currentUser}
-              serverSubscription={serverSubscription}
-            />
+            <>
+              <SubscriptionCard
+                currentUser={currentUser}
+                serverSubscription={serverSubscription}
+              />
+              <SubscriptionPlans
+                onRenew={(plan) =>
+                  addNotification(
+                    `پلن «${plan.name}» انتخاب شد. اتصال به درگاه پرداخت در گام بعد انجام می‌شود.`,
+                    'info',
+                  )
+                }
+              />
+            </>
           )}
         </div>
       )}
@@ -937,7 +948,7 @@ const UserProfile: React.FC<UserProfileProps> = ({
                 <input
                   type="text"
                   value={newGuestFirstName}
-                  onChange={(e) => setNewGuestFirstName(e.target.value)}
+                  onChange={(e) => setNewGuestFirstFirstName(e.target.value)}
                   placeholder="نام"
                   className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2"
                   style={{
