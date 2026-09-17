@@ -427,7 +427,6 @@ const App: React.FC = () => {
     setScalpingAlert(false);
   }, []);
 
-  // گوش دادن به رویداد سراسری خروج اجباری (Unauthorized) صادر شده از apiClient
   useEffect(() => {
     const handleGlobalUnauthorized = () => {
       handleLogout();
@@ -448,8 +447,6 @@ const App: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [currentUser]);
 
-  // اعتبار صفحه اصلی باید همیشه از رکورد به‌روز کاربر در سرور خوانده شود
-  // تا تغییرات اعمال‌شده در جدول کاربران ادمین بدون نیاز به خروج/ورود مجدد نمایش داده شود.
   useEffect(() => {
     if (!currentUser || currentUser.isAdmin) return;
 
@@ -528,39 +525,7 @@ const App: React.FC = () => {
     };
 
     const restoreSessionUserQuickly = () => {
-      // ورود فقط باید با اقدام صریح کاربر و اجرای handleLogin انجام شود.
-      // وجود currentUser در localStorage به‌تنهایی مجوز ورود خودکار نیست.
       setUserState(null);
-    };
-
-    const reconcileSessionUserInBackground = async () => {
-      try {
-        if (typeof authService.getMe !== 'function') {
-          return;
-        }
-
-        const meResult = await authService.getMe();
-
-        if (!mounted) return;
-
-        if (meResult?.success && meResult.data) {
-          const resolvedUser = meResult.data as StoredUser;
-
-          if (resolvedUser.isActive && !resolvedUser.isDeleted) {
-            if (typeof authService.setCurrentUser === 'function') {
-              authService.setCurrentUser(resolvedUser);
-            }
-
-            setUserState(resolvedUser);
-            return;
-          }
-        }
-
-        // اگر نشست در سرور نامعتبر بود، خروج کامل رخ دهد
-        handleLogout();
-      } catch (error) {
-        logAsyncError('reconcileSessionUserInBackground getMe failed', error);
-      }
     };
 
     const initializeNonBlockingServices = async () => {
@@ -582,10 +547,7 @@ const App: React.FC = () => {
 
       try {
         if (!mounted) return;
-
-        if (typeof themeService.initializeTheme === 'function') {
-          await themeService.initializeTheme();
-        }
+        if (typeof themeService.initializeTheme === 'function') await themeService.initializeTheme();
       } catch (error) {
         logAsyncError('initializeTheme background refresh failed', error);
       }
@@ -596,44 +558,29 @@ const App: React.FC = () => {
       } catch (error) {
         logAsyncError('initializeTseLinks failed', error);
       }
-
-      // از اعتبارسنجی خودکار نشست برای ورود خودکار جلوگیری می‌کنیم.
-      // وضعیت کاربر فقط پس از فشردن دکمه ورود توسط Login تعیین می‌شود.
     };
 
     const initializeApp = async () => {
       try {
-        if (typeof storageService.init === 'function') {
-          await storageService.init();
-        }
-
+        if (typeof storageService.init === 'function') await storageService.init();
         if (!mounted) return;
-
-        if (typeof themeService.initializeTheme === 'function') {
-          await themeService.initializeTheme();
-        }
-
+        if (typeof themeService.initializeTheme === 'function') await themeService.initializeTheme();
         if (!mounted) return;
         await loadTseLinks();
-
         if (!mounted) return;
         restoreSessionUserQuickly();
 
-        if (typeof storageService.getItem === 'function') {
-          if (storageService.getItem('ronia_new_scalping_alert') === 'true') {
-            setScalpingAlert(true);
-          }
+        if (typeof storageService.getItem === 'function' && storageService.getItem('ronia_new_scalping_alert') === 'true') {
+          setScalpingAlert(true);
         }
 
         if (mounted) {
           setInitError(null);
           setIsInitializing(false);
         }
-
         void initializeNonBlockingServices();
       } catch (error) {
         console.error('App initialization failed:', error);
-
         if (mounted) {
           setInitError('خطا در بارگذاری برنامه. لطفاً صفحه را مجدداً بارگذاری کنید.');
           setIsInitializing(false);
@@ -645,49 +592,31 @@ const App: React.FC = () => {
     const handleOffline = () => setIsOnline(false);
 
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        notificationPanelRef.current &&
-        !notificationPanelRef.current.contains(event.target as Node)
-      ) {
-        setIsNotificationsOpen(false);
-      }
-
-      if (tseMenuRef.current && !tseMenuRef.current.contains(event.target as Node)) {
-        setIsTseMenuOpen(false);
-      }
+      if (notificationPanelRef.current && !notificationPanelRef.current.contains(event.target as Node)) setIsNotificationsOpen(false);
+      if (tseMenuRef.current && !tseMenuRef.current.contains(event.target as Node)) setIsTseMenuOpen(false);
     };
 
     const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === 'ronia_notifications') {
-        refreshUnreadCount(getCurrentSessionUser());
-      }
-
+      if (event.key === 'ronia_notifications') refreshUnreadCount(getCurrentSessionUser());
       if (event.key === 'ronia_new_scalping_alert' && event.newValue === 'true') {
         setScalpingAlert(true);
         playNotificationSound();
       }
-
-      if (event.key === 'global_app_tse_links') {
-        if (typeof uiConfigService.getLinksForDisplay === 'function') {
-          setTseLinks(uiConfigService.getLinksForDisplay().map((link) => ({ id: link.id, label: link.label ?? link.title, href: link.href ?? link.url })));
-        }
+      if (event.key === 'global_app_tse_links' && typeof uiConfigService.getLinksForDisplay === 'function') {
+        setTseLinks(uiConfigService.getLinksForDisplay().map((link) => ({ id: link.id, label: link.label ?? link.title, href: link.href ?? link.url })));
       }
     };
 
     const handleBeforeUnload = () => {
       try {
         const user = getCurrentSessionUser();
-
-        if (user && typeof authService.removeUserPresence === 'function') {
-          authService.removeUserPresence(user.id);
-        }
+        if (user && typeof authService.removeUserPresence === 'function') authService.removeUserPresence(user.id);
       } catch {
         //
       }
     };
 
     void initializeApp();
-
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     document.addEventListener('mousedown', handleClickOutside);
@@ -697,16 +626,9 @@ const App: React.FC = () => {
     const presenceInterval = setInterval(() => {
       try {
         const user = getCurrentSessionUser();
-
         if (!user) return;
-
-        if (typeof authService.updateUserPresence === 'function') {
-          authService.updateUserPresence(user.id);
-        }
-
-        if (user.isAdmin && typeof authService.getOnlineUserCount === 'function') {
-          setOnlineUserCount(authService.getOnlineUserCount());
-        }
+        if (typeof authService.updateUserPresence === 'function') authService.updateUserPresence(user.id);
+        if (user.isAdmin && typeof authService.getOnlineUserCount === 'function') setOnlineUserCount(authService.getOnlineUserCount());
       } catch {
         //
       }
@@ -720,68 +642,41 @@ const App: React.FC = () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('beforeunload', handleBeforeUnload);
       clearInterval(presenceInterval);
-
       if (scalpingCheckIntervalRef.current) clearInterval(scalpingCheckIntervalRef.current);
       if (marketIndexCheckIntervalRef.current) clearInterval(marketIndexCheckIntervalRef.current);
-      if (notificationRefreshIntervalRef.current) {
-        clearInterval(notificationRefreshIntervalRef.current);
-      }
+      if (notificationRefreshIntervalRef.current) clearInterval(notificationRefreshIntervalRef.current);
     };
   }, [loadTseLinks, refreshUnreadCount, handleLogout]);
 
   useEffect(() => {
     let mounted = true;
-
     const cleanupSubscription = () => {
       if (unsubscribeGlobalSettingsRef.current) {
         unsubscribeGlobalSettingsRef.current();
         unsubscribeGlobalSettingsRef.current = null;
       }
     };
-
     const disconnectSocket = () => {
-      if (typeof socketService.disconnectSocket === 'function') {
-        socketService.disconnectSocket();
-      }
+      if (typeof socketService.disconnectSocket === 'function') socketService.disconnectSocket();
     };
-
     const refreshGlobalSettingsAndUi = async () => {
       try {
-        if (typeof globalSettings.fetchGlobalSettings === 'function') {
-          await globalSettings.fetchGlobalSettings();
-        }
-
+        if (typeof globalSettings.fetchGlobalSettings === 'function') await globalSettings.fetchGlobalSettings();
         if (!mounted) return;
-
-        if (typeof themeService.initializeTheme === 'function') {
-          await themeService.initializeTheme();
-        }
-
+        if (typeof themeService.initializeTheme === 'function') await themeService.initializeTheme();
         if (!mounted) return;
         await loadTseLinks();
       } catch (error) {
         console.error('[App] Failed to refresh global settings from socket event:', error);
       }
     };
-
     cleanupSubscription();
-
     if (!currentUser) {
       disconnectSocket();
-
-      return () => {
-        mounted = false;
-        cleanupSubscription();
-        disconnectSocket();
-      };
+      return () => { mounted = false; cleanupSubscription(); disconnectSocket(); };
     }
-
     try {
-      // در معماری جدید مبتنی بر کوکی، سوکت بدون ارسال دستی توکن متصل می‌شود
-      if (typeof socketService.initializeSocket === 'function') {
-        socketService.initializeSocket();
-      }
-
+      if (typeof socketService.initializeSocket === 'function') socketService.initializeSocket();
       if (typeof socketService.onGlobalSettingsUpdated === 'function') {
         unsubscribeGlobalSettingsRef.current = socketService.onGlobalSettingsUpdated(async () => {
           if (!mounted) return;
@@ -791,12 +686,7 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('[App] Failed to initialize socket or subscribe to settings events:', error);
     }
-
-    return () => {
-      mounted = false;
-      cleanupSubscription();
-      disconnectSocket();
-    };
+    return () => { mounted = false; cleanupSubscription(); disconnectSocket(); };
   }, [currentUser, loadTseLinks]);
 
   useEffect(() => {
@@ -804,24 +694,14 @@ const App: React.FC = () => {
       clearInterval(notificationRefreshIntervalRef.current);
       notificationRefreshIntervalRef.current = null;
     }
-
     if (!currentUser) {
       setUnreadCount(0);
       setNotifications([]);
       return;
     }
-
-    const refreshNotifications = () => {
-      refreshUnreadCount(currentUser);
-    };
-
+    const refreshNotifications = () => refreshUnreadCount(currentUser);
     refreshNotifications();
-
-    notificationRefreshIntervalRef.current = setInterval(
-      refreshNotifications,
-      TIMING.NOTIFICATION_REFRESH_INTERVAL,
-    );
-
+    notificationRefreshIntervalRef.current = setInterval(refreshNotifications, TIMING.NOTIFICATION_REFRESH_INTERVAL);
     return () => {
       if (notificationRefreshIntervalRef.current) {
         clearInterval(notificationRefreshIntervalRef.current);
@@ -835,60 +715,36 @@ const App: React.FC = () => {
       clearInterval(scalpingCheckIntervalRef.current);
       scalpingCheckIntervalRef.current = null;
     }
-
-    if (!currentUser || !isOnline || isExpired) {
-      return;
-    }
-
+    if (!currentUser || !isOnline || isExpired) return;
     let isCancelled = false;
     let scanInProgress = false;
-
     const checkScalping = async () => {
       if (isCancelled || scanInProgress) return;
       scanInProgress = true;
-
       try {
         if (typeof apiConfigService.getScalpingSchedule !== 'function') return;
-
         const schedule = apiConfigService.getScalpingSchedule();
         if (!schedule?.isEnabled) return;
-
         const now = new Date();
-
         if (!Array.isArray(schedule.days) || !schedule.days.includes(now.getDay())) return;
-
         const currentTime = now.toTimeString().slice(0, 5);
-        if (!schedule.startTime || !schedule.endTime) return;
-        if (currentTime < schedule.startTime || currentTime > schedule.endTime) return;
-
+        if (!schedule.startTime || !schedule.endTime || currentTime < schedule.startTime || currentTime > schedule.endTime) return;
         const lockKey = 'ronia_scalping_scan_lock';
-        const rawLockTimestamp =
-          typeof storageService.getItem === 'function' ? storageService.getItem(lockKey) : null;
+        const rawLockTimestamp = typeof storageService.getItem === 'function' ? storageService.getItem(lockKey) : null;
         const lockTimestamp = Number.parseInt(rawLockTimestamp || '0', 10);
-
-        if (Number.isFinite(lockTimestamp) && Date.now() - lockTimestamp < TIMING.LOCK_TIMEOUT) {
-          return;
-        }
-
-        if (typeof storageService.setItem === 'function') {
-          storageService.setItem(lockKey, Date.now().toString());
-        }
-
+        if (Number.isFinite(lockTimestamp) && Date.now() - lockTimestamp < TIMING.LOCK_TIMEOUT) return;
+        if (typeof storageService.setItem === 'function') storageService.setItem(lockKey, Date.now().toString());
         try {
           if (typeof gapgptService.runAutomatedScalping === 'function') {
             const result = await gapgptService.runAutomatedScalping();
-
             if (isCancelled) return;
-
             if (result?.newOpportunitySymbols?.length > 0) {
               addNotification(`فرصت‌های جدید: ${result.newOpportunitySymbols.join(', ')}`, 'success');
               setScalpingAlert(true);
             }
           }
         } finally {
-          if (typeof storageService.removeItem === 'function') {
-            storageService.removeItem(lockKey);
-          }
+          if (typeof storageService.removeItem === 'function') storageService.removeItem(lockKey);
         }
       } catch (error) {
         console.error('Scalping scan failed:', error);
@@ -896,13 +752,10 @@ const App: React.FC = () => {
         scanInProgress = false;
       }
     };
-
     void checkScalping();
     scalpingCheckIntervalRef.current = setInterval(checkScalping, TIMING.SCAN_CHECK_INTERVAL);
-
     return () => {
       isCancelled = true;
-
       if (scalpingCheckIntervalRef.current) {
         clearInterval(scalpingCheckIntervalRef.current);
         scalpingCheckIntervalRef.current = null;
@@ -915,46 +768,29 @@ const App: React.FC = () => {
       clearInterval(marketIndexCheckIntervalRef.current);
       marketIndexCheckIntervalRef.current = null;
     }
-
-    if (!currentUser || !isOnline) {
-      return;
-    }
-
+    if (!currentUser || !isOnline) return;
     let isCancelled = false;
     let updateInProgress = false;
-
     const checkMarketIndex = async () => {
       if (isCancelled || updateInProgress) return;
       updateInProgress = true;
-
       try {
         if (typeof apiConfigService.getMarketIndexSchedule !== 'function') return;
-
         const schedule = apiConfigService.getMarketIndexSchedule();
         if (!schedule?.isEnabled) return;
-
         const now = new Date();
         if (!Array.isArray(schedule.days) || !schedule.days.includes(now.getDay())) return;
-
-        if (typeof gapgptService.updateMarketIndex === 'function') {
-          await gapgptService.updateMarketIndex();
-        }
+        if (typeof gapgptService.updateMarketIndex === 'function') await gapgptService.updateMarketIndex();
       } catch (error) {
         console.error('Market index update failed:', error);
       } finally {
         updateInProgress = false;
       }
     };
-
     void checkMarketIndex();
-    marketIndexCheckIntervalRef.current = setInterval(
-      checkMarketIndex,
-      TIMING.MARKET_CHECK_INTERVAL,
-    );
-
+    marketIndexCheckIntervalRef.current = setInterval(checkMarketIndex, TIMING.MARKET_CHECK_INTERVAL);
     return () => {
       isCancelled = true;
-
       if (marketIndexCheckIntervalRef.current) {
         clearInterval(marketIndexCheckIntervalRef.current);
         marketIndexCheckIntervalRef.current = null;
@@ -962,580 +798,145 @@ const App: React.FC = () => {
     };
   }, [currentUser, isOnline]);
 
-  const buildSafeUser = useCallback(
-    (baseUser: StoredUser, incomingUser?: Partial<StoredUser> | null): StoredUser => ({
-      ...baseUser,
-      ...(incomingUser || {}),
-      isAdmin: incomingUser?.isAdmin ?? baseUser.isAdmin ?? false,
-      role: incomingUser?.role || baseUser.role || 'user',
-      id: baseUser.id,
-      username: baseUser.username,
-    }),
-    [],
-  );
+  const buildSafeUser = useCallback((baseUser: StoredUser, incomingUser?: Partial<StoredUser> | null): StoredUser => ({
+    ...baseUser,
+    ...(incomingUser || {}),
+    isAdmin: incomingUser?.isAdmin ?? baseUser.isAdmin ?? false,
+    role: incomingUser?.role || baseUser.role || 'user',
+    id: baseUser.id,
+    username: baseUser.username,
+  }), []);
 
   const persistUser = useCallback((user: StoredUser) => {
-    if (typeof authService.setCurrentUser === 'function') {
-      authService.setCurrentUser(user);
-    } else {
-      localStorage.setItem('user', JSON.stringify(user));
-    }
+    if (typeof authService.setCurrentUser === 'function') authService.setCurrentUser(user);
+    else localStorage.setItem('user', JSON.stringify(user));
   }, []);
 
-  const handleLogin = useCallback(
-    async (user: StoredUser) => {
-      const safeUser = buildSafeUser(user);
-
-      setCurrentUser(safeUser);
-      persistUser(safeUser);
-
-      if (typeof authService.isAccountExpired === 'function') {
-        setIsExpired(authService.isAccountExpired(safeUser));
-      } else {
-        setIsExpired(false);
-      }
-
-      setActiveTab('dashboard');
-      setInitError(null);
-      setShowWelcomeBanner(true);
-      setIsNotificationsOpen(false);
-      setViewingNotification(null);
-      setIsTseMenuOpen(false);
-
-      if (typeof notificationService.checkAndSendExpiryNotification === 'function') {
-        try {
-          notificationService.checkAndSendExpiryNotification(safeUser);
-        } catch (error) {
-          console.error('[handleLogin] checkAndSendExpiryNotification failed:', error);
-        }
-      }
-
-      refreshUnreadCount(safeUser);
-    },
-    [buildSafeUser, persistUser, refreshUnreadCount],
-  );
-
-  const handleTabClick = useCallback(
-    (tab: Tab) => {
-      if (isExpired && !currentUser?.isAdmin && !['profile', 'settings', 'notifications'].includes(tab)) {
-        addNotification('مدت زمان اشتراک شما به پایان رسیده است لطفا جهت دسترسی به تمام امکانات نرم افزار نسبت به تمدید اشتراک خود اقدام نمایید', 'info');
-        return;
-      }
-      if (activeTab === 'settings' && tab !== 'settings') {
-        setInitialSettingsTab(undefined);
-      }
-
-      setActiveTab(tab);
-
-      if (tab === 'scalping') {
-        setScalpingAlert(false);
-        if (typeof storageService.removeItem === 'function') {
-          storageService.removeItem('ronia_new_scalping_alert');
-        }
-      }
-
-      if (tab !== 'notifications') {
-        setIsNotificationsOpen(false);
-      }
-    },
-    [activeTab, addNotification, currentUser, isExpired],
-  );
-
-  const handlePasswordChange = useCallback(
-    async (currentPass: string, newPass: string) => {
-      if (!currentUser) {
-        throw new Error('کاربر وارد نشده است.');
-      }
-
-      if (typeof authService.changePassword !== 'function') {
-        throw new Error('سرویس تغییر رمز عبور در دسترس نیست.');
-      }
-
-      await authService.changePassword(currentPass, newPass);
-
-      const freshUser =
-        typeof authService.getCurrentUser === 'function' ? authService.getCurrentUser() : null;
-
-      if (freshUser) {
-        const safeUser = buildSafeUser(currentUser, freshUser);
-
-        setCurrentUser(safeUser);
-        persistUser(safeUser);
-
-        if (typeof authService.isAccountExpired === 'function') {
-          setIsExpired(authService.isAccountExpired(safeUser));
-        }
-      }
-
-      console.log('[APP] Password changed successfully, forcing logout.');
-      handleLogout();
-    },
-    [buildSafeUser, currentUser, persistUser, handleLogout],
-  );
-
-  const handleProfileUpdate = useCallback(
-    (updatedUser: StoredUser) => {
-      if (!currentUser) return;
-
-      const safeUser = buildSafeUser(currentUser, updatedUser);
-
-      setCurrentUser(safeUser);
-      persistUser(safeUser);
-
-      if (typeof authService.isAccountExpired === 'function') {
-        setIsExpired(authService.isAccountExpired(safeUser));
-      }
-
-      console.log('[APP] Profile updated, user state refreshed with safe merge');
-    },
-    [buildSafeUser, currentUser, persistUser],
-  );
-
-  const handleToggleNotifications = useCallback(() => {
-    setIsNotificationsOpen((prev) => !prev);
-  }, []);
-
-  const handleToggleTseMenu = useCallback(() => {
-    setIsTseMenuOpen((prev) => !prev);
-  }, []);
-
-  const handleViewNotification = useCallback(
-    (notification: AppNotification) => {
-      setViewingNotification(notification);
-
-      if (!notification.read && currentUser) {
-        if (typeof notificationService.markSingleNotificationAsRead === 'function') {
-          notificationService.markSingleNotificationAsRead(notification.id);
-        }
-
-        refreshUnreadCount(currentUser);
-      }
-    },
-    [currentUser, refreshUnreadCount],
-  );
-
-  const handleCloseNotificationModal = useCallback(() => {
+  const handleLogin = useCallback(async (user: StoredUser) => {
+    const safeUser = buildSafeUser(user);
+    setCurrentUser(safeUser);
+    persistUser(safeUser);
+    if (typeof authService.isAccountExpired === 'function') setIsExpired(authService.isAccountExpired(safeUser));
+    else setIsExpired(false);
+    setActiveTab('dashboard');
+    setInitError(null);
+    setShowWelcomeBanner(true);
+    setIsNotificationsOpen(false);
     setViewingNotification(null);
-  }, []);
+    setIsTseMenuOpen(false);
+    if (typeof notificationService.checkAndSendExpiryNotification === 'function') {
+      try { notificationService.checkAndSendExpiryNotification(safeUser); } catch (error) { console.error('[handleLogin] checkAndSendExpiryNotification failed:', error); }
+    }
+    refreshUnreadCount(safeUser);
+  }, [buildSafeUser, persistUser, refreshUnreadCount]);
 
-  const handleCloseWelcomeBanner = useCallback(() => {
-    setShowWelcomeBanner(false);
-  }, []);
+  const handleTabClick = useCallback((tab: Tab) => {
+    if (isExpired && !currentUser?.isAdmin && !['profile', 'settings', 'notifications'].includes(tab)) {
+      addNotification('مدت زمان اشتراک شما به پایان رسیده است لطفا جهت دسترسی به تمام امکانات نرم افزار نسبت به تمدید اشتراک خود اقدام نمایید', 'info');
+      return;
+    }
+    if (activeTab === 'settings' && tab !== 'settings') setInitialSettingsTab(undefined);
+    setActiveTab(tab);
+    if (tab === 'scalping') {
+      setScalpingAlert(false);
+      if (typeof storageService.removeItem === 'function') storageService.removeItem('ronia_new_scalping_alert');
+    }
+    if (tab !== 'notifications') setIsNotificationsOpen(false);
+  }, [activeTab, addNotification, currentUser, isExpired]);
+
+  const handlePasswordChange = useCallback(async (currentPass: string, newPass: string) => {
+    if (!currentUser) throw new Error('کاربر وارد نشده است.');
+    if (typeof authService.changePassword !== 'function') throw new Error('سرویس تغییر رمز عبور در دسترس نیست.');
+    await authService.changePassword(currentPass, newPass);
+    const freshUser = typeof authService.getCurrentUser === 'function' ? authService.getCurrentUser() : null;
+    if (freshUser) {
+      const safeUser = buildSafeUser(currentUser, freshUser);
+      setCurrentUser(safeUser);
+      persistUser(safeUser);
+      if (typeof authService.isAccountExpired === 'function') setIsExpired(authService.isAccountExpired(safeUser));
+    }
+    handleLogout();
+  }, [buildSafeUser, currentUser, persistUser, handleLogout]);
+
+  const handleProfileUpdate = useCallback((updatedUser: StoredUser) => {
+    if (!currentUser) return;
+    const safeUser = buildSafeUser(currentUser, updatedUser);
+    setCurrentUser(safeUser);
+    persistUser(safeUser);
+    if (typeof authService.isAccountExpired === 'function') setIsExpired(authService.isAccountExpired(safeUser));
+  }, [buildSafeUser, currentUser, persistUser]);
+
+  const handleToggleNotifications = useCallback(() => setIsNotificationsOpen(prev => !prev), []);
+  const handleToggleTseMenu = useCallback(() => setIsTseMenuOpen(prev => !prev), []);
+
+  const handleViewNotification = useCallback((notification: AppNotification) => {
+    setViewingNotification(notification);
+    if (!notification.read && currentUser) {
+      if (typeof notificationService.markSingleNotificationAsRead === 'function') notificationService.markSingleNotificationAsRead(notification.id);
+      refreshUnreadCount(currentUser);
+    }
+  }, [currentUser, refreshUnreadCount]);
+
+  const handleCloseNotificationModal = useCallback(() => setViewingNotification(null), []);
+  const handleCloseWelcomeBanner = useCallback(() => setShowWelcomeBanner(false), []);
 
   const renderContent = useCallback(() => {
     if (!currentUser) return null;
-
-    if (isExpired && !['profile', 'settings'].includes(activeTab)) {
-      return <AccessDenied />;
-    }
-
+    if (isExpired && !['profile', 'settings'].includes(activeTab)) return <AccessDenied />;
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard isOnline={isOnline} onNavigate={(target) => handleTabClick(target as Tab)} />;
-
-      case 'analysis':
-        return <StockAnalysis />;
-
-      case 'scalping':
-        return <Scalping isOnline={isOnline} />;
-
-      case 'portfolio':
         return (
-          <Portfolio
-            onAlertChange={setPortfolioAlert}
-            currentUser={currentUser}
+          <Dashboard
             isOnline={isOnline}
+            unreadAlertCount={unreadCount}
+            subscriptionDaysRemaining={validityInfo?.daysRemaining ?? null}
+            subscriptionExpired={validityInfo?.isExpired ?? isExpired}
+            onNavigate={(target) => handleTabClick(target as Tab)}
           />
         );
-
-      case 'comparison':
-        return <StockComparison currentUser={currentUser} isOnline={isOnline} />;
-
-      case 'dailyFilters':
-        return <DailyFilters />;
-
-      case 'profile':
-        return (
-          <UserProfile
-            currentUser={currentUser}
-            onProfileUpdate={handleProfileUpdate}
-            onPasswordChange={handlePasswordChange}
-          />
-        );
-
-      case 'users':
-        return currentUser.isAdmin ? (
-          <UserManagement
-            isOnline={isOnline}
-            onMessageUpdate={() => refreshUnreadCount(currentUser)}
-            onlineCount={onlineUserCount}
-          />
-        ) : (
-          <div className="text-center py-8 text-gray-500">
-            <LockClosedIcon className="h-8 w-8 mx-auto mb-2" />
-            <p>شما دسترسی ندارید.</p>
-          </div>
-        );
-
-      case 'notifications':
-        return currentUser.isAdmin ? (
-          <NotificationsManagement isOnline={isOnline} />
-        ) : (
-          <div className="text-center py-8 text-gray-500">
-            <LockClosedIcon className="h-8 w-8 mx-auto mb-2" />
-            <p>شما دسترسی ندارید.</p>
-          </div>
-        );
-
-      case 'settings':
-        return <Settings currentUser={currentUser} initialTab={initialSettingsTab} />;
-
-      default:
-        return isExpired ? (
-          <AccessDenied />
-        ) : (
-          <StockAnalysis />
-        );
+      case 'analysis': return <StockAnalysis />;
+      case 'scalping': return <Scalping isOnline={isOnline} />;
+      case 'portfolio': return <Portfolio onAlertChange={setPortfolioAlert} currentUser={currentUser} isOnline={isOnline} />;
+      case 'comparison': return <StockComparison currentUser={currentUser} isOnline={isOnline} />;
+      case 'dailyFilters': return <DailyFilters />;
+      case 'profile': return <UserProfile currentUser={currentUser} onProfileUpdate={handleProfileUpdate} onPasswordChange={handlePasswordChange} />;
+      case 'users': return currentUser.isAdmin ? <UserManagement isOnline={isOnline} onMessageUpdate={() => refreshUnreadCount(currentUser)} onlineCount={onlineUserCount} /> : <div className="text-center py-8 text-gray-500"><LockClosedIcon className="h-8 w-8 mx-auto mb-2" /><p>شما دسترسی ندارید.</p></div>;
+      case 'notifications': return currentUser.isAdmin ? <NotificationsManagement isOnline={isOnline} /> : <div className="text-center py-8 text-gray-500"><LockClosedIcon className="h-8 w-8 mx-auto mb-2" /><p>شما دسترسی ندارید.</p></div>;
+      case 'settings': return <Settings currentUser={currentUser} initialTab={initialSettingsTab} />;
+      default: return isExpired ? <AccessDenied /> : <StockAnalysis />;
     }
-  }, [
-    activeTab,
-    currentUser,
-    handlePasswordChange,
-    handleProfileUpdate,
-    initialSettingsTab,
-    isExpired,
-    isOnline,
-    onlineUserCount,
-    refreshUnreadCount,
-  ]);
+  }, [activeTab, currentUser, handlePasswordChange, handleProfileUpdate, handleTabClick, initialSettingsTab, isExpired, isOnline, onlineUserCount, refreshUnreadCount, unreadCount, validityInfo]);
 
   if (isInitializing) return <SplashScreen />;
-
-  if (initError) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="text-center">
-          <ExclamationTriangleIcon className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
-          <p className="text-red-600 dark:text-red-400 mt-4">{initError}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-4 px-6 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors"
-          >
-            بارگذاری مجدد
-          </button>
-        </div>
-      </div>
-    );
-  }
-
+  if (initError) return <div className="min-h-screen flex items-center justify-center p-4"><div className="text-center"><ExclamationTriangleIcon className="h-16 w-16 text-yellow-500 mx-auto mb-4" /><p className="text-red-600 dark:text-red-400 mt-4">{initError}</p><button onClick={() => window.location.reload()} className="mt-4 px-6 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors">بارگذاری مجدد</button></div></div>;
   if (!currentUser) return <Login onLogin={handleLogin} />;
 
   return (
     <>
       {showWelcomeBanner && <WelcomeBanner onClose={handleCloseWelcomeBanner} />}
-
-      <div
-        className={`app-shell min-h-screen text-[var(--app-color)] flex flex-col p-3 sm:p-4 lg:p-6 transition-colors duration-300 ${
-          !isOnline && !currentUser.isAdmin ? 'pt-12' : ''
-        }`}
-      >
+      <div className={`app-shell min-h-screen text-[var(--app-color)] flex flex-col p-3 sm:p-4 lg:p-6 transition-colors duration-300 ${!isOnline && !currentUser.isAdmin ? 'pt-12' : ''}`}>
         {!isOnline && !currentUser.isAdmin && <OfflineBanner />}
-
-        <header
-          data-style-id="header"
-          data-style-name="هدر اصلی"
-          className="app-header flex items-center justify-between px-3 sm:px-5 py-3 border-b"
-          style={{
-            backgroundColor: 'var(--header-bg)',
-            borderColor: 'var(--header-border-color)',
-          }}
-        >
-          <div className="flex items-center gap-4 min-w-0">
-            <div className="brand-lockup">
-              <img src="/2.png" alt="لوگوی رونیا" className="brand-logo h-14 w-14 sm:h-16 sm:w-16 object-contain shrink-0" />
-              <div className="brand-copy min-w-0">
-                <h1 className="brand-title whitespace-nowrap text-base sm:text-lg lg:text-xl font-extrabold tracking-tight">
-                  تحلیلگر هوشمند بورس <span>رونیا</span>
-                </h1>
-                <p className="brand-subtitle hidden sm:block">هوشمندی داده‌محور برای تصمیم‌گیری بهتر در بازار سرمایه</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Clock />
-            <MarketIndex isOnline={isOnline} />
-          </div>
-
-          <div className="flex items-center justify-self-center lg:justify-self-end gap-2 relative">
-            <ValidityBadge validityInfo={validityInfo} />
-
-            {currentUser.isAdmin && onlineUserCount > 0 && (
-              <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
-                {onlineUserCount} آنلاین
-              </span>
-            )}
-
-            <button
-              onClick={handleToggleNotifications}
-              className="relative p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              title="اطلاعیه‌ها"
-            >
-              <BellIcon />
-              {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 flex h-4 w-4">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 items-center justify-center text-white text-[10px] font-bold">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                </span>
-              )}
-            </button>
-
-            {isNotificationsOpen && (
-              <div
-                ref={notificationPanelRef}
-                className="absolute top-12 left-0 w-80 max-h-96 overflow-y-auto bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 z-20"
-              >
-                <div className="p-3 border-b border-gray-200 dark:border-gray-700 font-semibold flex justify-between items-center">
-                  <span>اطلاعیه‌ها</span>
-                  {unreadCount > 0 && (
-                    <span className="text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full">
-                      {unreadCount} خوانده نشده
-                    </span>
-                  )}
-                </div>
-
-                {notifications.length > 0 ? (
-                  <ul>
-                    {notifications.map((n) => (
-                      <li
-                        key={n.id}
-                        onClick={() => handleViewNotification(n)}
-                        className={`p-3 border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                          !n.read ? 'font-bold bg-blue-50/50 dark:bg-blue-900/10' : ''
-                        }`}
-                      >
-                        <p className="text-sm line-clamp-2 text-right">{n.message}</p>
-                        <p className="text-xs text-gray-500 mt-1 text-right">{formatRelativeTime(n.timestamp)}</p>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="p-4 text-sm text-center text-gray-500">اطلاعیه جدیدی وجود ندارد.</p>
-                )}
-              </div>
-            )}
-
-            <button
-              onClick={() => handleTabClick('profile')}
-              className="flex items-center gap-2 text-sm font-semibold p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              title="پروفایل"
-            >
-              <UserCircleIcon />
-              <span className="hidden sm:inline">{currentUser.firstName || currentUser.username}</span>
-            </button>
-
-            <button
-              onClick={handleLogout}
-              className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-red-500 hover:text-red-600"
-              title="خروج"
-            >
-              <ArrowRightOnRectangleIcon />
-            </button>
-          </div>
+        <header data-style-id="header" data-style-name="هدر اصلی" className="app-header flex items-center justify-between px-3 sm:px-5 py-3 border-b" style={{ backgroundColor: 'var(--header-bg)', borderColor: 'var(--header-border-color)' }}>
+          <div className="flex items-center gap-4 min-w-0"><div className="brand-lockup"><img src="/2.png" alt="لوگوی رونیا" className="brand-logo h-14 w-14 sm:h-16 sm:w-16 object-contain shrink-0" /><div className="brand-copy min-w-0"><h1 className="brand-title whitespace-nowrap text-base sm:text-lg lg:text-xl font-extrabold tracking-tight">تحلیلگر هوشمند بورس <span>رونیا</span></h1><p className="brand-subtitle hidden sm:block">هوشمندی داده‌محور برای تصمیم‌گیری بهتر در بازار سرمایه</p></div></div></div>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4"><Clock /><MarketIndex isOnline={isOnline} /></div>
+          <div className="flex items-center justify-self-center lg:justify-self-end gap-2 relative"><ValidityBadge validityInfo={validityInfo} />{currentUser.isAdmin && onlineUserCount > 0 && <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">{onlineUserCount} آنلاین</span>}<button onClick={handleToggleNotifications} className="relative p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" title="اطلاعیه‌ها"><BellIcon />{unreadCount > 0 && <span className="absolute top-1 right-1 flex h-4 w-4"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" /><span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 items-center justify-center text-white text-[10px] font-bold">{unreadCount > 9 ? '9+' : unreadCount}</span></span>}</button>
+          {isNotificationsOpen && <div ref={notificationPanelRef} className="absolute top-12 left-0 w-80 max-h-96 overflow-y-auto bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 z-20"><div className="p-3 border-b border-gray-200 dark:border-gray-700 font-semibold flex justify-between items-center"><span>اطلاعیه‌ها</span>{unreadCount > 0 && <span className="text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full">{unreadCount} خوانده نشده</span>}</div>{notifications.length > 0 ? <ul>{notifications.map(n => <li key={n.id} onClick={() => handleViewNotification(n)} className={`p-3 border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${!n.read ? 'font-bold bg-blue-50/50 dark:bg-blue-900/10' : ''}`}><p className="text-sm line-clamp-2 text-right">{n.message}</p><p className="text-xs text-gray-500 mt-1 text-right">{formatRelativeTime(n.timestamp)}</p></li>)}</ul> : <p className="p-4 text-sm text-center text-gray-500">اطلاعیه جدیدی وجود ندارد.</p>}</div>}
+          <button onClick={() => handleTabClick('profile')} className="flex items-center gap-2 text-sm font-semibold p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" title="پروفایل"><UserCircleIcon /><span className="hidden sm:inline">{currentUser.firstName || currentUser.username}</span></button><button onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-red-500 hover:text-red-600" title="خروج"><ArrowRightOnRectangleIcon /></button></div>
         </header>
-
-        <nav className="app-nav mb-4 sm:mb-6" aria-label="ناوبری اصلی">
-          <div className="app-nav-scroll flex flex-wrap items-center border-b border-gray-200 dark:border-gray-700">
-            <TabButton
-              tab="dashboard"
-              label="داشبورد"
-              icon={<PresentationChartLineIcon />}
-              alertType="none"
-              activeTab={activeTab}
-              onTabClick={handleTabClick}
-            />
-
-            <TabButton
-              tab="analysis"
-              label="تحلیل سهام"
-              icon={<MagnifyingGlassIcon />}
-              alertType="none"
-              locked={isExpired}
-              activeTab={activeTab}
-              onTabClick={handleTabClick}
-            />
-
-            <TabButton
-              tab="scalping"
-              label="نوسان‌گیری"
-              icon={<ChartBarIcon />}
-              alertType={scalpingAlert ? 'cyan' : 'none'}
-              locked={isExpired}
-              activeTab={activeTab}
-              onTabClick={handleTabClick}
-            />
-
-            <TabButton
-              tab="portfolio"
-              label="سبد سهام"
-              icon={<BriefcaseIcon />}
-              alertType={portfolioAlert === 'buy' ? 'green' : portfolioAlert === 'sell' ? 'red' : 'none'}
-              locked={isExpired}
-              activeTab={activeTab}
-              onTabClick={handleTabClick}
-            />
-
-            <TabButton
-              tab="comparison"
-              label="مقایسه"
-              icon={<ClipboardDocumentIcon />}
-              alertType="none"
-              locked={isExpired}
-              activeTab={activeTab}
-              onTabClick={handleTabClick}
-            />
-
-            <TabButton
-              tab="dailyFilters"
-              label="فیلترهای روزانه"
-              icon={<PresentationChartLineIcon />}
-              alertType="none"
-              locked={isExpired}
-              activeTab={activeTab}
-              onTabClick={handleTabClick}
-            />
-
-            {currentUser.isAdmin && (
-              <>
-                <TabButton
-                  tab="users"
-                  label="کاربران"
-                  icon={<UserGroupIcon />}
-                  alertType="none"
-                  activeTab={activeTab}
-                  onTabClick={handleTabClick}
-                />
-
-                <TabButton
-                  tab="notifications"
-                  label="اطلاعیه‌ها"
-                  icon={<MegaphoneIcon />}
-                  alertType="none"
-                  activeTab={activeTab}
-                  onTabClick={handleTabClick}
-                />
-              </>
-            )}
-
-            <div className="relative" ref={tseMenuRef}>
-              <button
-                onClick={handleToggleTseMenu}
-                className="flex items-center gap-2 px-4 py-3 text-sm font-semibold transition-colors hover:bg-[var(--tab-inactive-hover-bg)]"
-                style={{
-                  color: 'var(--tab-inactive-color)',
-                  fontFamily: 'var(--tab-inactive-font-family)',
-                  fontSize: 'var(--tab-inactive-font-size)',
-                }}
-              >
-                <GlobeAltIcon />
-                <span>تالار بورس</span>
-                <ChevronDownIcon className={`w-4 h-4 transition-transform ${isTseMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {isTseMenuOpen && tseLinks.length > 0 && (
-                <div className="absolute top-full right-0 w-48 bg-white dark:bg-gray-800 rounded-b-lg shadow-xl border border-gray-200 dark:border-gray-700 z-10 py-2">
-                  {tseLinks
-                    .filter((link) => link.href)
-                    .map((link) => (
-                      <a
-                        key={link.id}
-                        href={link.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors text-right"
-                      >
-                        {staticTseIcons[link.label] || <GlobeAltIcon className="w-4 h-4" />}
-                        {link.label}
-                      </a>
-                    ))}
-                </div>
-              )}
-            </div>
-
-            <TabButton
-              tab="profile"
-              label="پروفایل"
-              icon={<UserCircleIcon />}
-              alertType="none"
-              activeTab={activeTab}
-              onTabClick={handleTabClick}
-            />
-
-            <TabButton
-              tab="settings"
-              label="تنظیمات"
-              icon={<Cog6ToothIcon />}
-              alertType="none"
-              activeTab={activeTab}
-              onTabClick={handleTabClick}
-            />
-          </div>
-        </nav>
-
-        <main className="app-main flex-grow" data-page={activeTab}>
-          <LazyErrorBoundary>
-            <Suspense fallback={<LoadingSpinner />}>{renderContent()}</Suspense>
-          </LazyErrorBoundary>
-        </main>
+        <nav className="app-nav mb-4 sm:mb-6" aria-label="ناوبری اصلی"><div className="app-nav-scroll flex flex-wrap items-center border-b border-gray-200 dark:border-gray-700">
+          <TabButton tab="dashboard" label="داشبورد" icon={<PresentationChartLineIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="analysis" label="تحلیل سهام" icon={<MagnifyingGlassIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="scalping" label="نوسان‌گیری" icon={<ChartBarIcon />} alertType={scalpingAlert ? 'cyan' : 'none'} locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="portfolio" label="سبد سهام" icon={<BriefcaseIcon />} alertType={portfolioAlert === 'buy' ? 'green' : portfolioAlert === 'sell' ? 'red' : 'none'} locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="comparison" label="مقایسه" icon={<ClipboardDocumentIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="dailyFilters" label="فیلترهای روزانه" icon={<PresentationChartLineIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
+          {currentUser.isAdmin && <><TabButton tab="users" label="کاربران" icon={<UserGroupIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /><TabButton tab="notifications" label="اطلاعیه‌ها" icon={<MegaphoneIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /></>}
+          <div className="relative" ref={tseMenuRef}><button onClick={handleToggleTseMenu} className="flex items-center gap-2 px-4 py-3 text-sm font-semibold transition-colors hover:bg-[var(--tab-inactive-hover-bg)]" style={{ color: 'var(--tab-inactive-color)', fontFamily: 'var(--tab-inactive-font-family)', fontSize: 'var(--tab-inactive-font-size)' }}><GlobeAltIcon /><span>تالار بورس</span><ChevronDownIcon className={`w-4 h-4 transition-transform ${isTseMenuOpen ? 'rotate-180' : ''}`} /></button>{isTseMenuOpen && tseLinks.length > 0 && <div className="absolute top-full right-0 w-48 bg-white dark:bg-gray-800 rounded-b-lg shadow-xl border border-gray-200 dark:border-gray-700 z-10 py-2">{tseLinks.filter(link => link.href).map(link => <a key={link.id} href={link.href} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors text-right">{staticTseIcons[link.label] || <GlobeAltIcon className="w-4 h-4" />}{link.label}</a>)}</div>}</div>
+          <TabButton tab="profile" label="پروفایل" icon={<UserCircleIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /><TabButton tab="settings" label="تنظیمات" icon={<Cog6ToothIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
+        </div></nav>
+        <main className="app-main flex-grow" data-page={activeTab}><LazyErrorBoundary><Suspense fallback={<LoadingSpinner />}>{renderContent()}</Suspense></LazyErrorBoundary></main>
       </div>
-
-      {viewingNotification && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-          onClick={handleCloseNotificationModal}
-        >
-          <div
-            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-              <h3 className="font-semibold text-gray-800 dark:text-white">جزئیات اطلاعیه</h3>
-              <button
-                onClick={handleCloseNotificationModal}
-                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-              >
-                <XMarkIcon className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-              </button>
-            </div>
-
-            <div className="p-6">
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 text-right">
-                {new Date(viewingNotification.timestamp).toLocaleString('fa-IR')}
-              </p>
-
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap text-right">
-                {viewingNotification.message}
-              </p>
-
-              {viewingNotification.attachment && (
-                <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 text-right">
-                  <p className="text-sm font-semibold mb-2">پیوست:</p>
-                  <a
-                    href={viewingNotification.attachment.data}
-                    download={viewingNotification.attachment.name}
-                    className="flex items-center gap-2 p-3 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-cyan-600 dark:text-cyan-400 flex-row-reverse"
-                  >
-                    <PaperclipIcon className="h-5 w-5" />
-                    <span className="text-sm underline">{viewingNotification.attachment.name}</span>
-                  </a>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {viewingNotification && <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={handleCloseNotificationModal}><div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}><div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center"><h3 className="font-semibold text-gray-800 dark:text-white">جزئیات اطلاعیه</h3><button onClick={handleCloseNotificationModal} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"><XMarkIcon className="h-5 w-5 text-gray-600 dark:text-gray-300" /></button></div><div className="p-6"><p className="text-sm text-gray-500 dark:text-gray-400 mb-4 text-right">{new Date(viewingNotification.timestamp).toLocaleString('fa-IR')}</p><p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap text-right">{viewingNotification.message}</p>{viewingNotification.attachment && <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 text-right"><p className="text-sm font-semibold mb-2">پیوست:</p><a href={viewingNotification.attachment.data} download={viewingNotification.attachment.name} className="flex items-center gap-2 p-3 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-cyan-600 dark:text-cyan-400 flex-row-reverse"><PaperclipIcon className="h-5 w-5" /><span className="text-sm underline">{viewingNotification.attachment.name}</span></a></div>}</div></div></div>}
     </>
   );
 };
