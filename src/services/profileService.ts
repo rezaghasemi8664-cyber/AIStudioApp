@@ -2,6 +2,7 @@
 import type { StoredUser, SubscriptionInfo, DirectMessage } from '../types';
 import type { ApiResult } from '../types';
 import { get, put, post } from './apiClient';
+import { getMySubscription, getSubscriptionPlans, type SubscriptionPlan } from './subscriptionService';
 
 export interface ProfileUpdateData {
   name?: string;
@@ -20,70 +21,45 @@ export interface SendMessageInput {
 }
 
 /**
- * محاسبه تاریخ پایان وقتی سرور تاریخ پایان را ذخیره/ارسال نکرده است.
- * تاریخ پایان واقعی از «تاریخ شروع + زمان سپری‌شده + روزهای باقیمانده» به دست می‌آید.
+ * Backward-compatible profile subscription adapter.
+ * The new Subscription table/API is the source of truth; the legacy endpoint
+ * remains only as a fallback while older deployments are being migrated.
  */
-function calculateSubscriptionEnd(
-  subscriptionStart: unknown,
-  remainingDays: unknown,
-): string | null {
-  const remaining = Number(remainingDays);
-  if (!Number.isFinite(remaining) || remaining < 0) return null;
+export async function getSubscriptionStatus(): Promise<SubscriptionInfo> {
+  try {
+    const state = await getMySubscription();
+    const subscription = state.subscription;
+    const start = subscription?.startsAt || null;
+    const end = subscription?.expiresAt || null;
+    const durationDays = start && end
+      ? Math.max(0, Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / 86400000))
+      : 0;
 
-  const start = subscriptionStart ? new Date(String(subscriptionStart)) : null;
-  if (!start || Number.isNaN(start.getTime())) {
-    if (remaining === 0) return new Date().toISOString();
-    return new Date(Date.now() + remaining * 86400000).toISOString();
+    return {
+      isSubscriptionActive: Boolean(state.isActive),
+      subscriptionStart: start,
+      subscriptionEnd: end,
+      subscriptionDays: durationDays,
+      subscriptionMonths: Number(subscription?.plan?.durationMonths || 0),
+      analysisLimit: 0,
+      remainingDays: Math.max(0, Number(state.daysRemaining) || 0),
+      analysisCount: 0,
+    } as SubscriptionInfo;
+  } catch (newApiError) {
+    console.warn('[profileService] New subscription API unavailable; using legacy fallback.', newApiError);
+
+    const res = await get<any>('/auth/subscription');
+    if (!res?.success) {
+      throw new Error(res?.message || 'دریافت وضعیت اشتراک ناموفق بود');
+    }
+
+    return { ...(res.data || {}) } as SubscriptionInfo;
   }
-
-  // با احتساب روزهای سپری‌شده، نتیجه همان تاریخ سررسید واقعی اشتراک است.
-  const elapsedDays = Math.max(
-    0,
-    Math.ceil((Date.now() - start.getTime()) / 86400000),
-  );
-  const end = new Date(start);
-  end.setDate(end.getDate() + elapsedDays + Math.ceil(remaining));
-  return end.toISOString();
 }
 
-/** دریافت وضعیت اشتراک از رکورد واقعی کاربر در دیتابیس */
-export async function getSubscriptionStatus(): Promise<SubscriptionInfo> {
-  const res = await get<any>('/auth/subscription');
-  if (!res?.success) {
-    throw new Error(res?.message || 'دریافت وضعیت اشتراک ناموفق بود');
-  }
-
-  const data = { ...(res.data || {}) } as SubscriptionInfo & Record<string, any>;
-
-  // اگر API تاریخ پایان را خالی برگرداند، آن را از تاریخ شروع و روزهای
-  // باقیمانده محاسبه می‌کنیم تا در تب پروفایل همیشه تاریخ پایان نمایش داده شود.
-  if (!data.subscriptionEnd) {
-    const calculatedEnd = calculateSubscriptionEnd(
-      data.subscriptionStart,
-      data.remainingDays,
-    );
-    if (calculatedEnd) {
-      data.subscriptionEnd = calculatedEnd;
-    }
-  }
-
-  // در صورت نبود مدت اشتراک، از تاریخ شروع تا تاریخ پایان محاسبه‌شده استفاده کن.
-  if (
-    (!Number.isFinite(Number(data.subscriptionDays)) || Number(data.subscriptionDays) <= 0) &&
-    data.subscriptionStart &&
-    data.subscriptionEnd
-  ) {
-    const start = new Date(data.subscriptionStart);
-    const end = new Date(data.subscriptionEnd);
-    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
-      data.subscriptionDays = Math.max(
-        0,
-        Math.ceil((end.getTime() - start.getTime()) / 86400000),
-      );
-    }
-  }
-
-  return data as SubscriptionInfo;
+/** دریافت پلن‌های فعال اشتراک از دیتابیس */
+export async function getActiveSubscriptionPlans(): Promise<SubscriptionPlan[]> {
+  return getSubscriptionPlans();
 }
 
 /** alias */
@@ -160,7 +136,7 @@ export async function getMessages(userId?: string): Promise<ApiResult<DirectMess
   }
 }
 
-/** درخواست تمدید اشتراک */
+/** درخواست تمدید اشتراک — فعلاً برای سازگاری نگه داشته شده است */
 export async function requestSubscriptionExtension(message?: string): Promise<ApiResult<{ success: true }>> {
   try {
     const res = await post<any>('/profile/subscription/extend-request', {
@@ -176,6 +152,7 @@ export async function requestSubscriptionExtension(message?: string): Promise<Ap
 export default {
   getSubscriptionStatus,
   getSubscriptionInfo,
+  getActiveSubscriptionPlans,
   getProfile,
   updateProfile,
   uploadProfileImage,
