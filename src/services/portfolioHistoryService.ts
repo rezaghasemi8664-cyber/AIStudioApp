@@ -7,6 +7,9 @@ export interface PortfolioHistoryPoint {
   cost: number;
   pnl: number;
   returnPercent: number;
+  capitalChange: number;
+  marketPnl: number;
+  dailyReturnPercent: number | null;
 }
 
 interface QuotePoint {
@@ -65,13 +68,28 @@ export async function getPortfolioHistory(): Promise<PortfolioHistoryPoint[]> {
     });
   });
 
-  return Array.from(byDate.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, data]) => ({
+  const sorted = Array.from(byDate.entries()).sort(([a], [b]) => a.localeCompare(b));
+  let previousValue: number | null = null;
+  let previousCost: number | null = null;
+
+  return sorted.map(([date, data]) => {
+    const pnl = data.value - data.cost;
+    const capitalChange = previousCost == null ? data.cost : data.cost - previousCost;
+    const marketPnl = previousValue == null ? pnl : data.value - previousValue - capitalChange;
+    const denominator = previousValue == null ? data.cost : previousValue + Math.max(capitalChange, 0);
+    const dailyReturnPercent = denominator > 0 ? (marketPnl / denominator) * 100 : null;
+    const result: PortfolioHistoryPoint = {
       date,
       value: data.value,
       cost: data.cost,
-      pnl: data.value - data.cost,
-      returnPercent: data.cost > 0 ? ((data.value - data.cost) / data.cost) * 100 : 0,
-    }));
+      pnl,
+      returnPercent: data.cost > 0 ? (pnl / data.cost) * 100 : 0,
+      capitalChange,
+      marketPnl,
+      dailyReturnPercent,
+    };
+    previousValue = data.value;
+    previousCost = data.cost;
+    return result;
+  });
 }
