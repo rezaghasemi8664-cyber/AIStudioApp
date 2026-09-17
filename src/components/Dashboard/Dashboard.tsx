@@ -5,6 +5,9 @@ import type { DashboardData, DashboardMover } from '../../types/dashboard';
 interface DashboardProps {
   isOnline?: boolean;
   onNavigate?: (target: string) => void;
+  unreadAlertCount?: number;
+  subscriptionDaysRemaining?: number | null;
+  subscriptionExpired?: boolean;
 }
 
 const formatNumber = (value: number | null | undefined): string =>
@@ -46,7 +49,25 @@ const MoverList: React.FC<{ title: string; items: DashboardMover[] }> = ({ title
   </section>
 );
 
-const Dashboard: React.FC<DashboardProps> = ({ isOnline = true, onNavigate }) => {
+const SummaryCard: React.FC<{ title: string; value: string; detail?: string; onClick?: () => void }> = ({ title, value, detail, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 text-right shadow-sm transition hover:-translate-y-0.5 hover:bg-black/[0.03] dark:hover:bg-white/[0.03]"
+  >
+    <div className="text-sm font-bold text-slate-500">{title}</div>
+    <div className="mt-3 text-2xl font-black tabular-nums text-[var(--color-text-primary)]">{value}</div>
+    {detail && <div className="mt-1 text-xs text-slate-500">{detail}</div>}
+  </button>
+);
+
+const Dashboard: React.FC<DashboardProps> = ({
+  isOnline = true,
+  onNavigate,
+  unreadAlertCount = 0,
+  subscriptionDaysRemaining = null,
+  subscriptionExpired = false,
+}) => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,18 +81,19 @@ const Dashboard: React.FC<DashboardProps> = ({ isOnline = true, onNavigate }) =>
     setError(null);
     setLoading(true);
     try {
-      setData(await getDashboardData());
+      setData(await getDashboardData(unreadAlertCount, subscriptionDaysRemaining, subscriptionExpired));
     } catch (err) {
       console.error('[Dashboard]', err);
       setError('دریافت اطلاعات داشبورد انجام نشد.');
     } finally {
       setLoading(false);
     }
-  }, [isOnline]);
+  }, [isOnline, unreadAlertCount, subscriptionDaysRemaining, subscriptionExpired]);
 
   useEffect(() => { void load(); }, [load]);
 
   const marketStatus = useMemo(() => data?.market?.indices[0]?.isMarketOpen ? 'بازار باز است' : 'بازار بسته است', [data]);
+  const personal = data?.personal;
 
   if (loading && !data) {
     return <div dir="rtl" className="space-y-4 animate-pulse"><div className="h-32 rounded-2xl bg-slate-200/40 dark:bg-white/5" /><div className="grid gap-4 md:grid-cols-3"><div className="h-28 rounded-2xl bg-slate-200/40 dark:bg-white/5" /><div className="h-28 rounded-2xl bg-slate-200/40 dark:bg-white/5" /><div className="h-28 rounded-2xl bg-slate-200/40 dark:bg-white/5" /></div></div>;
@@ -82,7 +104,7 @@ const Dashboard: React.FC<DashboardProps> = ({ isOnline = true, onNavigate }) =>
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-black text-[var(--color-text-primary)]">داشبورد بازار</h1>
-          <p className="mt-1 text-sm text-slate-500">نمای کلی بازار، شاخص‌ها و وضعیت معاملات</p>
+          <p className="mt-1 text-sm text-slate-500">نمای کلی بازار، دارایی‌های شخصی و دسترسی سریع</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="rounded-full bg-black/5 px-3 py-1 text-xs font-bold text-slate-500 dark:bg-white/5">{marketStatus}</span>
@@ -105,13 +127,52 @@ const Dashboard: React.FC<DashboardProps> = ({ isOnline = true, onNavigate }) =>
         <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-sm"><div className="text-sm font-bold text-slate-500">ارزش معاملات</div><div className="mt-3 text-2xl font-black text-[var(--color-text-primary)]">{formatNumber(data?.market?.totalValue)}</div></div>
         <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-sm"><div className="text-sm font-bold text-slate-500">حجم معاملات</div><div className="mt-3 text-2xl font-black text-[var(--color-text-primary)]">{formatNumber(data?.market?.totalVolume)}</div></div>
         <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-sm"><div className="text-sm font-bold text-slate-500">تعداد معاملات</div><div className="mt-3 text-2xl font-black text-[var(--color-text-primary)]">{formatNumber(data?.market?.totalTrades)}</div></div>
-        <button type="button" onClick={() => onNavigate?.('analysis')} className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-5 text-right hover:bg-cyan-500/15"><div className="text-sm font-bold text-cyan-600 dark:text-cyan-400">دسترسی سریع</div><div className="mt-3 text-lg font-black text-[var(--color-text-primary)]">تحلیل نماد ←</div></button>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <SummaryCard
+          title="دیده‌بان‌ها"
+          value={formatNumber(personal?.watchlistCount ?? 0)}
+          detail={`${formatNumber(personal?.watchlistSymbolCount ?? 0)} نماد در دیده‌بان`}
+          onClick={() => onNavigate?.('portfolio')}
+        />
+        <SummaryCard
+          title="سبد سهام"
+          value={formatNumber(personal?.portfolioCount ?? 0)}
+          detail={`سرمایه ثبت‌شده: ${formatNumber(personal?.portfolioInvestedValue ?? 0)} ریال`}
+          onClick={() => onNavigate?.('portfolio')}
+        />
+        <SummaryCard
+          title="هشدارها و اطلاعیه‌های خوانده‌نشده"
+          value={formatNumber(personal?.unreadAlertCount ?? 0)}
+          detail="برای مشاهده جزئیات، بخش اطلاعیه‌ها را باز کنید"
+          onClick={() => onNavigate?.('notifications')}
+        />
+        <SummaryCard
+          title="وضعیت اشتراک"
+          value={subscriptionExpired ? 'پایان‌یافته' : subscriptionDaysRemaining == null ? 'فعال' : `${formatNumber(subscriptionDaysRemaining)} روز`}
+          detail={subscriptionExpired ? 'تمدید اشتراک' : 'تمام امکانات با اشتراک فعال در دسترس است'}
+          onClick={() => onNavigate?.('profile')}
+        />
       </section>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <MoverList title="بیشترین رشد" items={data?.gainers ?? []} />
         <MoverList title="بیشترین افت" items={data?.losers ?? []} />
       </div>
+
+      <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-sm">
+        <div className="mb-4">
+          <h3 className="font-bold text-[var(--color-text-primary)]">دسترسی سریع</h3>
+          <p className="mt-1 text-xs text-slate-500">ورود مستقیم به ابزارهای اصلی بدون وابستگی به هوش مصنوعی</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <button type="button" onClick={() => onNavigate?.('analysis')} className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-right hover:bg-cyan-500/15"><div className="font-black text-[var(--color-text-primary)]">تحلیل نماد</div><div className="mt-1 text-xs text-slate-500">بررسی یک سهم</div></button>
+          <button type="button" onClick={() => onNavigate?.('dailyFilters')} className="rounded-xl border border-[var(--color-border)] p-4 text-right hover:bg-black/5 dark:hover:bg-white/5"><div className="font-black text-[var(--color-text-primary)]">فیلتر و Screener</div><div className="mt-1 text-xs text-slate-500">پیدا کردن نمادهای مناسب</div></button>
+          <button type="button" onClick={() => onNavigate?.('portfolio')} className="rounded-xl border border-[var(--color-border)] p-4 text-right hover:bg-black/5 dark:hover:bg-white/5"><div className="font-black text-[var(--color-text-primary)]">سبد و دیده‌بان</div><div className="mt-1 text-xs text-slate-500">مدیریت دارایی و نمادها</div></button>
+          <button type="button" onClick={() => onNavigate?.('comparison')} className="rounded-xl border border-[var(--color-border)] p-4 text-right hover:bg-black/5 dark:hover:bg-white/5"><div className="font-black text-[var(--color-text-primary)]">مقایسه سهام</div><div className="mt-1 text-xs text-slate-500">مقایسه چند نماد</div></button>
+        </div>
+      </section>
     </div>
   );
 };
