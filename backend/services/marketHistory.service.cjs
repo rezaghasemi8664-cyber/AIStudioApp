@@ -1,9 +1,7 @@
-"use strict";
+﻿"use strict";
 
-const { PrismaClient } = require("@prisma/client");
+const prisma = require("../config/prisma.cjs");
 const env = require("../config/env.cjs");
-
-const prisma = new PrismaClient();
 
 const BRS_API_KEY = env.BRS_API_KEY || "";
 const BRS_TIMEOUT_MS = parseInt(env.BRS_TIMEOUT_MS, 10) || 15000;
@@ -599,3 +597,6 @@ module.exports = {
   getLatestMarketHistory,
   runMarketAI,
 };
+
+
+

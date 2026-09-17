@@ -5,7 +5,7 @@ require("dotenv").config({
   path: path.resolve(__dirname, "..", ".env"),
 });
 
-const { PrismaClient } = require("@prisma/client");
+const prisma = require("../config/prisma.cjs");
 
 /* ===============================
    Environment validation
@@ -16,23 +16,6 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-/* ===============================
-   Prisma Singleton (Safe)
-================================ */
-
-const globalForPrisma = global;
-
-if (!globalForPrisma.__prisma__) {
-  console.log("? Initializing Prisma Client (SQL Server)");
-  globalForPrisma.__prisma__ = new PrismaClient({
-    log:
-      process.env.NODE_ENV === "development"
-        ? ["query", "warn", "error"]
-        : ["error"],
-  });
-}
-
-const prisma = globalForPrisma.__prisma__;
 
 /* ===============================
    Helpers
@@ -116,4 +99,5 @@ module.exports = {
   saveAnalysis,
   saveRawFetch,
 };
+
 
