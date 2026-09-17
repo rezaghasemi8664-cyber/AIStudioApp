@@ -5,6 +5,7 @@ var router = express.Router();
 
 var marketHistoryController = require('../controllers/marketHistory.controller.cjs');
 var marketSummaryController = require('../controllers/marketSummary.controller.cjs');
+var marketRadarHistoryController = require('../controllers/marketRadarHistory.controller.cjs');
 var marketBreadth = require('../services/marketBreadth.service.cjs');
 
 // شاخص بازار
@@ -12,6 +13,9 @@ router.get('/index', marketHistoryController.getMarketIndex);
 
 // خلاصه بازار
 router.get('/summary', marketSummaryController.getLatestMarketSummary);
+
+// تاریخچه واقعی رادار بازار از MarketSummary - بدون داده ساختگی و بدون هوش مصنوعی
+router.get('/history/radar', marketRadarHistoryController.getHistory);
 
 // عرض بازار - محاسبه قطعی و بدون هوش مصنوعی
 router.get('/breadth', async function getMarketBreadth(_req, res, next) {
