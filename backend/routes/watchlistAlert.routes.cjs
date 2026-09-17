@@ -30,6 +30,18 @@ router.post('/', async (req, res) => {
   }
 });
 
+router.post('/evaluate', async (req, res) => {
+  try {
+    const userId = alertService.getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
+    const result = await alertService.evaluateArmedRules(userId);
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('[WATCHLIST-ALERT] EVALUATE failed:', error);
+    return res.status(500).json({ success: false, message: 'اجرای موتور هشدار ناموفق بود.' });
+  }
+});
+
 router.put('/:id', async (req, res) => {
   try {
     const userId = alertService.getUserId(req);
@@ -53,18 +65,6 @@ router.delete('/:id', async (req, res) => {
   } catch (error) {
     console.error('[WATCHLIST-ALERT] DELETE failed:', error);
     return res.status(500).json({ success: false, message: 'حذف هشدار ناموفق بود.' });
-  }
-});
-
-router.post('/evaluate', async (req, res) => {
-  try {
-    const userId = alertService.getUserId(req);
-    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
-    const result = await alertService.evaluateArmedRules(userId);
-    return res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('[WATCHLIST-ALERT] EVALUATE failed:', error);
-    return res.status(500).json({ success: false, message: 'اجرای موتور هشدار ناموفق بود.' });
   }
 });
 
