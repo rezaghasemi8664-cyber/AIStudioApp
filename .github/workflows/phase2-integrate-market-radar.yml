@@ -1,0 +1,67 @@
+name: Phase 2 integrate Market Radar
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/phase2-integrate-market-radar.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Integrate Market Radar into App
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('src/App.tsx')
+          s = p.read_text(encoding='utf-8-sig')
+
+          replacements = [
+              (
+                  "const Settings = lazy(() => import('./components/Settings'));",
+                  "const Settings = lazy(() => import('./components/Settings'));\nconst MarketRadar = lazy(() => import('./components/MarketRadar/MarketRadar'));",
+                  'lazy import',
+              ),
+              (
+                  "  | 'profile';",
+                  "  | 'profile'\n  | 'marketRadar';",
+                  'tab type',
+              ),
+              (
+                  "      case 'comparison': return <StockComparison currentUser={currentUser} isOnline={isOnline} />;",
+                  "      case 'comparison': return <StockComparison currentUser={currentUser} isOnline={isOnline} />;\n      case 'marketRadar': return <MarketRadar />;",
+                  'render case',
+              ),
+              (
+                  "          <TabButton tab=\"analysis\" label=\"تحلیل سهام\" icon={<MagnifyingGlassIcon />} alertType=\"none\" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />",
+                  "          <TabButton tab=\"analysis\" label=\"تحلیل سهام\" icon={<MagnifyingGlassIcon />} alertType=\"none\" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />\n          <TabButton tab=\"marketRadar\" label=\"رادار بازار\" icon={<ChartBarIcon />} alertType=\"none\" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />",
+                  'navigation button',
+              ),
+          ]
+
+          for old, new, label in replacements:
+              count = s.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly 1 match, found {count}')
+              s = s.replace(old, new, 1)
+
+          p.write_text(s, encoding='utf-8')
+          print('Market Radar integration applied successfully.')
+
+      - name: Commit App integration
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "feat: integrate market radar into app navigation"
+          git push origin main
