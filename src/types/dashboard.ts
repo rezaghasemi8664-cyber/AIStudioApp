@@ -22,9 +22,20 @@ export interface DashboardMover {
   volume?: number | null;
 }
 
+export interface DashboardPersonalSummary {
+  watchlistCount: number;
+  watchlistSymbolCount: number;
+  portfolioCount: number;
+  portfolioInvestedValue: number;
+  unreadAlertCount: number;
+  subscriptionDaysRemaining: number | null;
+  subscriptionExpired: boolean;
+}
+
 export interface DashboardData {
   market: DashboardMarketSnapshot | null;
   gainers: DashboardMover[];
   losers: DashboardMover[];
+  personal: DashboardPersonalSummary;
   fetchedAt: string;
 }
