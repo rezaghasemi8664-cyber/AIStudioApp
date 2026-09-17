@@ -68,6 +68,7 @@ const formatNumber = (value: number) => Number(value || 0).toLocaleString('fa-IR
 
 export default function SoldPortfolioSection({ lots, isOnline, onChanged }: Props) {
   const [trades, setTrades] = useState<SoldTrade[]>([]);
+  const [summary, setSummary] = useState({ tradeCount: 0, proceeds: 0, costBasis: 0, realizedPnl: 0 });
   const [symbol, setSymbol] = useState('');
   const [soldQuantity, setSoldQuantity] = useState('');
   const [sellPrice, setSellPrice] = useState('');
@@ -80,6 +81,7 @@ export default function SoldPortfolioSection({ lots, isOnline, onChanged }: Prop
     try {
       const result = await getSoldTrades();
       setTrades(result.trades || []);
+      setSummary({ tradeCount: result.trades?.length || 0, proceeds: Number(result.proceeds || 0), costBasis: Number(result.costBasis || 0), realizedPnl: Number(result.realizedPnl || 0) });
     } catch (e: any) {
       setError(e?.response?.data?.message || 'دریافت معاملات فروخته‌شده ناموفق بود.');
     }
@@ -125,10 +127,19 @@ export default function SoldPortfolioSection({ lots, isOnline, onChanged }: Prop
     } catch (e: any) { setError(e?.response?.data?.message || 'حذف معامله فروش ناموفق بود.'); }
   };
 
+  const realizedPercent = summary.costBasis > 0 ? (summary.realizedPnl / summary.costBasis) * 100 : 0;
+
   return <section className="mt-10 p-5 rounded-xl shadow-md bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700">
     <div className="mb-5">
       <h3 className="text-xl font-bold text-cyan-600 dark:text-cyan-400">سهام فروخته‌شده و معاملات بسته‌شده</h3>
       <p className="text-sm text-gray-500 mt-1">هر فروش می‌تواند از چند Lot خرید با قیمت و تاریخ متفاوت تشکیل شود. تخصیص فروش به‌صورت دستی انجام می‌شود.</p>
+    </div>
+
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="p-3 rounded-lg bg-white dark:bg-gray-900/30"><p className="text-xs text-gray-500">تعداد معاملات بسته‌شده</p><strong>{formatNumber(summary.tradeCount)}</strong></div>
+      <div className="p-3 rounded-lg bg-white dark:bg-gray-900/30"><p className="text-xs text-gray-500">مبلغ فروش</p><strong>{formatNumber(summary.proceeds)} ریال</strong></div>
+      <div className="p-3 rounded-lg bg-white dark:bg-gray-900/30"><p className="text-xs text-gray-500">سود/زیان تحقق‌یافته</p><strong className={summary.realizedPnl >= 0 ? 'text-green-600' : 'text-red-600'}>{formatNumber(summary.realizedPnl)} ریال</strong></div>
+      <div className="p-3 rounded-lg bg-white dark:bg-gray-900/30"><p className="text-xs text-gray-500">بازده تحقق‌یافته</p><strong className={realizedPercent >= 0 ? 'text-green-600' : 'text-red-600'}>{realizedPercent.toFixed(2)}%</strong></div>
     </div>
 
     <form onSubmit={submit} className="space-y-4">
