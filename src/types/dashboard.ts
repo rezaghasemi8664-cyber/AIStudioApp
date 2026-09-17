@@ -22,6 +22,13 @@ export interface DashboardMover {
   volume?: number | null;
 }
 
+export interface DashboardIndustry {
+  name: string;
+  changePercent: number;
+  value?: number | null;
+  symbolCount?: number | null;
+}
+
 export interface DashboardPersonalSummary {
   watchlistCount: number;
   watchlistSymbolCount: number;
@@ -36,6 +43,8 @@ export interface DashboardData {
   market: DashboardMarketSnapshot | null;
   gainers: DashboardMover[];
   losers: DashboardMover[];
+  highVolume: DashboardMover[];
+  industries: DashboardIndustry[];
   personal: DashboardPersonalSummary;
   fetchedAt: string;
 }
