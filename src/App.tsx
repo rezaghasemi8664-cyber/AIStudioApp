@@ -14,6 +14,7 @@ import React, {
 import Login from './components/Login';
 import Clock from './components/Clock';
 import MarketIndex from './components/MarketIndex';
+import Dashboard from './components/Dashboard';
 import LoadingSpinner from './components/LoadingSpinner';
 import WelcomeBanner from './components/WelcomeBanner';
 
@@ -82,6 +83,7 @@ const NotificationsManagement = lazy(() => import('./components/NotificationsMan
 const Settings = lazy(() => import('./components/Settings'));
 
 type Tab =
+  | 'dashboard'
   | 'analysis'
   | 'scalping'
   | 'portfolio'
@@ -317,7 +319,7 @@ const App: React.FC = () => {
   const [isInitializing, setIsInitializing] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<StoredUser | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>('analysis');
+  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [scalpingAlert, setScalpingAlert] = useState(false);
   const [portfolioAlert, setPortfolioAlert] = useState<PortfolioAlertType>('none');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -420,7 +422,7 @@ const App: React.FC = () => {
     setViewingNotification(null);
     setIsTseMenuOpen(false);
     setInitialSettingsTab(undefined);
-    setActiveTab('analysis');
+    setActiveTab('dashboard');
     setPortfolioAlert('none');
     setScalpingAlert(false);
   }, []);
@@ -993,7 +995,7 @@ const App: React.FC = () => {
         setIsExpired(false);
       }
 
-      setActiveTab('analysis');
+      setActiveTab('dashboard');
       setInitError(null);
       setShowWelcomeBanner(true);
       setIsNotificationsOpen(false);
@@ -1128,6 +1130,9 @@ const App: React.FC = () => {
     }
 
     switch (activeTab) {
+      case 'dashboard':
+        return <Dashboard isOnline={isOnline} onNavigate={(target) => handleTabClick(target as Tab)} />;
+
       case 'analysis':
         return <StockAnalysis />;
 
@@ -1343,6 +1348,15 @@ const App: React.FC = () => {
 
         <nav className="app-nav mb-4 sm:mb-6" aria-label="ناوبری اصلی">
           <div className="app-nav-scroll flex flex-wrap items-center border-b border-gray-200 dark:border-gray-700">
+            <TabButton
+              tab="dashboard"
+              label="داشبورد"
+              icon={<PresentationChartLineIcon />}
+              alertType="none"
+              activeTab={activeTab}
+              onTabClick={handleTabClick}
+            />
+
             <TabButton
               tab="analysis"
               label="تحلیل سهام"
