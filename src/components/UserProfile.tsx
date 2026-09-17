@@ -948,7 +948,7 @@ const UserProfile: React.FC<UserProfileProps> = ({
                 <input
                   type="text"
                   value={newGuestFirstName}
-                  onChange={(e) => setNewGuestFirstFirstName(e.target.value)}
+                  onChange={(e) => setNewGuestFirstName(e.target.value)}
                   placeholder="نام"
                   className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2"
                   style={{
