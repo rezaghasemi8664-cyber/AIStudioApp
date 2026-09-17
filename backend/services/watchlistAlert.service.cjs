@@ -5,9 +5,12 @@ const prisma = prismaModule.prisma || prismaModule;
 const brsService = require('./brs.service.cjs');
 
 const PREF_KEY = 'watchlist_alerts';
+const HISTORY_KEY = 'watchlist_alert_history';
 const METRICS = new Set(['lastPrice', 'lastChangePercent', 'volume', 'closePrice', 'closeChangePercent']);
 const OPERATORS = new Set(['gt', 'gte', 'lt', 'lte', 'eq']);
 const STATUSES = new Set(['armed', 'triggered', 'disabled']);
+const HISTORY_LIMIT = 200;
+const AUTO_EVALUATE_MS = 60 * 1000;
 
 function getUserId(req) {
   const id = Number(req.user && (req.user.id ?? req.user.userId));
@@ -22,6 +25,7 @@ function normalizeRule(input, existing = {}) {
   const status = String(input?.status ?? existing.status ?? 'armed');
   if (!symbol || !METRICS.has(metric) || !OPERATORS.has(operator) || !Number.isFinite(threshold) || !STATUSES.has(status)) return null;
   const now = new Date().toISOString();
+  const rearmed = status === 'armed';
   return {
     id: String(existing.id || input?.id || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`),
     symbol,
@@ -31,7 +35,7 @@ function normalizeRule(input, existing = {}) {
     status,
     createdAt: String(existing.createdAt || now),
     updatedAt: now,
-    ...(existing.triggeredAt || input?.triggeredAt ? { triggeredAt: String(input?.triggeredAt ?? existing.triggeredAt) } : {}),
+    ...(rearmed ? {} : (existing.triggeredAt || input?.triggeredAt ? { triggeredAt: String(input?.triggeredAt ?? existing.triggeredAt) } : {})),
     ...(input?.note !== undefined || existing.note !== undefined ? { note: String(input?.note ?? existing.note ?? '').trim() || undefined } : {}),
   };
 }
@@ -66,6 +70,24 @@ async function writeRules(userId, rules) {
     where: { userId_key: { userId, key: PREF_KEY } },
     create: { userId, key: PREF_KEY, value: JSON.stringify(rules) },
     update: { value: JSON.stringify(rules) },
+  });
+}
+
+async function readHistory(userId) {
+  const row = await prisma.userPreference.findUnique({ where: { userId_key: { userId, key: HISTORY_KEY } } });
+  if (!row?.value) return [];
+  try {
+    const parsed = JSON.parse(row.value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) { return []; }
+}
+
+async function writeHistory(userId, history) {
+  const trimmed = history.slice(0, HISTORY_LIMIT);
+  await prisma.userPreference.upsert({
+    where: { userId_key: { userId, key: HISTORY_KEY } },
+    create: { userId, key: HISTORY_KEY, value: JSON.stringify(trimmed) },
+    update: { value: JSON.stringify(trimmed) },
   });
 }
 
@@ -141,16 +163,40 @@ async function evaluateArmedRules(userId) {
       const nextRule = { ...rule, status: 'triggered', triggeredAt, updatedAt: triggeredAt };
       const index = rules.findIndex(item => item.id === rule.id);
       if (index >= 0) rules[index] = nextRule;
-      triggered.push({ rule: nextRule, snapshot: { symbol: rule.symbol, metric: rule.metric, value, capturedAt: quote.capturedAt } });
+      const snapshot = quote ? { ...quote, metric: rule.metric, value, ruleId: rule.id, capturedAt: quote.capturedAt } : { symbol: rule.symbol, metric: rule.metric, value, ruleId: rule.id, capturedAt: triggeredAt };
+      triggered.push({ rule: nextRule, snapshot });
     }
   }
-  if (triggered.length) await writeRules(userId, rules);
+  if (triggered.length) {
+    await writeRules(userId, rules);
+    const history = await readHistory(userId);
+    const entries = triggered.map(item => ({ id: `${item.rule.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ruleId: item.rule.id, symbol: item.rule.symbol, metric: item.rule.metric, operator: item.rule.operator, threshold: item.rule.threshold, value: item.snapshot.value, triggeredAt: item.rule.triggeredAt, snapshot: item.snapshot }));
+    await writeHistory(userId, [...entries.reverse(), ...history]);
+  }
   return { checked: armed.length, triggered };
+}
+
+async function evaluateAllUsers() {
+  try {
+    const rows = await prisma.userPreference.findMany({ where: { key: PREF_KEY }, select: { userId: true } });
+    const userIds = [...new Set(rows.map(row => Number(row.userId)).filter(id => Number.isInteger(id) && id > 0))];
+    for (const userId of userIds) {
+      try { await evaluateArmedRules(userId); } catch (error) { console.error(`[WATCHLIST-ALERT] auto evaluation failed for user ${userId}:`, error.message); }
+    }
+  } catch (error) {
+    console.error('[WATCHLIST-ALERT] auto evaluation cycle failed:', error.message);
+  }
+}
+
+if (!global.__roniyaWatchlistAlertScheduler) {
+  global.__roniyaWatchlistAlertScheduler = setInterval(() => { void evaluateAllUsers(); }, AUTO_EVALUATE_MS);
+  if (typeof global.__roniyaWatchlistAlertScheduler.unref === 'function') global.__roniyaWatchlistAlertScheduler.unref();
 }
 
 module.exports = {
   getUserId,
   readRules,
+  readHistory,
   createRule,
   updateRule,
   deleteRule,
