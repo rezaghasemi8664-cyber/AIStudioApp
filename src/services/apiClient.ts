@@ -3,8 +3,12 @@ import type { ApiResponse } from '../types';
 import { API_BASE_URL } from '../api/config';
 
 const API_TOKEN_KEY = 'accessToken';
+const API_TOKEN_FALLBACK_KEY = 'token';
 const getBaseUrl = (): string => API_BASE_URL.replace(/\/+$/, '');
-const getStoredToken = (): string | null => typeof window === 'undefined' ? null : localStorage.getItem(API_TOKEN_KEY);
+const getStoredToken = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(API_TOKEN_KEY) || localStorage.getItem(API_TOKEN_FALLBACK_KEY);
+};
 
 const normalizeEndpoint = (endpoint: string): string => {
   let normalized = endpoint.trim();
@@ -149,6 +153,7 @@ export async function request<T>(method: string, endpoint: string, data?: unknow
 function dispatchLogoutEvent(): void {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(API_TOKEN_KEY);
+    localStorage.removeItem(API_TOKEN_FALLBACK_KEY);
     window.dispatchEvent(new CustomEvent('auth:logout'));
   }
 }
