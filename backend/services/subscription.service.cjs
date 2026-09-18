@@ -202,10 +202,15 @@ async function calculatePaidSubscriptionDates(userId, planId, now = new Date()) 
   const plan = await getPlanById(planId);
   const current = await getCurrentSubscription(userId, now);
 
-  const startsAt = current && new Date(current.expiresAt) > now
+  // A renewal extends the current validity; it does not restart the
+  // subscription clock. The displayed start date therefore remains the
+  // original start date, while the new end date is calculated from the
+  // current expiry.
+  const startsAt = current ? new Date(current.startsAt) : now;
+  const baseDate = current && new Date(current.expiresAt) > now
     ? new Date(current.expiresAt)
     : now;
-  const expiresAt = addMonths(startsAt, plan.durationMonths);
+  const expiresAt = addMonths(baseDate, plan.durationMonths);
 
   return { plan, current, startsAt, expiresAt };
 }
@@ -251,6 +256,29 @@ async function activatePaidSubscription(userId, planId, paymentId = null, now = 
   });
 }
 
+async function getEffectiveSubscription(userId, now = new Date()) {
+  await expireOldSubscriptions(userId, now);
+  const current = await getCurrentSubscription(userId, now);
+  if (current) return current;
+
+  const legacy = await getUserProfileSubscriptionFields(userId);
+  if (!legacy) return null;
+  const start = legacy.subscriptionStart ? new Date(legacy.subscriptionStart) : null;
+  const end = legacy.subscriptionEnd ? new Date(legacy.subscriptionEnd) : null;
+  if (!end || Number.isNaN(end.getTime()) || end <= now) return null;
+  if (start && !Number.isNaN(start.getTime()) && start > now) return null;
+  return {
+    id: null,
+    userId: Number(userId),
+    planId: null,
+    type: legacy.subscriptionMonths > 0 ? 'LEGACY' : 'ADMIN',
+    status: SUBSCRIPTION_STATUS.ACTIVE,
+    startsAt: start || now,
+    expiresAt: end,
+    plan: legacy.subscriptionMonths > 0 ? { durationMonths: Number(legacy.subscriptionMonths) } : null,
+  };
+}
+
 async function assertFeatureAccess(userId) {
   const state = await getSubscriptionState(userId);
   if (!state.hasAccess) {
@@ -271,6 +299,7 @@ module.exports = {
   getUserProfileSubscriptionFields,
   getUserSubscriptions,
   getCurrentSubscription,
+  getEffectiveSubscription,
   hasUsedTrial,
   createTrialForUser,
   expireOldSubscriptions,
