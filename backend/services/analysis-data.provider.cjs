@@ -236,7 +236,7 @@ async function getMarketData(symbol, options) {
     candles: candles,
     fundamental: fundamentalResult.data,
     fundamentalAnalysis: fundamentalAnalysis,
-    dataQuality: buildQuality(candles, history, marketResult, fundamentalStatus, historyMeta, fundamentalResult.analysis),
+    dataQuality: buildQuality(candles, history, marketResult, fundamentalStatus, historyMeta, fundamentalAnalysis),
     sources: {
       market: 'BRS',
       history: 'BRS',
