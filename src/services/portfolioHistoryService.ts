@@ -93,3 +93,26 @@ export async function getPortfolioHistory(): Promise<PortfolioHistoryPoint[]> {
     return result;
   });
 }
+
+export interface PortfolioRealizedPerformance {
+  tradeCount: number;
+  proceeds: number;
+  costBasis: number;
+  realizedPnl: number;
+  realizedPnlPercent: number;
+}
+
+export async function getPortfolioRealizedPerformance(): Promise<PortfolioRealizedPerformance> {
+  const result = await portfolioService.getSoldTrades();
+  const tradeCount = Array.isArray(result.trades) ? result.trades.length : 0;
+  const proceeds = num(result.proceeds) ?? 0;
+  const costBasis = num(result.costBasis) ?? 0;
+  const realizedPnl = num(result.realizedPnl) ?? 0;
+  return {
+    tradeCount,
+    proceeds,
+    costBasis,
+    realizedPnl,
+    realizedPnlPercent: costBasis > 0 ? (realizedPnl / costBasis) * 100 : 0,
+  };
+}
