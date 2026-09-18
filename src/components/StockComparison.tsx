@@ -361,6 +361,60 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
 
                     <div className="px-5 pb-5">
                         <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/30 p-4">
+                            <div className="font-bold text-slate-800 dark:text-slate-100 mb-1">مقایسه جریان پول</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                                جریان پول حقیقی، حقوقی و خالص هر نماد از داده واقعی همان روز مقایسه می‌شود. شدت جریان پول، فشار ورود/خروج را نسبت به ارزش معاملات نشان می‌دهد؛ هیچ روند تاریخی ساختگی ایجاد نمی‌شود.
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2">
+                                    <div className="text-xs text-slate-500">قوی‌ترین ورود/خروج خالص</div>
+                                    <div className="font-bold mt-1">{deterministicResult.metrics.strongestMoneyFlow || '—'}</div>
+                                </div>
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2">
+                                    <div className="text-xs text-slate-500">نمادهای با ورود پول</div>
+                                    <div className="font-bold mt-1">{formatNumber(moneyFlowMetrics.filter(item => item.pressure === 'ورود پول').length, 0)}</div>
+                                </div>
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2">
+                                    <div className="text-xs text-slate-500">نمادهای با خروج پول</div>
+                                    <div className="font-bold mt-1">{formatNumber(moneyFlowMetrics.filter(item => item.pressure === 'خروج پول').length, 0)}</div>
+                                </div>
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2">
+                                    <div className="text-xs text-slate-500">مبنای شدت</div>
+                                    <div className="font-bold mt-1">جریان خالص ÷ ارزش معاملات</div>
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                                <table className="w-full text-sm">
+                                    <thead><tr className="bg-slate-100 dark:bg-slate-700/80">
+                                        <th className="px-3 py-3 text-center">رتبه</th>
+                                        <th className="px-3 py-3 text-center">نماد</th>
+                                        <th className="px-3 py-3 text-center whitespace-nowrap">جریان پول خالص</th>
+                                        <th className="px-3 py-3 text-center whitespace-nowrap">جریان پول حقیقی</th>
+                                        <th className="px-3 py-3 text-center whitespace-nowrap">جریان پول حقوقی</th>
+                                        <th className="px-3 py-3 text-center whitespace-nowrap">شدت جریان پول</th>
+                                        <th className="px-3 py-3 text-center whitespace-nowrap">سهم حقیقی از جریان</th>
+                                        <th className="px-3 py-3 text-center whitespace-nowrap">فشار بازار</th>
+                                    </tr></thead>
+                                    <tbody>{moneyFlowMetrics.map((item, index) => <tr key={item.symbol} className="border-t border-slate-100 dark:border-slate-700">
+                                        <td className="px-3 py-3 text-center font-bold">{rankBySymbol.get(item.symbol) ?? index + 1}</td>
+                                        <td className="px-3 py-3 text-center font-bold text-cyan-700 dark:text-cyan-300">{item.symbol}</td>
+                                        <td className="px-3 py-3 text-center font-bold">{formatNumber(item.net, 0)}</td>
+                                        <td className="px-3 py-3 text-center">{formatNumber(item.real, 0)}</td>
+                                        <td className="px-3 py-3 text-center">{formatNumber(item.legal, 0)}</td>
+                                        <td className="px-3 py-3 text-center font-bold">{item.netIntensity == null ? '—' : String(formatNumber(item.netIntensity, 2)) + '٪'}</td>
+                                        <td className="px-3 py-3 text-center">{item.realShare == null ? '—' : String(formatNumber(item.realShare, 1)) + '٪'}</td>
+                                        <td className="px-3 py-3 text-center font-bold">{item.pressure}</td>
+                                    </tr>)}</tbody>
+                                </table>
+                            </div>
+                            <div className="text-xs text-slate-500 mt-2">
+                                «فشار بازار» فقط از علامت جریان پول خالص همان روز استخراج شده است. در صورت نبود داده معتبر، مقدار به‌صورت «داده ناکافی» نمایش داده می‌شود.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="px-5 pb-5">
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/30 p-4">
                             <div className="font-bold text-slate-800 dark:text-slate-100 mb-1">مقایسه ارزش‌گذاری و داده‌های بنیادی</div>
                             <div className="text-xs text-slate-500 dark:text-slate-400 mb-3">EPS، P/E، بازده سود، فاصله P/E از میانه گروه و امتیاز بنیادی از داده‌های واقعی مقایسه می‌شوند. EPS به‌تنهایی معیار رتبه‌بندی بین شرکت‌ها نیست، چون تعداد سهام شرکت‌ها متفاوت است.</div>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
