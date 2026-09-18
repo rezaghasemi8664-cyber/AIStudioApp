@@ -72,6 +72,25 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
         return map;
     }, [sortedRows]);
 
+    const performancePeriods = [
+        { key: '1w', label: '۱ هفته', points: 5 },
+        { key: '1m', label: '۱ ماه', points: 22 },
+        { key: '3m', label: '۳ ماه', points: 66 },
+    ] as const;
+
+    const periodPerformance = useMemo(() => {
+        return sortedRows.map((row) => ({
+            symbol: row.symbol,
+            periods: performancePeriods.map((period) => {
+                if (row.history.length < 2) return { key: period.key, label: period.label, value: null as number | null };
+                const end = row.history[row.history.length - 1]?.close;
+                const startIndex = Math.max(0, row.history.length - 1 - period.points);
+                const start = row.history[startIndex]?.close;
+                return { key: period.key, label: period.label, value: end && start ? ((end / start) - 1) * 100 : null };
+            }),
+        }));
+    }, [sortedRows]);
+
     const historicalChartData = useMemo(() => {
         const dates = Array.from(new Set(sortedRows.flatMap(row => row.history.map(point => point.date)))).sort();
         return dates.map(date => {
@@ -161,6 +180,26 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                                 </ResponsiveContainer>
                             </div>
                             <div className="text-xs text-slate-500 mt-2">مقیاس نمودار به‌صورت شاخصی است؛ نقطه شروع هر نماد = ۱۰۰.</div>
+                        </div>
+                    </div>
+
+                    <div className="px-5 pb-5">
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/30 p-4">
+                            <div className="font-bold text-slate-800 dark:text-slate-100 mb-3">بازدهی دوره‌ای واقعی</div>
+                            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                                <table className="w-full text-sm">
+                                    <thead><tr className="bg-slate-100 dark:bg-slate-700/80">
+                                        <th className="px-3 py-3 text-center">رتبه</th><th className="px-3 py-3 text-center">نماد</th>
+                                        {performancePeriods.map(period => <th key={period.key} className="px-3 py-3 text-center whitespace-nowrap">{period.label}</th>)}
+                                    </tr></thead>
+                                    <tbody>{periodPerformance.map((item, index) => <tr key={item.symbol} className="border-t border-slate-100 dark:border-slate-700">
+                                        <td className="px-3 py-3 text-center font-bold">{index + 1}</td>
+                                        <td className="px-3 py-3 text-center font-bold text-cyan-700 dark:text-cyan-300">{item.symbol}</td>
+                                        {item.periods.map(period => <td key={period.key} className="px-3 py-3 text-center font-bold">{period.value == null ? '—' : String(formatNumber(period.value, 2)) + '٪'}</td>)}
+                                    </tr>)}</tbody>
+                                </table>
+                            </div>
+                            <div className="text-xs text-slate-500 mt-2">بازدهی از قیمت پایانی تاریخچه واقعی محاسبه شده و شامل سود نقدی یا هزینه معامله نیست.</div>
                         </div>
                     </div>
 
