@@ -1756,3 +1756,251 @@ body .bg-indigo-600 {
     font-size: 0.84rem;
   }
 }
+
+/* ======================================================
+   RONIYA MARKET RADAR — HIGH CONTRAST / READABLE DATA v1
+   Scope: market radar only.
+   ====================================================== */
+
+.page-market-radar {
+  --radar-text-primary: #13232d;
+  --radar-text-secondary: #344a57;
+  --radar-text-muted: #4d6471;
+  --radar-surface: #ffffff;
+  --radar-soft-surface: #f5f8fa;
+}
+
+.dark .page-market-radar {
+  --radar-text-primary: #f4f8fa;
+  --radar-text-secondary: #d4e0e6;
+  --radar-text-muted: #b3c2cb;
+  --radar-surface: #131c24;
+  --radar-soft-surface: #1b2730;
+}
+
+/* Headings and explanatory text */
+.page-market-radar h1 {
+  font-size: 1.5rem !important;
+  line-height: 1.55 !important;
+  font-weight: 900 !important;
+}
+
+.page-market-radar h2 {
+  font-size: 1.15rem !important;
+  line-height: 1.6 !important;
+  font-weight: 900 !important;
+}
+
+.page-market-radar p {
+  color: var(--radar-text-secondary) !important;
+}
+
+.page-market-radar .text-[var\(--color-text-primary\)\] {
+  color: var(--radar-text-primary) !important;
+}
+
+/* Replace low-contrast slate utility text inside radar */
+.page-market-radar .text-slate-500,
+.page-market-radar .text-slate-400 {
+  color: var(--radar-text-muted) !important;
+}
+
+.dark .page-market-radar .text-slate-500,
+.dark .page-market-radar .text-slate-400 {
+  color: var(--radar-text-muted) !important;
+}
+
+.page-market-radar .text-slate-300 {
+  color: var(--radar-text-secondary) !important;
+}
+
+.dark .page-market-radar .text-slate-300 {
+  color: var(--radar-text-secondary) !important;
+}
+
+/* Make radar controls and data readable */
+.page-market-radar .text-xs {
+  font-size: 0.84rem !important;
+  line-height: 1.7 !important;
+  font-weight: 600;
+}
+
+.page-market-radar .text-sm {
+  font-size: 0.98rem !important;
+  line-height: 1.75 !important;
+}
+
+.page-market-radar .text-\[11px\] {
+  font-size: 0.78rem !important;
+  line-height: 1.65 !important;
+}
+
+.page-market-radar .text-\[10px\] {
+  font-size: 0.74rem !important;
+  line-height: 1.6 !important;
+  font-weight: 600;
+}
+
+/* Primary numbers / KPIs */
+.page-market-radar .text-xl {
+  font-size: 1.35rem !important;
+  line-height: 1.5 !important;
+}
+
+.page-market-radar .text-2xl {
+  font-size: 1.7rem !important;
+  line-height: 1.4 !important;
+  font-weight: 900 !important;
+}
+
+.page-market-radar .tabular-nums,
+.page-market-radar .font-black,
+.page-market-radar .font-bold {
+  font-variant-numeric: tabular-nums;
+}
+
+/* All radar data surfaces use an explicit readable foreground. */
+.page-market-radar > header,
+.page-market-radar > article,
+.page-market-radar > div > article {
+  color: var(--radar-text-primary);
+}
+
+/* Colored KPI cards: stronger matching foreground colors. */
+.page-market-radar .bg-emerald-500\/10 {
+  color: #0b5f42 !important;
+}
+
+.page-market-radar .bg-rose-500\/10 {
+  color: #8f2438 !important;
+}
+
+.page-market-radar .bg-sky-500\/10 {
+  color: #075985 !important;
+}
+
+.page-market-radar .bg-violet-500\/15 {
+  color: #5b21b6 !important;
+}
+
+.page-market-radar .bg-amber-500\/10 {
+  color: #7a4f05 !important;
+}
+
+.dark .page-market-radar .bg-emerald-500\/10 {
+  background: rgba(34, 197, 94, 0.17) !important;
+  color: #d9fbe8 !important;
+}
+
+.dark .page-market-radar .bg-rose-500\/10 {
+  background: rgba(244, 63, 94, 0.17) !important;
+  color: #ffe1e7 !important;
+}
+
+.dark .page-market-radar .bg-sky-500\/10 {
+  background: rgba(14, 165, 233, 0.17) !important;
+  color: #d9efff !important;
+}
+
+.dark .page-market-radar .bg-violet-500\/15 {
+  background: rgba(139, 92, 246, 0.18) !important;
+  color: #ece4ff !important;
+}
+
+.dark .page-market-radar .bg-amber-500\/10 {
+  background: rgba(245, 158, 11, 0.17) !important;
+  color: #ffedbd !important;
+}
+
+/* Preserve strong semantic colors for the actual values inside colored cards. */
+.page-market-radar .bg-emerald-500\/10 .text-emerald-300,
+.page-market-radar .bg-emerald-500\/10 .text-emerald-400 {
+  color: #087443 !important;
+}
+
+.page-market-radar .bg-rose-500\/10 .text-rose-300,
+.page-market-radar .bg-rose-500\/10 .text-rose-400 {
+  color: #a32943 !important;
+}
+
+.dark .page-market-radar .bg-emerald-500\/10 .text-emerald-300,
+.dark .page-market-radar .bg-emerald-500\/10 .text-emerald-400 {
+  color: #75e6ae !important;
+}
+
+.dark .page-market-radar .bg-rose-500\/10 .text-rose-300,
+.dark .page-market-radar .bg-rose-500\/10 .text-rose-400 {
+  color: #ff9cab !important;
+}
+
+/* Market radar heatmap cards stay high-contrast over colored backgrounds. */
+.page-market-radar [class*="bg-emerald-500/"] {
+  text-shadow: none;
+}
+
+.page-market-radar [class*="bg-rose-500/"] {
+  text-shadow: none;
+}
+
+/* If a radar table is rendered by a child component, keep header/rows readable. */
+.page-market-radar table {
+  color: var(--radar-text-primary);
+  background: var(--radar-surface);
+  font-size: 0.92rem;
+}
+
+.page-market-radar thead th {
+  font-size: 0.88rem !important;
+  font-weight: 900 !important;
+  color: var(--radar-text-primary) !important;
+  background: #e8eef2 !important;
+}
+
+.dark .page-market-radar thead th {
+  color: #f3f8fa !important;
+  background: #263640 !important;
+}
+
+.page-market-radar tbody td {
+  font-size: 0.9rem !important;
+  color: var(--radar-text-primary) !important;
+}
+
+.page-market-radar tbody tr:nth-child(even) {
+  background: var(--radar-soft-surface);
+}
+
+.dark .page-market-radar tbody tr:nth-child(even) {
+  background: #17232c;
+}
+
+.page-market-radar tbody tr:hover {
+  background: color-mix(in srgb, var(--brand) 8%, var(--radar-surface)) !important;
+}
+
+/* Better contrast for chart labels and legends. */
+.page-market-radar svg text.fill-slate-500 {
+  fill: var(--radar-text-muted) !important;
+}
+
+.page-market-radar svg .fill-\[var\(--color-text-primary\)\] {
+  fill: var(--radar-text-primary) !important;
+}
+
+@media (max-width: 640px) {
+  .page-market-radar .text-xs {
+    font-size: 0.8rem !important;
+  }
+
+  .page-market-radar .text-sm {
+    font-size: 0.94rem !important;
+  }
+
+  .page-market-radar .text-xl {
+    font-size: 1.25rem !important;
+  }
+
+  .page-market-radar .text-2xl {
+    font-size: 1.52rem !important;
+  }
+}
