@@ -7,6 +7,16 @@ function num(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function buildHistory(result) {
+  const source = Array.isArray(result?.priceHistory?.adjustedDaily) && result.priceHistory.adjustedDaily.length
+    ? result.priceHistory.adjustedDaily
+    : Array.isArray(result?.priceHistory?.daily) ? result.priceHistory.daily : [];
+  return source.map((item) => ({
+    date: item?.date || item?.timestamp || null,
+    close: num(item?.close ?? item?.closingPrice ?? item?.pClosing ?? item?.price),
+  })).filter(item => item.date && item.close !== null).slice(-120);
+}
+
 function buildComparable(result) {
   const market = result.marketData || {};
   const daily = result.dailySummary || {};
@@ -32,6 +42,7 @@ function buildComparable(result) {
     legalMoneyFlow: num(market.legalMoneyFlow),
     dataQuality: result.dataQuality || null,
     fetchedAt: result.fetchedAt || null,
+    history: buildHistory(result),
   };
 }
 
@@ -84,7 +95,7 @@ async function compareStocksDeterministic(params = {}) {
   return {
     success: true,
     deterministic: true,
-    engine: { name: 'deterministic-stock-comparison', version: '1.0.0', deterministic: true },
+    engine: { name: 'deterministic-stock-comparison', version: '1.1.0', deterministic: true },
     symbols,
     rows,
     ranking,
