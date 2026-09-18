@@ -1436,3 +1436,323 @@ header + div[role="dialog"],
   .page-comparison input { font-size: .94rem !important; }
   .page-portfolio [data-style-id="portfolio-add-form"] { padding: 13px !important; }
 }
+
+/* ======================================================
+   RONIYA GLOBAL READABILITY & TYPOGRAPHY v1
+   Global font sizing, contrast, controls and tinted surfaces.
+   No business logic / routing / data changes.
+   ====================================================== */
+
+:root {
+  --text-1: #14232d;
+  --text-2: #344956;
+  --text-3: #536774;
+  --app-color: #14232d;
+  --card-color: #1d2e39;
+  --table-header-color: #075e73;
+}
+
+.dark {
+  --text-1: #f3f8fa;
+  --text-2: #d1dde4;
+  --text-3: #aebdc7;
+  --app-color: #f3f8fa;
+  --card-color: #e5eef2;
+  --table-header-color: #8ee9ef;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-1);
+}
+
+#root {
+  font-size: 1rem;
+}
+
+body button,
+body input,
+body textarea,
+body select {
+  font-weight: 500;
+}
+
+body button {
+  font-weight: 700;
+}
+
+/* Readable utility text across all pages */
+body .text-xs {
+  font-size: 0.8125rem !important;
+  line-height: 1.65 !important;
+}
+
+body .text-sm {
+  font-size: 0.9375rem !important;
+  line-height: 1.7 !important;
+}
+
+body .text-base {
+  font-size: 1rem !important;
+  line-height: 1.75 !important;
+}
+
+/* Global muted-text contrast. Semantic colors remain untouched. */
+body .text-gray-400,
+body .text-slate-400,
+body .text-zinc-400,
+body .text-neutral-400,
+body .text-stone-400 {
+  color: #536674 !important;
+}
+
+body .text-gray-500,
+body .text-slate-500,
+body .text-zinc-500,
+body .text-neutral-500,
+body .text-stone-500 {
+  color: #405460 !important;
+}
+
+body .text-gray-600,
+body .text-slate-600,
+body .text-zinc-600,
+body .text-neutral-600,
+body .text-stone-600 {
+  color: #304550 !important;
+}
+
+body .text-gray-700,
+body .text-slate-700,
+body .text-zinc-700,
+body .text-neutral-700,
+body .text-stone-700 {
+  color: #253943 !important;
+}
+
+.dark .text-gray-300,
+.dark .text-slate-300,
+.dark .text-zinc-300,
+.dark .text-neutral-300,
+.dark .text-stone-300 {
+  color: #d7e3e9 !important;
+}
+
+.dark .text-gray-400,
+.dark .text-slate-400,
+.dark .text-zinc-400,
+.dark .text-neutral-400,
+.dark .text-stone-400 {
+  color: #afbec8 !important;
+}
+
+.dark .text-gray-500,
+.dark .text-slate-500,
+.dark .text-zinc-500,
+.dark .text-neutral-500,
+.dark .text-stone-500 {
+  color: #c0cdd5 !important;
+}
+
+.dark .text-gray-600,
+.dark .text-slate-600,
+.dark .text-zinc-600,
+.dark .text-neutral-600,
+.dark .text-stone-600 {
+  color: #d0dbe1 !important;
+}
+
+.dark .text-gray-700,
+.dark .text-slate-700,
+.dark .text-zinc-700,
+.dark .text-neutral-700,
+.dark .text-stone-700 {
+  color: #dde7eb !important;
+}
+
+/* Make labels, table text and form controls comfortably readable. */
+body label {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+
+body th {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  font-weight: 800;
+}
+
+body td {
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+
+body input,
+body textarea,
+body select {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+
+body input::placeholder,
+body textarea::placeholder {
+  color: #536674 !important;
+  opacity: 1 !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #aebdc7 !important;
+  opacity: 1 !important;
+}
+
+/* Keep common pale status panels legible in both themes. */
+.app-shell .bg-gray-50,
+.app-shell .bg-slate-50,
+.app-shell .bg-zinc-50,
+.app-shell .bg-neutral-50,
+.app-shell .bg-stone-50,
+.app-shell .bg-gray-100,
+.app-shell .bg-slate-100 {
+  color: var(--text-1);
+}
+
+.app-shell .bg-blue-50,
+.app-shell .bg-sky-50,
+.app-shell .bg-cyan-50,
+.app-shell .bg-indigo-50 {
+  color: #183c58;
+}
+
+.app-shell .bg-emerald-50,
+.app-shell .bg-green-50 {
+  color: #16543d;
+}
+
+.app-shell .bg-amber-50,
+.app-shell .bg-yellow-50,
+.app-shell .bg-orange-50 {
+  color: #5c4318;
+}
+
+.app-shell .bg-red-50,
+.app-shell .bg-rose-50 {
+  color: #682b35;
+}
+
+.dark .app-shell .bg-gray-50,
+.dark .app-shell .bg-slate-50,
+.dark .app-shell .bg-zinc-50,
+.dark .app-shell .bg-neutral-50,
+.dark .app-shell .bg-stone-50,
+.dark .app-shell .bg-gray-100,
+.dark .app-shell .bg-slate-100 {
+  background: var(--surface-2) !important;
+  color: var(--text-1) !important;
+}
+
+.dark .app-shell .bg-blue-50,
+.dark .app-shell .bg-sky-50,
+.dark .app-shell .bg-cyan-50,
+.dark .app-shell .bg-indigo-50 {
+  background: rgba(59, 130, 246, 0.16) !important;
+  color: #dcecff !important;
+}
+
+.dark .app-shell .bg-emerald-50,
+.dark .app-shell .bg-green-50 {
+  background: rgba(34, 197, 94, 0.15) !important;
+  color: #d9fbe8 !important;
+}
+
+.dark .app-shell .bg-amber-50,
+.dark .app-shell .bg-yellow-50,
+.dark .app-shell .bg-orange-50 {
+  background: rgba(245, 158, 11, 0.15) !important;
+  color: #ffedbd !important;
+}
+
+.dark .app-shell .bg-red-50,
+.dark .app-shell .bg-rose-50 {
+  background: rgba(239, 68, 68, 0.15) !important;
+  color: #ffdfe3 !important;
+}
+
+/* Headers, navigation and KPI captions should never look disabled. */
+.app-header,
+.app-nav,
+.page-shell {
+  color: var(--text-1);
+}
+
+.app-header .text-gray-500,
+.app-header .text-gray-600,
+.app-nav .text-gray-500,
+.app-nav .text-gray-600 {
+  color: var(--text-2) !important;
+}
+
+.page-shell h1,
+.page-shell h2,
+.page-shell h3,
+.page-shell h4 {
+  color: var(--text-1);
+}
+
+.page-shell small,
+.page-shell .text-xs {
+  font-weight: 600;
+}
+
+/* Preserve intentionally white text on filled buttons/badges. */
+body .bg-blue-600,
+body .bg-cyan-600,
+body .bg-emerald-600,
+body .bg-green-600,
+body .bg-red-600,
+body .bg-rose-600,
+body .bg-indigo-600 {
+  color: #ffffff !important;
+}
+
+/* Better readability for navigation tabs and common action text. */
+.nav-strip > button,
+.nav-strip > .relative > button,
+.app-nav button {
+  font-size: 0.9375rem !important;
+  font-weight: 700 !important;
+}
+
+.page-shell button {
+  font-size: 0.9375rem;
+}
+
+@media (max-width: 640px) {
+  body {
+    font-size: 15.5px;
+  }
+
+  body .text-xs {
+    font-size: 0.8rem !important;
+  }
+
+  body .text-sm {
+    font-size: 0.9rem !important;
+  }
+
+  .nav-strip > button,
+  .nav-strip > .relative > button,
+  .app-nav button {
+    font-size: 0.9rem !important;
+  }
+
+  body th,
+  body td {
+    font-size: 0.84rem;
+  }
+}
