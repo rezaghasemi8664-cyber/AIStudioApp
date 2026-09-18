@@ -72,6 +72,13 @@ async function getTrialConfig() {
   };
 }
 
+async function getUserProfileSubscriptionFields(userId) {
+  return prisma.user.findUnique({
+    where: { id: Number(userId) },
+    select: { subscriptionStart: true, subscriptionEnd: true, subscriptionMonths: true },
+  });
+}
+
 async function getUserSubscriptions(userId) {
   return prisma.subscription.findMany({
     where: { userId: Number(userId) },
@@ -261,6 +268,7 @@ module.exports = {
   TRIAL_CONFIG_KEYS,
   ACCESS_DENIED_MESSAGE,
   getTrialConfig,
+  getUserProfileSubscriptionFields,
   getUserSubscriptions,
   getCurrentSubscription,
   hasUsedTrial,
