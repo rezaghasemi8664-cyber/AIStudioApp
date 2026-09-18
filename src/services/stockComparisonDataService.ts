@@ -175,6 +175,30 @@ const PERSIAN_COMPARISON_CRITERIA = `
 کلیدهای JSON داخلی را دقیقاً مطابق ساختار مورد انتظار API نگه دار، اما مقدار تمام فیلدهای متنی را فارسی تولید کن.
 `;
 
+export async function compareDeterministicStocks(
+  symbols: string[],
+  settings: { dailyCount: number; weeklyCount: number }
+): Promise<{ result: DeterministicComparisonResult; snapshots: Record<string, ComparisonMarketSnapshot> }> {
+  const normalizedSymbols = Array.from(new Set(symbols.map((item) => String(item || '').trim().toUpperCase()).filter(Boolean))).slice(0, 5);
+  if (normalizedSymbols.length < 2) throw new Error('حداقل دو نماد برای مقایسه لازم است.');
+  const snapshots = await getComparisonMarketSnapshots(normalizedSymbols);
+  const response = await appApiFetch<any>('/analyze/compare', {
+    method: 'POST',
+    body: JSON.stringify({
+      symbols: normalizedSymbols,
+      dailyCount: settings.dailyCount,
+      weeklyCount: settings.weeklyCount,
+      language: 'fa',
+      responseLanguage: 'Persian',
+      criteria: PERSIAN_COMPARISON_CRITERIA,
+      data: buildComparisonDataPayload(snapshots),
+    }),
+  });
+  const result = unwrap(response)?.data || unwrap(response);
+  if (!result?.deterministic || !Array.isArray(result?.rows)) throw new Error('پاسخ موتور مقایسه قطعی معتبر نیست.');
+  return { result: result as DeterministicComparisonResult, snapshots };
+}
+
 export async function compareStocksWithMarketData(
   symbol1: string,
   symbol2: string,
