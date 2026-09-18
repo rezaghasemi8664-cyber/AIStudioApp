@@ -4,6 +4,7 @@ import * as analysisUsageService from '../services/analysisUsageService';
 import * as storageService from '../services/storageService';
 import { useNotification } from './NotificationSystem';
 import { ClipboardDocumentIcon } from './Icons';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { compareDeterministicStocks, type DeterministicComparisonResult, type DeterministicComparisonRow } from '../services/stockComparisonDataService';
 
 interface StockComparisonProps { currentUser: StoredUser; isOnline: boolean; }
@@ -122,6 +123,36 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                                     {sortDescending ? 'نزولی ↓' : 'صعودی ↑'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+
+                    <div className="px-5 pb-5">
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/30 p-4">
+                            <div className="flex items-center justify-between gap-3 mb-4">
+                                <div>
+                                    <div className="font-bold text-slate-800 dark:text-slate-100">مقایسه روند تاریخی قیمت</div>
+                                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">تغییرات قیمت پایانی تعدیل‌شده در داده‌های واقعی هر نماد، بدون داده ساختگی.</div>
+                                </div>
+                            </div>
+                            <div className="h-72 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis dataKey="date" type="category" allowDuplicatedCategory={false} />
+                                        <YAxis domain={['auto', 'auto']} />
+                                        <Tooltip formatter={(value: number) => formatNumber(value, 0)} />
+                                        {sortedRows.map((row) => {
+                                            const base = row.history[0]?.close ?? null;
+                                            const series = row.history.map(point => ({
+                                                date: point.date,
+                                                value: base && base !== 0 ? (point.close / base) * 100 : null,
+                                            }));
+                                            return <Line key={row.symbol} data={series} type="monotone" dataKey="value" name={row.symbol} dot={false} strokeWidth={2} connectNulls />;
+                                        })}
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                            <div className="text-xs text-slate-500 mt-2">مقیاس نمودار به‌صورت شاخصی است؛ نقطه شروع هر نماد = ۱۰۰.</div>
                         </div>
                     </div>
 
