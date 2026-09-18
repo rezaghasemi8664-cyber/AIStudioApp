@@ -527,7 +527,8 @@ const App: React.FC = () => {
     };
 
     const restoreSessionUserQuickly = () => {
-      setUserState(null);
+      const storedUser = getCurrentSessionUser();
+      setUserState(storedUser);
     };
 
     const initializeNonBlockingServices = async () => {
