@@ -12,6 +12,10 @@ export interface ComparisonMarketSnapshot {
   raw: any;
 }
 
+export interface DeterministicComparisonHistoryPoint {
+  date: string;
+  close: number;
+}
 
 export interface DeterministicComparisonRow {
   symbol: string; currentPrice: number | null; closingPrice: number | null; priceChangePercent: number | null;
@@ -19,6 +23,7 @@ export interface DeterministicComparisonRow {
   recommendation: string; riskLevel: string; pe: number | null; eps: number | null; marketCap: number | null;
   tradedVolume: number | null; tradedValue: number | null; netMoneyFlow: number | null; realMoneyFlow: number | null;
   legalMoneyFlow: number | null; dataQuality: any; fetchedAt: string | null;
+  history: DeterministicComparisonHistoryPoint[];
 }
 export interface DeterministicComparisonResult {
   success: boolean; deterministic: true; engine: { name: string; version: string; deterministic: true };
@@ -52,31 +57,23 @@ function pick(source: any, paths: string[]): any {
 
 function normalizeSnapshot(symbol: string, raw: any): ComparisonMarketSnapshot {
   const data = raw && typeof raw === 'object' ? raw : {};
-
-  // BRS exposes live/last-traded values separately from the official closing values.
-  // The comparison table must never use the live price or live change as closing metrics.
   const closingPrice = toNumber(firstDefined(
     pick(data, ['closingPrice', 'lastClosePrice', 'closePrice', 'finalPrice']),
     pick(data, ['price.closing', 'price.close', 'marketData.lastClosePrice', 'marketData.closingPrice'])
   ));
-
   const currentPrice = toNumber(firstDefined(
     pick(data, ['currentPrice', 'lastPrice', 'lastTradedPrice', 'price', 'pl']),
     pick(data, ['marketData.currentPrice', 'marketData.lastPrice', 'marketData.lastTradedPrice'])
   ));
-
-  // This field is intentionally the official closing-price percentage change.
   const closingChangePercent = toNumber(firstDefined(
     pick(data, ['closeChangePercent', 'closingChangePercent', 'pcp']),
     pick(data, ['price.closingChangePercent', 'marketData.closingChangePercent', 'marketData.price.closingChangePercent']),
     pick(data, ['fundamental.priceChangePercent'])
   ));
-
   const fallbackChangePercent = toNumber(firstDefined(
     pick(data, ['priceChangePercent', 'changePercent', 'pctChange', 'chp']),
     pick(data, ['marketData.priceChangePercent', 'marketData.changePercent'])
   ));
-
   const eps = toNumber(firstDefined(
     pick(data, ['eps', 'EPS', 'earningsPerShare', 'eps_ttm']),
     pick(data, ['fundamental.eps', 'fundamentals.eps', 'metrics.eps'])
@@ -85,16 +82,9 @@ function normalizeSnapshot(symbol: string, raw: any): ComparisonMarketSnapshot {
     pick(data, ['pe', 'PE', 'peRatio', 'priceToEarnings', 'p_e', 'pe_ttm']),
     pick(data, ['fundamental.pe', 'fundamentals.pe', 'metrics.pe'])
   ));
-
-  // If the API does not provide P/E, calculate it from the official closing price.
   if (pe === null && closingPrice !== null && eps !== null && eps !== 0) pe = closingPrice / eps;
-
   return {
-    symbol,
-    currentPrice,
-    closingPrice,
-    eps,
-    pe,
+    symbol, currentPrice, closingPrice, eps, pe,
     marketCap: toNumber(firstDefined(
       pick(data, ['marketCap', 'marketCapitalization', 'market_value', 'market_cap']),
       pick(data, ['fundamental.marketCap', 'fundamentals.marketCap'])
@@ -103,7 +93,6 @@ function normalizeSnapshot(symbol: string, raw: any): ComparisonMarketSnapshot {
       pick(data, ['baseVolume', 'base_volume']),
       pick(data, ['fundamental.baseVolume', 'fundamentals.baseVolume'])
     )),
-    // Preserve the public field name used by the comparison UI, but source it from closing change first.
     priceChangePercent: closingChangePercent ?? fallbackChangePercent,
     raw: data,
   };
@@ -120,49 +109,31 @@ export async function getComparisonMarketSnapshots(symbols: string[]): Promise<R
 
 export function buildComparisonDataPayload(snapshots: Record<string, ComparisonMarketSnapshot>) {
   return Object.fromEntries(Object.entries(snapshots).map(([symbol, snapshot]) => [symbol, {
-    symbol,
-    currentPrice: snapshot.currentPrice,
-    closingPrice: snapshot.closingPrice,
-    eps: snapshot.eps,
-    pe: snapshot.pe,
-    marketCap: snapshot.marketCap,
-    baseVolume: snapshot.baseVolume,
+    symbol, currentPrice: snapshot.currentPrice, closingPrice: snapshot.closingPrice, eps: snapshot.eps,
+    pe: snapshot.pe, marketCap: snapshot.marketCap, baseVolume: snapshot.baseVolume,
     priceChangePercent: snapshot.priceChangePercent,
-    fundamental: {
-      eps: snapshot.eps,
-      pe: snapshot.pe,
-      marketCap: snapshot.marketCap,
-      baseVolume: snapshot.baseVolume,
-    },
+    fundamental: { eps: snapshot.eps, pe: snapshot.pe, marketCap: snapshot.marketCap, baseVolume: snapshot.baseVolume },
     source: 'BRS market/symbol snapshot',
   }]));
 }
 
 const ENGLISH_TO_PERSIAN: Array<[RegExp, string]> = [
-  [/\bSTRONG\s+BUY\b/gi, 'خرید قوی'], [/\bSTRONG\s+SELL\b/gi, 'فروش قوی'],
-  [/\bBUY\b/gi, 'خرید'], [/\bSELL\b/gi, 'فروش'], [/\bHOLD\b/gi, 'نگهداری'], [/\bNEUTRAL\b/gi, 'خنثی'],
+  [/\bSTRONG\s+BUY\b/gi, 'خرید قوی'], [/\bSTRONG\s+SELL\b/gi, 'فروش قوی'], [/\bBUY\b/gi, 'خرید'], [/\bSELL\b/gi, 'فروش'], [/\bHOLD\b/gi, 'نگهداری'], [/\bNEUTRAL\b/gi, 'خنثی'],
   [/\bBULLISH\b/gi, 'صعودی'], [/\bBEARISH\b/gi, 'نزولی'], [/\bVERY\s+LOW\b/gi, 'خیلی کم'], [/\bVERY\s+HIGH\b/gi, 'خیلی زیاد'],
   [/\bLOW\s+RISK\b/gi, 'ریسک کم'], [/\bMEDIUM\s+RISK\b/gi, 'ریسک متوسط'], [/\bHIGH\s+RISK\b/gi, 'ریسک زیاد'],
   [/\bLOW\b/gi, 'کم'], [/\bMEDIUM\b/gi, 'متوسط'], [/\bMODERATE\b/gi, 'متوسط'], [/\bHIGH\b/gi, 'زیاد'],
   [/\bYES\b/gi, 'بله'], [/\bNO\b/gi, 'خیر'], [/\bRECOMMENDATION\b/gi, 'توصیه'], [/\bSUMMARY\b/gi, 'خلاصه'],
-  [/\bTECHNICAL\s+ANALYSIS\b/gi, 'تحلیل تکنیکال'], [/\bFUNDAMENTAL\s+ANALYSIS\b/gi, 'تحلیل بنیادی'],
-  [/\bCOMPARISON\s+SUMMARY\b/gi, 'خلاصه مقایسه'], [/\bFINAL\s+RECOMMENDATION\b/gi, 'توصیه نهایی'],
-  [/\bWINNER\b/gi, 'گزینه برتر'], [/\bREASON\b/gi, 'دلیل'], [/\bDETAILS\b/gi, 'جزئیات'], [/\bRISK\s*LEVEL\b/gi, 'سطح ریسک'],
-  [/\bCONFIDENCE\b/gi, 'اطمینان'], [/\bCURRENT\s+PRICE\b/gi, 'قیمت فعلی'], [/\bTARGET\s+PRICE\b/gi, 'قیمت هدف'],
-  [/\bENTRY\s+PRICE\b/gi, 'قیمت ورود'], [/\bSTOP\s*LOSS\b/gi, 'حد ضرر'], [/\bPRICE\s+CHANGE\b/gi, 'تغییر قیمت'],
-  [/\bMARKET\s+CAP(?:ITALIZATION)?\b/gi, 'ارزش بازار'], [/\bTECHNICAL\b/gi, 'تکنیکال'], [/\bFUNDAMENTAL\b/gi, 'بنیادی'],
-  [/\bRISK\b/gi, 'ریسک'], [/\bSCORE\b/gi, 'امتیاز'], [/\bSCORES\b/gi, 'امتیازها'], [/\bDETAIL\b/gi, 'جزئیات'],
-  [/\bANALYSIS\b/gi, 'تحلیل'], [/\bCURRENT\b/gi, 'فعلی'], [/\bTARGET\b/gi, 'هدف'], [/\bENTRY\b/gi, 'ورود'],
+  [/\bTECHNICAL\s+ANALYSIS\b/gi, 'تحلیل تکنیکال'], [/\bFUNDAMENTAL\s+ANALYSIS\b/gi, 'تحلیل بنیادی'], [/\bCOMPARISON\s+SUMMARY\b/gi, 'خلاصه مقایسه'], [/\bFINAL\s+RECOMMENDATION\b/gi, 'توصیه نهایی'],
+  [/\bWINNER\b/gi, 'گزینه برتر'], [/\bREASON\b/gi, 'دلیل'], [/\bDETAILS\b/gi, 'جزئیات'], [/\bRISK\s*LEVEL\b/gi, 'سطح ریسک'], [/\bCONFIDENCE\b/gi, 'اطمینان'],
+  [/\bCURRENT\s+PRICE\b/gi, 'قیمت فعلی'], [/\bTARGET\s+PRICE\b/gi, 'قیمت هدف'], [/\bENTRY\s+PRICE\b/gi, 'قیمت ورود'], [/\bSTOP\s*LOSS\b/gi, 'حد ضرر'], [/\bPRICE\s+CHANGE\b/gi, 'تغییر قیمت'],
+  [/\bMARKET\s+CAP(?:ITALIZATION)?\b/gi, 'ارزش بازار'], [/\bTECHNICAL\b/gi, 'تکنیکال'], [/\bFUNDAMENTAL\b/gi, 'بنیادی'], [/\bRISK\b/gi, 'ریسک'], [/\bSCORE\b/gi, 'امتیاز'], [/\bSCORES\b/gi, 'امتیازها'],
+  [/\bDETAIL\b/gi, 'جزئیات'], [/\bANALYSIS\b/gi, 'تحلیل'], [/\bCURRENT\b/gi, 'فعلی'], [/\bTARGET\b/gi, 'هدف'], [/\bENTRY\b/gi, 'ورود'],
 ];
 
 function localizeComparisonText(value: unknown): unknown {
-  if (typeof value === 'string') {
-    return ENGLISH_TO_PERSIAN.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value).trim();
-  }
+  if (typeof value === 'string') return ENGLISH_TO_PERSIAN.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value).trim();
   if (Array.isArray(value)) return value.map(localizeComparisonText);
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, localizeComparisonText(item)]));
-  }
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, localizeComparisonText(item)]));
   return value;
 }
 
@@ -175,22 +146,15 @@ const PERSIAN_COMPARISON_CRITERIA = `
 کلیدهای JSON داخلی را دقیقاً مطابق ساختار مورد انتظار API نگه دار، اما مقدار تمام فیلدهای متنی را فارسی تولید کن.
 `;
 
-export async function compareDeterministicStocks(
-  symbols: string[],
-  settings: { dailyCount: number; weeklyCount: number }
-): Promise<{ result: DeterministicComparisonResult; snapshots: Record<string, ComparisonMarketSnapshot> }> {
+export async function compareDeterministicStocks(symbols: string[], settings: { dailyCount: number; weeklyCount: number }): Promise<{ result: DeterministicComparisonResult; snapshots: Record<string, ComparisonMarketSnapshot> }> {
   const normalizedSymbols = Array.from(new Set(symbols.map((item) => String(item || '').trim().toUpperCase()).filter(Boolean))).slice(0, 5);
   if (normalizedSymbols.length < 2) throw new Error('حداقل دو نماد برای مقایسه لازم است.');
   const snapshots = await getComparisonMarketSnapshots(normalizedSymbols);
   const response = await appApiFetch<any>('/analyze/compare', {
     method: 'POST',
     body: JSON.stringify({
-      symbols: normalizedSymbols,
-      dailyCount: settings.dailyCount,
-      weeklyCount: settings.weeklyCount,
-      language: 'fa',
-      responseLanguage: 'Persian',
-      criteria: PERSIAN_COMPARISON_CRITERIA,
+      symbols: normalizedSymbols, dailyCount: settings.dailyCount, weeklyCount: settings.weeklyCount,
+      language: 'fa', responseLanguage: 'Persian', criteria: PERSIAN_COMPARISON_CRITERIA,
       data: buildComparisonDataPayload(snapshots),
     }),
   });
@@ -199,28 +163,12 @@ export async function compareDeterministicStocks(
   return { result: result as DeterministicComparisonResult, snapshots };
 }
 
-export async function compareStocksWithMarketData(
-  symbol1: string,
-  symbol2: string,
-  settings: { dailyCount: number; weeklyCount: number }
-) {
+export async function compareStocksWithMarketData(symbol1: string, symbol2: string, settings: { dailyCount: number; weeklyCount: number }) {
   const symbols = [symbol1, symbol2];
   const snapshots = await getComparisonMarketSnapshots(symbols);
   const response = await appApiFetch<any>('/analyze/compare', {
     method: 'POST',
-    body: JSON.stringify({
-      symbols,
-      dailyCount: settings.dailyCount,
-      weeklyCount: settings.weeklyCount,
-      language: 'fa',
-      responseLanguage: 'Persian',
-      criteria: PERSIAN_COMPARISON_CRITERIA,
-      data: buildComparisonDataPayload(snapshots),
-    }),
+    body: JSON.stringify({ symbols, dailyCount: settings.dailyCount, weeklyCount: settings.weeklyCount, language: 'fa', responseLanguage: 'Persian', criteria: PERSIAN_COMPARISON_CRITERIA, data: buildComparisonDataPayload(snapshots) }),
   });
-
-  return {
-    result: localizeComparisonText(unwrap(response)),
-    snapshots,
-  };
+  return { result: localizeComparisonText(unwrap(response)), snapshots };
 }
