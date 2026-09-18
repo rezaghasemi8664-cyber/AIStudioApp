@@ -91,6 +91,28 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
         }));
     }, [sortedRows]);
 
+    const riskMetrics = useMemo(() => {
+        return sortedRows.map((row) => {
+            const closes = row.history.map((point) => Number(point.close)).filter((value) => Number.isFinite(value) && value > 0);
+            const returns: number[] = [];
+            for (let index = 1; index < closes.length; index += 1) {
+                returns.push((closes[index] / closes[index - 1]) - 1);
+            }
+            const mean = returns.length ? returns.reduce((sum, value) => sum + value, 0) / returns.length : null;
+            const variance = returns.length > 1 && mean !== null
+                ? returns.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / (returns.length - 1)
+                : null;
+            const volatility = variance !== null ? Math.sqrt(variance) * Math.sqrt(252) * 100 : null;
+            let peak = -Infinity;
+            let maxDrawdown = 0;
+            closes.forEach((close) => {
+                peak = Math.max(peak, close);
+                if (peak > 0) maxDrawdown = Math.min(maxDrawdown, ((close / peak) - 1) * 100);
+            });
+            return { symbol: row.symbol, volatility, maxDrawdown, observations: returns.length };
+        });
+    }, [sortedRows]);
+
     const historicalChartData = useMemo(() => {
         const dates = Array.from(new Set(sortedRows.flatMap(row => row.history.map(point => point.date)))).sort();
         return dates.map(date => {
@@ -200,6 +222,32 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                                 </table>
                             </div>
                             <div className="text-xs text-slate-500 mt-2">بازدهی از قیمت پایانی تاریخچه واقعی محاسبه شده و شامل سود نقدی یا هزینه معامله نیست.</div>
+                        </div>
+                    </div>
+
+                    <div className="px-5 pb-5">
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/30 p-4">
+                            <div className="font-bold text-slate-800 dark:text-slate-100 mb-1">مقایسه ریسک و نوسان</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400 mb-3">نوسان سالانه‌شده از بازده روزانه و بیشترین افت از سقف تاریخی، فقط بر اساس تاریخچه واقعی هر نماد.</div>
+                            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                                <table className="w-full text-sm">
+                                    <thead><tr className="bg-slate-100 dark:bg-slate-700/80">
+                                        <th className="px-3 py-3 text-center">رتبه</th>
+                                        <th className="px-3 py-3 text-center">نماد</th>
+                                        <th className="px-3 py-3 text-center whitespace-nowrap">نوسان سالانه</th>
+                                        <th className="px-3 py-3 text-center whitespace-nowrap">بیشترین افت</th>
+                                        <th className="px-3 py-3 text-center">تعداد مشاهدات</th>
+                                    </tr></thead>
+                                    <tbody>{riskMetrics.map((item, index) => <tr key={item.symbol} className="border-t border-slate-100 dark:border-slate-700">
+                                        <td className="px-3 py-3 text-center font-bold">{index + 1}</td>
+                                        <td className="px-3 py-3 text-center font-bold text-cyan-700 dark:text-cyan-300">{item.symbol}</td>
+                                        <td className="px-3 py-3 text-center font-bold">{item.volatility == null ? '—' : String(formatNumber(item.volatility, 2)) + '٪'}</td>
+                                        <td className="px-3 py-3 text-center font-bold">{item.maxDrawdown === 0 ? '۰٪' : String(formatNumber(item.maxDrawdown, 2)) + '٪'}</td>
+                                        <td className="px-3 py-3 text-center">{formatNumber(item.observations, 0)}</td>
+                                    </tr>)}</tbody>
+                                </table>
+                            </div>
+                            <div className="text-xs text-slate-500 mt-2">نوسان با انحراف معیار نمونه بازده روزانه و ضریب √۲۵۲ محاسبه شده است؛ افت بیشینه از سقف تجمعی تاریخچه محاسبه می‌شود.</div>
                         </div>
                     </div>
 
