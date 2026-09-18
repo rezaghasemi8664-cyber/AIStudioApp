@@ -213,7 +213,7 @@ async function getMarketData(symbol, options) {
   // Direct Codal documents are not reachable from some production networks.
   // When the Codal pipeline cannot calculate a score, use only the already
   // validated numeric BRS symbol snapshot as a deterministic fallback.
-  if (!Number.isFinite(Number(fundamentalAnalysis.score)) && market && market.fundamental) {
+  if ((fundamentalAnalysis.score == null || !Number.isFinite(Number(fundamentalAnalysis.score))) && market && market.fundamental) {
     var fallbackScore = brsFundamentalScore.calculateFundamentalSnapshotScore(market.fundamental);
     if (fallbackScore && fallbackScore.score !== null) {
       fundamentalAnalysis = Object.assign({}, fundamentalAnalysis, {
