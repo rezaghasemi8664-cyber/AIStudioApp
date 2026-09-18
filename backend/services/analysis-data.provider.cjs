@@ -11,6 +11,7 @@
 var brs = require('./brs.service.cjs');
 var codal = require('./codal.provider.cjs');
 var fundamental = require('./fundamental-analysis.v2.service.cjs');
+var brsFundamentalScore = require('./brs-fundamental-score.service.cjs');
 
 function isoNow() {
   return new Date().toISOString();
@@ -207,6 +208,26 @@ async function getMarketData(symbol, options) {
   var candles = normalizeCandles(history);
   var historyMeta = getMeta(historyResult);
   var fundamentalStatus = fundamentalResult.status;
+  var fundamentalAnalysis = fundamentalResult.analysis || {};
+
+  // Direct Codal documents are not reachable from some production networks.
+  // When the Codal pipeline cannot calculate a score, use only the already
+  // validated numeric BRS symbol snapshot as a deterministic fallback.
+  if (!Number.isFinite(Number(fundamentalAnalysis.score)) && market && market.fundamental) {
+    var fallbackScore = brsFundamentalScore.calculateFundamentalSnapshotScore(market.fundamental);
+    if (fallbackScore && fallbackScore.score !== null) {
+      fundamentalAnalysis = Object.assign({}, fundamentalAnalysis, {
+        available: true,
+        score: fallbackScore.score,
+        scoreStatus: fallbackScore.status,
+        scoreCoverage: fallbackScore.coverage,
+        scoreComponents: fallbackScore.components,
+        reason: fallbackScore.reason,
+        fallback: true,
+        source: fallbackScore.source
+      });
+    }
+  }
 
   return {
     symbol: symbolClean,
@@ -214,7 +235,7 @@ async function getMarketData(symbol, options) {
     history: history,
     candles: candles,
     fundamental: fundamentalResult.data,
-    fundamentalAnalysis: fundamentalResult.analysis,
+    fundamentalAnalysis: fundamentalAnalysis,
     dataQuality: buildQuality(candles, history, marketResult, fundamentalStatus, historyMeta, fundamentalResult.analysis),
     sources: {
       market: 'BRS',
@@ -229,7 +250,7 @@ async function getMarketData(symbol, options) {
       fundamental: fundamentalResult.data
         ? { count: asArray(fundamentalResult.data.announcements).length, fetchedAt: fundamentalResult.data.fetchedAt }
         : null,
-      fundamentalAnalysis: fundamentalResult.analysis,
+      fundamentalAnalysis: fundamentalAnalysis,
       fundamentalError: fundamentalResult.error
     }
   };
