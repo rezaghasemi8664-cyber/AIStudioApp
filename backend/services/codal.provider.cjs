@@ -14,7 +14,7 @@ const DEFAULT_PAGE = 1;
 function getConfig() {
   return {
     apiUrl: String(process.env.CODAL_API_URL || process.env.BRS_CODAL_URL || '').trim(),
-    apiKey: String(process.env.CODAL_API_KEY || process.env.BRS_API_KEY || '').trim(),
+    apiKey: String(process.env.BRS_CODAL_API_KEY || process.env.CODAL_API_KEY || '').trim(),
     category: String(process.env.CODAL_CATEGORY || '').trim(),
     audited: String(process.env.CODAL_AUDITED || 'true').trim(),
     unaudited: String(process.env.CODAL_UNAUDITED || 'true').trim(),
@@ -35,10 +35,10 @@ function getStatus() {
     endpointConfigured: Boolean(config.apiUrl),
     credentialsConfigured: Boolean(config.apiKey),
     reason: configured
-      ? 'BRS CODAL Announcement API configured'
+      ? 'BRS CODAL Announcement API configured with dedicated Codal key'
       : !config.apiUrl
         ? 'CODAL_API_URL is not configured'
-        : 'CODAL_API_KEY is not configured'
+        : 'BRS_CODAL_API_KEY is not configured'
   };
 }
 
