@@ -223,16 +223,24 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm"><thead><tr className="bg-slate-100 dark:bg-slate-700/80">
-                            {['رتبه','نماد','امتیاز تکنیکال','امتیاز بنیادی','تغییر روزانه','P/E','جریان پول','ریسک','روند'].map(h => <th key={h} className="px-3 py-3 whitespace-nowrap text-center">{h}</th>)}
+                            {['رتبه','نماد','قیمت فعلی','قیمت پایانی','تغییر روزانه','EPS','P/E','ارزش بازار','حجم معاملات','ارزش معاملات','امتیاز تکنیکال','امتیاز بنیادی','جریان پول','جریان پول حقیقی','جریان پول حقوقی','ریسک','روند'].map(h => <th key={h} className="px-3 py-3 whitespace-nowrap text-center">{h}</th>)}
                         </tr></thead><tbody>
                             {deterministicResult.rows.map((row, index) => <tr key={row.symbol} className="border-t border-slate-100 dark:border-slate-700">
                                 <td className="px-3 py-3 text-center font-bold">{deterministicResult.ranking.find(item => item.symbol === row.symbol)?.rank ?? index + 1}</td>
                                 <td className="px-3 py-3 text-center font-bold text-cyan-700 dark:text-cyan-300">{row.symbol}</td>
+                                <td className="px-3 py-3 text-center">{formatNumber(row.currentPrice, 0)}</td>
+                                <td className="px-3 py-3 text-center">{formatNumber(row.closingPrice, 0)}</td>
+                                <td className="px-3 py-3 text-center">{row.priceChangePercent == null ? '—' : `${formatNumber(row.priceChangePercent, 2)}٪`}</td>
+                                <td className="px-3 py-3 text-center">{formatNumber(row.eps, 2)}</td>
+                                <td className="px-3 py-3 text-center">{formatNumber(row.pe, 2)}</td>
+                                <td className="px-3 py-3 text-center">{formatNumber(row.marketCap, 0)}</td>
+                                <td className="px-3 py-3 text-center">{formatNumber(row.tradedVolume, 0)}</td>
+                                <td className="px-3 py-3 text-center">{formatNumber(row.tradedValue, 0)}</td>
                                 <td className="px-3 py-3 text-center">{formatNumber(row.technicalScore, 0)}</td>
                                 <td className="px-3 py-3 text-center">{formatNumber(row.fundamentalScore, 0)}</td>
-                                <td className="px-3 py-3 text-center">{row.priceChangePercent == null ? '—' : `${formatNumber(row.priceChangePercent, 2)}٪`}</td>
-                                <td className="px-3 py-3 text-center">{formatNumber(row.pe, 2)}</td>
                                 <td className="px-3 py-3 text-center">{formatNumber(row.netMoneyFlow, 0)}</td>
+                                <td className="px-3 py-3 text-center">{formatNumber(row.realMoneyFlow, 0)}</td>
+                                <td className="px-3 py-3 text-center">{formatNumber(row.legalMoneyFlow, 0)}</td>
                                 <td className="px-3 py-3 text-center">{row.riskLevel || '—'}</td>
                                 <td className="px-3 py-3 text-center">{row.trend || '—'}</td>
                             </tr>)}
