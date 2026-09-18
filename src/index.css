@@ -1436,3 +1436,662 @@ header + div[role="dialog"],
   .page-comparison input { font-size: .94rem !important; }
   .page-portfolio [data-style-id="portfolio-add-form"] { padding: 13px !important; }
 }
+
+/* ==========================================================
+   RONIYA UI SYSTEM v3 — PROFESSIONAL RESPONSIVE FINTECH UX
+   Visual-only layer. Preserves existing card surfaces and
+   component structure; improves typography, hierarchy,
+   interaction states, tables, separators, and responsiveness.
+   ========================================================== */
+
+:root {
+  --ui-font-size: 15px;
+  --ui-body-leading: 1.82;
+  --ui-heading-leading: 1.45;
+  --ui-focus: rgba(14, 165, 164, .24);
+  --ui-hover: color-mix(in srgb, var(--surface-2) 88%, transparent);
+  --ui-divider: color-mix(in srgb, var(--line-1) 88%, transparent);
+  --ui-table-stripe: color-mix(in srgb, var(--surface-2) 48%, transparent);
+}
+
+.dark {
+  --ui-focus: rgba(83, 199, 187, .28);
+  --ui-hover: color-mix(in srgb, var(--surface-2) 92%, transparent);
+  --ui-divider: color-mix(in srgb, var(--line-1) 92%, transparent);
+  --ui-table-stripe: color-mix(in srgb, var(--surface-2) 58%, transparent);
+}
+
+/* ---------- Base typography ---------- */
+body,
+button,
+input,
+textarea,
+select {
+  font-family: var(--font-sans-fa), 'Vazirmatn', 'Estedad', Arial, sans-serif;
+}
+
+body {
+  font-size: var(--ui-font-size);
+  line-height: var(--ui-body-leading);
+}
+
+.app-shell {
+  color: var(--text-1, var(--app-color));
+}
+
+.app-shell,
+.app-shell * {
+  text-rendering: optimizeLegibility;
+}
+
+.app-main {
+  font-size: 1rem;
+}
+
+.page-shell,
+[data-page="marketRadar"] > section {
+  line-height: var(--ui-body-leading);
+}
+
+.page-shell h1,
+.page-shell h2,
+.page-shell h3,
+.page-shell h4,
+[data-page="marketRadar"] h1,
+[data-page="marketRadar"] h2,
+[data-page="marketRadar"] h3,
+[data-page="marketRadar"] h4 {
+  line-height: var(--ui-heading-leading);
+  color: var(--text-1) !important;
+}
+
+.page-shell h2,
+[data-page="marketRadar"] h2 {
+  font-size: clamp(1.08rem, 1.1vw, 1.28rem);
+  font-weight: 800;
+}
+
+.page-shell h3,
+[data-page="marketRadar"] h3 {
+  font-size: clamp(1rem, 1vw, 1.12rem);
+  font-weight: 750;
+}
+
+/* Prevent overly faint secondary text while retaining hierarchy. */
+.page-shell .text-slate-500,
+.page-shell .text-gray-500,
+[data-page="marketRadar"] .text-slate-500,
+[data-page="marketRadar"] .text-gray-500 {
+  color: var(--text-2) !important;
+}
+
+.dark .page-shell .text-slate-400,
+.dark .page-shell .text-gray-400,
+.dark .page-shell .text-slate-500,
+.dark .page-shell .text-gray-500,
+.dark [data-page="marketRadar"] .text-slate-400,
+.dark [data-page="marketRadar"] .text-gray-400,
+.dark [data-page="marketRadar"] .text-slate-500,
+.dark [data-page="marketRadar"] .text-gray-500 {
+  color: var(--text-2) !important;
+}
+
+/* Standardize very small labels without touching icon geometry. */
+.page-shell .text-\[10px\],
+.page-shell .text-\[11px\],
+[data-page="marketRadar"] .text-\[10px\],
+[data-page="marketRadar"] .text-\[11px\] {
+  font-size: .75rem !important;
+  line-height: 1.65;
+}
+
+.page-shell .text-xs,
+[data-page="marketRadar"] .text-xs {
+  font-size: .81rem;
+  line-height: 1.7;
+}
+
+.page-shell .text-sm,
+[data-page="marketRadar"] .text-sm {
+  font-size: .9rem;
+  line-height: 1.75;
+}
+
+/* ---------- Header ---------- */
+.app-header {
+  border: 1px solid var(--line-1) !important;
+  border-radius: 20px;
+  padding-block: 10px !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.brand-lockup {
+  min-width: 0;
+}
+
+.brand-title {
+  font-size: clamp(.98rem, 1.2vw, 1.2rem) !important;
+  font-weight: 800 !important;
+  letter-spacing: -.02em;
+}
+
+.brand-subtitle {
+  color: var(--text-3) !important;
+  font-size: .78rem;
+  line-height: 1.65;
+  margin-top: 2px;
+}
+
+.app-header .brand-logo {
+  width: 52px !important;
+  height: 52px !important;
+}
+
+.app-header button {
+  min-height: 42px;
+  transition: transform .18s ease, background-color .18s ease, color .18s ease, box-shadow .18s ease;
+}
+
+.app-header button:hover {
+  transform: translateY(-1px);
+}
+
+/* ---------- Main navigation ---------- */
+.app-nav {
+  padding-top: 2px;
+}
+
+.app-nav-scroll {
+  gap: 5px;
+  padding: 6px;
+  border: 1px solid var(--line-1);
+  border-radius: 16px;
+  background: var(--surface-0);
+  box-shadow: var(--shadow-sm);
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: none;
+}
+
+.app-nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.app-nav-scroll > button,
+.app-nav-scroll > .relative > button {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 46px;
+  min-width: 44px;
+  padding-inline: 13px !important;
+  border: 1px solid transparent;
+  border-radius: 12px !important;
+  color: var(--text-2) !important;
+  font-size: .9rem !important;
+  font-weight: 700 !important;
+  transition:
+    transform .18s ease,
+    background-color .18s ease,
+    color .18s ease,
+    border-color .18s ease,
+    box-shadow .18s ease;
+}
+
+.app-nav-scroll > button svg,
+.app-nav-scroll > .relative > button svg {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
+}
+
+.app-nav-scroll > button:hover,
+.app-nav-scroll > .relative > button:hover {
+  transform: translateY(-1px);
+  background: var(--ui-hover) !important;
+  color: var(--text-1) !important;
+}
+
+.app-nav-scroll > button[data-style-id="tab-active"] {
+  background: var(--brand) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--brand) 23%, transparent);
+  animation: ronia-tab-activate .24s ease-out;
+}
+
+.app-nav-scroll > button[data-style-id="tab-active"]::after {
+  content: "";
+  position: absolute;
+  inset-inline: 18%;
+  bottom: 4px;
+  height: 3px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: .72;
+}
+
+.app-nav-scroll > button[data-style-id="tab-inactive"] {
+  color: var(--text-2) !important;
+}
+
+.app-nav-scroll > button:disabled,
+.app-nav-scroll > .relative > button:disabled {
+  transform: none;
+  box-shadow: none;
+}
+
+@keyframes ronia-tab-activate {
+  from {
+    transform: translateY(2px) scale(.985);
+    opacity: .8;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* ---------- Controls ---------- */
+.page-shell button,
+[data-page="marketRadar"] button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.page-shell button:not([aria-label=""]),
+[data-page="marketRadar"] button:not([aria-label=""]) {
+  font-weight: 650;
+}
+
+.page-shell button:focus-visible,
+[data-page="marketRadar"] button:focus-visible,
+.app-header button:focus-visible {
+  outline: 3px solid var(--ui-focus) !important;
+  outline-offset: 2px;
+}
+
+.page-shell input,
+.page-shell textarea,
+.page-shell select,
+[data-page="marketRadar"] input,
+[data-page="marketRadar"] textarea,
+[data-page="marketRadar"] select {
+  min-height: 44px;
+  font-size: .92rem;
+  line-height: 1.6;
+}
+
+.page-shell label,
+[data-page="marketRadar"] label {
+  line-height: 1.7;
+}
+
+/* ---------- Existing cards: refine, do not replace ---------- */
+.page-shell [data-style-id$="card"],
+.page-shell .rounded-xl.border,
+.page-shell .rounded-2xl.border,
+.page-shell .rounded-3xl.border,
+[data-page="marketRadar"] article {
+  border-color: var(--line-1) !important;
+  box-shadow: var(--shadow-sm);
+  transition:
+    border-color .18s ease,
+    box-shadow .18s ease,
+    transform .18s ease;
+}
+
+.page-shell [data-style-id$="card"]:hover,
+[data-page="marketRadar"] article:hover {
+  border-color: color-mix(in srgb, var(--brand) 18%, var(--line-1)) !important;
+}
+
+/* Keep semantic surfaces intact; only add a clear separator where a
+   component already uses a border/divider. */
+.page-shell .border-t,
+.page-shell .border-b,
+.page-shell .divide-y > *,
+[data-page="marketRadar"] .border-t,
+[data-page="marketRadar"] .border-b {
+  border-color: var(--ui-divider) !important;
+}
+
+/* ---------- Tables ---------- */
+.page-shell table,
+[data-page="marketRadar"] table {
+  width: 100%;
+  border: 1px solid var(--line-1);
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--surface-0);
+}
+
+.page-shell thead th,
+[data-page="marketRadar"] thead th {
+  min-height: 44px;
+  padding: 12px 11px !important;
+  background: var(--surface-2) !important;
+  color: var(--text-1) !important;
+  border-bottom: 1px solid var(--line-1);
+  font-size: .82rem !important;
+  font-weight: 800 !important;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.page-shell tbody td,
+[data-page="marketRadar"] tbody td {
+  padding: 11px !important;
+  color: var(--text-1);
+  font-size: .86rem !important;
+  line-height: 1.7;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.page-shell tbody tr:nth-child(even),
+[data-page="marketRadar"] tbody tr:nth-child(even) {
+  background: var(--ui-table-stripe);
+}
+
+.page-shell tbody tr:last-child td,
+[data-page="marketRadar"] tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.page-shell tbody tr,
+[data-page="marketRadar"] tbody tr {
+  transition: background-color .16s ease;
+}
+
+.page-shell tbody tr:hover,
+[data-page="marketRadar"] tbody tr:hover {
+  background: color-mix(in srgb, var(--brand) 5%, var(--surface-0)) !important;
+}
+
+/* Financial values remain easy to scan. */
+.page-shell td,
+.page-shell th,
+[data-page="marketRadar"] td,
+[data-page="marketRadar"] th {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Scrollable table containers on small screens ---------- */
+.page-shell .overflow-x-auto,
+[data-page="marketRadar"] .overflow-x-auto {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-1) transparent;
+}
+
+.page-shell .overflow-x-auto::-webkit-scrollbar,
+[data-page="marketRadar"] .overflow-x-auto::-webkit-scrollbar {
+  height: 7px;
+}
+
+.page-shell .overflow-x-auto::-webkit-scrollbar-thumb,
+[data-page="marketRadar"] .overflow-x-auto::-webkit-scrollbar-thumb {
+  background: var(--line-1);
+  border-radius: 999px;
+}
+
+/* ---------- Market Radar ---------- */
+[data-page="marketRadar"] > section {
+  width: 100%;
+}
+
+[data-page="marketRadar"] > section > article {
+  border-radius: 20px !important;
+  padding: 18px !important;
+}
+
+[data-page="marketRadar"] article h2 {
+  font-size: 1.08rem;
+  font-weight: 850;
+}
+
+[data-page="marketRadar"] article p {
+  line-height: 1.75;
+}
+
+[data-page="marketRadar"] article button {
+  border-radius: 11px;
+  transition:
+    transform .16s ease,
+    background-color .16s ease,
+    border-color .16s ease,
+    color .16s ease,
+    box-shadow .16s ease;
+}
+
+[data-page="marketRadar"] article button:hover {
+  transform: translateY(-1px);
+}
+
+[data-page="marketRadar"] svg text {
+  font-family: var(--font-sans-fa), Arial, sans-serif;
+}
+
+/* Industry heatmap: readable semantic colors with stronger separation. */
+[data-page="marketRadar"] .group.min-h-\[112px\] {
+  min-height: 120px;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 15px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .06);
+}
+
+[data-page="marketRadar"] .group.min-h-\[112px\] .text-\[10px\] {
+  font-size: .72rem !important;
+  font-weight: 700;
+}
+
+.dark [data-page="marketRadar"] .group.min-h-\[112px\] {
+  box-shadow: 0 7px 20px rgba(0, 0, 0, .18);
+}
+
+.dark [data-page="marketRadar"] .group.min-h-\[112px\] .text-emerald-100 {
+  color: #ecfdf5 !important;
+}
+
+.dark [data-page="marketRadar"] .group.min-h-\[112px\] .text-rose-100 {
+  color: #fff1f2 !important;
+}
+
+[data-page="marketRadar"] .font-black,
+[data-page="marketRadar"] .font-bold {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Motion: useful, restrained, accessible ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .page-shell [data-style-id$="card"],
+  .page-shell .rounded-xl.border,
+  .page-shell .rounded-2xl.border,
+  .page-shell .rounded-3xl.border {
+    will-change: box-shadow, transform;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-nav-scroll > button[data-style-id="tab-active"],
+  .page-shell,
+  [data-page="marketRadar"] > section {
+    animation: none !important;
+  }
+}
+
+/* ---------- Responsive desktop/tablet ---------- */
+@media (min-width: 901px) {
+  .app-nav-scroll {
+    justify-content: flex-start;
+  }
+
+  .page-shell,
+  [data-page="marketRadar"] > section {
+    max-width: 1280px;
+    margin-inline: auto;
+  }
+}
+
+/* ---------- Responsive mobile ---------- */
+@media (max-width: 900px) {
+  .app-shell {
+    padding-inline: 10px !important;
+    padding-top: 10px !important;
+  }
+
+  .app-header {
+    position: static;
+    border-radius: 17px;
+    padding-inline: 10px !important;
+  }
+
+  .app-header .brand-logo {
+    width: 48px !important;
+    height: 48px !important;
+  }
+
+  .brand-title {
+    font-size: .94rem !important;
+  }
+
+  .brand-subtitle {
+    display: none;
+  }
+
+  .app-nav {
+    margin-bottom: 12px !important;
+  }
+
+  .app-nav-scroll {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    padding: 5px;
+  }
+
+  .app-nav-scroll > button,
+  .app-nav-scroll > .relative > button {
+    min-height: 44px;
+    padding-inline: 12px !important;
+    font-size: .86rem !important;
+  }
+
+  .app-main {
+    min-width: 0;
+  }
+
+  .page-shell,
+  [data-page="marketRadar"] > section {
+    width: 100%;
+  }
+
+  .page-shell .grid.lg\:grid-cols-2,
+  [data-page="marketRadar"] .grid.lg\:grid-cols-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .page-shell table {
+    min-width: 680px;
+  }
+}
+
+/* ---------- Tight mobile ---------- */
+@media (max-width: 640px) {
+  body {
+    font-size: 14.5px;
+  }
+
+  .app-shell {
+    padding-inline: 7px !important;
+  }
+
+  .app-header {
+    gap: 8px !important;
+    border-radius: 15px;
+  }
+
+  .app-header .flex.items-center {
+    gap: 9px;
+  }
+
+  .app-header .brand-logo {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  .brand-title {
+    font-size: .88rem !important;
+  }
+
+  .header-actions button {
+    min-height: 40px;
+    min-width: 40px;
+  }
+
+  .app-nav-scroll {
+    border-radius: 14px;
+    gap: 4px;
+  }
+
+  .app-nav-scroll > button,
+  .app-nav-scroll > .relative > button {
+    min-height: 43px;
+    font-size: .82rem !important;
+  }
+
+  .page-shell,
+  [data-page="marketRadar"] > section {
+    width: 100%;
+  }
+
+  .page-shell [data-style-id$="card"],
+  .page-shell .rounded-xl.border,
+  .page-shell .rounded-2xl.border,
+  .page-shell .rounded-3xl.border,
+  [data-page="marketRadar"] > section > article {
+    border-radius: 15px !important;
+  }
+
+  .page-shell .p-6 {
+    padding: 1rem !important;
+  }
+
+  .page-shell .p-5 {
+    padding: .9rem !important;
+  }
+
+  .page-shell h2,
+  [data-page="marketRadar"] h2 {
+    font-size: 1.04rem;
+  }
+
+  .page-shell .text-xs,
+  [data-page="marketRadar"] .text-xs {
+    font-size: .78rem;
+  }
+
+  .page-shell .text-sm,
+  [data-page="marketRadar"] .text-sm {
+    font-size: .86rem;
+  }
+
+  .page-shell thead th,
+  [data-page="marketRadar"] thead th {
+    font-size: .76rem !important;
+    padding: 10px 9px !important;
+  }
+
+  .page-shell tbody td,
+  [data-page="marketRadar"] tbody td {
+    font-size: .81rem !important;
+    padding: 10px 8px !important;
+  }
+
+  [data-page="marketRadar"] > section > article {
+    padding: 14px !important;
+  }
+
+  [data-page="marketRadar"] .group.min-h-\[112px\] {
+    min-height: 112px;
+  }
+}
