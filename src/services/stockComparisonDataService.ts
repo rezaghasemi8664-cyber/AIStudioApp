@@ -12,6 +12,20 @@ export interface ComparisonMarketSnapshot {
   raw: any;
 }
 
+
+export interface DeterministicComparisonRow {
+  symbol: string; currentPrice: number | null; closingPrice: number | null; priceChangePercent: number | null;
+  technicalScore: number | null; fundamentalScore: number | null; totalScore: number | null; trend: string;
+  recommendation: string; riskLevel: string; pe: number | null; eps: number | null; marketCap: number | null;
+  tradedVolume: number | null; tradedValue: number | null; netMoneyFlow: number | null; realMoneyFlow: number | null;
+  legalMoneyFlow: number | null; dataQuality: any; fetchedAt: string | null;
+}
+export interface DeterministicComparisonResult {
+  success: boolean; deterministic: true; engine: { name: string; version: string; deterministic: true };
+  symbols: string[]; rows: DeterministicComparisonRow[]; ranking: Array<Record<string, any>>;
+  metrics: Record<string, string | null>; failed: Array<Record<string, any>>; comparedAt: string;
+}
+
 function unwrap(response: any): any {
   let value = response?.data ?? response;
   if (value?.data && typeof value.data === 'object') value = value.data;
