@@ -1,5 +1,6 @@
 -- Roniya Analyzer subscription system
 -- SQL Server safe migration: preserve legacy User subscription fields.
+-- Prisma executes this migration as one SQL batch; do not use GO batch separators.
 
 IF OBJECT_ID(N'[dbo].[SubscriptionPlan]', N'U') IS NULL
 BEGIN
@@ -19,7 +20,6 @@ BEGIN
         CONSTRAINT [CK_SubscriptionPlan_price] CHECK ([price] >= 0)
     );
 END;
-GO
 
 IF OBJECT_ID(N'[dbo].[Subscription]', N'U') IS NULL
 BEGIN
@@ -41,7 +41,6 @@ BEGIN
         CONSTRAINT [CK_Subscription_dates] CHECK ([expiresAt] > [startsAt])
     );
 END;
-GO
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
@@ -52,7 +51,6 @@ BEGIN
     CREATE INDEX [IX_Subscription_userId_expiresAt]
         ON [dbo].[Subscription] ([userId], [expiresAt]);
 END;
-GO
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
@@ -63,7 +61,6 @@ BEGIN
     CREATE INDEX [IX_Subscription_status_expiresAt]
         ON [dbo].[Subscription] ([status], [expiresAt]);
 END;
-GO
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
@@ -74,7 +71,6 @@ BEGIN
     CREATE INDEX [IX_Subscription_planId]
         ON [dbo].[Subscription] ([planId]);
 END;
-GO
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
@@ -85,7 +81,6 @@ BEGIN
     CREATE INDEX [IX_Subscription_userId_createdAt]
         ON [dbo].[Subscription] ([userId], [createdAt]);
 END;
-GO
 
 IF OBJECT_ID(N'dbo.PaymentTransaction', N'U') IS NOT NULL
    AND NOT EXISTS (
@@ -98,7 +93,6 @@ BEGIN
         ADD CONSTRAINT [FK_PaymentTransaction_SubscriptionPlan]
         FOREIGN KEY ([planId]) REFERENCES [dbo].[SubscriptionPlan]([id]) ON DELETE NO ACTION;
 END;
-GO
 
 IF OBJECT_ID(N'dbo.PaymentTransaction', N'U') IS NOT NULL
    AND NOT EXISTS (
@@ -111,4 +105,3 @@ BEGIN
         ADD CONSTRAINT [FK_PaymentTransaction_Subscription]
         FOREIGN KEY ([subscriptionId]) REFERENCES [dbo].[Subscription]([id]) ON DELETE NO ACTION;
 END;
-GO
