@@ -24,6 +24,7 @@ var brsAllSymbolsUrl = process.env.BRS_ALL_SYMBOLS_URL || (defaultEndpoints.BRS_
 var brsIndexUrl = process.env.BRS_INDEX_URL || (defaultEndpoints.BRS_INDEX && defaultEndpoints.BRS_INDEX.url) || '';
 var brsHistoryUrl = process.env.BRS_HISTORY_URL || (defaultEndpoints.BRS_HISTORY && defaultEndpoints.BRS_HISTORY.url) || '';
 var brsCandlestickUrl = process.env.BRS_CANDLESTICK_URL || (defaultEndpoints.BRS_CANDLESTICK && defaultEndpoints.BRS_CANDLESTICK.url) || '';
+var brsCodalUrl = process.env.BRS_CODAL_URL || (defaultEndpoints.BRS_CODAL && defaultEndpoints.BRS_CODAL.url) || '';
 
 var env = {
   NODE_ENV: NODE_ENV, IS_DEV: IS_DEV, IS_PROD: IS_PROD, PORT: PORT,
@@ -40,8 +41,10 @@ var env = {
   BRS_API_KEY: process.env.BRS_API_KEY || '', BRS_API_URL: process.env.BRS_SYMBOL_URL || process.env.BRS_API_URL || '',
   BRS_SYMBOL_URL: brsSymbolUrl, BRS_ALL_SYMBOLS_URL: brsAllSymbolsUrl, BRS_INDEX_URL: brsIndexUrl,
   BRS_HISTORY_URL: brsHistoryUrl, BRS_CANDLESTICK_URL: brsCandlestickUrl, BRS_AVAILABLE: !!process.env.BRS_API_KEY,
-  CODAL_API_KEY: process.env.CODAL_API_KEY || '', CODAL_API_URL: process.env.CODAL_API_URL || '',
-  CODAL_AVAILABLE: false,
+  BRS_CODAL_API_KEY: process.env.BRS_CODAL_API_KEY || process.env.CODAL_API_KEY || '',
+  BRS_CODAL_URL: brsCodalUrl,
+  CODAL_API_KEY: process.env.BRS_CODAL_API_KEY || process.env.CODAL_API_KEY || '', CODAL_API_URL: process.env.BRS_CODAL_URL || process.env.CODAL_API_URL || brsCodalUrl,
+  CODAL_AVAILABLE: !!((process.env.BRS_CODAL_API_KEY || process.env.CODAL_API_KEY) && brsCodalUrl),
   AI_API_URL: process.env.GAPGPT_API_URL || process.env.AI_API_URL || 'https://api.gapapi.com/v1',
   AI_API_KEY: process.env.GAPGPT_API_KEY || process.env.AI_API_KEY || '', GAPGPT_API_KEY: process.env.GAPGPT_API_KEY || '',
   GAPGPT_MODEL: process.env.GAPGPT_MODEL || process.env.AI_MODEL || 'gpt-4o-mini', AI_MODEL: process.env.GAPGPT_MODEL || process.env.AI_MODEL || 'gpt-4o-mini',
@@ -69,7 +72,7 @@ var env = {
       if (isWildcard(this.CORS_ORIGINS) || isWildcard(this.CORS_ORIGIN)) errors.push('Wildcard CORS (*) is not allowed in production');
     }
     if (!this.BRS_API_KEY) warnings.push('BRS_API_KEY not set - market features disabled');
-    if (!this.CODAL_API_KEY) warnings.push('CODAL_API_KEY not set - Codal integration disabled');
+    if (!this.BRS_CODAL_API_KEY) warnings.push('BRS_CODAL_API_KEY not set - Codal integration disabled');
     if (!this.AI_API_KEY && !this.GAPGPT_API_KEY) warnings.push('GAPGPT_API_KEY not set - AI features disabled');
     console.log('========================================');
     console.log('  [ENV] Environment Validation');
@@ -79,7 +82,7 @@ var env = {
     console.log('  [ENV] Mode:         ' + this.NODE_ENV);
     console.log('  [ENV] Database:     ' + (this.DATABASE_URL ? 'CONFIGURED' : 'NOT SET'));
     console.log('  [ENV] BRS Market:   ' + (this.BRS_AVAILABLE ? 'ENABLED' : 'DISABLED'));
-    console.log('  [ENV] Codal:        DISABLED (awaiting API contract)');
+    console.log('  [ENV] Codal:        ' + (this.CODAL_AVAILABLE ? 'ENABLED' : 'DISABLED'));
     console.log('  [ENV] AI/GapGPT:    ' + (this.AI_AVAILABLE ? 'ENABLED' : 'DISABLED'));
     return { ok: errors.length === 0, errors: errors, warnings: warnings };
   }
