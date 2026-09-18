@@ -97,6 +97,8 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                                         ['P/E', formatNumber(row.pe, 2)],
                                         ['جریان پول', formatNumber(row.netMoneyFlow, 0)],
                                         ['ریسک', row.riskLevel || '—'],
+                                        ['توصیه', row.recommendation || '—'],
+                                        ['کیفیت داده', typeof row.dataQuality === 'object' ? (row.dataQuality?.score ?? row.dataQuality?.quality ?? '—') : (row.dataQuality || '—')],
                                         ['روند', row.trend || '—'],
                                     ].map(([label, value]) => (
                                         <div key={String(label)} className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2">
