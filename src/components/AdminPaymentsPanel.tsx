@@ -21,6 +21,9 @@ const AdminPaymentsPanel:React.FC<Props>=({onComplete=()=>undefined})=>{
  const [form,setForm]=useState({userId:'',amount:'',currency:'IRR',gateway:'',description:''});
  const [selected,setSelected]=useState<paymentsService.PaymentRow|null>(null);
  const [statusForm,setStatusForm]=useState({status:'paid',referenceNo:''});
+ const [reportPeriod,setReportPeriod]=useState<'daily'|'monthly'|'yearly'>('monthly');
+ const [report,setReport]=useState<paymentsService.PaymentReport|null>(null);
+ const [reportBusy,setReportBusy]=useState(false);
 
  const load=useCallback(async(targetPage=page,filterOverride?:typeof filters)=>{
    setBusy(true);setError(null);
@@ -34,6 +37,13 @@ const AdminPaymentsPanel:React.FC<Props>=({onComplete=()=>undefined})=>{
    finally{setBusy(false);}
  },[filters,page]);
  useEffect(()=>{void load(1);},[]);
+ const loadReport=useCallback(async(period: 'daily'|'monthly'|'yearly')=>{
+   setReportBusy(true);setError(null);
+   try{setReport(await paymentsService.getPaymentReport(period));}
+   catch(e){setError(e instanceof Error?e.message:'دریافت گزارش پرداخت‌ها ناموفق بود.');}
+   finally{setReportBusy(false);}
+ },[]);
+ useEffect(()=>{void loadReport(reportPeriod);},[reportPeriod,loadReport]);
  const currencies=useMemo(()=>Object.entries(summary?.byCurrency||{}),[summary]);
  const runAction=async(action:string,payload:Record<string,unknown>)=>{
    setBusy(true);setError(null);setMessage(null);
@@ -47,6 +57,21 @@ const AdminPaymentsPanel:React.FC<Props>=({onComplete=()=>undefined})=>{
  const currencyBlock=(currency:string,data:{paidAmount:number;pendingAmount:number;refundedAmount:number;failedAmount:number})=><div key={currency} className="rounded-xl border border-[var(--card-border-color)] p-4"><div className="text-sm text-gray-500">مبالغ {currencyLabel(currency)}</div><div className="mt-2 grid grid-cols-2 lg:grid-cols-4 gap-3"><div><div className="text-xs text-gray-500">پرداخت‌شده</div><b>{fmt(data.paidAmount)}</b></div><div><div className="text-xs text-gray-500">در انتظار</div><b>{fmt(data.pendingAmount)}</b></div><div><div className="text-xs text-gray-500">مستردشده</div><b>{fmt(data.refundedAmount)}</b></div><div><div className="text-xs text-gray-500">ناموفق</div><b>{fmt(data.failedAmount)}</b></div></div></div>;
  return <div className="space-y-5" dir="rtl">
    <div><h2 className="text-xl font-extrabold">پرداخت‌ها و تراکنش‌ها</h2><p className="mt-1 text-sm text-gray-500">داشبورد مالی، جست‌وجو، فیلتر و کنترل وضعیت تراکنش‌ها.</p></div>
+   <div className={card}>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div><h3 className="font-bold">گزارش پرداخت‌های موفق</h3><p className="mt-1 text-xs text-gray-500">تمام تاریخ‌ها بر اساس تقویم شمسی محاسبه می‌شوند.</p></div>
+      <div className="flex rounded-xl border border-[var(--card-border-color)] p-1">
+        {([['daily','روزانه'],['monthly','ماهانه'],['yearly','سالانه']] as const).map(([value,label])=><button key={value} onClick={()=>setReportPeriod(value)} className={`rounded-lg px-3 py-2 text-xs font-semibold ${reportPeriod===value?'bg-cyan-600 text-white':'text-gray-500'}`}>{label}</button>)}
+      </div>
+    </div>
+    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="rounded-xl border border-[var(--card-border-color)] p-4"><div className="text-xs text-gray-500">تعداد کل پرداخت‌های موفق</div><div className="mt-2 text-2xl font-extrabold">{fmt((report?.items||[]).reduce((s,r)=>s+r.paymentCount,0))}</div></div>
+      <div className="rounded-xl border border-[var(--card-border-color)] p-4"><div className="text-xs text-gray-500">مبلغ کل پرداخت‌های موفق</div><div className="mt-2 text-2xl font-extrabold">{fmt((report?.items||[]).reduce((s,r)=>s+r.totalAmount,0))} <span className="text-sm font-medium">ریال</span></div></div>
+    </div>
+    <div className="mt-4 overflow-auto">
+      {reportBusy?<div className="py-8 text-center text-gray-500">در حال دریافت گزارش...</div>:<table className="w-full min-w-[620px] text-sm"><thead><tr className="border-b"><th className="p-3 text-right">{reportPeriod==='daily'?'روز':reportPeriod==='monthly'?'ماه':'سال'}</th><th className="p-3 text-right">تعداد پرداخت موفق</th><th className="p-3 text-right">جمع مبلغ پرداخت موفق (ریال)</th></tr></thead><tbody>{report?.items.map((item)=><tr key={item.key} className="border-b hover:bg-gray-50 dark:hover:bg-gray-800/40"><td className="p-3 font-semibold">{item.label}</td><td className="p-3">{fmt(item.paymentCount)}</td><td className="p-3 font-semibold">{fmt(item.totalAmount)}</td></tr>)}</tbody></table>}
+    </div>
+   </div>
    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
     {[[`کل تراکنش‌ها`,summary?.total||0],['پرداخت‌شده',summary?.paidCount||0],['در انتظار',summary?.pendingCount||0],['مستردشده',summary?.refundedCount||0],['ناموفق',summary?.failedCount||0]].map(([t,v])=><div key={String(t)} className={card}><div className="text-xs text-gray-500">{t}</div><div className="mt-2 text-2xl font-extrabold">{fmt(Number(v))}</div></div>)}
    </div>
