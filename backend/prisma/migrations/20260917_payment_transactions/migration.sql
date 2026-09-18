@@ -1,5 +1,7 @@
 -- Payment transaction ledger for subscription purchases.
 -- This migration is intentionally idempotent for the production SQL Server database.
+-- SubscriptionPlan and Subscription are created by the following migration,
+-- so their foreign keys are added there after those tables exist.
 
 IF OBJECT_ID(N'dbo.PaymentTransaction', N'U') IS NULL
 BEGIN
@@ -22,9 +24,7 @@ BEGIN
         [paidAt] DATETIME2 NULL,
         [updatedAt] DATETIME2 NOT NULL CONSTRAINT [DF_PaymentTransaction_updatedAt] DEFAULT SYSDATETIME(),
         CONSTRAINT [PK_PaymentTransaction] PRIMARY KEY CLUSTERED ([id]),
-        CONSTRAINT [FK_PaymentTransaction_User] FOREIGN KEY ([userId]) REFERENCES [dbo].[User]([id]) ON DELETE CASCADE,
-        CONSTRAINT [FK_PaymentTransaction_SubscriptionPlan] FOREIGN KEY ([planId]) REFERENCES [dbo].[SubscriptionPlan]([id]) ON DELETE NO ACTION,
-        CONSTRAINT [FK_PaymentTransaction_Subscription] FOREIGN KEY ([subscriptionId]) REFERENCES [dbo].[Subscription]([id]) ON DELETE NO ACTION
+        CONSTRAINT [FK_PaymentTransaction_User] FOREIGN KEY ([userId]) REFERENCES [dbo].[User]([id]) ON DELETE CASCADE
     );
 END;
 
