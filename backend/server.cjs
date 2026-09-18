@@ -644,6 +644,7 @@ mountRoute('/api/v1/api-keys', './routes/apiKey.routes.cjs',           'API Keys
 
 mountRoute('/api/admin',       './routes/admin.routes.cjs',            'Admin Panel');
 mountRoute('/api/v1/admin',    './routes/admin.routes.cjs',            'Admin Panel v1 alias');
+mountRoute('/v1/admin',         './routes/admin.routes.cjs',            'Admin Panel proxy-stripped compatibility');
 mountRoute('/api/admin-actions', './routes/adminActions.routes.cjs', 'Admin Actions');
 mountRoute('/api/admin/faraz-sms', './routes/wordpress-farazsms.cjs', 'Faraz SMS WordPress Bridge');
 
