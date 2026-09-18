@@ -93,6 +93,26 @@ router.put(
   )
 );
 
+// Compatibility for legacy global UI settings paths such as
+// /settings/global/ui/welcome-banner-config.
+router.get(
+  '/global/:category/:key',
+  authMiddleware,
+  safeControllerHandler(
+    globalSettingsController && globalSettingsController.getGlobalSetting,
+    'globalSettingsController.getGlobalSetting'
+  )
+);
+
+router.put(
+  '/global/:category/:key',
+  authMiddleware,
+  safeControllerHandler(
+    globalSettingsController && globalSettingsController.upsertGlobalSetting,
+    'globalSettingsController.upsertGlobalSetting'
+  )
+);
+
 // ===============================
 // User Settings
 // ===============================
