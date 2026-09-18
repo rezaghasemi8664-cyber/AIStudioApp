@@ -129,7 +129,8 @@ async function getReports({ symbol = '', from = '', to = '', limit = 50 } = {}) 
   if (symbol) params.l18 = symbol; if (from) params.from = from; if (to) params.to = to;
   params.limit = Math.min(Math.max(Number(limit) || 50, 1), 200);
   const response = await axios.get(baseUrl, { params, timeout: Number(process.env.CODAL_TIMEOUT_MS) || 15000, headers: { Accept: 'application/json', 'User-Agent': process.env.CODAL_USER_AGENT || 'Roniya-Analyzer/1.0' } });
-  const items = extractItems(response.data).map(normalizeItem).filter(item => item.title || item.symbol || item.publishDate || item.url);
+  const maxItems = Math.min(Math.max(Number(limit) || 50, 1), 200);
+  const items = extractItems(response.data).map(normalizeItem).filter(item => item.title || item.symbol || item.publishDate || item.url).slice(0, maxItems);
   return { items, summary: buildSummary(items), fetchedAt: new Date().toISOString(), source: 'codal', configured: true };
 }
 module.exports = { getReports, normalizeNumber, classifyReport, extractFinancialMetrics, buildPeriodicTrend, buildSensitiveEvents };
