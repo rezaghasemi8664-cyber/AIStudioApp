@@ -175,6 +175,40 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
         });
     }, [sortedRows]);
 
+    const moneyFlowMetrics = useMemo(() => {
+        return sortedRows.map((row) => {
+            const net = Number(row.netMoneyFlow);
+            const real = Number(row.realMoneyFlow);
+            const legal = Number(row.legalMoneyFlow);
+            const tradedValue = Number(row.tradedValue);
+            const hasNet = Number.isFinite(net);
+            const hasReal = Number.isFinite(real);
+            const hasLegal = Number.isFinite(legal);
+            const hasTradedValue = Number.isFinite(tradedValue) && tradedValue > 0;
+            const netIntensity = hasNet && hasTradedValue ? (net / tradedValue) * 100 : null;
+            const realShare = hasReal && hasNet && Math.abs(net) > 0 ? (real / Math.abs(net)) * 100 : null;
+            const legalShare = hasLegal && hasNet && Math.abs(net) > 0 ? (legal / Math.abs(net)) * 100 : null;
+            const pressure = hasNet
+                ? net > 0 ? 'ورود پول' : net < 0 ? 'خروج پول' : 'خنثی'
+                : 'داده ناکافی';
+            const direction = hasNet
+                ? net > 0 ? 'مثبت' : net < 0 ? 'منفی' : 'خنثی'
+                : 'نامشخص';
+            return {
+                symbol: row.symbol,
+                net,
+                real,
+                legal,
+                netIntensity,
+                realShare,
+                legalShare,
+                pressure,
+                direction,
+                tradedValue: hasTradedValue ? tradedValue : null,
+            };
+        });
+    }, [sortedRows]);
+
     const historicalChartData = useMemo(() => {
         const dates = Array.from(new Set(sortedRows.flatMap(row => row.history.map(point => point.date)))).sort();
         return dates.map(date => {
