@@ -228,6 +228,18 @@ async function activatePaidSubscription(userId, planId, paymentId = null, now = 
       include: { plan: true },
     });
 
+    // Keep the legacy User subscription fields synchronized with the
+    // authoritative Subscription record so admin and profile views agree.
+    await tx.user.update({
+      where: { id: Number(userId) },
+      data: {
+        subscriptionStart: startsAt,
+        subscriptionEnd: expiresAt,
+        subscriptionMonths: plan.durationMonths,
+        subscriptionType: SUBSCRIPTION_TYPES.PAID,
+      },
+    });
+
     return { subscription, paymentId };
   });
 }
