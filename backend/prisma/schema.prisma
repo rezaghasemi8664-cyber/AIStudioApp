@@ -61,6 +61,7 @@ model User {
   smsQueues              SmsQueue[]
   smsLogs                SmsLog[]
   subscriptions         Subscription[]
+  userPermissions       UserPermission[]
 
   @@index([isActive])
   @@index([isDeleted])
@@ -476,6 +477,7 @@ model Permission {
   id    Int              @id @default(autoincrement())
   key   String           @unique
   roles RolePermission[]
+  userPermissions UserPermission[]
   @@schema("dbo")
 }
 
@@ -486,6 +488,17 @@ model RolePermission {
   permission   Permission @relation(fields: [permissionId], references: [id])
   role         Role       @relation(fields: [roleId], references: [id])
   @@unique([roleId, permissionId])
+  @@schema("dbo")
+}
+
+model UserPermission {
+  id           Int        @id @default(autoincrement())
+  userId       Int
+  permissionId Int
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([userId, permissionId])
+  @@index([userId])
   @@schema("dbo")
 }
 
