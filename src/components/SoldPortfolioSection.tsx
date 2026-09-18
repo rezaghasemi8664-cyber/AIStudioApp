@@ -128,6 +128,19 @@ export default function SoldPortfolioSection({ lots, isOnline, onChanged }: Prop
   };
 
   const realizedPercent = summary.costBasis > 0 ? (summary.realizedPnl / summary.costBasis) * 100 : 0;
+  const symbolPerformance = useMemo(() => {
+    const grouped = new Map<string, { costBasis: number; realizedPnl: number; trades: number }>();
+    trades.forEach(trade => {
+      const current = grouped.get(trade.symbol) || { costBasis: 0, realizedPnl: 0, trades: 0 };
+      current.costBasis += Number(trade.costBasis || 0);
+      current.realizedPnl += Number(trade.realizedPnl || 0);
+      current.trades += 1;
+      grouped.set(trade.symbol, current);
+    });
+    return Array.from(grouped.entries()).map(([symbol, item]) => ({
+      symbol, ...item, percent: item.costBasis > 0 ? (item.realizedPnl / item.costBasis) * 100 : 0
+    })).sort((a, b) => b.realizedPnl - a.realizedPnl);
+  }, [trades]);
 
   return <section className="mt-10 p-5 rounded-xl shadow-md bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700">
     <div className="mb-5">
@@ -135,9 +148,10 @@ export default function SoldPortfolioSection({ lots, isOnline, onChanged }: Prop
       <p className="text-sm text-gray-500 mt-1">هر فروش می‌تواند از چند Lot خرید با قیمت و تاریخ متفاوت تشکیل شود. تخصیص فروش به‌صورت دستی انجام می‌شود.</p>
     </div>
 
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
       <div className="p-3 rounded-lg bg-white dark:bg-gray-900/30"><p className="text-xs text-gray-500">تعداد معاملات بسته‌شده</p><strong>{formatNumber(summary.tradeCount)}</strong></div>
       <div className="p-3 rounded-lg bg-white dark:bg-gray-900/30"><p className="text-xs text-gray-500">مبلغ فروش</p><strong>{formatNumber(summary.proceeds)} ریال</strong></div>
+      <div className="p-3 rounded-lg bg-white dark:bg-gray-900/30"><p className="text-xs text-gray-500">بهای تمام‌شده فروش</p><strong>{formatNumber(summary.costBasis)} ریال</strong></div>
       <div className="p-3 rounded-lg bg-white dark:bg-gray-900/30"><p className="text-xs text-gray-500">سود/زیان تحقق‌یافته</p><strong className={summary.realizedPnl >= 0 ? 'text-green-600' : 'text-red-600'}>{formatNumber(summary.realizedPnl)} ریال</strong></div>
       <div className="p-3 rounded-lg bg-white dark:bg-gray-900/30"><p className="text-xs text-gray-500">بازده تحقق‌یافته</p><strong className={realizedPercent >= 0 ? 'text-green-600' : 'text-red-600'}>{realizedPercent.toFixed(2)}%</strong></div>
     </div>
@@ -168,6 +182,11 @@ export default function SoldPortfolioSection({ lots, isOnline, onChanged }: Prop
     </form>
 
     {error && <div className="mt-4 p-3 rounded bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300">{error}</div>}
+
+    {symbolPerformance.length > 0 && <div className="mt-8 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+      <h4 className="font-bold p-4">عملکرد معاملات بسته‌شده به تفکیک نماد</h4>
+      <table className="min-w-full text-sm"><thead><tr className="bg-gray-100 dark:bg-gray-700/50"><th className="p-3 text-right">نماد</th><th className="p-3 text-right">تعداد معاملات</th><th className="p-3 text-right">بهای تمام‌شده</th><th className="p-3 text-right">سود/زیان تحقق‌یافته</th><th className="p-3 text-right">بازده</th></tr></thead><tbody>{symbolPerformance.map(item => <tr key={item.symbol} className="border-t border-gray-200 dark:border-gray-700"><td className="p-3 font-bold text-cyan-600">{item.symbol}</td><td className="p-3">{formatNumber(item.trades)}</td><td className="p-3">{formatNumber(item.costBasis)} ریال</td><td className={`p-3 font-bold ${item.realizedPnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatNumber(item.realizedPnl)} ریال</td><td className={`p-3 font-bold ${item.percent >= 0 ? 'text-green-600' : 'text-red-600'}`}>{item.percent.toFixed(2)}%</td></tr>)}</tbody></table>
+    </div>}
 
     <div className="mt-8 space-y-3">
       <h4 className="font-bold">تاریخچه فروش‌ها</h4>
