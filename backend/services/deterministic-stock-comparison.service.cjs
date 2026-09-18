@@ -21,6 +21,26 @@ function buildComparable(result) {
   const market = result.marketData || {};
   const daily = result.dailySummary || {};
   const scores = result.scores || {};
+  const quality = result.dataQuality || {};
+  const history = buildHistory(result);
+  const qualityFields = [
+    ['قیمت پایانی', result.closingPrice],
+    ['قیمت فعلی', result.currentPrice],
+    ['تغییر روزانه', daily.priceChangePercent ?? market.priceChangePercent],
+    ['حجم معاملات', market.tradedVolume],
+    ['ارزش معاملات', market.tradedValue],
+    ['جریان پول خالص', market.netMoneyFlow ?? market.moneyFlow?.net],
+    ['EPS', market.eps],
+    ['P/E', market.pe],
+    ['ارزش بازار', market.marketCap],
+  ];
+  const availableFields = qualityFields.filter(([, value]) => num(value) !== null).length;
+  const fieldCoverage = qualityFields.length ? availableFields / qualityFields.length : 0;
+  const historyCoverage = num(quality.coverageRatio) !== null
+    ? Math.max(0, Math.min(1, Number(quality.coverageRatio)))
+    : (history.length ? Math.min(1, history.length / 120) : 0);
+  const qualityScore = Math.round(((fieldCoverage * 0.45) + (historyCoverage * 0.55)) * 100);
+  const qualityLevel = qualityScore >= 90 ? 'عالی' : qualityScore >= 75 ? 'خوب' : qualityScore >= 60 ? 'متوسط' : 'ضعیف';
   return {
     symbol: result.symbol,
     currentPrice: num(result.currentPrice),
@@ -42,7 +62,17 @@ function buildComparable(result) {
     legalMoneyFlow: num(market.legalMoneyFlow),
     dataQuality: result.dataQuality || null,
     fetchedAt: result.fetchedAt || null,
-    history: buildHistory(result),
+    history,
+    comparisonQuality: {
+      score: qualityScore,
+      level: qualityLevel,
+      fieldCoverage: Math.round(fieldCoverage * 100),
+      historyCoverage: Math.round(historyCoverage * 100),
+      availableFields,
+      totalFields: qualityFields.length,
+      historyPoints: history.length,
+      deterministicReady: quality.deterministicReady !== false,
+    },
   };
 }
 
@@ -72,6 +102,13 @@ async function compareStocksDeterministic(params = {}) {
   const failed = results.filter(item => item.error).map(item => ({ symbol: item.symbol, ...item.error }));
   if (rows.length < 2) throw Object.assign(new Error('برای حداقل دو نماد، داده معتبر مقایسه‌ای در دسترس نیست.'), { statusCode: 422, code: 'COMPARE_INSUFFICIENT_DATA', failed });
 
+  const qualityValues = rows.map(row => row.comparisonQuality?.score).filter(value => Number.isFinite(Number(value)));
+  const averageQualityScore = qualityValues.length
+    ? Math.round(qualityValues.reduce((sum, value) => sum + Number(value), 0) / qualityValues.length)
+    : null;
+  const consistency = qualityValues.length >= 2
+    ? Math.round((Math.min(...qualityValues) / Math.max(...qualityValues || [1])) * 100)
+    : null;
   const metrics = {
     highestTechnicalScore: compareMetric(rows, 'technicalScore', 'desc'),
     highestFundamentalScore: compareMetric(rows, 'fundamentalScore', 'desc'),
@@ -79,6 +116,8 @@ async function compareStocksDeterministic(params = {}) {
     strongestMoneyFlow: compareMetric(rows, 'netMoneyFlow', 'desc'),
     lowestPE: compareMetric(rows, 'pe', 'asc'),
     highestMarketCap: compareMetric(rows, 'marketCap', 'desc'),
+    averageDataQuality: averageQualityScore,
+    comparisonConsistency: consistency,
   };
 
   const validTechnical = rows.filter(row => row.technicalScore !== null);
@@ -95,7 +134,7 @@ async function compareStocksDeterministic(params = {}) {
   return {
     success: true,
     deterministic: true,
-    engine: { name: 'deterministic-stock-comparison', version: '1.1.0', deterministic: true },
+    engine: { name: 'deterministic-stock-comparison', version: '1.2.0', deterministic: true },
     symbols,
     rows,
     ranking,
