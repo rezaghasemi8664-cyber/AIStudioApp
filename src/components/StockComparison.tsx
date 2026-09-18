@@ -77,31 +77,76 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                             ['کمترین P/E', deterministicResult.metrics.lowestPE || '—']
                         ].map(([label, value]) => <div key={String(label)} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3"><div className="text-xs text-slate-500">{label}</div><div className="font-bold mt-1">{value}</div></div>)}
                     </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm"><thead><tr className="bg-slate-100 dark:bg-slate-700/80">
-                            {['رتبه','نماد','قیمت فعلی','قیمت پایانی','تغییر روزانه','EPS','P/E','ارزش بازار','حجم معاملات','ارزش معاملات','امتیاز تکنیکال','امتیاز بنیادی','جریان پول','جریان پول حقیقی','جریان پول حقوقی','ریسک','روند'].map(h => <th key={h} className="px-3 py-3 whitespace-nowrap text-center">{h}</th>)}
-                        </tr></thead><tbody>
-                            {deterministicResult.rows.map((row, index) => <tr key={row.symbol} className="border-t border-slate-100 dark:border-slate-700">
-                                <td className="px-3 py-3 text-center font-bold">{deterministicResult.ranking.find(item => item.symbol === row.symbol)?.rank ?? index + 1}</td>
-                                <td className="px-3 py-3 text-center font-bold text-cyan-700 dark:text-cyan-300">{row.symbol}</td>
-                                <td className="px-3 py-3 text-center">{formatNumber(row.currentPrice, 0)}</td>
-                                <td className="px-3 py-3 text-center">{formatNumber(row.closingPrice, 0)}</td>
-                                <td className="px-3 py-3 text-center">{row.priceChangePercent == null ? '—' : `${formatNumber(row.priceChangePercent, 2)}٪`}</td>
-                                <td className="px-3 py-3 text-center">{formatNumber(row.eps, 2)}</td>
-                                <td className="px-3 py-3 text-center">{formatNumber(row.pe, 2)}</td>
-                                <td className="px-3 py-3 text-center">{formatNumber(row.marketCap, 0)}</td>
-                                <td className="px-3 py-3 text-center">{formatNumber(row.tradedVolume, 0)}</td>
-                                <td className="px-3 py-3 text-center">{formatNumber(row.tradedValue, 0)}</td>
-                                <td className="px-3 py-3 text-center">{formatNumber(row.technicalScore, 0)}</td>
-                                <td className="px-3 py-3 text-center">{formatNumber(row.fundamentalScore, 0)}</td>
-                                <td className="px-3 py-3 text-center">{formatNumber(row.netMoneyFlow, 0)}</td>
-                                <td className="px-3 py-3 text-center">{formatNumber(row.realMoneyFlow, 0)}</td>
-                                <td className="px-3 py-3 text-center">{formatNumber(row.legalMoneyFlow, 0)}</td>
-                                <td className="px-3 py-3 text-center">{row.riskLevel || '—'}</td>
-                                <td className="px-3 py-3 text-center">{row.trend || '—'}</td>
-                            </tr>)}
-                        </tbody></table>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 px-5 pb-5">
+                        {deterministicResult.rows.map((row) => (
+                            <div key={row.symbol} className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50/70 dark:bg-slate-900/30">
+                                <div className="flex items-center justify-between gap-3 mb-4">
+                                    <div>
+                                        <div className="text-xs text-slate-500">نماد</div>
+                                        <div className="text-xl font-black text-cyan-700 dark:text-cyan-300">{row.symbol}</div>
+                                    </div>
+                                    <div className="text-left">
+                                        <div className="text-xs text-slate-500">امتیاز کل</div>
+                                        <div className="text-2xl font-black">{formatNumber(row.totalScore, 0)}</div>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                    {[
+                                        ['تکنیکال', formatNumber(row.technicalScore, 0)],
+                                        ['بنیادی', formatNumber(row.fundamentalScore, 0)],
+                                        ['P/E', formatNumber(row.pe, 2)],
+                                        ['جریان پول', formatNumber(row.netMoneyFlow, 0)],
+                                        ['ریسک', row.riskLevel || '—'],
+                                        ['روند', row.trend || '—'],
+                                    ].map(([label, value]) => (
+                                        <div key={String(label)} className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2">
+                                            <div className="text-xs text-slate-500">{label}</div>
+                                            <div className="font-bold mt-1">{value}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="mt-3 text-xs text-slate-500">
+                                    تغییر روزانه: <span className="font-semibold text-slate-700 dark:text-slate-200">{row.priceChangePercent == null ? '—' : String(formatNumber(row.priceChangePercent, 2)) + '٪'}</span>
+                                </div>
+                            </div>
+                        ))}
                     </div>
+                    <div className="px-5 pb-5">
+                        <div className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3">مقایسه کامل داده‌ها</div>
+                        <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                            <table className="w-full text-sm"><thead><tr className="bg-slate-100 dark:bg-slate-700/80">
+                                {['رتبه','نماد','قیمت فعلی','قیمت پایانی','تغییر روزانه','EPS','P/E','ارزش بازار','حجم معاملات','ارزش معاملات','امتیاز تکنیکال','امتیاز بنیادی','جریان پول','جریان پول حقیقی','جریان پول حقوقی','ریسک','روند'].map(h => <th key={h} className="px-3 py-3 whitespace-nowrap text-center">{h}</th>)}
+                            </tr></thead><tbody>
+                                {deterministicResult.rows.map((row, index) => <tr key={row.symbol} className="border-t border-slate-100 dark:border-slate-700">
+                                    <td className="px-3 py-3 text-center font-bold">{deterministicResult.ranking.find(item => item.symbol === row.symbol)?.rank ?? index + 1}</td>
+                                    <td className="px-3 py-3 text-center font-bold text-cyan-700 dark:text-cyan-300">{row.symbol}</td>
+                                    <td className="px-3 py-3 text-center">{formatNumber(row.currentPrice, 0)}</td>
+                                    <td className="px-3 py-3 text-center">{formatNumber(row.closingPrice, 0)}</td>
+                                    <td className="px-3 py-3 text-center">{row.priceChangePercent == null ? '—' : String(formatNumber(row.priceChangePercent, 2)) + '٪'}</td>
+                                    <td className="px-3 py-3 text-center">{formatNumber(row.eps, 2)}</td>
+                                    <td className="px-3 py-3 text-center">{formatNumber(row.pe, 2)}</td>
+                                    <td className="px-3 py-3 text-center">{formatNumber(row.marketCap, 0)}</td>
+                                    <td className="px-3 py-3 text-center">{formatNumber(row.tradedVolume, 0)}</td>
+                                    <td className="px-3 py-3 text-center">{formatNumber(row.tradedValue, 0)}</td>
+                                    <td className="px-3 py-3 text-center">{formatNumber(row.technicalScore, 0)}</td>
+                                    <td className="px-3 py-3 text-center">{formatNumber(row.fundamentalScore, 0)}</td>
+                                    <td className="px-3 py-3 text-center">{formatNumber(row.netMoneyFlow, 0)}</td>
+                                    <td className="px-3 py-3 text-center">{formatNumber(row.realMoneyFlow, 0)}</td>
+                                    <td className="px-3 py-3 text-center">{formatNumber(row.legalMoneyFlow, 0)}</td>
+                                    <td className="px-3 py-3 text-center">{row.riskLevel || '—'}</td>
+                                    <td className="px-3 py-3 text-center">{row.trend || '—'}</td>
+                                </tr>)}
+                            </tbody></table>
+                        </div>
+                    </div>
+                    {deterministicResult.failed.length > 0 && (
+                        <div className="mx-5 mb-5 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4">
+                            <div className="font-bold text-amber-800 dark:text-amber-300 mb-2">نمادهای بدون داده معتبر</div>
+                            <div className="space-y-1 text-sm text-amber-700 dark:text-amber-200">
+                                {deterministicResult.failed.map((item) => <div key={String(item.symbol)}>{String(item.symbol)}: {String(item.message || 'داده معتبر در دسترس نیست.')}</div>)}
+                            </div>
+                        </div>
+                    )}                    </div>
                 </div>
             )}
         </div>
