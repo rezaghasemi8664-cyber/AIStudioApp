@@ -528,31 +528,54 @@ const App: React.FC = () => {
 
     const restoreSessionUserQuickly = async () => {
       const storedUser = getCurrentSessionUser();
+      const paymentParams = new URLSearchParams(window.location.search);
+      const paymentStatus = paymentParams.get('payment');
+      const isPaymentReturn = ['success', 'failed', 'cancelled', 'pending'].includes(paymentStatus || '');
 
       // Payment gateways perform a full-page redirect back to the application.
-      // Prefer the persisted token and refresh the user from the server so the
-      // session and subscription data are current after returning from payment.
+      // Restore the persisted session immediately so a successful payment return
+      // never falls through to the login/introduction screen while the API refreshes.
+      if (storedUser) {
+        setUserState(storedUser);
+        if (isPaymentReturn) setActiveTab('dashboard');
+      }
+
+      // Refresh the session from the server in the background. The persisted
+      // session remains the fallback if the refresh is temporarily unavailable.
       try {
         const token = typeof authService.getToken === 'function' ? authService.getToken() : null;
         if (token && typeof authService.getMe === 'function') {
           const result = await authService.getMe();
           if (result?.success && result.data) {
             setUserState(result.data);
-            return;
           }
         }
       } catch (error) {
-        console.warn('[App] session restoration from token failed:', error);
+        console.warn('[App] session restoration from token failed; persisted session retained:', error);
       }
 
-      // If the API is temporarily unavailable, keep the locally persisted
-      // session instead of sending the user to the login/introduction screen.
-      if (storedUser) {
-        setUserState(storedUser);
-        return;
+      if (!storedUser && !authService.getToken?.()) {
+        setUserState(null);
       }
 
-      setUserState(null);
+      // The payment callback only needs to be consumed once. Never leave
+      // payment parameters in the application URL after returning from the gateway.
+      if (isPaymentReturn) {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('payment');
+        cleanUrl.searchParams.delete('refId');
+        window.history.replaceState({}, document.title, cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+
+        if (paymentStatus === 'success') {
+          addNotification('پرداخت با موفقیت انجام شد و اشتراک شما فعال شد.', 'success');
+        } else if (paymentStatus === 'cancelled') {
+          addNotification('پرداخت لغو شد.', 'info');
+        } else if (paymentStatus === 'failed') {
+          addNotification('پرداخت ناموفق بود. لطفاً وضعیت تراکنش را بررسی کنید.', 'error');
+        } else if (paymentStatus === 'pending') {
+          addNotification('وضعیت پرداخت در انتظار تأیید است.', 'info');
+        }
+      }
     };
 
     const initializeNonBlockingServices = async () => {
@@ -593,9 +616,11 @@ const App: React.FC = () => {
         if (!mounted) return;
         if (typeof themeService.initializeTheme === 'function') await themeService.initializeTheme();
         if (!mounted) return;
-        await loadTseLinks();
-        if (!mounted) return;
+        // Restore authentication before loading any authenticated settings.
+        // This is especially important after a payment-gateway full-page redirect.
         await restoreSessionUserQuickly();
+        if (!mounted) return;
+        await loadTseLinks();
 
         if (typeof storageService.getItem === 'function' && storageService.getItem('ronia_new_scalping_alert') === 'true') {
           setScalpingAlert(true);
