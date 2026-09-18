@@ -11,6 +11,11 @@ interface StockComparisonProps {
     isOnline: boolean;
 }
 
+const formatNumber = (value: number | null | undefined, digits = 2): string => {
+    if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+    return Number(value).toLocaleString('fa-IR', { maximumFractionDigits: digits });
+};
+
 const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline }) => {
     const [symbol1, setSymbol1] = useState('');
     const [symbol2, setSymbol2] = useState('');
