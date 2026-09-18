@@ -288,14 +288,13 @@ const UserManagement: React.FC<UserManagementProps> = ({
 
     try {
       await adminService.createUser({
-        username: username.trim(),
+        username: email.trim(),
         password: password.trim(),
         email: emptyToNull(email),
         firstName: emptyToNull(firstName),
         lastName: emptyToNull(lastName),
         name: [firstName.trim(), lastName.trim()].filter(Boolean).join(' ') || null,
         mobile: emptyToNull(mobile),
-        nationalId: emptyToNull(nationalId),
         bio: emptyToNull(bio),
         roleId: selectedRole === 'ADMIN' ? ROLE_ADMIN_ID : ROLE_USER_ID,
         isActive: true,
