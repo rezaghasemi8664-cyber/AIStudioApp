@@ -86,3 +86,29 @@ BEGIN
         ON [dbo].[Subscription] ([userId], [createdAt]);
 END;
 GO
+
+IF OBJECT_ID(N'dbo.PaymentTransaction', N'U') IS NOT NULL
+   AND NOT EXISTS (
+       SELECT 1 FROM sys.foreign_keys
+       WHERE name = N'FK_PaymentTransaction_SubscriptionPlan'
+         AND parent_object_id = OBJECT_ID(N'dbo.PaymentTransaction')
+   )
+BEGIN
+    ALTER TABLE [dbo].[PaymentTransaction]
+        ADD CONSTRAINT [FK_PaymentTransaction_SubscriptionPlan]
+        FOREIGN KEY ([planId]) REFERENCES [dbo].[SubscriptionPlan]([id]) ON DELETE NO ACTION;
+END;
+GO
+
+IF OBJECT_ID(N'dbo.PaymentTransaction', N'U') IS NOT NULL
+   AND NOT EXISTS (
+       SELECT 1 FROM sys.foreign_keys
+       WHERE name = N'FK_PaymentTransaction_Subscription'
+         AND parent_object_id = OBJECT_ID(N'dbo.PaymentTransaction')
+   )
+BEGIN
+    ALTER TABLE [dbo].[PaymentTransaction]
+        ADD CONSTRAINT [FK_PaymentTransaction_Subscription]
+        FOREIGN KEY ([subscriptionId]) REFERENCES [dbo].[Subscription]([id]) ON DELETE NO ACTION;
+END;
+GO
