@@ -6,6 +6,7 @@
  */
 
 const BRS_API_KEY = process.env.BRS_API_KEY || "";
+const BRS_CODAL_API_KEY = process.env.BRS_CODAL_API_KEY || process.env.CODAL_API_KEY || "";
 
 function withQuery(baseUrl, query) {
   const url = new URL(baseUrl);
@@ -36,6 +37,9 @@ const BRS_INDEX_URL =
  */
 const BRS_CANDLESTICK_URL =
   process.env.BRS_CANDLESTICK_URL || "https://Api.BrsApi.ir/Tsetmc/Candlestick.php";
+
+const BRS_CODAL_URL =
+  process.env.BRS_CODAL_URL || process.env.CODAL_API_URL || "https://Api.BrsApi.ir/Codal/Announcement.php";
 
 module.exports = {
   BRS_SYMBOL: {
@@ -124,6 +128,18 @@ module.exports = {
     method: "GET",
     enabled: true,
     parameterName: "l18",
+  },
+
+  BRS_CODAL: {
+    key: "brs_codal",
+    provider: "brs",
+    title: "BRS Codal Announcements",
+    url: withQuery(BRS_CODAL_URL, {
+      key: BRS_CODAL_API_KEY,
+    }),
+    requiresSymbol: false,
+    method: "GET",
+    enabled: true,
   },
 
   MARKET_DAILY: {
