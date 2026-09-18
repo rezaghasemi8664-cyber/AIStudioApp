@@ -53,7 +53,7 @@ const MarketRadar: React.FC = () => {
   const positiveWidth = directionalPressure === null ? 50 : 50 + directionalPressure / 2;
   const negativeWidth = 100 - positiveWidth;
 
-  return <section dir="rtl" className="page-market-radar space-y-5">
+  return <section dir="rtl" className="space-y-5">
     <header className="flex flex-col gap-3 rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 sm:flex-row sm:items-center sm:justify-between">
       <div><div className="flex flex-wrap items-center gap-3"><h1 className="text-xl font-black text-[var(--color-text-primary)]">رادار بازار</h1><span className={`rounded-full px-3 py-1 text-xs font-bold ${data.marketOpen ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-500/10 text-slate-400'}`}>{data.marketOpen ? 'بازار باز' : 'بازار بسته'}</span><span className={`rounded-full px-3 py-1 text-xs font-bold ${stale ? 'bg-amber-500/10 text-amber-300' : 'bg-sky-500/10 text-sky-300'}`}>{stale ? 'داده ذخیره‌شده' : 'به‌روز'}</span></div><p className="mt-1 text-xs text-slate-500">آخرین دریافت: {lastUpdated} · داده‌های واقعی و محاسبات قطعی؛ بدون وابستگی به هوش مصنوعی</p></div>
       <button onClick={() => void load(true)} disabled={refreshing} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-bold text-slate-200 transition hover:bg-white/[0.08] disabled:opacity-50">{refreshing ? 'در حال بروزرسانی…' : 'بروزرسانی'}</button>
