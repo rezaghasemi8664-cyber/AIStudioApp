@@ -1,19 +1,31 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { StoredUser } from '../types';
 import * as analysisUsageService from '../services/analysisUsageService';
 import * as storageService from '../services/storageService';
 import { useNotification } from './NotificationSystem';
 import { ClipboardDocumentIcon } from './Icons';
-import { compareDeterministicStocks, type DeterministicComparisonResult } from '../services/stockComparisonDataService';
+import { compareDeterministicStocks, type DeterministicComparisonResult, type DeterministicComparisonRow } from '../services/stockComparisonDataService';
 
-interface StockComparisonProps {
-    currentUser: StoredUser;
-    isOnline: boolean;
-}
+interface StockComparisonProps { currentUser: StoredUser; isOnline: boolean; }
 
 const formatNumber = (value: number | null | undefined, digits = 2): string => {
     if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
     return Number(value).toLocaleString('fa-IR', { maximumFractionDigits: digits });
+};
+
+type SortKey = 'totalScore' | 'technicalScore' | 'fundamentalScore' | 'priceChangePercent' | 'netMoneyFlow' | 'pe';
+const sortOptions: Array<{ value: SortKey; label: string }> = [
+    { value: 'totalScore', label: 'امتیاز کل' },
+    { value: 'technicalScore', label: 'امتیاز تکنیکال' },
+    { value: 'fundamentalScore', label: 'امتیاز بنیادی' },
+    { value: 'priceChangePercent', label: 'تغییر روزانه' },
+    { value: 'netMoneyFlow', label: 'جریان پول' },
+    { value: 'pe', label: 'P/E' },
+];
+
+const sortableValue = (row: DeterministicComparisonRow, key: SortKey): number => {
+    const value = row[key];
+    return value == null || !Number.isFinite(Number(value)) ? Number.NEGATIVE_INFINITY : Number(value);
 };
 
 const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline }) => {
@@ -21,6 +33,8 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
     const [symbol2, setSymbol2] = useState('');
     const [extraSymbols, setExtraSymbols] = useState<string[]>([]);
     const [deterministicResult, setDeterministicResult] = useState<DeterministicComparisonResult | null>(null);
+    const [sortKey, setSortKey] = useState<SortKey>('totalScore');
+    const [sortDescending, setSortDescending] = useState(true);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { addNotification } = useNotification();
@@ -41,6 +55,21 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
             setError(message); addNotification(message, 'error');
         } finally { setLoading(false); }
     };
+
+    const sortedRows = useMemo(() => {
+        if (!deterministicResult) return [];
+        return [...deterministicResult.rows].sort((a, b) => {
+            const diff = sortableValue(a, sortKey) - sortableValue(b, sortKey);
+            if (diff !== 0) return sortDescending ? -diff : diff;
+            return a.symbol.localeCompare(b.symbol, 'fa');
+        });
+    }, [deterministicResult, sortKey, sortDescending]);
+
+    const rankBySymbol = useMemo(() => {
+        const map = new Map<string, number>();
+        sortedRows.forEach((row, index) => map.set(row.symbol, index + 1));
+        return map;
+    }, [sortedRows]);
 
     return (
         <div className="max-w-6xl mx-auto" dir="rtl" style={{ direction: 'rtl' }}>
@@ -69,6 +98,7 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                         <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">مقایسه حرفه‌ای چندنمادی</h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">موتور قطعی مقایسه؛ بدون وابستگی به Gemini</p>
                     </div>
+
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-5">
                         {[
                             ['تعداد نمادها', deterministicResult.rows.length],
@@ -77,12 +107,30 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                             ['کمترین P/E', deterministicResult.metrics.lowestPE || '—']
                         ].map(([label, value]) => <div key={String(label)} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3"><div className="text-xs text-slate-500">{label}</div><div className="font-bold mt-1">{value}</div></div>)}
                     </div>
+
+                    <div className="mx-5 mb-5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/30 p-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                                <div className="font-bold text-slate-800 dark:text-slate-100">مرتب‌سازی و رتبه‌بندی</div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">رتبه کارت‌ها و جدول بر اساس شاخص انتخابی محاسبه می‌شود؛ کاملاً قطعی و بدون AI.</div>
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className="rounded-lg border px-3 py-2 bg-white dark:bg-gray-800 border-slate-300 dark:border-slate-600">
+                                    {sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                                <button type="button" onClick={() => setSortDescending(value => !value)} className="rounded-lg border border-cyan-500 px-4 py-2 text-cyan-700 dark:text-cyan-300 font-bold">
+                                    {sortDescending ? 'نزولی ↓' : 'صعودی ↑'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 px-5 pb-5">
-                        {deterministicResult.rows.map((row) => (
+                        {sortedRows.map((row) => (
                             <div key={row.symbol} className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50/70 dark:bg-slate-900/30">
                                 <div className="flex items-center justify-between gap-3 mb-4">
                                     <div>
-                                        <div className="text-xs text-slate-500">نماد</div>
+                                        <div className="text-xs text-slate-500">رتبه {rankBySymbol.get(row.symbol) ?? '—'}</div>
                                         <div className="text-xl font-black text-cyan-700 dark:text-cyan-300">{row.symbol}</div>
                                     </div>
                                     <div className="text-left">
@@ -100,27 +148,21 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                                         ['توصیه', row.recommendation || '—'],
                                         ['کیفیت داده', typeof row.dataQuality === 'object' ? (row.dataQuality?.score ?? row.dataQuality?.quality ?? '—') : (row.dataQuality || '—')],
                                         ['روند', row.trend || '—'],
-                                    ].map(([label, value]) => (
-                                        <div key={String(label)} className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2">
-                                            <div className="text-xs text-slate-500">{label}</div>
-                                            <div className="font-bold mt-1">{value}</div>
-                                        </div>
-                                    ))}
+                                    ].map(([label, value]) => <div key={String(label)} className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2"><div className="text-xs text-slate-500">{label}</div><div className="font-bold mt-1">{value}</div></div>)}
                                 </div>
-                                <div className="mt-3 text-xs text-slate-500">
-                                    تغییر روزانه: <span className="font-semibold text-slate-700 dark:text-slate-200">{row.priceChangePercent == null ? '—' : String(formatNumber(row.priceChangePercent, 2)) + '٪'}</span>
-                                </div>
+                                <div className="mt-3 text-xs text-slate-500">تغییر روزانه: <span className="font-semibold text-slate-700 dark:text-slate-200">{row.priceChangePercent == null ? '—' : String(formatNumber(row.priceChangePercent, 2)) + '٪'}</span></div>
                             </div>
                         ))}
                     </div>
+
                     <div className="px-5 pb-5">
                         <div className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3">مقایسه کامل داده‌ها</div>
                         <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
                             <table className="w-full text-sm"><thead><tr className="bg-slate-100 dark:bg-slate-700/80">
                                 {['رتبه','نماد','قیمت فعلی','قیمت پایانی','تغییر روزانه','EPS','P/E','ارزش بازار','حجم معاملات','ارزش معاملات','امتیاز تکنیکال','امتیاز بنیادی','جریان پول','جریان پول حقیقی','جریان پول حقوقی','ریسک','روند'].map(h => <th key={h} className="px-3 py-3 whitespace-nowrap text-center">{h}</th>)}
                             </tr></thead><tbody>
-                                {deterministicResult.rows.map((row, index) => <tr key={row.symbol} className="border-t border-slate-100 dark:border-slate-700">
-                                    <td className="px-3 py-3 text-center font-bold">{deterministicResult.ranking.find(item => item.symbol === row.symbol)?.rank ?? index + 1}</td>
+                                {sortedRows.map((row) => <tr key={row.symbol} className="border-t border-slate-100 dark:border-slate-700">
+                                    <td className="px-3 py-3 text-center font-bold">{rankBySymbol.get(row.symbol) ?? '—'}</td>
                                     <td className="px-3 py-3 text-center font-bold text-cyan-700 dark:text-cyan-300">{row.symbol}</td>
                                     <td className="px-3 py-3 text-center">{formatNumber(row.currentPrice, 0)}</td>
                                     <td className="px-3 py-3 text-center">{formatNumber(row.closingPrice, 0)}</td>
@@ -141,6 +183,7 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                             </tbody></table>
                         </div>
                     </div>
+
                     {deterministicResult.failed.length > 0 && (
                         <div className="mx-5 mb-5 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4">
                             <div className="font-bold text-amber-800 dark:text-amber-300 mb-2">نمادهای بدون داده معتبر</div>
