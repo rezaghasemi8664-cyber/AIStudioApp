@@ -25,4 +25,23 @@ router.get('/reports', authenticate, async (req, res) => {
   }
 });
 
+router.get('/recent', authenticate, async (req, res) => {
+  try {
+    const result = await getReports({
+      symbol: '',
+      from: '',
+      to: '',
+      limit: req.query.limit || 8,
+    });
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    const status = error?.code === 'CODAL_NOT_CONFIGURED' ? 503 : 502;
+    return res.status(status).json({
+      success: false,
+      code: error?.code || 'CODAL_FETCH_FAILED',
+      message: error?.message || 'دریافت اطلاعیه‌های اخیر کدال ناموفق بود.',
+    });
+  }
+});
+
 module.exports = router;
