@@ -11,6 +11,19 @@ function isAdminUser(req) {
     String(req.user?.role || '').toLowerCase() === 'admin';
 }
 
+
+function legacySubscriptionFromUser(user, now = new Date()) {
+  if (!user?.subscriptionStart && !user?.subscriptionEnd) return null;
+  const start = user.subscriptionStart ? new Date(user.subscriptionStart) : null;
+  const end = user.subscriptionEnd ? new Date(user.subscriptionEnd) : null;
+  if (start && Number.isNaN(start.getTime())) return null;
+  if (end && Number.isNaN(end.getTime())) return null;
+  const remainingDays = end ? Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86400000)) : 0;
+  const isActive = Boolean(end && end.getTime() > now.getTime() && (!start || start.getTime() <= now.getTime()));
+  const durationDays = start && end ? Math.max(0, Math.ceil((end.getTime() - start.getTime()) / 86400000)) : 0;
+  return { subscriptionStart: start?.toISOString() || null, subscriptionEnd: end?.toISOString() || null, subscriptionMonths: Number(user.subscriptionMonths || 0), subscriptionDays: durationDays, remainingDays, isActive };
+}
+
 function errorResponse(res, error) {
   const status = Number(error?.statusCode) || 400;
   return res.status(status).json({ success: false, message: error?.message || 'خطا در پردازش اشتراک' });
@@ -23,6 +36,9 @@ async function me(req, res) {
 
     const admin = isAdminUser(req);
     const state = await subscriptionService.getSubscriptionState(id);
+    let subscription = state.subscription;
+    let legacy = null;
+    if (!subscription) legacy = legacySubscriptionFromUser(await subscriptionService.getUserProfileSubscriptionFields(id));
 
     // Administrators have permanent application access and must not be
     // presented as having an inactive paid subscription in their profile.
@@ -35,7 +51,7 @@ async function me(req, res) {
           trialUsed: state.trialUsed,
           daysRemaining: state.daysRemaining,
           accessDeniedMessage: null,
-          subscription: state.subscription,
+          subscription: subscription || legacy ? { startsAt: legacy.subscriptionStart, expiresAt: legacy.subscriptionEnd, plan: legacy.subscriptionMonths > 0 ? { durationMonths: legacy.subscriptionMonths } : null } : null,
         },
       });
     }
