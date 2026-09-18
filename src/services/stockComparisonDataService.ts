@@ -23,6 +23,16 @@ export interface DeterministicComparisonRow {
   recommendation: string; riskLevel: string; pe: number | null; eps: number | null; marketCap: number | null;
   tradedVolume: number | null; tradedValue: number | null; netMoneyFlow: number | null; realMoneyFlow: number | null;
   legalMoneyFlow: number | null; dataQuality: any; fetchedAt: string | null;
+  comparisonQuality?: {
+    score: number;
+    level: string;
+    fieldCoverage: number;
+    historyCoverage: number;
+    availableFields: number;
+    totalFields: number;
+    historyPoints: number;
+    deterministicReady: boolean;
+  };
   history: DeterministicComparisonHistoryPoint[];
 }
 export interface DeterministicComparisonResult {
