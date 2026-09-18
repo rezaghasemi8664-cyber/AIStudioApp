@@ -18,6 +18,41 @@ router.get('/summary', marketSummaryController.getLatestMarketSummary);
 router.get('/history/radar', marketRadarHistoryController.getHistory);
 
 // عرض بازار - محاسبه قطعی و بدون هوش مصنوعی
+
+// Dashboard movers compatibility endpoint.
+// Uses the same deterministic breadth dataset; no AI and no synthetic data.
+router.get('/movers', async function getMarketMovers(_req, res, next) {
+  try {
+    const data = await marketBreadth.getMarketBreadth();
+    return res.json({
+      success: true,
+      data: {
+        items: [...(data.topGainers || []), ...(data.topLosers || []), ...(data.topVolumes || [])],
+        gainers: data.topGainers || [],
+        losers: data.topLosers || [],
+        highVolume: data.topVolumes || []
+      }
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Dashboard industries compatibility endpoint.
+router.get('/industries', async function getMarketIndustries(_req, res, next) {
+  try {
+    const data = await marketBreadth.getMarketBreadth();
+    const sectors = data.sectors || {};
+    const rows = sectors.rows || [];
+    return res.json({
+      success: true,
+      data: rows.length ? rows : [...(sectors.leaders || []), ...(sectors.laggards || [])]
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 router.get('/breadth', async function getMarketBreadth(_req, res, next) {
   try {
     const data = await marketBreadth.getMarketBreadth();
