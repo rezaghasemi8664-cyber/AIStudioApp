@@ -24,11 +24,11 @@ function isSandbox() {
 }
 
 function apiBaseUrl() {
-  return isSandbox() ? 'https://sandbox.zarinpal.com/pg/v4/payment' : 'https://api.zarinpal.com/pg/v4/payment';
+  return isSandbox() ? 'https://sandbox.zarinpal.com/pg/v4/payment' : 'https://payment.zarinpal.com/pg/v4/payment';
 }
 
 function gatewayBaseUrl() {
-  return isSandbox() ? 'https://sandbox.zarinpal.com/pg/StartPay/' : 'https://www.zarinpal.com/pg/StartPay/';
+  return isSandbox() ? 'https://sandbox.zarinpal.com/pg/StartPay/' : 'https://payment.zarinpal.com/pg/StartPay/';
 }
 
 function merchantId() {
@@ -143,6 +143,7 @@ async function requestPayment({ userId, planId }) {
       {
         merchant_id: merchantId(),
         amount,
+        currency: 'IRR',
         callback_url: callbackUrl(),
         description,
       },
