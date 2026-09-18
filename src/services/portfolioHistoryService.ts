@@ -39,6 +39,7 @@ async function getHistory(symbol: string): Promise<QuotePoint[]> {
 
 interface HistoricalLot {
   id: string;
+  symbol: string;
   quantity: number;
   buyPrice: number;
   entryDate: string | null;
@@ -73,13 +74,36 @@ export async function getPortfolioHistory(): Promise<PortfolioHistoryPoint[]> {
     })) : [],
   }));
 
-  const rows = await Promise.all(portfolio.map(async item => ({
-    item: {
+  const lotMap = new Map<string, HistoricalLot>();
+  portfolio.forEach(item => {
+    lotMap.set(String(item.id), {
       id: String(item.id),
+      symbol: item.symbol,
       quantity: Number(item.quantity) || 0,
       buyPrice: Number(item.entryPrice) || 0,
       entryDate: normalizeDate(item.entryDate),
-    } satisfies HistoricalLot,
+    });
+  });
+  sales.forEach(sale => sale.allocations.forEach(allocation => {
+    if (lotMap.has(allocation.lotId)) {
+      lotMap.get(allocation.lotId)!.quantity += Math.max(0, Number(allocation.quantity) || 0);
+      return;
+    }
+    const trade = soldResult.trades.find(item => item.allocations?.some(a => String(a.lotId) === allocation.lotId));
+    const source = trade?.allocations?.find(a => String(a.lotId) === allocation.lotId);
+    if (trade && source) {
+      lotMap.set(allocation.lotId, {
+        id: allocation.lotId,
+        symbol: trade.symbol,
+        quantity: Math.max(0, Number(allocation.quantity) || 0),
+        buyPrice: Number(source.buyPrice) || 0,
+        entryDate: normalizeDate(source.buyDate),
+      });
+    }
+  }));
+
+  const rows = await Promise.all(Array.from(lotMap.values()).map(async item => ({
+    item,
     quotes: await getHistory(item.symbol).catch(() => []),
   })));
 
