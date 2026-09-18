@@ -52,3 +52,27 @@ export async function getTransactions(query: PaymentsQuery = {}): Promise<Paymen
   const response = await api.get('/admin-payments/transactions', { params });
   return getData(response);
 }
+
+export interface PaymentReportItem {
+  key: string;
+  label: string;
+  day?: number;
+  month?: number;
+  year: number;
+  paymentCount: number;
+  totalAmount: number;
+}
+
+export interface PaymentReport {
+  period: 'daily' | 'monthly' | 'yearly';
+  calendar: 'jalali';
+  year?: number;
+  month?: number;
+  monthName?: string;
+  items: PaymentReportItem[];
+}
+
+export async function getPaymentReport(period: 'daily' | 'monthly' | 'yearly'): Promise<PaymentReport> {
+  const response = await api.get('/admin-payments/reports', { params: { period } });
+  return getData(response);
+}
