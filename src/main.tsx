@@ -16,12 +16,20 @@ if (!rootElement) {
 }
 
 const normalizedPath = window.location.pathname.replace(/\/+$/, '') || '/';
-const isPublicLandingPage = normalizedPath === '/' || normalizedPath === '/about';
+const searchParams = new URLSearchParams(window.location.search);
+const paymentStatus = searchParams.get('payment');
+const isPaymentReturn = ['success', 'failed', 'cancelled', 'pending'].includes(paymentStatus || '');
 
-// امنیت نشست: بازشدن/رفرش صفحه نباید به‌تنهایی باعث ورود کاربر شود.
-// نشست قبلی فقط در همان اجرای فعلی برنامه معتبر است و کاربر باید دوباره
-// با فرم ورود و کلیک روی دکمه «ورود» احراز هویت شود.
-if (!isPublicLandingPage) {
+// The root path normally renders the public landing page. A payment gateway,
+// however, returns to the root with payment query parameters. That return must
+// render the authenticated App so the existing session can be restored.
+const isPublicLandingPage =
+  (normalizedPath === '/' || normalizedPath === '/about') && !isPaymentReturn;
+
+// Do not clear an authenticated session during a payment-gateway callback.
+// The callback is a full-page navigation to the root URL, and the App needs
+// the persisted token/currentUser to restore the session.
+if (!isPublicLandingPage && !isPaymentReturn) {
   try {
     localStorage.removeItem('currentUser');
     localStorage.removeItem('user');
