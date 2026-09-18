@@ -134,12 +134,15 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
         });
     }, [sortedRows]);
 
-    const valuationMetrics = useMemo(() => {
+    const valuationAnalysis = useMemo(() => {
         const validPe = sortedRows.map(row => Number(row.pe)).filter(value => Number.isFinite(value) && value > 0);
-        const medianPe = validPe.length
-            ? [...validPe].sort((a, b) => a - b)[Math.floor(validPe.length / 2)]
+        const sortedPe = [...validPe].sort((a, b) => a - b);
+        const medianPe = sortedPe.length
+            ? (sortedPe.length % 2 === 1
+                ? sortedPe[Math.floor(sortedPe.length / 2)]
+                : (sortedPe[sortedPe.length / 2 - 1] + sortedPe[sortedPe.length / 2]) / 2)
             : null;
-        return sortedRows.map(row => {
+        const rows = sortedRows.map(row => {
             const eps = Number(row.eps);
             const pe = Number(row.pe);
             return {
@@ -151,6 +154,11 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                 fundamentalScore: row.fundamentalScore,
             };
         });
+        return {
+            medianPe,
+            validPeCount: validPe.length,
+            rows,
+        };
     }, [sortedRows]);
 
     const liquidityMetrics = useMemo(() => {
@@ -322,10 +330,25 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                         <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/30 p-4">
                             <div className="font-bold text-slate-800 dark:text-slate-100 mb-1">مقایسه ارزش‌گذاری و داده‌های بنیادی</div>
                             <div className="text-xs text-slate-500 dark:text-slate-400 mb-3">EPS، P/E، بازده سود، فاصله P/E از میانه گروه و امتیاز بنیادی از داده‌های واقعی مقایسه می‌شوند. EPS به‌تنهایی معیار رتبه‌بندی بین شرکت‌ها نیست، چون تعداد سهام شرکت‌ها متفاوت است.</div>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2">
+                                    <div className="text-xs text-slate-500">میانه P/E معتبر گروه</div>
+                                    <div className="font-bold mt-1">{valuationAnalysis.medianPe == null ? '—' : formatNumber(valuationAnalysis.medianPe, 2)}</div>
+                                </div>
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2">
+                                    <div className="text-xs text-slate-500">تعداد P/E معتبر</div>
+                                    <div className="font-bold mt-1">{formatNumber(valuationAnalysis.validPeCount, 0)}</div>
+                                </div>
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2">
+                                    <div className="text-xs text-slate-500">مبنای مقایسه</div>
+                                    <div className="font-bold mt-1">P/E و بازده سود</div>
+                                </div>
+                            </div>
+
                             <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
                                 <table className="w-full text-sm"><thead><tr className="bg-slate-100 dark:bg-slate-700/80">
                                     <th className="px-3 py-3 text-center">رتبه</th><th className="px-3 py-3 text-center">نماد</th><th className="px-3 py-3 text-center">EPS</th><th className="px-3 py-3 text-center">P/E</th><th className="px-3 py-3 text-center whitespace-nowrap">بازده سود</th><th className="px-3 py-3 text-center whitespace-nowrap">فاصله P/E از میانه گروه</th><th className="px-3 py-3 text-center whitespace-nowrap">امتیاز بنیادی</th>
-                                </tr></thead><tbody>{valuationMetrics.map((item) => <tr key={item.symbol} className="border-t border-slate-100 dark:border-slate-700">
+                                </tr></thead><tbody>{valuationAnalysis.rows.map((item) => <tr key={item.symbol} className="border-t border-slate-100 dark:border-slate-700">
                                     <td className="px-3 py-3 text-center font-bold">{rankBySymbol.get(item.symbol) ?? '—'}</td><td className="px-3 py-3 text-center font-bold text-cyan-700 dark:text-cyan-300">{item.symbol}</td><td className="px-3 py-3 text-center">{formatNumber(item.eps, 2)}</td><td className="px-3 py-3 text-center">{formatNumber(item.pe, 2)}</td><td className="px-3 py-3 text-center font-bold">{item.earningsYield == null ? '—' : String(formatNumber(item.earningsYield, 2)) + '٪'}</td><td className="px-3 py-3 text-center font-bold">{item.peDistance == null ? '—' : String(formatNumber(item.peDistance, 2)) + '٪'}</td><td className="px-3 py-3 text-center font-bold">{formatNumber(item.fundamentalScore, 0)}</td>
                                 </tr>)}</tbody></table>
                             </div>
