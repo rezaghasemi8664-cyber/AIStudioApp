@@ -526,9 +526,29 @@ const App: React.FC = () => {
       }
     };
 
-    const restoreSessionUserQuickly = () => {
+    const restoreSessionUserQuickly = async () => {
       const storedUser = getCurrentSessionUser();
-      setUserState(storedUser);
+      if (storedUser) {
+        setUserState(storedUser);
+        return;
+      }
+
+      // Payment gateways perform a full-page redirect back to the application.
+      // Restore the session from the persisted token if the cached user was lost.
+      try {
+        const token = typeof authService.getToken === 'function' ? authService.getToken() : null;
+        if (token && typeof authService.getMe === 'function') {
+          const result = await authService.getMe();
+          if (result?.success && result.data) {
+            setUserState(result.data);
+            return;
+          }
+        }
+      } catch (error) {
+        console.warn('[App] session restoration after navigation failed:', error);
+      }
+
+      setUserState(null);
     };
 
     const initializeNonBlockingServices = async () => {
@@ -571,7 +591,7 @@ const App: React.FC = () => {
         if (!mounted) return;
         await loadTseLinks();
         if (!mounted) return;
-        restoreSessionUserQuickly();
+        await restoreSessionUserQuickly();
 
         if (typeof storageService.getItem === 'function' && storageService.getItem('ronia_new_scalping_alert') === 'true') {
           setScalpingAlert(true);
