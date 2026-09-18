@@ -528,13 +528,10 @@ const App: React.FC = () => {
 
     const restoreSessionUserQuickly = async () => {
       const storedUser = getCurrentSessionUser();
-      if (storedUser) {
-        setUserState(storedUser);
-        return;
-      }
 
       // Payment gateways perform a full-page redirect back to the application.
-      // Restore the session from the persisted token if the cached user was lost.
+      // Prefer the persisted token and refresh the user from the server so the
+      // session and subscription data are current after returning from payment.
       try {
         const token = typeof authService.getToken === 'function' ? authService.getToken() : null;
         if (token && typeof authService.getMe === 'function') {
@@ -545,7 +542,14 @@ const App: React.FC = () => {
           }
         }
       } catch (error) {
-        console.warn('[App] session restoration after navigation failed:', error);
+        console.warn('[App] session restoration from token failed:', error);
+      }
+
+      // If the API is temporarily unavailable, keep the locally persisted
+      // session instead of sending the user to the login/introduction screen.
+      if (storedUser) {
+        setUserState(storedUser);
+        return;
       }
 
       setUserState(null);
