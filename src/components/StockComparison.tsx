@@ -72,6 +72,19 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
         return map;
     }, [sortedRows]);
 
+    const historicalChartData = useMemo(() => {
+        const dates = Array.from(new Set(sortedRows.flatMap(row => row.history.map(point => point.date)))).sort();
+        return dates.map(date => {
+            const item: Record<string, string | number | null> = { date };
+            sortedRows.forEach((row, index) => {
+                const point = row.history.find(entry => entry.date === date);
+                const base = row.history[0]?.close ?? null;
+                item[`series${index}`] = point && base && base !== 0 ? (point.close / base) * 100 : null;
+            });
+            return item;
+        });
+    }, [sortedRows]);
+
     return (
         <div className="max-w-6xl mx-auto" dir="rtl" style={{ direction: 'rtl' }}>
             <h2 className="text-2xl font-bold text-cyan-600 dark:text-cyan-400 mb-4 flex items-center gap-2">مقایسه سهام <ClipboardDocumentIcon /></h2>
@@ -136,18 +149,13 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                             </div>
                             <div className="h-72 w-full">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart>
+                                    <LineChart data={historicalChartData}>
                                         <CartesianGrid strokeDasharray="3 3" />
                                         <XAxis dataKey="date" type="category" allowDuplicatedCategory={false} />
                                         <YAxis domain={['auto', 'auto']} />
-                                        <Tooltip formatter={(value: number) => formatNumber(value, 0)} />
+                                        <Tooltip formatter={(value) => formatNumber(Number(value), 0)} />
                                         {sortedRows.map((row) => {
-                                            const base = row.history[0]?.close ?? null;
-                                            const series = row.history.map(point => ({
-                                                date: point.date,
-                                                value: base && base !== 0 ? (point.close / base) * 100 : null,
-                                            }));
-                                            return <Line key={row.symbol} data={series} type="monotone" dataKey="value" name={row.symbol} dot={false} strokeWidth={2} connectNulls />;
+                                            return <Line key={row.symbol} type="monotone" dataKey={`series${sortedRows.indexOf(row)}`} name={row.symbol} dot={false} strokeWidth={2} connectNulls />;
                                         })}
                                     </LineChart>
                                 </ResponsiveContainer>
