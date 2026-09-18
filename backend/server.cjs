@@ -646,6 +646,8 @@ mountRoute('/api/v2/app-config', './routes/appConfig.routes.cjs',      'App Conf
 mountRoute('/api/endpoints',     './routes/endpoints.routes.cjs',      'API Endpoints');
 mountRoute('/api/v1/endpoints',  './routes/endpoints.routes.cjs',      'API Endpoints v1 alias');
 mountRoute('/api/user-preference', './routes/userPreference.routes.cjs', 'User Preferences');
+mountRoute('/api/user/preferences', './routes/userPreference.routes.cjs', 'User Preferences compatibility');
+mountRoute('/api/v1/user/preferences', './routes/userPreference.routes.cjs', 'User Preferences v1 compatibility');
 mountRoute('/api/global-settings',      './routes/globalSettings.routes.cjs',   'Global Settings');
 mountRoute('/api/v1/global-settings',   './routes/globalSettings.routes.cjs',   'Global Settings v1 alias');
 
@@ -653,6 +655,8 @@ mountRoute('/api/api-keys',    './routes/apiKey.routes.cjs',           'API Keys
 mountRoute('/api/v1/api-keys', './routes/apiKey.routes.cjs',           'API Keys v1 alias');
 
 mountRoute('/api/admin',       './routes/admin.routes.cjs',            'Admin Panel');
+mountRoute('/api/admin-security', './routes/adminSecurity.routes.cjs', 'Admin Security');
+mountRoute('/api/v1/admin-security', './routes/adminSecurity.routes.cjs', 'Admin Security v1 alias');
 mountRoute('/v1/admin',         './routes/admin.routes.cjs',            'Admin Panel proxy-stripped compatibility');
 mountRoute('/api/admin-actions', './routes/adminActions.routes.cjs', 'Admin Actions');
 mountRoute('/api/admin/faraz-sms', './routes/wordpress-farazsms.cjs', 'Faraz SMS WordPress Bridge');
