@@ -146,7 +146,7 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                                 {deterministicResult.failed.map((item) => <div key={String(item.symbol)}>{String(item.symbol)}: {String(item.message || 'داده معتبر در دسترس نیست.')}</div>)}
                             </div>
                         </div>
-                    )}                    </div>
+                    )}
                 </div>
             )}
         </div>
