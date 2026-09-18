@@ -209,6 +209,62 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
         });
     }, [sortedRows]);
 
+
+    const comparisonStatistics = useMemo(() => {
+        const numeric = (values: Array<number | null | undefined>) => values.map(Number).filter(Number.isFinite);
+        const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+        const median = (values: number[]) => {
+            if (!values.length) return null;
+            const sorted = [...values].sort((a, b) => a - b);
+            const middle = Math.floor(sorted.length / 2);
+            return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+        };
+        const stdDev = (values: number[]) => {
+            if (values.length < 2) return null;
+            const mean = average(values);
+            if (mean === null) return null;
+            return Math.sqrt(values.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / (values.length - 1));
+        };
+        const totalScores = numeric(sortedRows.map(row => row.totalScore));
+        const technicalScores = numeric(sortedRows.map(row => row.technicalScore));
+        const fundamentalScores = numeric(sortedRows.map(row => row.fundamentalScore));
+        const dailyChanges = numeric(sortedRows.map(row => row.priceChangePercent));
+        const netFlows = numeric(sortedRows.map(row => row.netMoneyFlow));
+        const totalsMedian = median(totalScores);
+        const dailyMedian = median(dailyChanges);
+        const flowMedian = median(netFlows);
+        const rows = sortedRows.map(row => {
+            const total = Number(row.totalScore);
+            const daily = Number(row.priceChangePercent);
+            const flow = Number(row.netMoneyFlow);
+            return {
+                symbol: row.symbol,
+                totalVsMedian: Number.isFinite(total) && totalsMedian !== null ? total - totalsMedian : null,
+                dailyVsMedian: Number.isFinite(daily) && dailyMedian !== null ? daily - dailyMedian : null,
+                flowVsMedian: Number.isFinite(flow) && flowMedian !== null ? flow - flowMedian : null,
+            };
+        });
+        return {
+            count: sortedRows.length,
+            avgTotal: average(totalScores),
+            medianTotal: totalsMedian,
+            totalStdDev: stdDev(totalScores),
+            totalRange: totalScores.length ? Math.max(...totalScores) - Math.min(...totalScores) : null,
+            avgTechnical: average(technicalScores),
+            avgFundamental: average(fundamentalScores),
+            avgDailyChange: average(dailyChanges),
+            medianDailyChange: dailyMedian,
+            dailyStdDev: stdDev(dailyChanges),
+            positiveDailyCount: dailyChanges.filter(value => value > 0).length,
+            negativeDailyCount: dailyChanges.filter(value => value < 0).length,
+            avgNetFlow: average(netFlows),
+            medianNetFlow: flowMedian,
+            positiveFlowCount: netFlows.filter(value => value > 0).length,
+            negativeFlowCount: netFlows.filter(value => value < 0).length,
+            rows,
+        };
+    }, [sortedRows]);
+
     const historicalChartData = useMemo(() => {
         const dates = Array.from(new Set(sortedRows.flatMap(row => row.history.map(point => point.date)))).sort();
         return dates.map(date => {
@@ -271,6 +327,44 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                                 <button type="button" onClick={() => setSortDescending(value => !value)} className="rounded-lg border border-cyan-500 px-4 py-2 text-cyan-700 dark:text-cyan-300 font-bold">
                                     {sortDescending ? 'نزولی ↓' : 'صعودی ↑'}
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="px-5 pb-5">
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/30 p-4">
+                            <div className="font-bold text-slate-800 dark:text-slate-100 mb-1">جمع‌بندی آماری مقایسه</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                                این بخش فقط خلاصه آماری داده‌های موجود را ارائه می‌کند؛ میانگین، میانه، پراکندگی و تعداد مشاهدات از داده‌های واقعی همین مقایسه محاسبه شده‌اند و به‌معنای توصیه سرمایه‌گذاری نیستند.
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2"><div className="text-xs text-slate-500">میانگین امتیاز کل</div><div className="font-bold mt-1">{comparisonStatistics.avgTotal == null ? '—' : formatNumber(comparisonStatistics.avgTotal, 1)}</div></div>
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2"><div className="text-xs text-slate-500">میانه امتیاز کل</div><div className="font-bold mt-1">{comparisonStatistics.medianTotal == null ? '—' : formatNumber(comparisonStatistics.medianTotal, 1)}</div></div>
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2"><div className="text-xs text-slate-500">پراکندگی امتیاز کل</div><div className="font-bold mt-1">{comparisonStatistics.totalStdDev == null ? '—' : formatNumber(comparisonStatistics.totalStdDev, 2)}</div></div>
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2"><div className="text-xs text-slate-500">دامنه امتیاز کل</div><div className="font-bold mt-1">{comparisonStatistics.totalRange == null ? '—' : formatNumber(comparisonStatistics.totalRange, 1)}</div></div>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2"><div className="text-xs text-slate-500">میانگین تغییر روزانه</div><div className="font-bold mt-1">{comparisonStatistics.avgDailyChange == null ? '—' : String(formatNumber(comparisonStatistics.avgDailyChange, 2)) + '٪'}</div></div>
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2"><div className="text-xs text-slate-500">میانه تغییر روزانه</div><div className="font-bold mt-1">{comparisonStatistics.medianDailyChange == null ? '—' : String(formatNumber(comparisonStatistics.medianDailyChange, 2)) + '٪'}</div></div>
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2"><div className="text-xs text-slate-500">نمادهای مثبت روزانه</div><div className="font-bold mt-1">{formatNumber(comparisonStatistics.positiveDailyCount, 0)}</div></div>
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2"><div className="text-xs text-slate-500">نمادهای منفی روزانه</div><div className="font-bold mt-1">{formatNumber(comparisonStatistics.negativeDailyCount, 0)}</div></div>
+                            </div>
+                            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                                <table className="w-full text-sm">
+                                    <thead><tr className="bg-slate-100 dark:bg-slate-700/80">
+                                        <th className="px-3 py-3 text-center">رتبه</th><th className="px-3 py-3 text-center">نماد</th><th className="px-3 py-3 text-center whitespace-nowrap">فاصله امتیاز کل از میانه</th><th className="px-3 py-3 text-center whitespace-nowrap">فاصله تغییر روزانه از میانه</th><th className="px-3 py-3 text-center whitespace-nowrap">فاصله جریان پول از میانه</th>
+                                    </tr></thead>
+                                    <tbody>{comparisonStatistics.rows.map((item, index) => <tr key={item.symbol} className="border-t border-slate-100 dark:border-slate-700">
+                                        <td className="px-3 py-3 text-center font-bold">{rankBySymbol.get(item.symbol) ?? index + 1}</td>
+                                        <td className="px-3 py-3 text-center font-bold text-cyan-700 dark:text-cyan-300">{item.symbol}</td>
+                                        <td className="px-3 py-3 text-center font-bold">{item.totalVsMedian == null ? '—' : formatNumber(item.totalVsMedian, 1)}</td>
+                                        <td className="px-3 py-3 text-center">{item.dailyVsMedian == null ? '—' : String(formatNumber(item.dailyVsMedian, 2)) + '٪'}</td>
+                                        <td className="px-3 py-3 text-center">{item.flowVsMedian == null ? '—' : formatNumber(item.flowVsMedian, 0)}</td>
+                                    </tr>)}</tbody>
+                                </table>
+                            </div>
+                            <div className="text-xs text-slate-500 mt-2">
+                                فاصله‌ها نسبت به میانه گروه هستند؛ مثبت یا منفی بودن آن‌ها فقط اختلاف آماری با مرکز توزیع را نشان می‌دهد و به‌تنهایی معیار تصمیم‌گیری نیست.
                             </div>
                         </div>
                     </div>
