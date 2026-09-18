@@ -25,6 +25,13 @@ try {
   console.error('[ANALYZE-ROUTES] AI service load failed:', error.message);
 }
 
+let deterministicComparisonService = null;
+try {
+  deterministicComparisonService = require('../services/deterministic-stock-comparison.service.cjs');
+} catch (error) {
+  console.error('[ANALYZE-ROUTES] Deterministic comparison service load failed:', error.message);
+}
+
 let deterministicStockService = null;
 try {
   deterministicStockService = require('../services/deterministic-stock-analysis.service.cjs');
@@ -155,6 +162,17 @@ router.post('/stock', authMiddleware, async function (req, res) {
 router.post('/compare', authMiddleware, async function (req, res) {
   try {
     const body = req.body || {};
+    if (deterministicComparisonService && typeof deterministicComparisonService.compareStocksDeterministic === 'function') {
+      const symbols = Array.isArray(body.symbols) ? body.symbols : (Array.isArray(body.stocks) ? body.stocks : []);
+      const result = await deterministicComparisonService.compareStocksDeterministic({
+        symbols,
+        dailyCount: body.dailyCount,
+        historyCount: body.historyCount,
+        lookback: body.lookback,
+        rsiPeriod: body.rsiPeriod,
+      });
+      return res.json({ success: true, data: result, deterministic: true, engine: result.engine });
+    }
     const rawSymbols = Array.isArray(body.symbols) ? body.symbols : (Array.isArray(body.stocks) ? body.stocks : []);
     const symbols = rawSymbols.map((s) => String(s || '').trim()).filter(Boolean);
 
