@@ -36,9 +36,14 @@ async function me(req, res) {
 
     const admin = isAdminUser(req);
     const state = await subscriptionService.getSubscriptionState(id);
-    let subscription = state.subscription;
-    let legacy = null;
-    if (!subscription) legacy = legacySubscriptionFromUser(await subscriptionService.getUserProfileSubscriptionFields(id));
+    const subscription = await subscriptionService.getEffectiveSubscription(id);
+    const effectiveState = subscription
+      ? {
+          hasAccess: true,
+          isActive: true,
+          daysRemaining: Math.max(0, Math.ceil((new Date(subscription.expiresAt).getTime() - Date.now()) / 86400000)),
+        }
+      : state;
 
     // Administrators have permanent application access and must not be
     // presented as having an inactive paid subscription in their profile.
@@ -49,9 +54,9 @@ async function me(req, res) {
           hasAccess: true,
           isActive: true,
           trialUsed: state.trialUsed,
-          daysRemaining: state.daysRemaining,
+          daysRemaining: effectiveState.daysRemaining,
           accessDeniedMessage: null,
-          subscription: subscription || legacy ? { startsAt: legacy.subscriptionStart, expiresAt: legacy.subscriptionEnd, plan: legacy.subscriptionMonths > 0 ? { durationMonths: legacy.subscriptionMonths } : null } : null,
+          subscription,
         },
       });
     }
@@ -59,12 +64,12 @@ async function me(req, res) {
     return res.json({
       success: true,
       data: {
-        hasAccess: state.hasAccess,
-        isActive: state.isActive,
+        hasAccess: effectiveState.hasAccess,
+        isActive: effectiveState.isActive,
         trialUsed: state.trialUsed,
-        daysRemaining: state.daysRemaining,
-        accessDeniedMessage: state.accessDeniedMessage,
-        subscription: state.subscription,
+        daysRemaining: effectiveState.daysRemaining,
+        accessDeniedMessage: effectiveState.hasAccess ? null : state.accessDeniedMessage,
+        subscription,
       },
     });
   } catch (error) {
