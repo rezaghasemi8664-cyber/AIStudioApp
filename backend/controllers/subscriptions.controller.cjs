@@ -6,6 +6,11 @@ function userId(req) {
   return Number(req.user?.userId || req.user?.id || req.user?.sub);
 }
 
+function isAdminUser(req) {
+  return req.user?.isAdmin === true ||
+    String(req.user?.role || '').toLowerCase() === 'admin';
+}
+
 function errorResponse(res, error) {
   const status = Number(error?.statusCode) || 400;
   return res.status(status).json({ success: false, message: error?.message || 'خطا در پردازش اشتراک' });
@@ -15,7 +20,26 @@ async function me(req, res) {
   try {
     const id = userId(req);
     if (!Number.isInteger(id) || id <= 0) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است' });
+
+    const admin = isAdminUser(req);
     const state = await subscriptionService.getSubscriptionState(id);
+
+    // Administrators have permanent application access and must not be
+    // presented as having an inactive paid subscription in their profile.
+    if (admin) {
+      return res.json({
+        success: true,
+        data: {
+          hasAccess: true,
+          isActive: true,
+          trialUsed: state.trialUsed,
+          daysRemaining: state.daysRemaining,
+          accessDeniedMessage: null,
+          subscription: state.subscription,
+        },
+      });
+    }
+
     return res.json({
       success: true,
       data: {
