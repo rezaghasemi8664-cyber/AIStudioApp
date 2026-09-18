@@ -316,17 +316,47 @@ async function verifyAndActivate(authority, status) {
         orderBy: { expiresAt: 'desc' },
       });
 
-      const startsAt = current ? new Date(current.expiresAt) : now;
-      const expiresAt = addMonths(startsAt, Number(plan.durationMonths));
+      const startsAt = current ? new Date(current.startsAt) : now;
+      const baseDate = current && new Date(current.expiresAt) > now
+        ? new Date(current.expiresAt)
+        : now;
+      const expiresAt = addMonths(baseDate, Number(plan.durationMonths));
 
-      const subscription = await tx.subscription.create({
+      let subscriptionId;
+
+      if (current) {
+        const updatedSubscription = await tx.subscription.update({
+          where: { id: current.id },
+          data: {
+            planId: Number(plan.id),
+            type: 'PAID',
+            status: 'ACTIVE',
+            startsAt,
+            expiresAt,
+          },
+        });
+        subscriptionId = updatedSubscription.id;
+      } else {
+        const createdSubscription = await tx.subscription.create({
+          data: {
+            userId: Number(latest.userId),
+            planId: Number(plan.id),
+            type: 'PAID',
+            status: 'ACTIVE',
+            startsAt,
+            expiresAt,
+          },
+        });
+        subscriptionId = createdSubscription.id;
+      }
+
+      await tx.user.update({
+        where: { id: Number(latest.userId) },
         data: {
-          userId: Number(latest.userId),
-          planId: Number(plan.id),
-          type: 'PAID',
-          status: 'ACTIVE',
-          startsAt,
-          expiresAt,
+          subscriptionStart: startsAt,
+          subscriptionEnd: expiresAt,
+          subscriptionMonths: Number(plan.durationMonths),
+          subscriptionType: 'PAID',
         },
       });
 
