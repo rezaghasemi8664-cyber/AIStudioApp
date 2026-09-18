@@ -443,6 +443,63 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                         </div>
                     </div>
 
+                    <div className="px-5 pb-5">
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/30 p-4">
+                            <div className="font-bold text-slate-800 dark:text-slate-100 mb-1">کیفیت و سازگاری داده‌های مقایسه</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                                امتیاز کیفیت برای هر نماد از پوشش فیلدهای قابل‌مقایسه و پوشش تاریخچه واقعی محاسبه شده است. این امتیاز معیار کیفیت داده است، نه امتیاز سرمایه‌گذاری.
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2">
+                                    <div className="text-xs text-slate-500">میانگین کیفیت داده</div>
+                                    <div className="font-bold mt-1">{deterministicResult.metrics.averageDataQuality == null ? '—' : String(formatNumber(Number(deterministicResult.metrics.averageDataQuality), 0)) + '٪'}</div>
+                                </div>
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2">
+                                    <div className="text-xs text-slate-500">سازگاری بین نمادها</div>
+                                    <div className="font-bold mt-1">{deterministicResult.metrics.comparisonConsistency == null ? '—' : String(formatNumber(Number(deterministicResult.metrics.comparisonConsistency), 0)) + '٪'}</div>
+                                </div>
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2">
+                                    <div className="text-xs text-slate-500">نمادهای قابل‌مقایسه</div>
+                                    <div className="font-bold mt-1">{formatNumber(deterministicResult.rows.filter(row => row.comparisonQuality?.deterministicReady !== false).length, 0)}</div>
+                                </div>
+                                <div className="rounded-lg bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 p-2">
+                                    <div className="text-xs text-slate-500">فیلدهای ارزیابی</div>
+                                    <div className="font-bold mt-1">۹ فیلد + تاریخچه</div>
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                                <table className="w-full text-sm">
+                                    <thead><tr className="bg-slate-100 dark:bg-slate-700/80">
+                                        <th className="px-3 py-3 text-center">رتبه</th>
+                                        <th className="px-3 py-3 text-center">نماد</th>
+                                        <th className="px-3 py-3 text-center">امتیاز کیفیت</th>
+                                        <th className="px-3 py-3 text-center">سطح کیفیت</th>
+                                        <th className="px-3 py-3 text-center">پوشش فیلدها</th>
+                                        <th className="px-3 py-3 text-center">پوشش تاریخچه</th>
+                                        <th className="px-3 py-3 text-center">فیلدهای معتبر</th>
+                                        <th className="px-3 py-3 text-center">تعداد نقاط تاریخچه</th>
+                                    </tr></thead>
+                                    <tbody>{sortedRows.map((row, index) => {
+                                        const quality = row.comparisonQuality;
+                                        return <tr key={row.symbol} className="border-t border-slate-100 dark:border-slate-700">
+                                            <td className="px-3 py-3 text-center font-bold">{rankBySymbol.get(row.symbol) ?? index + 1}</td>
+                                            <td className="px-3 py-3 text-center font-bold text-cyan-700 dark:text-cyan-300">{row.symbol}</td>
+                                            <td className="px-3 py-3 text-center font-black">{quality ? String(formatNumber(quality.score, 0)) + '٪' : '—'}</td>
+                                            <td className="px-3 py-3 text-center font-bold">{quality?.level || '—'}</td>
+                                            <td className="px-3 py-3 text-center">{quality ? String(formatNumber(quality.fieldCoverage, 0)) + '٪' : '—'}</td>
+                                            <td className="px-3 py-3 text-center">{quality ? String(formatNumber(quality.historyCoverage, 0)) + '٪' : '—'}</td>
+                                            <td className="px-3 py-3 text-center">{quality ? quality.availableFields + ' از ' + quality.totalFields : '—'}</td>
+                                            <td className="px-3 py-3 text-center">{quality ? formatNumber(quality.historyPoints, 0) : '—'}</td>
+                                        </tr>;
+                                    })}</tbody>
+                                </table>
+                            </div>
+                            <div className="text-xs text-slate-500 mt-2">
+                                وزن کیفیت فیلدهای مقایسه‌ای ۴۵٪ و وزن پوشش تاریخچه ۵۵٪ است؛ امتیاز به‌صورت قطعی محاسبه می‌شود و جایگزین تحلیل بنیادی یا تکنیکال نیست.
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 px-5 pb-5">
                         {sortedRows.map((row) => (
                             <div key={row.symbol} className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50/70 dark:bg-slate-900/30">
