@@ -1934,11 +1934,11 @@ body .bg-indigo-600 {
 }
 
 /* Market radar heatmap cards stay high-contrast over colored backgrounds. */
-.page-market-radar [class*="bg-emerald-500/"] {
+.page-market-radar .radar-heat-positive {
   text-shadow: none;
 }
 
-.page-market-radar [class*="bg-rose-500/"] {
+.page-market-radar .radar-heat-negative {
   text-shadow: none;
 }
 
