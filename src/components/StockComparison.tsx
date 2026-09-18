@@ -99,8 +99,6 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                     </div>
                 </div>
             )}
-
-            )}
         </div>
     );
 };
