@@ -50,6 +50,10 @@ function numericDataQuality(metrics) {
 async function extractFinancialDocuments(financialAnnouncements) {
   const maxDocuments = Math.max(1, Math.min(8, Number(process.env.CODAL_MAX_FINANCIAL_DOCUMENTS) || 5));
   const selected = financialAnnouncements
+    .filter((item) => {
+      const announcement = item && item.announcement;
+      return Boolean(announcement && (announcement.link_excel || announcement.linkExcel));
+    })
     .slice()
     .sort((a, b) => Number(b.classification?.importance || 0) - Number(a.classification?.importance || 0))
     .slice(0, maxDocuments);
