@@ -1,7 +1,7 @@
 'use strict';
 
 const express = require('express');
-const authenticate = require('../middleware/authenticate');
+const authenticate = require('../middlewares/auth.middleware.cjs');
 const { getReports } = require('../services/codalIntelligence.service.cjs');
 
 const router = express.Router();
