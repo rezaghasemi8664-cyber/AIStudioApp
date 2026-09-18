@@ -117,7 +117,7 @@ async function updatePayment(id, values) {
       errorCode = ${values.errorCode ?? null},
       errorMessage = ${values.errorMessage ?? null},
       metadataJson = ${values.metadataJson ?? null},
-      paidAt = ${values.paidAt ?? null},
+      paidAt = CAST(${values.paidAt ?? null} AS datetime2),
       subscriptionId = ${values.subscriptionId ?? null},
       updatedAt = SYSDATETIME()
     WHERE id = ${Number(id)}
