@@ -113,6 +113,27 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
         });
     }, [sortedRows]);
 
+    const riskAdjustedMetrics = useMemo(() => {
+        return sortedRows.map((row) => {
+            const closes = row.history.map((point) => Number(point.close)).filter((value) => Number.isFinite(value) && value > 0);
+            const returns: number[] = [];
+            for (let index = 1; index < closes.length; index += 1) {
+                returns.push((closes[index] / closes[index - 1]) - 1);
+            }
+            if (returns.length < 2) return { symbol: row.symbol, annualReturn: null as number | null, sharpe: null as number | null, downside: null as number | null };
+            const mean = returns.reduce((sum, value) => sum + value, 0) / returns.length;
+            const variance = returns.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / (returns.length - 1);
+            const stdDev = Math.sqrt(variance);
+            const annualReturn = mean * 252 * 100;
+            const sharpe = stdDev > 0 ? (mean / stdDev) * Math.sqrt(252) : null;
+            const negativeReturns = returns.filter((value) => value < 0);
+            const downside = negativeReturns.length
+                ? Math.sqrt(negativeReturns.reduce((sum, value) => sum + (value ** 2), 0) / negativeReturns.length) * Math.sqrt(252) * 100
+                : 0;
+            return { symbol: row.symbol, annualReturn, sharpe, downside };
+        });
+    }, [sortedRows]);
+
     const historicalChartData = useMemo(() => {
         const dates = Array.from(new Set(sortedRows.flatMap(row => row.history.map(point => point.date)))).sort();
         return dates.map(date => {
@@ -248,6 +269,32 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                                 </table>
                             </div>
                             <div className="text-xs text-slate-500 mt-2">نوسان با انحراف معیار نمونه بازده روزانه و ضریب √۲۵۲ محاسبه شده است؛ افت بیشینه از سقف تجمعی تاریخچه محاسبه می‌شود.</div>
+                        </div>
+                    </div>
+
+                    <div className="px-5 pb-5">
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/30 p-4">
+                            <div className="font-bold text-slate-800 dark:text-slate-100 mb-1">بازدهی تعدیل‌شده با ریسک</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400 mb-3">مقایسه بازده سالانه‌شده، نسبت شارپ و نوسان نزولی از تاریخچه واقعی؛ بدون نرخ بهره فرضی و بدون AI.</div>
+                            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                                <table className="w-full text-sm">
+                                    <thead><tr className="bg-slate-100 dark:bg-slate-700/80">
+                                        <th className="px-3 py-3 text-center">رتبه</th>
+                                        <th className="px-3 py-3 text-center">نماد</th>
+                                        <th className="px-3 py-3 text-center whitespace-nowrap">بازده سالانه‌شده</th>
+                                        <th className="px-3 py-3 text-center whitespace-nowrap">نسبت شارپ</th>
+                                        <th className="px-3 py-3 text-center whitespace-nowrap">نوسان نزولی</th>
+                                    </tr></thead>
+                                    <tbody>{riskAdjustedMetrics.map((item,index)=><tr key={item.symbol} className="border-t border-slate-100 dark:border-slate-700">
+                                        <td className="px-3 py-3 text-center font-bold">{index+1}</td>
+                                        <td className="px-3 py-3 text-center font-bold text-cyan-700 dark:text-cyan-300">{item.symbol}</td>
+                                        <td className="px-3 py-3 text-center font-bold">{item.annualReturn == null ? '—' : String(formatNumber(item.annualReturn,2)) + '٪'}</td>
+                                        <td className="px-3 py-3 text-center font-bold">{item.sharpe == null ? '—' : formatNumber(item.sharpe,2)}</td>
+                                        <td className="px-3 py-3 text-center font-bold">{item.downside == null ? '—' : String(formatNumber(item.downside,2)) + '٪'}</td>
+                                    </tr>)}</tbody>
+                                </table>
+                            </div>
+                            <div className="text-xs text-slate-500 mt-2">نسبت شارپ در این مقایسه با نرخ بدون ریسک صفر محاسبه شده است و صرفاً یک معیار آماری مقایسه‌ای است.</div>
                         </div>
                     </div>
 
