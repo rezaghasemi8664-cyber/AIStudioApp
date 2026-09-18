@@ -569,6 +569,14 @@ console.log('══════════════════════�
 console.log('  Mounting API Routes (v5.2.1)');
 console.log('════════════════════════════════════════════════');
 
+// Direct v1 aliases are mounted before the v1 aggregator so critical route groups
+// cannot be shadowed by a nested router-level fallback or catch-all middleware.
+// The aggregator remains mounted afterwards for the rest of the v1 API surface.
+mountRoute('/api/v1/admin', './routes/admin.routes.cjs', 'Admin Panel v1 alias (priority)');
+mountRoute('/api/v1/market', './routes/market.routes.cjs', 'Market Data v1 alias (priority)');
+mountRoute('/api/v1/settings', './routes/settings.routes.cjs', 'User Settings v1 alias (priority)');
+mountRoute('/api/v1/global-settings', './routes/globalSettings.routes.cjs', 'Global Settings v1 alias (priority)');
+
 mountRoute('/api/v1', './routes/v1/index.cjs', 'API v1 Root');
 // Compatibility aliases for reverse proxies that strip the /api prefix.
 // This keeps /api/v1/* requests functional when Nginx forwards them as /v1/*.
@@ -643,7 +651,6 @@ mountRoute('/api/api-keys',    './routes/apiKey.routes.cjs',           'API Keys
 mountRoute('/api/v1/api-keys', './routes/apiKey.routes.cjs',           'API Keys v1 alias');
 
 mountRoute('/api/admin',       './routes/admin.routes.cjs',            'Admin Panel');
-mountRoute('/api/v1/admin',    './routes/admin.routes.cjs',            'Admin Panel v1 alias');
 mountRoute('/v1/admin',         './routes/admin.routes.cjs',            'Admin Panel proxy-stripped compatibility');
 mountRoute('/api/admin-actions', './routes/adminActions.routes.cjs', 'Admin Actions');
 mountRoute('/api/admin/faraz-sms', './routes/wordpress-farazsms.cjs', 'Faraz SMS WordPress Bridge');
