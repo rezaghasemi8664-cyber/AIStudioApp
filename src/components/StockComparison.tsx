@@ -145,20 +145,19 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
         const rows = sortedRows.map(row => {
             const eps = Number(row.eps);
             const pe = Number(row.pe);
+            const earningsYield = Number.isFinite(pe) && pe > 0 ? (1 / pe) * 100 : null;
+            const peDistance = medianPe !== null && Number.isFinite(pe) && pe > 0 ? ((pe / medianPe) - 1) * 100 : null;
+            const fundamentalScore = Number(row.fundamentalScore);
             return {
                 symbol: row.symbol,
                 eps: Number.isFinite(eps) ? eps : null,
                 pe: Number.isFinite(pe) && pe > 0 ? pe : null,
-                earningsYield: Number.isFinite(pe) && pe > 0 ? (1 / pe) * 100 : null,
-                peDistance: medianPe !== null && Number.isFinite(pe) && pe > 0 ? ((pe / medianPe) - 1) * 100 : null,
-                fundamentalScore: row.fundamentalScore,
+                earningsYield,
+                peDistance,
+                fundamentalScore: Number.isFinite(fundamentalScore) ? fundamentalScore : null,
             };
         });
-        return {
-            medianPe,
-            validPeCount: validPe.length,
-            rows,
-        };
+        return { medianPe, validPeCount: validPe.length, rows };
     }, [sortedRows]);
 
     const liquidityMetrics = useMemo(() => {
