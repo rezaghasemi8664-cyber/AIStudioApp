@@ -134,6 +134,25 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
         });
     }, [sortedRows]);
 
+    const valuationMetrics = useMemo(() => {
+        const validPe = sortedRows.map(row => Number(row.pe)).filter(value => Number.isFinite(value) && value > 0);
+        const medianPe = validPe.length
+            ? [...validPe].sort((a, b) => a - b)[Math.floor(validPe.length / 2)]
+            : null;
+        return sortedRows.map(row => {
+            const eps = Number(row.eps);
+            const pe = Number(row.pe);
+            return {
+                symbol: row.symbol,
+                eps: Number.isFinite(eps) ? eps : null,
+                pe: Number.isFinite(pe) && pe > 0 ? pe : null,
+                earningsYield: Number.isFinite(pe) && pe > 0 ? (1 / pe) * 100 : null,
+                peDistance: medianPe !== null && Number.isFinite(pe) && pe > 0 ? ((pe / medianPe) - 1) * 100 : null,
+                fundamentalScore: row.fundamentalScore,
+            };
+        });
+    }, [sortedRows]);
+
     const liquidityMetrics = useMemo(() => {
         return sortedRows.map((row) => {
             const tradedValue = Number(row.tradedValue);
@@ -296,6 +315,21 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                                 </tr>)}</tbody></table>
                             </div>
                             <div className="text-xs text-slate-500 mt-2">نسبت نقدشوندگی = ارزش معاملات ÷ ارزش بازار؛ شدت جریان پول = جریان پول خالص ÷ ارزش معاملات. این دو شاخص صرفاً از داده‌های همان روز/نمونه مقایسه محاسبه شده‌اند.</div>
+                        </div>
+                    </div>
+
+                    <div className="px-5 pb-5">
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/30 p-4">
+                            <div className="font-bold text-slate-800 dark:text-slate-100 mb-1">مقایسه ارزش‌گذاری و داده‌های بنیادی</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400 mb-3">EPS، P/E، بازده سود، فاصله P/E از میانه گروه و امتیاز بنیادی از داده‌های واقعی مقایسه می‌شوند. EPS به‌تنهایی معیار رتبه‌بندی بین شرکت‌ها نیست، چون تعداد سهام شرکت‌ها متفاوت است.</div>
+                            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                                <table className="w-full text-sm"><thead><tr className="bg-slate-100 dark:bg-slate-700/80">
+                                    <th className="px-3 py-3 text-center">رتبه</th><th className="px-3 py-3 text-center">نماد</th><th className="px-3 py-3 text-center">EPS</th><th className="px-3 py-3 text-center">P/E</th><th className="px-3 py-3 text-center whitespace-nowrap">بازده سود</th><th className="px-3 py-3 text-center whitespace-nowrap">فاصله P/E از میانه گروه</th><th className="px-3 py-3 text-center whitespace-nowrap">امتیاز بنیادی</th>
+                                </tr></thead><tbody>{valuationMetrics.map((item) => <tr key={item.symbol} className="border-t border-slate-100 dark:border-slate-700">
+                                    <td className="px-3 py-3 text-center font-bold">{rankBySymbol.get(item.symbol) ?? '—'}</td><td className="px-3 py-3 text-center font-bold text-cyan-700 dark:text-cyan-300">{item.symbol}</td><td className="px-3 py-3 text-center">{formatNumber(item.eps, 2)}</td><td className="px-3 py-3 text-center">{formatNumber(item.pe, 2)}</td><td className="px-3 py-3 text-center font-bold">{item.earningsYield == null ? '—' : String(formatNumber(item.earningsYield, 2)) + '٪'}</td><td className="px-3 py-3 text-center font-bold">{item.peDistance == null ? '—' : String(formatNumber(item.peDistance, 2)) + '٪'}</td><td className="px-3 py-3 text-center font-bold">{formatNumber(item.fundamentalScore, 0)}</td>
+                                </tr>)}</tbody></table>
+                            </div>
+                            <div className="text-xs text-slate-500 mt-2">فاصله مثبت یعنی P/E نماد بالاتر از میانه P/E نمادهای دارای P/E معتبر است؛ P/E منفی یا نامعتبر از این محاسبه کنار گذاشته می‌شود.</div>
                         </div>
                     </div>
 
