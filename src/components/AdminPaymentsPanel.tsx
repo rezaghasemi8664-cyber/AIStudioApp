@@ -59,7 +59,7 @@ const AdminPaymentsPanel:React.FC<Props>=({onComplete=()=>undefined})=>{
    <div><h2 className="text-xl font-extrabold">پرداخت‌ها و تراکنش‌ها</h2><p className="mt-1 text-sm text-gray-500">داشبورد مالی، جست‌وجو، فیلتر و کنترل وضعیت تراکنش‌ها.</p></div>
    <div className={card}>
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h3 className="font-bold">گزارش پرداخت‌های موفق</h3><p className="mt-1 text-xs text-gray-500">تمام تاریخ‌ها بر اساس تقویم شمسی محاسبه می‌شوند.</p></div>
+      <div><h3 className="font-bold">{reportPeriod==='daily'&&report?.monthName?`گزارش روزانه پرداخت‌های موفق — ${report.monthName} ${fmt(Number(report.year||0))}`:reportPeriod==='monthly'&&report?.year?`گزارش ماهانه پرداخت‌های موفق — سال ${fmt(Number(report.year))}`:'گزارش سالانه پرداخت‌های موفق'}</h3><p className="mt-1 text-xs text-gray-500">تمام تاریخ‌ها بر اساس تقویم شمسی محاسبه می‌شوند.</p></div>
       <div className="flex rounded-xl border border-[var(--card-border-color)] p-1">
         {([['daily','روزانه'],['monthly','ماهانه'],['yearly','سالانه']] as const).map(([value,label])=><button key={value} onClick={()=>setReportPeriod(value)} className={`rounded-lg px-3 py-2 text-xs font-semibold ${reportPeriod===value?'bg-cyan-600 text-white':'text-gray-500'}`}>{label}</button>)}
       </div>
