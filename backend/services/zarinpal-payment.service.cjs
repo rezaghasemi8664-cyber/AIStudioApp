@@ -365,7 +365,7 @@ async function verifyAndActivate(authority, status) {
         SET
           status = ${STATUS.VERIFIED},
           refId = ${refId},
-          subscriptionId = ${subscription.id},
+          subscriptionId = ${subscriptionId},
           paidAt = SYSDATETIME(),
           errorCode = NULL,
           errorMessage = NULL,
@@ -374,7 +374,7 @@ async function verifyAndActivate(authority, status) {
         WHERE id = ${Number(payment.id)}
       `;
 
-      return { subscriptionId: subscription.id, alreadyVerified: false };
+      return { subscriptionId, alreadyVerified: false };
     });
 
     // Keep the Shamsi reporting aggregates synchronized immediately after a verified payment.
