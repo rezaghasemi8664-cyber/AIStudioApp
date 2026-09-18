@@ -576,6 +576,8 @@ mountRoute('/api/v1/admin', './routes/admin.routes.cjs', 'Admin Panel v1 alias (
 mountRoute('/api/v1/market', './routes/market.routes.cjs', 'Market Data v1 alias (priority)');
 mountRoute('/api/v1/settings', './routes/settings.routes.cjs', 'User Settings v1 alias (priority)');
 mountRoute('/api/v1/global-settings', './routes/globalSettings.routes.cjs', 'Global Settings v1 alias (priority)');
+mountRoute('/api/v1/codal-intelligence', './routes/codalIntelligence.routes.cjs', 'Codal Intelligence v1 alias (priority)');
+mountRoute('/api/v1/codal', './routes/codalIntelligence.routes.cjs', 'Codal Compatibility v1 alias (priority)');
 
 mountRoute('/api/v1', './routes/v1/index.cjs', 'API v1 Root');
 // Compatibility aliases for reverse proxies that strip the /api prefix.
