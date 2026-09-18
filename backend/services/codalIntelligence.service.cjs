@@ -80,7 +80,7 @@ function normalizeItem(item) {
 function extractItems(payload) {
   if (Array.isArray(payload)) return payload;
   if (!payload || typeof payload !== 'object') return [];
-  for (const key of ['data', 'items', 'results', 'reports', 'Rows', 'Data']) if (Array.isArray(payload[key])) return payload[key];
+  for (const key of ['announcement', 'data', 'items', 'results', 'reports', 'Rows', 'Data']) if (Array.isArray(payload[key])) return payload[key];
   return [];
 }
 function dateKey(value) {
