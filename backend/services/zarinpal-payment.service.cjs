@@ -3,6 +3,7 @@
 const axios = require('axios');
 const { prisma } = require('../config/prisma.cjs');
 const subscriptionService = require('./subscription.service.cjs');
+const paymentReportService = require('./payment-report.service.cjs');
 
 const PROVIDER = 'zarinpal';
 const STATUS = Object.freeze({
@@ -345,6 +346,10 @@ async function verifyAndActivate(authority, status) {
 
       return { subscriptionId: subscription.id, alreadyVerified: false };
     });
+
+    // Keep the Shamsi reporting aggregates synchronized immediately after a verified payment.
+    try { await paymentReportService.syncSummaries(now); }
+    catch (reportError) { console.error('[PAYMENT_REPORT] sync after verification failed:', reportError); }
 
     return {
       success: true,
