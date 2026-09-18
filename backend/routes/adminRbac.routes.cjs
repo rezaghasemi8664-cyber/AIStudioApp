@@ -3,7 +3,7 @@ const express=require('express');
 const { prisma }=require('../config/prisma.cjs');
 const authMiddleware=require('../middlewares/auth.middleware.cjs');
 const requirePermission=require('../middlewares/requirePermission.middleware.cjs');
-const { PERMISSIONS,ensurePermissions,listRolePermissions,setRolePermissions,hasPermission }=require('../services/rbac.service.cjs');
+const { PERMISSIONS,ensurePermissions,listRolePermissions,setRolePermissions,hasPermission,listUserPermissions,setUserPermissions }=require('../services/rbac.service.cjs');
 const router=express.Router();
 async function audit(req,action,targetId,details){try{await prisma.$executeRawUnsafe(`IF OBJECT_ID(N'dbo.AdminAuditLog',N'U') IS NOT NULL INSERT INTO dbo.AdminAuditLog(adminUserId,action,moduleKey,targetId,method,path,statusCode,ipAddress,userAgent,detailsJson) VALUES(@p1,@p2,N'roles',@p3,@p4,@p5,200,@p6,@p7,@p8)`,Number(req.user?.userId||req.user?.id)||null,action,targetId==null?null:String(targetId),req.method,req.originalUrl,req.ip||null,String(req.get('user-agent')||'').slice(0,500),details?JSON.stringify(details):null);}catch(_) {}}
 router.get('/me/permissions',authMiddleware,async(req,res)=>{try{await ensurePermissions();if(String(req.user?.role||'').toUpperCase()==='SUPERADMIN')return res.json({success:true,data:PERMISSIONS});const allowed=[];for(const key of PERMISSIONS)if(await hasPermission(req.user?.userId||req.user?.id,key))allowed.push(key);return res.json({success:true,data:allowed});}catch(error){return res.status(500).json({success:false,message:error?.message||'دریافت مجوزهای کاربر ناموفق بود.'});}});
@@ -12,5 +12,29 @@ router.get('/permissions',async(_req,res)=>{await ensurePermissions();return res
 router.get('/roles',async(_req,res)=>{await ensurePermissions();const roles=await prisma.role.findMany({orderBy:{id:'asc'},select:{id:true,name:true,title:true,_count:{select:{users:true,permissions:true}}}});return res.json({success:true,data:roles.map(r=>({id:r.id,name:r.name,title:r.title,userCount:r._count.users,permissionCount:r._count.permissions}))});});
 router.get('/roles/:roleId/permissions',async(req,res)=>{const id=Number(req.params.roleId);if(!id)return res.status(400).json({success:false,message:'شناسه نقش نامعتبر است.'});return res.json({success:true,data:await listRolePermissions(id)});});
 router.put('/roles/:roleId/permissions',async(req,res)=>{try{const id=Number(req.params.roleId);if(!id)return res.status(400).json({success:false,message:'شناسه نقش نامعتبر است.'});const keys=Array.isArray(req.body?.permissionKeys)?req.body.permissionKeys:[];const data=await setRolePermissions(id,keys);await audit(req,'ADMIN_ROLE_PERMISSIONS_UPDATED',id,{permissionCount:data.permissionCount});return res.json({success:true,message:'مجوزهای نقش ذخیره شد.',data});}catch(error){return res.status(400).json({success:false,message:error?.message||'ذخیره مجوزهای نقش ناموفق بود.'});}});
+router.get('/users/by-username/:username/permissions',async(req,res)=>{
+  try {
+    const username=String(req.params.username||'').trim();
+    if(!username)return res.status(400).json({success:false,message:'نام کاربری الزامی است.'});
+    const data=await prisma.user.findUnique({where:{username},select:{id:true}});
+    if(!data)return res.status(404).json({success:false,message:'کاربر پیدا نشد.'});
+    const result=await listUserPermissions(data.id);
+    return res.json({success:true,data:result});
+  } catch(error) {
+    return res.status(400).json({success:false,message:error?.message||'دریافت مجوزهای کاربر ناموفق بود.'});
+  }
+});
+router.put('/users/:userId/permissions',async(req,res)=>{
+  try {
+    const userId=Number(req.params.userId);
+    if(!userId)return res.status(400).json({success:false,message:'شناسه کاربر نامعتبر است.'});
+    const keys=Array.isArray(req.body?.permissionKeys)?req.body.permissionKeys:[];
+    const data=await setUserPermissions(userId,keys);
+    await audit(req,'ADMIN_USER_PERMISSIONS_UPDATED',userId,{permissionCount:data.permissionCount});
+    return res.json({success:true,message:'مجوزهای اختصاصی کاربر ذخیره شد.',data});
+  } catch(error) {
+    return res.status(400).json({success:false,message:error?.message||'ذخیره مجوزهای کاربر ناموفق بود.'});
+  }
+});
 router.patch('/users/:userId/role',async(req,res)=>{try{const targetId=Number(req.params.userId);const roleId=Number(req.body?.roleId);if(!targetId||!roleId)return res.status(400).json({success:false,message:'شناسه کاربر یا نقش نامعتبر است.'});const actorId=Number(req.user?.userId||req.user?.id);const [target,role,actor]=await Promise.all([prisma.user.findUnique({where:{id:targetId},select:{id:true,role:{select:{name:true}}}}),prisma.role.findUnique({where:{id:roleId},select:{id:true,name:true,title:true}}),actorId?prisma.user.findUnique({where:{id:actorId},select:{id:true,role:{select:{name:true}}}}):null]);if(!target)return res.status(404).json({success:false,message:'کاربر پیدا نشد.'});if(!role)return res.status(404).json({success:false,message:'نقش پیدا نشد.'});const actorRole=String(actor?.role?.name||req.user?.role||'').toUpperCase();const targetRole=String(target.role?.name||'').toUpperCase();const nextRole=String(role.name||'').toUpperCase();if((targetRole==='SUPERADMIN'||nextRole==='SUPERADMIN')&&actorRole!=='SUPERADMIN')return res.status(403).json({success:false,message:'فقط SUPERADMIN می‌تواند نقش SUPERADMIN را تغییر دهد.'});if(actorId===targetId&&nextRole!=='SUPERADMIN')return res.status(400).json({success:false,message:'نمی‌توانید نقش حساب مدیریتی خود را به سطح پایین‌تر تغییر دهید.'});if(actorId===targetId&&targetRole==='SUPERADMIN'&&nextRole==='SUPERADMIN')return res.status(400).json({success:false,message:'نقش SUPERADMIN همین حالا فعال است.'});if(targetRole===nextRole)return res.status(400).json({success:false,message:'کاربر از قبل همین نقش را دارد.'});await prisma.user.update({where:{id:targetId},data:{roleId}});await audit(req,'ADMIN_USER_ROLE_UPDATED',targetId,{from:targetRole||null,to:nextRole,roleId});return res.json({success:true,message:'نقش کاربر با موفقیت تغییر کرد.',data:{userId:targetId,roleId,roleName:role.name,roleTitle:role.title}});}catch(error){return res.status(400).json({success:false,message:error?.message||'تغییر نقش کاربر ناموفق بود.'});}});
 module.exports=router;
