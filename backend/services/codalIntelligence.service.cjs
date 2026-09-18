@@ -126,7 +126,7 @@ async function getReports({ symbol = '', from = '', to = '', limit = 50 } = {}) 
   const apiKey = process.env.BRS_CODAL_API_KEY || process.env.CODAL_API_KEY || '';
   if (!apiKey) { const error = new Error('BRS_CODAL_API_KEY تنظیم نشده است.'); error.code = 'CODAL_KEY_NOT_CONFIGURED'; throw error; }
   const params = { key: apiKey };
-  if (symbol) params.symbol = symbol; if (from) params.from = from; if (to) params.to = to;
+  if (symbol) params.l18 = symbol; if (from) params.from = from; if (to) params.to = to;
   params.limit = Math.min(Math.max(Number(limit) || 50, 1), 200);
   const response = await axios.get(baseUrl, { params, timeout: Number(process.env.CODAL_TIMEOUT_MS) || 15000, headers: { Accept: 'application/json', 'User-Agent': process.env.CODAL_USER_AGENT || 'Roniya-Analyzer/1.0' } });
   const items = extractItems(response.data).map(normalizeItem).filter(item => item.title || item.symbol || item.publishDate || item.url);
