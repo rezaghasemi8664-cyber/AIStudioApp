@@ -265,6 +265,34 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
         };
     }, [sortedRows]);
 
+
+    const historicalCorrelation = useMemo(() => {
+        const series = sortedRows.map(row => {
+            const points = row.history
+                .map(point => ({ date: point.date, close: Number(point.close) }))
+                .filter(point => Number.isFinite(point.close) && point.close > 0);
+            const returns = new Map<string, number>();
+            for (let index = 1; index < points.length; index += 1) {
+                const previous = points[index - 1].close;
+                const current = points[index].close;
+                if (previous > 0 && current > 0) returns.set(points[index].date, (current / previous) - 1);
+            }
+            return { symbol: row.symbol, returns };
+        });
+        const correlation = (left: Map<string, number>, right: Map<string, number>) => {
+            const pairs = Array.from(left.keys()).filter(date => right.has(date)).map(date => [left.get(date) as number, right.get(date) as number]);
+            if (pairs.length < 3) return null;
+            const leftMean = pairs.reduce((sum, pair) => sum + pair[0], 0) / pairs.length;
+            const rightMean = pairs.reduce((sum, pair) => sum + pair[1], 0) / pairs.length;
+            const numerator = pairs.reduce((sum, pair) => sum + ((pair[0] - leftMean) * (pair[1] - rightMean)), 0);
+            const leftDenominator = Math.sqrt(pairs.reduce((sum, pair) => sum + ((pair[0] - leftMean) ** 2), 0));
+            const rightDenominator = Math.sqrt(pairs.reduce((sum, pair) => sum + ((pair[1] - rightMean) ** 2), 0));
+            return leftDenominator > 0 && rightDenominator > 0 ? numerator / (leftDenominator * rightDenominator) : null;
+        };
+        const matrix = series.map(left => series.map(right => correlation(left.returns, right.returns)));
+        return { symbols: series.map(item => item.symbol), matrix };
+    }, [sortedRows]);
+
     const historicalChartData = useMemo(() => {
         const dates = Array.from(new Set(sortedRows.flatMap(row => row.history.map(point => point.date)))).sort();
         return dates.map(date => {
@@ -365,6 +393,33 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                             </div>
                             <div className="text-xs text-slate-500 mt-2">
                                 فاصله‌ها نسبت به میانه گروه هستند؛ مثبت یا منفی بودن آن‌ها فقط اختلاف آماری با مرکز توزیع را نشان می‌دهد و به‌تنهایی معیار تصمیم‌گیری نیست.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="px-5 pb-5">
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/30 p-4">
+                            <div className="font-bold text-slate-800 dark:text-slate-100 mb-1">همبستگی بازده نمادها</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                                ضریب همبستگی پیرسون بین بازده‌های روزانه مشترک در تاریخچه واقعی محاسبه می‌شود. مقدار نزدیک به ۱ یعنی حرکت هم‌جهت بیشتر و مقدار نزدیک به منفی ۱ یعنی حرکت خلاف‌جهت بیشتر.
+                            </div>
+                            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                                <table className="w-full text-sm">
+                                    <thead><tr className="bg-slate-100 dark:bg-slate-700/80">
+                                        <th className="px-3 py-3 text-center">نماد</th>
+                                        {historicalCorrelation.symbols.map(symbol => <th key={symbol} className="px-3 py-3 text-center">{symbol}</th>)}
+                                    </tr></thead>
+                                    <tbody>{historicalCorrelation.symbols.map((symbol, rowIndex) => <tr key={symbol} className="border-t border-slate-100 dark:border-slate-700">
+                                        <td className="px-3 py-3 text-center font-bold text-cyan-700 dark:text-cyan-300">{symbol}</td>
+                                        {historicalCorrelation.symbols.map((_, columnIndex) => {
+                                            const value = historicalCorrelation.matrix[rowIndex]?.[columnIndex];
+                                            return <td key={columnIndex} className="px-3 py-3 text-center font-bold">{value == null ? '—' : formatNumber(value, 3)}</td>;
+                                        })}
+                                    </tr>)}</tbody>
+                                </table>
+                            </div>
+                            <div className="text-xs text-slate-500 mt-2">
+                                فقط روزهایی که هر دو نماد داده معتبر و مشترک دارند وارد محاسبه شده‌اند؛ همبستگی به‌تنهایی معیار توصیه سرمایه‌گذاری نیست.
                             </div>
                         </div>
                     </div>
