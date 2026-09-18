@@ -3,6 +3,7 @@ import * as adminService from '../services/adminService';
 import * as adminSubscriptionService from '../services/adminSubscriptionService';
 import type { AdminUserListItem } from '../types';
 import { useNotification } from './NotificationSystem';
+import AdminCreateUserPanel from './AdminCreateUserPanel';
 
 type UserRow = AdminUserListItem & { subscriptionType?: string | null; analysisLimit24h?: number; analysisUsed24h?: number; };
 type Filter = 'all' | 'active' | 'expired' | 'expiring';
@@ -35,6 +36,7 @@ const AdminSubscriptionsPanel:React.FC=()=>{
  const open=async(u:UserRow)=>{setSelected(u);setForm({isActive:u.isSubscriptionActive,type:u.subscriptionType||'standard',start:u.subscriptionStart?new Date(u.subscriptionStart).toISOString().slice(0,10):'',end:u.subscriptionEnd?new Date(u.subscriptionEnd).toISOString().slice(0,10):'',days:String(u.subscriptionDays||0),months:String(u.subscriptionMonths||0),limit:String(u.analysisLimit||0),limit24h:String(u.analysisLimit24h||u.analysisLimit||0)});};
  const save=async()=>{if(!selected)return;setBusy(String(selected.id));try{const days=Math.max(0,Number(form.days)||0);const months=Math.max(0,Number(form.months)||0);let start=form.start||undefined;let end=form.end||undefined;if(days>0&&!start)start=new Date().toISOString().slice(0,10);if(days>0){const d=new Date(`${start}T00:00:00`);d.setDate(d.getDate()+days);end=d.toISOString().slice(0,10);}const payload:adminService.AdminUpdateSubscriptionData={userId:selected.id,isSubscriptionActive:form.isActive,subscriptionStart:start||null,subscriptionEnd:end||null,analysisLimit:Math.max(0,Number(form.limit)||0),analysisLimit24h:Math.max(0,Number(form.limit24h)||0),subscriptionType:form.type};if(days>0){payload.subscriptionDays=days;payload.subscriptionMonths=0;}else if(months>0){payload.subscriptionMonths=months;payload.subscriptionDays=undefined;}await adminService.updateSubscription(payload);addNotification('اشتراک کاربر با موفقیت به‌روزرسانی شد.','success');setSelected(null);await load(page);}catch(e){addNotification(e instanceof Error?e.message:'به‌روزرسانی اشتراک ناموفق بود.','error');}finally{setBusy(null);}};
  return <div className="space-y-5" dir="rtl">
+  <AdminCreateUserPanel onCreated={() => void load(1)} />
   <div><h2 className="text-2xl font-bold">اشتراک‌ها و اعتبار</h2><p className="mt-1 text-sm text-gray-500">مدیریت وضعیت اشتراک، تمدید، سقف تحلیل و کاربران نزدیک به انقضا</p></div>
   {error&&<div className="rounded-xl border border-red-300 bg-red-50 p-3 text-red-700">{error}</div>}
   <div className={card}>
