@@ -124,6 +124,38 @@ async function runSmaCrossover(params = {}) {
   const buyHoldValue = initialCapital * (closes[closes.length - 1] / closes[0]);
   const buyHoldReturnPercent = ((buyHoldValue / initialCapital) - 1) * 100;
 
+  const closedTrades = [];
+  for (let i = 0; i < trades.length - 1; i += 1) {
+    const buy = trades[i];
+    const sell = trades[i + 1];
+    if (buy.side !== 'خرید' || sell.side !== 'فروش') continue;
+    const grossPnl = (sell.price - buy.price) * sell.quantity;
+    const fees = buy.fee + sell.fee;
+    closedTrades.push({
+      entryDate: buy.date,
+      exitDate: sell.date,
+      quantity: sell.quantity,
+      entryPrice: buy.price,
+      exitPrice: sell.price,
+      grossPnl,
+      fees,
+      netPnl: grossPnl - fees,
+      returnPercent: buy.price > 0 ? ((sell.price / buy.price) - 1) * 100 : null,
+    });
+  }
+  const winners = closedTrades.filter(trade => trade.netPnl > 0);
+  const losers = closedTrades.filter(trade => trade.netPnl < 0);
+  const grossProfit = winners.reduce((sum, trade) => sum + trade.netPnl, 0);
+  const grossLoss = Math.abs(losers.reduce((sum, trade) => sum + trade.netPnl, 0));
+  const dailyReturns = equityCurve.slice(1).map((point, index) => {
+    const previous = equityCurve[index].equity;
+    return previous > 0 ? (point.equity / previous) - 1 : 0;
+  });
+  const meanDailyReturn = dailyReturns.length ? dailyReturns.reduce((sum, value) => sum + value, 0) / dailyReturns.length : 0;
+  const variance = dailyReturns.length > 1 ? dailyReturns.reduce((sum, value) => sum + ((value - meanDailyReturn) ** 2), 0) / (dailyReturns.length - 1) : 0;
+  const dailyVolatility = Math.sqrt(Math.max(0, variance));
+  const sharpe = dailyVolatility > 0 ? (meanDailyReturn / dailyVolatility) * Math.sqrt(252) : null;
+
   return {
     success: true,
     deterministic: true,
@@ -147,7 +179,12 @@ async function runSmaCrossover(params = {}) {
     excessReturnPercent: returnPercent - buyHoldReturnPercent,
     maxDrawdown,
     tradeCount: trades.length,
-    closedTradeCount: trades.filter(trade => trade.side === 'فروش').length,
+    closedTradeCount: closedTrades.length,
+    winRate: closedTrades.length ? (winners.length / closedTrades.length) * 100 : null,
+    profitFactor: grossLoss > 0 ? grossProfit / grossLoss : null,
+    averageClosedTradePnl: closedTrades.length ? closedTrades.reduce((sum, trade) => sum + trade.netPnl, 0) / closedTrades.length : null,
+    sharpe,
+    closedTrades,
     openQuantity: quantity,
     cash,
     trades,
