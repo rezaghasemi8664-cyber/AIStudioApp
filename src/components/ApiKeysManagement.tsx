@@ -232,7 +232,7 @@ const ApiKeysManagement: React.FC = () => {
     if (loading) return <p>در حال بارگذاری تنظیمات API...</p>;
 
     return (
-        <div className="space-y-8">
+        <div className="api-keys-workstation space-y-8">
             <div className="p-6 rounded-lg shadow-md border border-[var(--card-border-color)]" style={{ backgroundColor: 'var(--settings-card-bg)' }}>
                 <h3 className="text-lg font-semibold mb-4">مدیریت لیست کلیدهای API</h3>
                 <div className="space-y-2 mb-4">
