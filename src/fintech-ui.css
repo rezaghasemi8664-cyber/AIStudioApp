@@ -1380,3 +1380,21 @@ a:focus-visible {
   .stock-profile-page input, .stock-profile-page select, .stock-profile-page button { min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) { .stock-profile-page * { transition: none !important; animation: none !important; } }
+
+
+/* Strategy lab workstation v14 */
+.strategy-lab-page { max-width: 1440px; margin-inline: auto; }
+.strategy-lab-page .rounded-2xl, .strategy-lab-page .rounded-xl { border-color: var(--ui-border, var(--color-border)); box-shadow: var(--ui-shadow, 0 8px 24px rgba(15,23,42,.05)); }
+.strategy-lab-page input { min-height: 42px; border-color: var(--ui-border, var(--color-border)); }
+.strategy-lab-page button { min-height: 42px; transition: transform .15s ease, box-shadow .15s ease; }
+.strategy-lab-page button:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(15,23,42,.10); }
+.strategy-lab-page table { border-collapse: separate; border-spacing: 0; }
+.strategy-lab-page th { font-weight: 800; white-space: nowrap; }
+.strategy-lab-page td, .strategy-lab-page th { vertical-align: middle; }
+@media (max-width: 768px) {
+  .strategy-lab-page { width: 100%; }
+  .strategy-lab-page table { min-width: 820px; }
+  .strategy-lab-page .overflow-x-auto { -webkit-overflow-scrolling: touch; }
+  .strategy-lab-page input, .strategy-lab-page button { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) { .strategy-lab-page * { transition: none !important; animation: none !important; } }
