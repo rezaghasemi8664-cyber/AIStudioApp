@@ -11,6 +11,10 @@ function normalizeIntent(message) {
   const text = String(message || '').trim().toLowerCase();
   if (!text) return { type: 'help' };
   if (/راهنما|چه کار|دستورات|کمک/.test(text)) return { type: 'help' };
+  if (/مقایسه|مقایسه کن|هم مقایسه/.test(text)) return { type: 'compare' };
+  if (/کیفیت داده|اعتبار داده|داده معتبر|پوشش داده/.test(text)) return { type: 'dataQuality' };
+  if (/نقدشوندگی|حجم معاملات|ارزش معاملات|لیکوئید/.test(text)) return { type: 'liquidity' };
+  if (/بازده ماه|بازده ۱ ماه|بازده یک ماه|بازده 1 ماه|عملکرد ماه/.test(text)) return { type: 'monthlyReturn' };
   if (/p\/e|pe|پی بر ای|پی بر ئی/.test(text)) return { type: 'pe' };
   if (/قیمت|ارزش|آخرین|پایانی/.test(text)) return { type: 'price' };
   if (/تغییر|بازده|درصد/.test(text)) return { type: 'change' };
