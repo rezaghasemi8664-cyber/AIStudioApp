@@ -1224,3 +1224,40 @@ a:focus-visible {
     border-color: var(--color-border);
   }
 }
+
+
+/* Professional watchlist workstation v9 */
+.portfolio-watchlists-page {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+}
+.portfolio-watchlists-page .overflow-x-auto {
+  scrollbar-width: thin;
+}
+.portfolio-watchlists-page table {
+  min-width: 980px;
+}
+.portfolio-watchlists-page button,
+.portfolio-watchlists-page input,
+.portfolio-watchlists-page select {
+  min-height: 42px;
+}
+.portfolio-watchlists-page table th,
+.portfolio-watchlists-page table td {
+  vertical-align: middle;
+}
+@media (max-width: 768px) {
+  .portfolio-watchlists-page table {
+    min-width: 900px;
+  }
+  .portfolio-watchlists-page h2 {
+    line-height: 1.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .portfolio-watchlists-page * {
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+}
