@@ -8,6 +8,6 @@ interface UserManagementProps {
 }
 
 /** Centralized administration entry point. */
-const UserManagement: React.FC<UserManagementProps> = (props) => <AdminPanelV2 {...props} />;
+const UserManagement: React.FC<UserManagementProps> = (props) => <div className="user-management-workstation"><AdminPanelV2 {...props} /></div>;
 
 export default UserManagement;
