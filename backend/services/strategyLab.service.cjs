@@ -195,6 +195,77 @@ async function runSmaCrossover(params = {}) {
   };
 }
 
+async function optimizeSmaCrossover(params = {}) {
+  const symbol = String(params.symbol || '').trim().toUpperCase();
+  if (!symbol) throw Object.assign(new Error('نماد سهم الزامی است.'), { statusCode: 400, code: 'STRATEGY_SYMBOL_REQUIRED' });
+
+  const initialCapital = Math.max(100000, toNumber(params.initialCapital) ?? 100000000);
+  const feePercent = Math.max(0, Math.min(10, toNumber(params.feePercent) ?? 0.1));
+  const shortPeriods = Array.isArray(params.shortPeriods) && params.shortPeriods.length
+    ? params.shortPeriods.map(Number).filter(Number.isFinite).map(Math.round).filter(v => v >= 2 && v <= 100)
+    : [5, 10, 15, 20];
+  const longPeriods = Array.isArray(params.longPeriods) && params.longPeriods.length
+    ? params.longPeriods.map(Number).filter(Number.isFinite).map(Math.round).filter(v => v >= 3 && v <= 250)
+    : [30, 50, 70];
+
+  const combinations = [];
+  for (const shortPeriod of [...new Set(shortPeriods)]) {
+    for (const longPeriod of [...new Set(longPeriods)]) {
+      if (longPeriod > shortPeriod) combinations.push({ shortPeriod, longPeriod });
+    }
+  }
+  if (!combinations.length || combinations.length > 16) {
+    throw Object.assign(new Error('ترکیب پارامترها باید بین ۱ تا ۱۶ حالت معتبر داشته باشد.'), { statusCode: 400, code: 'STRATEGY_PARAMETER_GRID_INVALID' });
+  }
+
+  const results = [];
+  for (const combination of combinations) {
+    try {
+      const result = await runSmaCrossover({
+        symbol,
+        initialCapital,
+        feePercent: feePercent / 100,
+        historyCount: Math.max(combination.longPeriod + 10, 180),
+        ...combination,
+      });
+      results.push({
+        shortPeriod: combination.shortPeriod,
+        longPeriod: combination.longPeriod,
+        returnPercent: result.returnPercent,
+        buyHoldReturnPercent: result.buyHoldReturnPercent,
+        excessReturnPercent: result.excessReturnPercent,
+        maxDrawdown: result.maxDrawdown,
+        sharpe: result.sharpe,
+        tradeCount: result.tradeCount,
+        closedTradeCount: result.closedTradeCount,
+        winRate: result.winRate,
+        profitFactor: result.profitFactor,
+      });
+    } catch (error) {
+      results.push({ shortPeriod: combination.shortPeriod, longPeriod: combination.longPeriod, error: error.message });
+    }
+  }
+
+  const valid = results.filter(item => Number.isFinite(Number(item.returnPercent)));
+  const ranked = [...valid].sort((a, b) =>
+    (Number(b.sharpe ?? -Infinity) - Number(a.sharpe ?? -Infinity)) ||
+    (Number(b.returnPercent) - Number(a.returnPercent))
+  );
+
+  return {
+    success: true,
+    deterministic: true,
+    engine: { name: 'deterministic-sma-crossover-optimizer', version: '1.0.0', deterministic: true },
+    symbol,
+    initialCapital,
+    feePercent,
+    combinations: results.length,
+    validCombinations: valid.length,
+    ranking: ranked,
+    note: 'این رتبه‌بندی فقط بر اساس داده تاریخی همان بازه است و به‌تنهایی نشانه عملکرد آینده یا توصیه سرمایه‌گذاری نیست.',
+  };
+}
+
 async function backtestStrategy(params = {}) {
   if (String(params.strategy || 'sma-crossover') !== 'sma-crossover') {
     throw Object.assign(new Error('استراتژی انتخاب‌شده در این نسخه پشتیبانی نمی‌شود.'), {
@@ -206,4 +277,4 @@ async function backtestStrategy(params = {}) {
   return runSmaCrossover(params);
 }
 
-module.exports = { backtestStrategy };
+module.exports = { backtestStrategy, optimizeSmaCrossover };
