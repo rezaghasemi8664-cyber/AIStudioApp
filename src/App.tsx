@@ -82,6 +82,7 @@ const UserManagement = lazy(() => import('./components/UserManagement'));
 const NotificationsManagement = lazy(() => import('./components/NotificationsManagement'));
 const Settings = lazy(() => import('./components/Settings'));
 const MarketRadar = lazy(() => import('./components/MarketRadar/MarketRadar'));
+const StrategyLab = lazy(() => import('./components/StrategyLab'));
 const RoniaAssistant = lazy(() => import('./components/RoniaAssistant'));
 
 type Tab =
@@ -96,6 +97,7 @@ type Tab =
   | 'notifications'
   | 'profile'
   | 'marketRadar'
+  | 'strategyLab'
   | 'roniaAssistant';
 
 const TIMING = {
@@ -953,6 +955,7 @@ const App: React.FC = () => {
       case 'portfolio': return <Portfolio onAlertChange={setPortfolioAlert} currentUser={currentUser} isOnline={isOnline} />;
       case 'comparison': return <StockComparison currentUser={currentUser} isOnline={isOnline} />;
       case 'marketRadar': return <MarketRadar />;
+      case 'strategyLab': return <StrategyLab isOnline={isOnline} />;
       case 'roniaAssistant': return <RoniaAssistant isOnline={isOnline} onNavigate={(tab) => handleTabClick(tab as Tab)} />;
       case 'dailyFilters': return <DailyFilters />;
       case 'profile': return <UserProfile currentUser={currentUser} onProfileUpdate={handleProfileUpdate} onPasswordChange={handlePasswordChange} />;
@@ -987,6 +990,7 @@ const App: React.FC = () => {
           <TabButton tab="scalping" label="نوسان‌گیری" icon={<ChartBarIcon />} alertType={scalpingAlert ? 'cyan' : 'none'} locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="portfolio" label="سبد سهام" icon={<BriefcaseIcon />} alertType={portfolioAlert === 'buy' ? 'green' : portfolioAlert === 'sell' ? 'red' : 'none'} locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="comparison" label="مقایسه" icon={<ClipboardDocumentIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="strategyLab" label="آزمایشگاه استراتژی" icon={<PresentationChartLineIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="dailyFilters" label="فیلترهای روزانه" icon={<PresentationChartLineIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
           {currentUser.isAdmin && <><TabButton tab="users" label="کاربران" icon={<UserGroupIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /><TabButton tab="notifications" label="اطلاعیه‌ها" icon={<MegaphoneIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /></>}
           <div className="relative" ref={tseMenuRef}><button onClick={handleToggleTseMenu} className="flex items-center gap-2 px-4 py-3 text-sm font-semibold transition-colors hover:bg-[var(--tab-inactive-hover-bg)]" style={{ color: 'var(--tab-inactive-color)', fontFamily: 'var(--tab-inactive-font-family)', fontSize: 'var(--tab-inactive-font-size)' }}><GlobeAltIcon /><span>تالار بورس</span><ChevronDownIcon className={`w-4 h-4 transition-transform ${isTseMenuOpen ? 'rotate-180' : ''}`} /></button>{isTseMenuOpen && tseLinks.length > 0 && <div className="absolute top-full right-0 w-48 bg-white dark:bg-gray-800 rounded-b-lg shadow-xl border border-gray-200 dark:border-gray-700 z-10 py-2">{tseLinks.filter(link => link.href).map(link => <a key={link.id} href={link.href} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors text-right">{staticTseIcons[link.label] || <GlobeAltIcon className="w-4 h-4" />}{link.label}</a>)}</div>}</div>
