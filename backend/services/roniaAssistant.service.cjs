@@ -59,7 +59,6 @@ function helpResponse() {
     actions: [
       { label: 'پروفایل سهم', tab: 'profile' },
       { label: 'مقایسه', tab: 'comparison' },
-      { label: 'پروفایل سهم', tab: 'profile' },
       { label: 'رادار بازار', tab: 'marketRadar' }
     ]
   };
@@ -121,8 +120,8 @@ async function answer(params = {}) {
     row: enriched[0],
     actions: [
       { label: 'پروفایل سهم', tab: 'profile', symbol: rows[0].symbol },
-      { label: 'پروفایل سهم', tab: 'profile', symbol: rows[0].symbol },
-      { label: 'مقایسه', tab: 'comparison', symbol: rows[0].symbol }
+      { label: 'مقایسه', tab: 'comparison', symbol: rows[0].symbol },
+      { label: 'رادار بازار', tab: 'marketRadar', symbol: rows[0].symbol }
     ]
   };
 }
