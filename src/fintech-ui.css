@@ -398,3 +398,139 @@ a:focus-visible {
     transition-duration: .01ms !important;
   }
 }
+
+/* --- Roniya workstation layout v2 --- */
+.app-shell {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  gap: 0;
+}
+
+.app-shell > .app-header {
+  width: 100%;
+  min-height: 72px;
+  border-radius: 18px;
+  box-shadow: var(--ui-shadow);
+  background: var(--ui-surface) !important;
+  border: 1px solid var(--ui-border) !important;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 16px;
+}
+
+.app-shell > .app-header > :last-child {
+  justify-self: end;
+}
+
+.app-shell > .app-nav {
+  width: 100%;
+  margin-top: 14px;
+}
+
+.app-shell > .app-nav > .app-nav-scroll {
+  flex-wrap: nowrap !important;
+  border: 1px solid var(--ui-border);
+  border-radius: 16px;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow);
+  padding: 5px;
+}
+
+.app-shell > .app-nav .app-nav-scroll > button,
+.app-shell > .app-nav .app-nav-scroll > .relative > button {
+  border-radius: 11px;
+}
+
+.app-shell > .app-main {
+  width: 100%;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+@media (max-width: 900px) {
+  .app-shell > .app-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .app-shell > .app-header > :nth-child(2) {
+    display: none;
+  }
+
+  .app-shell > .app-header > :last-child {
+    justify-self: end;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    padding: 8px !important;
+  }
+
+  .app-shell > .app-header {
+    min-height: 62px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+    padding: 7px 9px !important;
+    border-radius: 14px;
+  }
+
+  .app-shell > .app-header .brand-logo {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  .app-shell > .app-header .brand-lockup {
+    gap: 8px !important;
+  }
+
+  .app-shell > .app-header .brand-copy {
+    max-width: 48vw;
+  }
+
+  .app-shell > .app-header .brand-title {
+    font-size: .82rem !important;
+  }
+
+  .app-shell > .app-header > :last-child {
+    gap: 2px !important;
+  }
+
+  .app-shell > .app-header > :last-child > button {
+    min-height: 40px;
+    min-width: 40px;
+  }
+
+  .app-shell > .app-nav {
+    margin-top: 9px;
+    margin-bottom: 10px !important;
+  }
+
+  .app-shell > .app-nav > .app-nav-scroll {
+    padding: 4px;
+    border-radius: 13px;
+  }
+
+  .app-shell > .app-nav .app-nav-scroll > button,
+  .app-shell > .app-nav .app-nav-scroll > .relative > button {
+    min-height: 42px;
+    padding: 0 12px !important;
+    white-space: nowrap;
+  }
+
+  .app-shell > .app-main {
+    padding-inline: 0;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .app-shell > .app-header,
+  .app-shell > .app-nav > .app-nav-scroll,
+  .app-shell .rounded-xl.border,
+  .app-shell .rounded-2xl.border,
+  .app-shell .rounded-3xl.border {
+    border-width: 2px !important;
+  }
+}
+
