@@ -1398,3 +1398,73 @@ a:focus-visible {
   .strategy-lab-page input, .strategy-lab-page button { min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) { .strategy-lab-page * { transition: none !important; animation: none !important; } }
+
+
+/* Subscription plans workstation v15 */
+.subscription-plans-page {
+  max-width: 1440px;
+  margin-inline: auto;
+  min-width: 0;
+}
+.subscription-plans-page > div:first-child h3 {
+  color: var(--ui-text) !important;
+  letter-spacing: -.01em;
+}
+.subscription-plans-page > div:first-child p {
+  color: var(--ui-muted) !important;
+  line-height: 1.9;
+}
+.subscription-plans-page article {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface) !important;
+  box-shadow: var(--ui-shadow);
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.subscription-plans-page article:hover {
+  box-shadow: var(--ui-shadow-hover);
+}
+.subscription-plans-page article .bg-gray-50 {
+  background: var(--ui-surface-2) !important;
+}
+.subscription-plans-page article .text-gray-500,
+.subscription-plans-page article .dark\\:text-gray-400 {
+  color: var(--ui-muted) !important;
+}
+.subscription-plans-page article .font-extrabold {
+  font-variant-numeric: tabular-nums;
+}
+.subscription-plans-page article button {
+  min-height: 42px;
+}
+.subscription-plans-page article button:disabled {
+  transform: none !important;
+}
+.subscription-plans-page .text-red-700,
+.subscription-plans-page .dark\\:text-red-300 {
+  color: var(--ui-negative) !important;
+}
+@media (max-width: 768px) {
+  .subscription-plans-page {
+    width: 100%;
+    gap: 12px !important;
+  }
+  .subscription-plans-page > div:first-child h3 {
+    font-size: 1.2rem !important;
+  }
+  .subscription-plans-page > div:first-child p {
+    font-size: .86rem;
+  }
+  .subscription-plans-page article {
+    border-radius: 15px !important;
+    padding: 14px !important;
+  }
+  .subscription-plans-page article button {
+    min-height: 44px;
+    padding-inline: 13px !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .subscription-plans-page article {
+    transition: none !important;
+  }
+}
