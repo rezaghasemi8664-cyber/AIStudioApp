@@ -1,1 +1,0 @@
--- Models already exist in database (GlobalSetting, UserPreference, MarketSummary)

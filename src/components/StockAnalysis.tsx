@@ -2013,7 +2013,7 @@ const clearCurrentAnalysis = () => {
             </div>
           ) : null}
 
-          <div ref={reportRef}>
+          <div ref={reportRef} className="stock-analysis-report">
             {analysisData && analysisMeta ? (
               <div className="space-y-5">
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">

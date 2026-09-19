@@ -722,3 +722,107 @@ a:focus-visible {
   }
 }
 
+
+
+/* --- Stock analysis result system v4 --- */
+.stock-analysis-report {
+  min-width: 0;
+}
+
+.stock-analysis-result {
+  min-width: 0;
+}
+
+.stock-analysis-result > .grid:first-child > * {
+  min-height: 92px;
+  box-shadow: var(--ui-shadow);
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+
+.stock-analysis-result > .grid:first-child > *:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--ui-shadow-hover);
+}
+
+.stock-analysis-result .rounded-2xl.border {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow);
+}
+
+.stock-analysis-result .rounded-xl.border {
+  border-color: var(--ui-border) !important;
+}
+
+.stock-analysis-result .text-slate-900,
+.stock-analysis-result .text-slate-800,
+.stock-analysis-result .text-slate-700 {
+  color: var(--ui-text) !important;
+}
+
+.stock-analysis-result .bg-slate-50 {
+  background: var(--ui-surface-2) !important;
+}
+
+.stock-analysis-result .stock-analysis-kpis {
+  align-items: stretch;
+}
+
+.stock-analysis-result .stock-analysis-kpis > * {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.stock-analysis-result [class*="text-[30px]"] {
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-analysis-result [class*="whitespace-pre-wrap"] {
+  overflow-wrap: anywhere;
+}
+
+.stock-analysis-result .divide-y > * {
+  border-color: var(--ui-border) !important;
+}
+
+.dark .stock-analysis-result .bg-white {
+  background: var(--ui-surface) !important;
+}
+
+.dark .stock-analysis-result .bg-emerald-50,
+.dark .stock-analysis-result .bg-emerald-50\/50,
+.dark .stock-analysis-result .bg-blue-50,
+.dark .stock-analysis-result .bg-indigo-50,
+.dark .stock-analysis-result .bg-rose-50,
+.dark .stock-analysis-result .bg-slate-50 {
+  background: color-mix(in srgb, var(--ui-surface-2) 88%, transparent) !important;
+}
+
+@media (max-width: 640px) {
+  .stock-analysis-result {
+    gap: 12px !important;
+  }
+
+  .stock-analysis-result > .grid:first-child {
+    gap: 9px !important;
+  }
+
+  .stock-analysis-result > .grid:first-child > * {
+    min-height: 84px;
+  }
+
+  .stock-analysis-result .rounded-2xl.border {
+    border-radius: 14px !important;
+    padding: 12px !important;
+  }
+
+  .stock-analysis-result .rounded-xl.border {
+    border-radius: 11px !important;
+  }
+
+  .stock-analysis-result [class*="text-[30px]"] {
+    font-size: 1.65rem !important;
+  }
+}
