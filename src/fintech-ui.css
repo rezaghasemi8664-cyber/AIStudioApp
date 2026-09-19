@@ -1362,3 +1362,21 @@ a:focus-visible {
   .watchlist-alerts-page input, .watchlist-alerts-page select, .watchlist-alerts-page button { min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) { .watchlist-alerts-page * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
+
+
+/* Stock profile workstation v13 */
+.stock-profile-page { max-width: 1440px; margin-inline: auto; }
+.stock-profile-page .rounded-2xl { border-color: var(--ui-border, var(--color-border)); box-shadow: var(--ui-shadow, 0 8px 24px rgba(15,23,42,.06)); }
+.stock-profile-page table { border-collapse: separate; border-spacing: 0; }
+.stock-profile-page th { font-weight: 800; }
+.stock-profile-page td, .stock-profile-page th { vertical-align: middle; }
+.stock-profile-page input, .stock-profile-page select, .stock-profile-page button { min-height: 42px; }
+.stock-profile-page svg { max-width: 100%; }
+.stock-profile-page .font-black { letter-spacing: -.01em; }
+@media (max-width: 768px) {
+  .stock-profile-page { width: 100%; }
+  .stock-profile-page table { min-width: 760px; }
+  .stock-profile-page .overflow-x-auto { -webkit-overflow-scrolling: touch; }
+  .stock-profile-page input, .stock-profile-page select, .stock-profile-page button { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) { .stock-profile-page * { transition: none !important; animation: none !important; } }
