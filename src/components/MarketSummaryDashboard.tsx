@@ -613,7 +613,9 @@ export default function MarketSummaryDashboard({
     'داده در دسترس نیست';
 
   return (
-    <div\n      dir="rtl"\n      className="page-shell market-summary-dashboard-page space-y-5 text-right text-[14px] leading-[1.9]"
+    <div
+      dir="rtl"
+      className="page-shell market-summary-dashboard-page space-y-5 text-right text-[14px] leading-[1.9]"
       style={{
         fontFamily:
           'Vazirmatn, IRANSans, Tahoma, Arial, sans-serif',
