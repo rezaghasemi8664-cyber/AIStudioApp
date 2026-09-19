@@ -531,8 +531,8 @@ app.use(function realDataResponseContract(req, res, next) {
 
   const originalJson = res.json.bind(res);
   res.json = function phase1Json(payload) {
-    if (payload && typeof payload === 'object' && !Array.isArray(payload) && !payload.meta) {
-      payload.meta = buildRealDataMeta(req, payload);
+    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+      payload.meta = Object.assign({}, payload.meta || {}, buildRealDataMeta(req, payload));
     }
     return originalJson(payload);
   };
