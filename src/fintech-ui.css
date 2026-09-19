@@ -1663,3 +1663,55 @@ a:focus-visible {
     transition: none;
   }
 }
+
+
+/* Professional screener workstation v19 */
+.professional-screener-page {
+  width: min(100%, 1440px);
+  margin-inline: auto;
+}
+
+.professional-screener-page table {
+  font-variant-numeric: tabular-nums;
+}
+
+.professional-screener-page input,
+.professional-screener-page select,
+.professional-screener-page button {
+  min-height: 42px;
+}
+
+.professional-screener-page button {
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.professional-screener-page button:hover:not(:disabled) {
+  box-shadow: var(--ui-shadow-sm);
+}
+
+.professional-screener-page table tbody tr {
+  transition: background-color 140ms ease;
+}
+
+@media (max-width: 767px) {
+  .professional-screener-page {
+    width: 100%;
+  }
+
+  .professional-screener-page input,
+  .professional-screener-page select,
+  .professional-screener-page button {
+    min-height: 44px;
+  }
+
+  .professional-screener-page table {
+    min-width: 1150px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .professional-screener-page button,
+  .professional-screener-page table tbody tr {
+    transition: none;
+  }
+}
