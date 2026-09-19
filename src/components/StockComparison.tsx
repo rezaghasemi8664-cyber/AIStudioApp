@@ -307,7 +307,7 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
     }, [sortedRows]);
 
     return (
-        <div className="max-w-6xl mx-auto" dir="rtl" style={{ direction: 'rtl' }}>
+        <div className="page-shell stock-comparison-page space-y-5" dir="rtl" style={{ direction: 'rtl' }}>
             <h2 className="text-2xl font-bold text-cyan-600 dark:text-cyan-400 mb-4 flex items-center gap-2">مقایسه سهام <ClipboardDocumentIcon /></h2>
             <p className="text-gray-600 dark:text-gray-400 mb-6 text-right">۲ تا ۵ نماد را وارد کنید تا شاخص‌های تکنیکال، بنیادی، جریان پول، ارزش‌گذاری و ریسک به‌صورت قطعی و بدون وابستگی به هوش مصنوعی مقایسه شوند.</p>
 
