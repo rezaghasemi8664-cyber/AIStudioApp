@@ -55,7 +55,7 @@ const PortfolioHistoryAccuracy: React.FC<Props> = ({ isOnline }) => {
     return { polyline, min, max };
   }, [visible]);
 
-  return <div dir="rtl" className="space-y-5">
+  return <div dir="rtl" className="page-shell portfolio-history-accuracy-page space-y-5">
     <div className="flex items-center justify-between gap-3 flex-wrap">
       <div><h2 className="text-xl font-black">تاریخچه دقیق سرمایه‌گذاری</h2><p className="text-sm text-gray-500 dark:text-gray-400 mt-1">فقط از تاریخ ورود هر سهم به بعد در ارزش و بهای سبد محاسبه می‌شود.</p></div>
       <button type="button" onClick={load} disabled={loading || !isOnline} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading ? 'در حال بروزرسانی...' : 'بروزرسانی'}</button>
