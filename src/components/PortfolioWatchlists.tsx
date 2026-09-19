@@ -55,14 +55,14 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
   const [validatedSymbol, setValidatedSymbol] = useState<watchlistService.WatchlistSymbol | null>(null);
   const [validatingSymbol, setValidatingSymbol] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const activeWatchlist = useMemo(() => watchlists.find(item => item.id === activeId) || watchlists[0] || null, [watchlists, activeId]);
+
   const dataStatus = useMemo<'LIVE' | 'CACHED' | 'UNAVAILABLE'>(() => {
     const rows = (activeWatchlist?.symbols || []).map(item => quotes[item.symbol]).filter(Boolean) as watchlistService.WatchlistQuote[];
     if (rows.some(item => item.dataStatus === 'LIVE')) return 'LIVE';
     if (rows.some(item => item.dataStatus === 'CACHED')) return 'CACHED';
     return 'UNAVAILABLE';
   }, [activeWatchlist, quotes]);
-
-  const activeWatchlist = useMemo(() => watchlists.find(item => item.id === activeId) || watchlists[0] || null, [watchlists, activeId]);
 
   const watchlistSummary = useMemo(() => {
     const rows = (activeWatchlist?.symbols || []).map(item => { const quote = quotes[item.symbol]; return { symbol: quote?.symbol || item.symbol, name: quote?.name || item.name, change: Number(quote?.lastChangePercent), volume: Number(quote?.volume), updatedAt: quote?.updatedAt ? new Date(quote.updatedAt).getTime() : NaN }; });
