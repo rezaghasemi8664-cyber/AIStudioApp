@@ -1344,3 +1344,21 @@ a:focus-visible {
     transition: none;
   }
 }
+
+
+/* Watchlist alerts workstation v12 */
+.watchlist-alerts-page { max-width: 1440px; margin-inline: auto; }
+.watchlist-alerts-page .rounded-2xl { border-color: var(--ui-border, var(--color-border)); box-shadow: var(--ui-shadow, 0 8px 24px rgba(15,23,42,.06)); }
+.watchlist-alerts-page table { border-collapse: separate; border-spacing: 0; }
+.watchlist-alerts-page th { font-weight: 800; color: var(--ui-text, inherit); }
+.watchlist-alerts-page td, .watchlist-alerts-page th { vertical-align: middle; }
+.watchlist-alerts-page input, .watchlist-alerts-page select, .watchlist-alerts-page button { min-height: 42px; }
+.watchlist-alerts-page input:focus, .watchlist-alerts-page select:focus, .watchlist-alerts-page button:focus-visible { outline: 2px solid var(--ui-focus, #0891b2); outline-offset: 2px; }
+.watchlist-alerts-page .font-black { letter-spacing: -.01em; }
+@media (max-width: 768px) {
+  .watchlist-alerts-page { width: 100%; }
+  .watchlist-alerts-page table { min-width: 900px; }
+  .watchlist-alerts-page .overflow-x-auto { -webkit-overflow-scrolling: touch; }
+  .watchlist-alerts-page input, .watchlist-alerts-page select, .watchlist-alerts-page button { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) { .watchlist-alerts-page * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
