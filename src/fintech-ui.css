@@ -1468,3 +1468,75 @@ a:focus-visible {
     transition: none !important;
   }
 }
+
+
+/* Codal intelligence workstation v16 */
+.codal-intelligence-page {
+  max-width: 1440px;
+  margin-inline: auto;
+  min-width: 0;
+}
+.codal-intelligence-page > div {
+  border-color: var(--ui-border) !important;
+  box-shadow: var(--ui-shadow);
+}
+.codal-intelligence-page label {
+  color: var(--ui-text);
+}
+.codal-intelligence-page input,
+.codal-intelligence-page select {
+  min-height: 42px;
+  border-color: var(--ui-border) !important;
+  color: var(--ui-text);
+}
+.codal-intelligence-page button {
+  min-height: 42px;
+}
+.codal-intelligence-page table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.codal-intelligence-page th {
+  color: var(--ui-muted);
+  font-weight: 800;
+  white-space: nowrap;
+}
+.codal-intelligence-page td {
+  border-color: var(--ui-border) !important;
+  vertical-align: middle;
+}
+.codal-intelligence-page .font-black,
+.codal-intelligence-page .font-bold {
+  color: var(--ui-text);
+}
+.codal-intelligence-page .text-gray-500,
+.codal-intelligence-page .dark\:text-gray-400 {
+  color: var(--ui-muted) !important;
+}
+.codal-intelligence-page [class*="bg-white/80"],
+.codal-intelligence-page [class*="dark:bg-gray-900/60"] {
+  background: var(--ui-surface) !important;
+}
+@media (max-width: 768px) {
+  .codal-intelligence-page {
+    width: 100%;
+    gap: 12px !important;
+  }
+  .codal-intelligence-page > div {
+    border-radius: 15px !important;
+  }
+  .codal-intelligence-page table {
+    min-width: 900px;
+  }
+  .codal-intelligence-page input,
+  .codal-intelligence-page select,
+  .codal-intelligence-page button {
+    min-height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .codal-intelligence-page * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
