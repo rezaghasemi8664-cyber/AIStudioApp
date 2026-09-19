@@ -278,7 +278,7 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
 
         if (cache && isCacheValid(cache, cacheTTL)) {
             setData(cache.data);
-            setDataMeta(cache.meta);
+            setDataMeta(cache.meta ? { ...cache.meta, status: 'CACHED', stale: true } : { status: 'CACHED', stale: true });
             setIsLoading(false);
             return;
         }
