@@ -2526,3 +2526,24 @@ a:focus-visible {
 .password-change-workstation button:not(:disabled):hover { filter: brightness(1.04); box-shadow: 0 10px 22px rgba(15,23,42,.14); }
 .password-change-workstation button:disabled { opacity: .72; }
 @media (max-width: 640px) { .password-change-workstation { padding: 18px; border-radius: 14px; } .password-change-workstation form { max-width: none; } .password-change-workstation button { width: 100%; } }
+
+
+/* Notifications management workstation v43 */
+.notifications-management-workstation { --notification-shadow: 0 12px 34px rgba(15,23,42,.07); }
+.notifications-management-workstation > h2 { letter-spacing: -.025em; }
+.notifications-management-workstation > p { line-height: 1.8; }
+.notifications-management-workstation .notifications-form-card { border: 1px solid var(--ws-border, var(--color-border)); box-shadow: var(--notification-shadow); backdrop-filter: blur(10px); }
+.notifications-management-workstation textarea { min-height: 132px; border-radius: 10px; resize: vertical; transition: border-color 150ms ease, box-shadow 150ms ease; }
+.notifications-management-workstation textarea:focus { border-color: rgba(6,182,212,.58) !important; box-shadow: 0 0 0 3px rgba(6,182,212,.10); }
+.notifications-management-workstation input[type="file"] { display: none; }
+.notifications-management-workstation button { min-height: 42px; transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease; }
+.notifications-management-workstation button:not(:disabled):hover { filter: brightness(1.04); box-shadow: 0 8px 20px rgba(15,23,42,.12); }
+.notifications-management-workstation .notifications-form-card > div { border-radius: 12px; }
+.notifications-management-workstation label { line-height: 1.7; }
+.notifications-management-workstation [class*="max-h-60"] { border-color: var(--ws-border, var(--input-border)); background: color-mix(in srgb, var(--color-surface) 92%, transparent); }
+@media (max-width: 640px) {
+  .notifications-management-workstation .notifications-form-card { padding: 18px; border-radius: 14px; }
+  .notifications-management-workstation .notifications-form-card > div:last-child { padding-top: 8px; }
+  .notifications-management-workstation .notifications-form-card > div:last-child button { width: 100%; }
+  .notifications-management-workstation .notifications-form-card > div:nth-child(2) > div { align-items: flex-start; flex-wrap: wrap; }
+}
