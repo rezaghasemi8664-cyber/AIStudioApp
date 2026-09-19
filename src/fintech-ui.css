@@ -1312,3 +1312,35 @@ a:focus-visible {
     transition: none !important;
   }
 }
+
+
+/* Market index widget workstation v11 */
+.market-index-widget {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface) !important;
+  box-shadow: var(--ui-shadow) !important;
+  transition: box-shadow .16s ease, border-color .16s ease, transform .16s ease;
+}
+.market-index-widget:hover {
+  box-shadow: var(--ui-shadow-hover) !important;
+}
+.market-index-widget .border-b {
+  border-color: var(--ui-border) !important;
+}
+.market-index-widget [class*="text-slate-400"] {
+  color: var(--ui-muted) !important;
+}
+.market-index-widget .tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 640px) {
+  .market-index-widget {
+    max-width: 100%;
+    border-radius: 14px !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .market-index-widget {
+    transition: none;
+  }
+}
