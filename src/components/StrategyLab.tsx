@@ -128,7 +128,7 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ isOnline }) => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto" dir="rtl">
+    <div className="page-shell strategy-lab-page space-y-5" dir="rtl">
       <div className="mb-6">
         <h2 className="text-2xl font-black text-cyan-600 dark:text-cyan-400">
           آزمایشگاه استراتژی و بک‌تست
