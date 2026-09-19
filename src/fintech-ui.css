@@ -1050,3 +1050,110 @@ a:focus-visible {
     line-height: 1.8;
   }
 }
+
+
+/* --- Portfolio workstation v7 --- */
+.portfolio-page {
+  min-width: 0;
+}
+
+.portfolio-page > h2 {
+  margin-bottom: 0.25rem !important;
+  color: var(--ui-brand-strong) !important;
+}
+
+.portfolio-page > p {
+  margin-bottom: 0.5rem !important;
+  color: var(--ui-muted) !important;
+}
+
+.portfolio-page > div {
+  border-color: var(--ui-border);
+}
+
+.portfolio-page > div:not([class*="fixed"]) {
+  box-shadow: var(--ui-shadow);
+}
+
+.portfolio-page form input,
+.portfolio-page form select,
+.portfolio-page form textarea {
+  min-height: 42px;
+}
+
+.portfolio-page button {
+  transition: transform .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+
+.portfolio-page button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.portfolio-page .rounded-lg {
+  border-color: var(--ui-border);
+}
+
+.portfolio-page .font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+.portfolio-page .text-cyan-600,
+.portfolio-page .text-cyan-700 {
+  color: var(--ui-brand-strong) !important;
+}
+
+.portfolio-page .text-red-500,
+.portfolio-page .text-red-700 {
+  color: var(--ui-negative) !important;
+}
+
+.portfolio-page .text-green-500 {
+  color: var(--ui-positive) !important;
+}
+
+.portfolio-page .shadow-md,
+.portfolio-page .shadow-lg,
+.portfolio-page .shadow-xl {
+  box-shadow: var(--ui-shadow);
+}
+
+.portfolio-page .recharts-responsive-container {
+  min-width: 0;
+}
+
+.portfolio-page .fixed.inset-0 {
+  backdrop-filter: blur(5px);
+}
+
+@media (max-width: 640px) {
+  .portfolio-page {
+    gap: 12px !important;
+  }
+
+  .portfolio-page > h2 {
+    font-size: 1.15rem !important;
+  }
+
+  .portfolio-page > p {
+    font-size: .82rem;
+    line-height: 1.8;
+  }
+
+  .portfolio-page > div:not([class*="fixed"]) {
+    border-radius: 14px !important;
+  }
+
+  .portfolio-page form input,
+  .portfolio-page form select,
+  .portfolio-page form textarea,
+  .portfolio-page form button {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .portfolio-page .fixed.inset-0 > form,
+  .portfolio-page .fixed.inset-0 > div {
+    max-height: 88vh;
+    overflow-y: auto;
+  }
+}
