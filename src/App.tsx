@@ -819,6 +819,28 @@ const App: React.FC = () => {
     };
   }, [currentUser, isOnline, isExpired, addNotification]);
 
+  // Handle the result of the ZarinPal browser redirect once the user returns to the app.
+  useEffect(() => {
+    if (!currentUser || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get('payment');
+    if (!payment) return;
+
+    const messages: Record<string, { text: string; type: 'success' | 'info' | 'error' }> = {
+      success: { text: 'پرداخت با موفقیت تأیید شد و اشتراک شما فعال/تمدید شد.', type: 'success' },
+      cancelled: { text: 'پرداخت توسط کاربر تکمیل نشد.', type: 'info' },
+      pending: { text: 'وضعیت پرداخت هنوز نهایی نشده است. لطفاً وضعیت اشتراک را بررسی کنید.', type: 'info' },
+      failed: { text: 'پرداخت یا تأیید تراکنش ناموفق بود. در صورت کسر وجه، وضعیت تراکنش را پیگیری کنید.', type: 'error' },
+    };
+    const result = messages[payment];
+    if (result) addNotification(result.text, result.type);
+
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete('payment');
+    cleanUrl.searchParams.delete('refId');
+    window.history.replaceState({}, document.title, cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+  }, [currentUser, addNotification]);
+
   useEffect(() => {
     if (marketIndexCheckIntervalRef.current) {
       clearInterval(marketIndexCheckIntervalRef.current);
