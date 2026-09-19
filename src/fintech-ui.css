@@ -2071,3 +2071,60 @@ a:focus-visible {
     transition: none;
   }
 }
+
+
+/* Portfolio intelligence workstation v26 */
+.portfolio-intelligence-page {
+  width: min(100%, 1440px);
+  margin-inline: auto;
+}
+.portfolio-intelligence-page h2 {
+  letter-spacing: -0.02em;
+  line-height: 1.45;
+}
+.portfolio-intelligence-page button {
+  min-height: 42px;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.portfolio-intelligence-page button:hover:not(:disabled) {
+  box-shadow: var(--ui-shadow-sm);
+}
+.portfolio-intelligence-page button:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.portfolio-intelligence-page table {
+  font-variant-numeric: tabular-nums;
+}
+.portfolio-intelligence-page table tbody tr {
+  transition: background-color 140ms ease;
+}
+.portfolio-intelligence-page table tbody tr:hover {
+  background: var(--ui-surface-hover);
+}
+.portfolio-intelligence-page svg {
+  max-width: 100%;
+}
+.portfolio-intelligence-page .font-mono {
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 767px) {
+  .portfolio-intelligence-page {
+    width: 100%;
+  }
+  .portfolio-intelligence-page h2 {
+    font-size: 1.2rem;
+  }
+  .portfolio-intelligence-page button {
+    min-height: 44px;
+  }
+  .portfolio-intelligence-page table {
+    min-width: 900px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .portfolio-intelligence-page button,
+  .portfolio-intelligence-page table tbody tr {
+    transition: none;
+  }
+}
