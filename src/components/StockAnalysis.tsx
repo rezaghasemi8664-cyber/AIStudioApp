@@ -2015,7 +2015,7 @@ const clearCurrentAnalysis = () => {
 
           <div ref={reportRef} className="stock-analysis-report">
             {analysisData && analysisMeta ? (
-              <div className="space-y-5">
+              <div className="stock-analysis-result space-y-5">
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                   <MetricCard label="نماد" value={analysisData.symbol ?? selectedSymbol} tone="slate" />
 
