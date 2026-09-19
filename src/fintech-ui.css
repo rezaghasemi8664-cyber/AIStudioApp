@@ -1903,3 +1903,61 @@ a:focus-visible {
     transition: none;
   }
 }
+
+
+/* Portfolio risk analysis workstation v23 */
+.portfolio-risk-analysis-page {
+  width: min(100%, 1440px);
+  margin-inline: auto;
+}
+.portfolio-risk-analysis-page h2 {
+  letter-spacing: -0.02em;
+  line-height: 1.45;
+}
+.portfolio-risk-analysis-page h3 {
+  line-height: 1.55;
+}
+.portfolio-risk-analysis-page button {
+  min-height: 42px;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.portfolio-risk-analysis-page button:hover:not(:disabled) {
+  box-shadow: var(--ui-shadow-sm);
+}
+.portfolio-risk-analysis-page button:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.portfolio-risk-analysis-page table {
+  min-width: 760px;
+  font-variant-numeric: tabular-nums;
+}
+.portfolio-risk-analysis-page table tbody tr {
+  transition: background-color 140ms ease;
+}
+.portfolio-risk-analysis-page table tbody tr:hover {
+  background: var(--ui-surface-hover);
+}
+.portfolio-risk-analysis-page > div:last-child {
+  line-height: 1.8;
+}
+@media (max-width: 767px) {
+  .portfolio-risk-analysis-page {
+    width: 100%;
+  }
+  .portfolio-risk-analysis-page h2 {
+    font-size: 1.25rem;
+  }
+  .portfolio-risk-analysis-page button {
+    min-height: 44px;
+  }
+  .portfolio-risk-analysis-page table {
+    min-width: 760px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .portfolio-risk-analysis-page button,
+  .portfolio-risk-analysis-page table tbody tr {
+    transition: none;
+  }
+}
