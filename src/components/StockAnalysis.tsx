@@ -1049,6 +1049,10 @@ useEffect(() => {
               item.createdAt ??
               item.created_at ??
               new Date(item.timestamp).toISOString(),
+            dataStatus: item.dataStatus,
+            source: item.source,
+            fetchedAt: item.fetchedAt,
+            stale: item.stale === true,
           }))
       );
     } catch (error) {
