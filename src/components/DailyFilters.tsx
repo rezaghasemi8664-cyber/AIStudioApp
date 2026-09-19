@@ -169,7 +169,7 @@ const ProfessionalScreener: React.FC = () => {
   const selected = filters.find((item) => item.id === active) || filters[0];
 
   return (
-    <section dir="rtl" className="space-y-5">
+    <section dir="rtl" className="page-shell professional-screener-page space-y-5">
       <header className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
