@@ -46,6 +46,7 @@ export default function AnalysisDataQualityCard({ dataQuality: rawDataQuality, w
 
   return (
     <section
+      className="analysis-data-quality-card"
       dir="rtl"
       aria-label="کیفیت داده تحلیل"
       style={{
