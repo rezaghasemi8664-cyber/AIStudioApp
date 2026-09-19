@@ -34,4 +34,19 @@ router.post('/backtest', authMiddleware, async (req, res) => {
   }
 });
 
+router.post('/optimize', authMiddleware, async (req, res) => {
+  try {
+    const result = await service.optimizeSmaCrossover(req.body || {});
+    return res.json({ success: true, data: result, deterministic: true, engine: result.engine });
+  } catch (error) {
+    console.error('[STRATEGY-ROUTES] Optimize error:', error.message);
+    return res.status(Number(error.statusCode) >= 400 ? Number(error.statusCode) : 500).json({
+      success: false,
+      message: error.message || 'خطا در بهینه‌سازی پارامترهای استراتژی',
+      code: error.code || 'STRATEGY_OPTIMIZE_ERROR',
+      requestId: req.requestId,
+    });
+  }
+});
+
 module.exports = router;
