@@ -1961,3 +1961,58 @@ a:focus-visible {
     transition: none;
   }
 }
+
+
+/* Portfolio correlation workstation v24 */
+.portfolio-correlation-analysis-page {
+  width: min(100%, 1440px);
+  margin-inline: auto;
+}
+.portfolio-correlation-analysis-page h2 {
+  letter-spacing: -0.02em;
+  line-height: 1.45;
+}
+.portfolio-correlation-analysis-page h3 {
+  line-height: 1.55;
+}
+.portfolio-correlation-analysis-page button {
+  min-height: 42px;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.portfolio-correlation-analysis-page button:hover:not(:disabled) {
+  box-shadow: var(--ui-shadow-sm);
+}
+.portfolio-correlation-analysis-page button:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.portfolio-correlation-analysis-page table {
+  min-width: 620px;
+  font-variant-numeric: tabular-nums;
+}
+.portfolio-correlation-analysis-page table tbody tr {
+  transition: background-color 140ms ease;
+}
+.portfolio-correlation-analysis-page table tbody tr:hover {
+  background: var(--ui-surface-hover);
+}
+@media (max-width: 767px) {
+  .portfolio-correlation-analysis-page {
+    width: 100%;
+  }
+  .portfolio-correlation-analysis-page h2 {
+    font-size: 1.2rem;
+  }
+  .portfolio-correlation-analysis-page button {
+    min-height: 44px;
+  }
+  .portfolio-correlation-analysis-page table {
+    min-width: 620px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .portfolio-correlation-analysis-page button,
+  .portfolio-correlation-analysis-page table tbody tr {
+    transition: none;
+  }
+}
