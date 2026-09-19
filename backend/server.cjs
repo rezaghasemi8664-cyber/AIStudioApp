@@ -474,6 +474,72 @@ app.get('/api/version', function (_req, res) {
 });
 
 // ═══════════════════════════════════════════════════════════════════
+// 12.1 REAL-DATA RESPONSE CONTRACT
+// ═══════════════════════════════════════════════════════════════════
+// Phase 1: normalize metadata for real-data API boundaries without
+// inventing values. Missing/failed source metadata is UNAVAILABLE.
+const REAL_DATA_API_PREFIXES = [
+  '/api/market', '/api/v1/market',
+  '/api/brs', '/api/v1/brs',
+  '/api/market-history', '/api/v1/market-history',
+  '/api/market-summary', '/api/v1/market-summary',
+  '/api/analysis-data', '/api/v1/analysis-data',
+  '/api/codal', '/api/v1/codal',
+  '/api/codal-intelligence', '/api/v1/codal-intelligence'
+];
+
+function isRealDataApiPath(pathname) {
+  return REAL_DATA_API_PREFIXES.some(function (prefix) {
+    return pathname === prefix || pathname.indexOf(prefix + '/') === 0;
+  });
+}
+
+function buildRealDataMeta(req, payload) {
+  const data = payload && payload.data;
+  const explicit = payload && (payload.meta || payload.dataMeta || payload.dataSource);
+  const nested = data && typeof data === 'object'
+    ? (data.meta || data.dataMeta || data.dataSource || data._meta)
+    : null;
+  const raw = explicit || nested || {};
+
+  const source = raw.source || raw.sourceType || payload.source || (data && data.source) || null;
+  const fetchedAt = raw.fetchedAt || raw.servedAt || (data && data.fetchedAt) || null;
+  const cached = Boolean(raw.cached || raw.stale || payload.cached || (data && data.cached));
+  const unavailable = payload.success === false ||
+    source === 'fallback' ||
+    source === 'none' ||
+    raw.available === false ||
+    (data && data.available === false);
+
+  let status = raw.status;
+  if (status !== 'LIVE' && status !== 'CACHED' && status !== 'UNAVAILABLE') {
+    status = unavailable ? 'UNAVAILABLE' : (cached ? 'CACHED' : (source || fetchedAt ? 'LIVE' : 'UNAVAILABLE'));
+  }
+
+  return {
+    status: status,
+    ...(source ? { source: String(source) } : {}),
+    ...(fetchedAt ? { fetchedAt: String(fetchedAt) } : {}),
+    ...(raw.cachedAt ? { cachedAt: String(raw.cachedAt) } : {}),
+    stale: typeof raw.stale === 'boolean' ? raw.stale : status === 'CACHED',
+    requestId: req.requestId
+  };
+}
+
+app.use(function realDataResponseContract(req, res, next) {
+  if (!isRealDataApiPath(req.path)) return next();
+
+  const originalJson = res.json.bind(res);
+  res.json = function phase1Json(payload) {
+    if (payload && typeof payload === 'object' && !Array.isArray(payload) && !payload.meta) {
+      payload.meta = buildRealDataMeta(req, payload);
+    }
+    return originalJson(payload);
+  };
+  next();
+});
+
+// ═══════════════════════════════════════════════════════════════════
 // 13. ROUTE MOUNTING
 // ═══════════════════════════════════════════════════════════════════
 const routeStats = { loaded: 0, failed: 0, skipped: 0, routes: [] };
