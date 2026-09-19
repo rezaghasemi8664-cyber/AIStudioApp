@@ -61,7 +61,7 @@ const NotificationItem: React.FC<{ notification: Notification; onRemove: (id: nu
 
   return (
     <div
-      className={`relative flex items-center w-full max-w-sm p-4 mb-4 ${styles.bg} rounded-lg shadow-lg border-l-4 ${styles.border} backdrop-blur-sm animate-toast-in ${styles.text}`}
+      className={`roniya-notification relative flex items-center w-full max-w-sm p-4 mb-4 ${styles.bg} rounded-lg shadow-lg border-l-4 ${styles.border} backdrop-blur-sm animate-toast-in ${styles.text}`}
       role="alert"
     >
       <div className="flex-shrink-0">{styles.icon}</div>
@@ -99,7 +99,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
   return (
     <NotificationContext.Provider value={{ addNotification }}>
       {children}
-      <div className="fixed top-5 right-5 z-50">
+      <div className="roniya-notification-container fixed top-5 right-5 z-50">
         {notifications.map((notification) => (
           <NotificationItem key={notification.id} notification={notification} onRemove={removeNotification} />
         ))}
