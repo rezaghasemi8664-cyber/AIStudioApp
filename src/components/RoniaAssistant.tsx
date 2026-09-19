@@ -45,7 +45,7 @@ const RoniaAssistant: React.FC<RoniaAssistantProps> = ({ isOnline, onNavigate })
     }
   };
 
-  const examples = ['قیمت فملی چیست؟', 'امتیاز فملی', 'جریان پول فولاد', 'ریسک شپنا', 'فملی و فولاد را مقایسه کن'];
+  const examples = ['قیمت فملی چیست؟', 'امتیاز فملی', 'جریان پول فولاد', 'ریسک شپنا', 'بازده یک ماه فملی', 'کیفیت داده فملی', 'فملی و فولاد را مقایسه کن'];
 
   return (
     <div className="max-w-5xl mx-auto" dir="rtl">
