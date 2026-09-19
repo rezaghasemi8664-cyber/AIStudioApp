@@ -80,7 +80,7 @@ const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
     catch (error: any) { addNotification(error?.response?.data?.message || 'اجرای موتور هشدار ناموفق بود.', 'error'); } finally { setEvaluating(false); }
   };
 
-  return <div dir="rtl" className="space-y-5">
+  return <div dir="rtl" className="page-shell watchlist-alerts-page space-y-5">
     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
       {[['کل هشدارها', stats.total], ['فعال', stats.armed], ['فعال‌شده', stats.triggered], ['غیرفعال', stats.disabled], ['خوانده‌نشده', stats.unread]].map(([label, value]) => <div key={String(label)} className={`rounded-2xl border p-4 ${label === 'خوانده‌نشده' && Number(value) > 0 ? 'border-amber-400 bg-amber-50/80 dark:bg-amber-950/20' : 'border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60'}`}><div className="text-xs text-gray-500 dark:text-gray-400">{label}</div><div className="mt-1 text-2xl font-black">{Number(value).toLocaleString('fa-IR')}</div></div>)}
     </div>
