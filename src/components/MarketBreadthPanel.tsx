@@ -21,7 +21,7 @@ export default function MarketBreadthPanel({ positive = null, negative = null, n
   const tone = p > n ? 'مثبت' : n > p ? 'منفی' : 'خنثی';
 
   return (
-    <section dir="rtl" className="rounded-3xl border border-white/10 bg-white/[0.025] p-5">
+    <section dir="rtl" className="market-breadth-panel rounded-3xl border border-white/10 bg-white/[0.025] p-5">
       <div className="flex items-center justify-between gap-3 mb-5">
         <div>
           <h3 className="font-bold text-white">{title}</h3>
