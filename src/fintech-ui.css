@@ -1787,3 +1787,61 @@ a:focus-visible {
     transition: none;
   }
 }
+
+
+/* Portfolio history workstation v21 */
+.portfolio-history-accuracy-page {
+  width: min(100%, 1440px);
+  margin-inline: auto;
+}
+.portfolio-history-accuracy-page > div:first-child {
+  padding: 0.15rem 0;
+}
+.portfolio-history-accuracy-page h2 {
+  letter-spacing: -0.02em;
+  line-height: 1.45;
+}
+.portfolio-history-accuracy-page button {
+  min-height: 42px;
+  border: 1px solid transparent;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.portfolio-history-accuracy-page button:hover:not(:disabled) {
+  box-shadow: var(--ui-shadow-sm);
+}
+.portfolio-history-accuracy-page button:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.portfolio-history-accuracy-page table {
+  font-variant-numeric: tabular-nums;
+}
+.portfolio-history-accuracy-page table tbody tr {
+  transition: background-color 140ms ease;
+}
+.portfolio-history-accuracy-page table tbody tr:hover {
+  background: var(--ui-surface-hover);
+}
+.portfolio-history-accuracy-page svg {
+  max-width: 100%;
+}
+@media (max-width: 767px) {
+  .portfolio-history-accuracy-page {
+    width: 100%;
+  }
+  .portfolio-history-accuracy-page h2 {
+    font-size: 1.2rem;
+  }
+  .portfolio-history-accuracy-page button {
+    min-height: 44px;
+  }
+  .portfolio-history-accuracy-page table {
+    min-width: 760px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .portfolio-history-accuracy-page button,
+  .portfolio-history-accuracy-page table tbody tr {
+    transition: none;
+  }
+}
