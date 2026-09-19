@@ -2434,3 +2434,21 @@ a:focus-visible {
   .dashboard-header > div:last-child { width: 100%; }
   .dashboard-header button { flex: 1; }
 }
+
+
+/* Market index workstation v37 */
+.market-index-workstation {
+  border-color: var(--ws-border, var(--color-border));
+  background: var(--ws-card-bg, var(--color-surface));
+  box-shadow: 0 12px 30px rgba(15,23,42,.08);
+  backdrop-filter: blur(10px);
+}
+.market-index-workstation > div:first-child { background: linear-gradient(180deg, rgba(148,163,184,.045), transparent); }
+.market-index-workstation .text-\[14px\] { letter-spacing: -.01em; }
+.market-index-workstation .font-mono { font-variant-numeric: tabular-nums; }
+.market-index-workstation [data-style-id] { transition: box-shadow 160ms ease, transform 160ms ease; }
+.market-index-workstation:hover { box-shadow: 0 16px 38px rgba(15,23,42,.11); }
+@media (max-width: 640px) {
+  .market-index-workstation { border-radius: 14px; }
+  .market-index-workstation > div:first-child { padding: 11px 12px; }
+}
