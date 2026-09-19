@@ -413,6 +413,7 @@ const getAnalysisById = async (req, res) => {
     }
 
     const parsedResult = safeParseResultJson(item.resultJson);
+    const provenance = getDataProvenance(parsedResult);
 
     return res.json({
       success: true,
@@ -431,6 +432,7 @@ const getAnalysisById = async (req, res) => {
          */
         result: parsedResult,
         parsedResult,
+        ...provenance,
       },
 
       /*
