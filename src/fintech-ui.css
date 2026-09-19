@@ -1715,3 +1715,75 @@ a:focus-visible {
     transition: none;
   }
 }
+
+
+/* Most traded stocks workstation v20 */
+.most-traded-stocks-card {
+  min-width: 0;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  box-shadow: var(--ui-shadow-sm);
+  transition: box-shadow 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+.most-traded-stocks-card:hover {
+  box-shadow: var(--ui-shadow-md);
+}
+.most-traded-stocks-card h3 {
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+}
+.most-traded-stocks-card table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.most-traded-stocks-card thead {
+  background: var(--ui-surface-muted);
+  color: var(--ui-text-muted);
+}
+.most-traded-stocks-card tbody tr {
+  background: var(--ui-surface);
+  transition: background-color 140ms ease;
+}
+.most-traded-stocks-card tbody tr:hover {
+  background: var(--ui-surface-hover);
+}
+.most-traded-stocks-card tbody td {
+  border-bottom: 1px solid var(--ui-border);
+}
+.most-traded-stocks-card tbody tr:last-child td {
+  border-bottom: 0;
+}
+.most-traded-stocks-card button {
+  min-height: 38px;
+  border-radius: 0.5rem;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+.most-traded-stocks-card button:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+@media (max-width: 767px) {
+  .most-traded-stocks-card {
+    padding: 0.85rem;
+    border-radius: 0.9rem;
+  }
+  .most-traded-stocks-card h3 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+  }
+  .most-traded-stocks-card table {
+    min-width: 640px;
+  }
+  .most-traded-stocks-card button {
+    min-height: 42px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .most-traded-stocks-card,
+  .most-traded-stocks-card tbody tr,
+  .most-traded-stocks-card button {
+    transition: none;
+  }
+}
