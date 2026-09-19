@@ -21,6 +21,10 @@ export interface AnalysisHistoryItem {
   created_at?: string;
 
   resultJson?: string | AnalysisResult | null;
+  dataStatus?: 'LIVE' | 'CACHED' | 'UNAVAILABLE';
+  source?: string;
+  fetchedAt?: string;
+  stale?: boolean;
 }
 
 interface AddHistoryPayload {
@@ -29,6 +33,25 @@ interface AddHistoryPayload {
   riskLevel?: string;
   summary?: string;
   result?: AnalysisResult;
+}
+
+export interface AnalysisHistoryStats {
+  total: number;
+  buyCount: number;
+  sellCount: number;
+  holdCount: number;
+  uniqueSymbols: string[];
+  maxItems: number;
+  latestAt?: string | null;
+  firstAt?: string | null;
+}
+
+export interface AnalysisHistoryPage {
+  items: AnalysisHistoryItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
 }
 
 interface ApiWrapped<T> {
@@ -213,7 +236,7 @@ function normalizePagination(
       ? Math.max(
           1,
           Math.min(
-            3,
+            100,
             Math.floor(limit)
           )
         )
@@ -339,7 +362,7 @@ export async function addAnalysisToHistory(
  */
 export async function getAnalysisHistory(
   _userId: string,
-  limit: number = 3,
+  limit: number = 20,
   offset: number = 0
 ): Promise<AnalysisHistoryItem[]> {
   const {
@@ -533,4 +556,15 @@ export async function clearAnalysisHistory(
   }
 
   return true;
+}
+
+export async function getAnalysisHistoryStats(_userId: string): Promise<AnalysisHistoryStats> {
+  const raw = await appApiFetch<ApiWrapped<AnalysisHistoryStats> | AnalysisHistoryStats>('/analysis-history/stats');
+  const data = unwrapApiData<AnalysisHistoryStats>(raw);
+  return data ?? { total: 0, buyCount: 0, sellCount: 0, holdCount: 0, uniqueSymbols: [], maxItems: 5000, latestAt: null, firstAt: null };
+}
+
+export async function getAnalysisHistoryPage(_userId: string, limit = 20, offset = 0): Promise<AnalysisHistoryPage> {
+  const items = await getAnalysisHistory(_userId, limit, offset);
+  return { items, total: items.length, limit, offset, hasMore: items.length === limit };
 }
