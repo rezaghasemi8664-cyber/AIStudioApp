@@ -1025,7 +1025,7 @@ useEffect(() => {
 
   const loadHistory = async () => {
     try {
-      const [items, stats] = await Promise.all([getAnalysisHistory('', 20, 0), getAnalysisHistoryStats('')]);
+      const [items, stats] = await Promise.all([getAnalysisHistory('', 10, 0), getAnalysisHistoryStats('')]);
 
       if (cancelled) return;
 
@@ -2391,7 +2391,7 @@ const clearCurrentAnalysis = () => {
           </div>
           {analysisHistoryStats?.total && analysisHistory.length < analysisHistoryStats.total ? (
             <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-[12px] font-medium leading-6 text-blue-800">
-              ۲۰ رکورد اخیر نمایش داده می‌شود؛ تعداد کل ذخیره‌شده: {faNumber(analysisHistoryStats.total)}
+              ۱۰ رکورد اخیر نمایش داده می‌شود؛ تعداد کل ذخیره‌شده: {faNumber(analysisHistoryStats.total)}
             </div>
           ) : null}
           <div className="space-y-3">
