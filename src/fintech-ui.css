@@ -2487,3 +2487,19 @@ a:focus-visible {
   .roniya-clock svg { width: 21px; height: 21px; }
   .roniya-clock p { font-size: 11px; }
 }
+
+
+/* Dashboard workstation v40 */
+.dashboard-workstation { --dashboard-card-shadow: 0 10px 28px rgba(15,23,42,.065); }
+.dashboard-workstation .dashboard-card,
+.dashboard-workstation .dashboard-summary-card { border-color: var(--ws-border, var(--color-border)); background: var(--ws-card-bg, var(--color-surface)); box-shadow: var(--dashboard-card-shadow); backdrop-filter: blur(8px); }
+.dashboard-workstation .dashboard-card { transition: box-shadow 160ms ease, transform 160ms ease, border-color 160ms ease; }
+.dashboard-workstation .dashboard-card:hover { box-shadow: 0 14px 34px rgba(15,23,42,.09); }
+.dashboard-workstation .dashboard-summary-card { min-height: 132px; transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
+.dashboard-workstation .dashboard-summary-card:hover { box-shadow: 0 14px 34px rgba(15,23,42,.10); }
+.dashboard-inline-header { padding: 14px 16px; border: 1px solid var(--ws-border, var(--color-border)); border-radius: 16px; background: var(--ws-card-bg, var(--color-surface)); box-shadow: 0 8px 24px rgba(15,23,42,.055); }
+.dashboard-workstation .tabular-nums { font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .dashboard-inline-header { padding: 12px; border-radius: 14px; }
+  .dashboard-workstation .dashboard-summary-card { min-height: 118px; }
+}
