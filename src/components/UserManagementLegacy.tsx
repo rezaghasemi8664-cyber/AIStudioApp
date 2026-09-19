@@ -527,7 +527,7 @@ const UserManagement: React.FC<UserManagementProps> = ({
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="user-management-legacy-workstation max-w-7xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">
           مدیریت کاربران
