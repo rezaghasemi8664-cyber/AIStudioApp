@@ -2343,3 +2343,18 @@ a:focus-visible {
   .top-industries-card h3 { font-size: 1rem; }
   .top-industries-card th, .top-industries-card td { padding-left: 0.5rem; padding-right: 0.5rem; }
 }
+
+
+/* Analysis data quality workstation v32 */
+.analysis-data-quality-card {
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(10px);
+}
+.analysis-data-quality-card > div:first-child { letter-spacing: -0.01em; }
+.analysis-data-quality-card strong { font-variant-numeric: tabular-nums; font-size: 0.96rem; }
+.analysis-data-quality-card [role="progressbar"] { min-width: 0; }
+.analysis-data-quality-card:hover { box-shadow: 0 14px 34px rgba(15, 23, 42, 0.09); }
+@media (max-width: 640px) {
+  .analysis-data-quality-card { padding: 13px !important; border-radius: 14px !important; }
+  .analysis-data-quality-card > div:first-child { gap: 8px !important; }
+}
