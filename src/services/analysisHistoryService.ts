@@ -567,51 +567,43 @@ export async function getAnalysisHistoryStats(_userId: string): Promise<Analysis
 
 export async function getAnalysisHistoryPage(_userId: string, limit = 10, offset = 0): Promise<AnalysisHistoryPage> {
   const { safeLimit, safeOffset } = normalizePagination(limit, offset);
-
   const raw = await appApiFetch<
     | AnalysisHistoryItem[]
     | ApiWrapped<AnalysisHistoryItem[]>
   >(`/analysis-history?limit=${safeLimit}&offset=${safeOffset}`);
 
+  const items = unwrapApiData<AnalysisHistoryItem[]>(raw);
   const wrapped =
     raw && typeof raw === 'object' && 'success' in raw
       ? (raw as ApiWrapped<AnalysisHistoryItem[]>)
-      : null;
+      : undefined;
 
-  if (wrapped?.success === false) {
-    throw new Error(wrapped.message || 'خطا در دریافت صفحه تاریخچه.');
-  }
+  const normalizedItems = Array.isArray(items)
+    ? items.map(normalizeHistoryItem).sort((a, b) => b.timestamp - a.timestamp)
+    : [];
 
-  const rawItems = Array.isArray(wrapped?.data)
-    ? wrapped.data
-    : Array.isArray(raw)
-      ? raw
-      : [];
-
-  const items = rawItems.map(normalizeHistoryItem).sort((a, b) => b.timestamp - a.timestamp);
-
-  const total = Number.isFinite(wrapped?.total)
+  const total = Number.isFinite(Number(wrapped?.total))
     ? Number(wrapped?.total)
-    : items.length;
+    : normalizedItems.length;
 
-  const responseLimit = Number.isFinite(wrapped?.limit)
+  const actualLimit = Number.isFinite(Number(wrapped?.limit))
     ? Number(wrapped?.limit)
     : safeLimit;
 
-  const responseOffset = Number.isFinite(wrapped?.offset)
+  const actualOffset = Number.isFinite(Number(wrapped?.offset))
     ? Number(wrapped?.offset)
     : safeOffset;
 
   const hasMore =
     typeof wrapped?.hasMore === 'boolean'
       ? wrapped.hasMore
-      : responseOffset + items.length < total;
+      : actualOffset + normalizedItems.length < total;
 
   return {
-    items,
+    items: normalizedItems,
     total,
-    limit: responseLimit,
-    offset: responseOffset,
+    limit: actualLimit,
+    offset: actualOffset,
     hasMore,
   };
 }
