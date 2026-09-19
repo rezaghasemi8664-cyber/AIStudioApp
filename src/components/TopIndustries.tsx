@@ -51,7 +51,7 @@ const TopIndustries: React.FC<{ isOnline: boolean }> = ({ isOnline }) => {
     return (
         <div 
           data-style-id="most-traded-card"
-          className="p-4 rounded-lg"
+          className="top-industries-card p-4 rounded-lg"
           style={{ 
               backgroundColor: 'var(--most-traded-card-bg)', 
               color: 'var(--most-traded-card-color)',
