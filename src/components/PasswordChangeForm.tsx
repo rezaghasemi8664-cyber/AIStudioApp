@@ -60,7 +60,7 @@ const PasswordChangeForm: React.FC<PasswordChangeFormProps> = ({
     <div
       data-style-id="password-form-card"
       data-style-name="فرم تغییر رمز"
-      className="p-6 rounded-lg"
+      className="password-change-workstation p-6 rounded-lg"
       style={{
         backgroundColor: 'var(--password-form-card-bg)',
         color: 'var(--password-form-card-color)',
