@@ -82,6 +82,7 @@ const UserManagement = lazy(() => import('./components/UserManagement'));
 const NotificationsManagement = lazy(() => import('./components/NotificationsManagement'));
 const Settings = lazy(() => import('./components/Settings'));
 const MarketRadar = lazy(() => import('./components/MarketRadar/MarketRadar'));
+const RoniaAssistant = lazy(() => import('./components/RoniaAssistant'));
 
 type Tab =
   | 'dashboard'
@@ -94,7 +95,8 @@ type Tab =
   | 'settings'
   | 'notifications'
   | 'profile'
-  | 'marketRadar';
+  | 'marketRadar'
+  | 'roniaAssistant';
 
 const TIMING = {
   PRESENCE_INTERVAL: 15_000,
@@ -951,6 +953,7 @@ const App: React.FC = () => {
       case 'portfolio': return <Portfolio onAlertChange={setPortfolioAlert} currentUser={currentUser} isOnline={isOnline} />;
       case 'comparison': return <StockComparison currentUser={currentUser} isOnline={isOnline} />;
       case 'marketRadar': return <MarketRadar />;
+      case 'roniaAssistant': return <RoniaAssistant isOnline={isOnline} onNavigate={(tab) => handleTabClick(tab as Tab)} />;
       case 'dailyFilters': return <DailyFilters />;
       case 'profile': return <UserProfile currentUser={currentUser} onProfileUpdate={handleProfileUpdate} onPasswordChange={handlePasswordChange} />;
       case 'users': return currentUser.isAdmin ? <UserManagement isOnline={isOnline} onMessageUpdate={() => refreshUnreadCount(currentUser)} onlineCount={onlineUserCount} /> : <div className="text-center py-8 text-gray-500"><LockClosedIcon className="h-8 w-8 mx-auto mb-2" /><p>شما دسترسی ندارید.</p></div>;
@@ -980,6 +983,7 @@ const App: React.FC = () => {
           <TabButton tab="dashboard" label="داشبورد" icon={<PresentationChartLineIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="analysis" label="تحلیل سهام" icon={<MagnifyingGlassIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="marketRadar" label="رادار بازار" icon={<ChartBarIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="roniaAssistant" label="دستیار رونیا" icon={<PresentationChartLineIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="scalping" label="نوسان‌گیری" icon={<ChartBarIcon />} alertType={scalpingAlert ? 'cyan' : 'none'} locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="portfolio" label="سبد سهام" icon={<BriefcaseIcon />} alertType={portfolioAlert === 'buy' ? 'green' : portfolioAlert === 'sell' ? 'red' : 'none'} locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="comparison" label="مقایسه" icon={<ClipboardDocumentIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
