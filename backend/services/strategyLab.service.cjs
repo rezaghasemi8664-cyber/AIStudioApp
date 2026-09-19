@@ -88,6 +88,37 @@ async function runSmaCrossover(params = {}) {
   const buyHoldValue = initialCapital * (closes[closes.length - 1] / closes[0]);
   const buyHoldReturnPercent = ((buyHoldValue / initialCapital) - 1) * 100;
 
+  const closedPairs = [];
+  let openTrade = null;
+  let totalFees = 0;
+  for (const trade of trades) {
+    totalFees += trade.fee;
+    if (trade.side === 'خرید') openTrade = trade;
+    else if (trade.side === 'فروش' && openTrade) {
+      const pnl = (trade.price - openTrade.price) * trade.quantity - openTrade.fee - trade.fee;
+      closedPairs.push({ ...trade, buyDate: openTrade.date, buyPrice: openTrade.price, pnl, pnlPercent: openTrade.price > 0 ? ((trade.price / openTrade.price) - 1) * 100 : null });
+      openTrade = null;
+    }
+  }
+  const winners = closedPairs.filter(t => t.pnl > 0);
+  const losers = closedPairs.filter(t => t.pnl < 0);
+  const grossProfit = winners.reduce((sum, t) => sum + t.pnl, 0);
+  const grossLoss = Math.abs(losers.reduce((sum, t) => sum + t.pnl, 0));
+  const winRate = closedPairs.length ? (winners.length / closedPairs.length) * 100 : null;
+  const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? null : 0;
+  const dailyReturns = [];
+  for (let i = 1; i < equityCurve.length; i += 1) {
+    const previous = equityCurve[i - 1].equity;
+    const current = equityCurve[i].equity;
+    if (previous > 0) dailyReturns.push((current / previous) - 1);
+  }
+  const meanReturn = dailyReturns.length ? dailyReturns.reduce((a,b) => a + b, 0) / dailyReturns.length : 0;
+  const variance = dailyReturns.length > 1 ? dailyReturns.reduce((sum, value) => sum + ((value - meanReturn) ** 2), 0) / (dailyReturns.length - 1) : 0;
+  const dailyVolatility = Math.sqrt(variance);
+  const annualizedReturnPercent = (Math.pow(finalValue / initialCapital, 252 / Math.max(1, candles.length - 1)) - 1) * 100;
+  const annualizedVolatilityPercent = dailyVolatility * Math.sqrt(252) * 100;
+  const sharpeRatio = dailyVolatility > 0 ? (meanReturn / dailyVolatility) * Math.sqrt(252) : null;
+
   return {
     success: true,
     deterministic: true,
@@ -98,8 +129,16 @@ async function runSmaCrossover(params = {}) {
     excessReturnPercent: returnPercent - buyHoldReturnPercent,
     maxDrawdown,
     tradeCount: trades.length,
-    closedTradeCount: trades.filter(t => t.side === 'فروش').length,
-    winRate: null,
+    closedTradeCount: closedPairs.length,
+    winRate,
+    profitFactor,
+    grossProfit,
+    grossLoss,
+    totalFees,
+    annualizedReturnPercent,
+    annualizedVolatilityPercent,
+    sharpeRatio,
+    closedTradeResults: closedPairs,
     openQuantity: quantity,
     cash,
     trades,
