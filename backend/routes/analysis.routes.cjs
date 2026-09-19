@@ -124,8 +124,8 @@ function validateListQuery(req, res, next) {
   }
   if (req.query.limit) {
     var limit = parseInt(req.query.limit, 10);
-    if (isNaN(limit) || limit < 1 || limit > 100) {
-      req.query.limit = '20'; // حداکثر 100، پیش‌فرض 20
+    if (isNaN(limit) || limit < 1 || limit > 10) {
+      req.query.limit = '10'; // حداکثر 10، پیش‌فرض 10
     }
   }
   next();
