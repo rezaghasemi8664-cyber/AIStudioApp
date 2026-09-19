@@ -2503,3 +2503,14 @@ a:focus-visible {
   .dashboard-inline-header { padding: 12px; border-radius: 14px; }
   .dashboard-workstation .dashboard-summary-card { min-height: 118px; }
 }
+
+
+/* Sold portfolio workstation v41 */
+.sold-portfolio-workstation { border-color: var(--ws-border, var(--color-border)); background: var(--ws-card-bg, var(--color-surface)); box-shadow: 0 12px 32px rgba(15,23,42,.07); backdrop-filter: blur(8px); }
+.sold-portfolio-workstation .sold-summary-card { border: 1px solid var(--ws-border, var(--color-border)); box-shadow: 0 5px 16px rgba(15,23,42,.045); transition: transform 160ms ease, box-shadow 160ms ease; }
+.sold-portfolio-workstation .sold-summary-card:hover { transform: translateY(-1px); box-shadow: 0 9px 22px rgba(15,23,42,.08); }
+.sold-portfolio-workstation input, .sold-portfolio-workstation select { min-height: 42px; border-color: var(--ws-border, var(--color-border)); border-radius: 10px; background: var(--color-surface); color: var(--color-text-primary); outline: none; transition: border-color 150ms ease, box-shadow 150ms ease; }
+.sold-portfolio-workstation input:focus, .sold-portfolio-workstation select:focus { border-color: rgba(6,182,212,.55); box-shadow: 0 0 0 3px rgba(6,182,212,.10); }
+.sold-portfolio-workstation table { font-variant-numeric: tabular-nums; }
+.sold-portfolio-workstation th { letter-spacing: -.01em; }
+@media (max-width: 640px) { .sold-portfolio-workstation { padding: 14px; border-radius: 14px; } .sold-portfolio-workstation .sold-summary-card { padding: 10px; } }
