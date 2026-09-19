@@ -214,9 +214,9 @@ async function fetchMarketIndexFromAPI(): Promise<{ data: MarketIndexData; meta?
 
 interface IndexDisplayProps {
     name: string;
-    value: number;
-    changeValue: number;
-    changePercent: number;
+    value: number | null;
+    changeValue: number | null;
+    changePercent: number | null;
     showIcon?: boolean;
 }
 
