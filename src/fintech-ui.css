@@ -2924,3 +2924,9 @@ a:focus-visible {
 .dark .portfolio-watchlists-page .watchlist-data-CACHED { color: #fcd34d; }
 .dark .portfolio-watchlists-page .watchlist-data-UNAVAILABLE { color: #fca5a5; }
 @media (max-width: 640px) { .portfolio-watchlists-page .watchlist-data-badge { padding: 4px 8px; } }
+
+
+/* --- Phase 5: deterministic alert data provenance --- */
+.watchlist-alert-data-LIVE { border-color: color-mix(in srgb, var(--ui-positive) 42%, var(--ui-border)) !important; background: color-mix(in srgb, var(--ui-positive) 7%, var(--ui-surface)) !important; color: var(--ui-positive); }
+.watchlist-alert-data-CACHED { border-color: color-mix(in srgb, var(--ui-warning) 42%, var(--ui-border)) !important; background: color-mix(in srgb, var(--ui-warning) 7%, var(--ui-surface)) !important; color: var(--ui-warning); }
+.watchlist-alert-data-UNAVAILABLE { border-color: color-mix(in srgb, var(--ui-negative) 38%, var(--ui-border)) !important; background: color-mix(in srgb, var(--ui-negative) 6%, var(--ui-surface)) !important; color: var(--ui-negative); }
