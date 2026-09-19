@@ -60,11 +60,39 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ isOnline }) => {
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [optimization, setOptimization] = useState<any | null>(null);
+  const [optimizing, setOptimizing] = useState(false);
 
   const equityPreview = useMemo(
     () => (result?.equityCurve || []).slice(-60),
     [result],
   );
+
+  const optimize = async () => {
+    if (!symbol.trim()) return;
+    setOptimizing(true);
+    setError(null);
+    try {
+      const response = await appApiFetch<any>('/strategy/optimize', {
+        method: 'POST',
+        body: JSON.stringify({
+          symbol: symbol.trim().toUpperCase(),
+          initialCapital: Number(capital),
+          feePercent: Number(feePercent),
+          shortPeriods: [5, 10, 15, 20],
+          longPeriods: [30, 50, 70],
+        }),
+      });
+      const data = response?.data?.data ?? response?.data ?? response;
+      if (!data?.deterministic && response?.deterministic !== true) throw new Error('پاسخ بهینه‌سازی قطعی معتبر نیست.');
+      setOptimization(data);
+    } catch (e: any) {
+      setError(e?.message || 'جستجوی پارامترها ناموفق بود.');
+      setOptimization(null);
+    } finally {
+      setOptimizing(false);
+    }
+  };
 
   const run = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -132,14 +160,45 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ isOnline }) => {
           <input type="number" min="0" max="10" step="0.01" value={feePercent} onChange={e => setFeePercent(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 bg-transparent" />
         </label>
         <div className="lg:col-span-6 flex items-center gap-3">
-          <button disabled={!isOnline || loading || !symbol.trim()} className="px-5 py-2.5 rounded-lg bg-cyan-600 text-white font-bold disabled:opacity-50">
+          <button disabled={!isOnline || loading || optimizing || !symbol.trim()} className="px-5 py-2.5 rounded-lg bg-cyan-600 text-white font-bold disabled:opacity-50">
             {loading ? 'در حال محاسبه...' : 'اجرای بک‌تست'}
+          </button>
+          <button type="button" onClick={optimize} disabled={!isOnline || loading || optimizing || !symbol.trim()} className="px-5 py-2.5 rounded-lg border border-cyan-500 text-cyan-700 dark:text-cyan-300 font-bold disabled:opacity-50">
+            {optimizing ? 'در حال جستجوی پارامترها...' : 'جستجوی پارامترها'}
           </button>
           <span className="text-xs text-slate-500">استراتژی این گام: تقاطع میانگین متحرک ساده</span>
         </div>
       </form>
 
       {error && <div className="mb-5 rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/30 p-4 text-red-700 dark:text-red-300">{error}</div>}
+      {optimization && (
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-5 mb-5 bg-white/70 dark:bg-slate-900/50">
+          <div className="font-bold mb-1">جستجوی پارامترهای استراتژی</div>
+          <div className="text-sm text-slate-500 mb-4">ترکیب‌های تاریخی کوتاه‌مدت/بلندمدت بررسی شده‌اند و جدول بر اساس Sharpe و سپس بازده مرتب شده است.</div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-slate-100 dark:bg-slate-800">
+                <th className="p-2">کوتاه</th><th className="p-2">بلند</th><th className="p-2">بازده</th><th className="p-2">بازده مازاد</th><th className="p-2">افت سرمایه</th><th className="p-2">Sharpe</th><th className="p-2">معاملات</th><th className="p-2">موفقیت</th>
+              </tr></thead>
+              <tbody>{optimization.ranking.map((row: any, index: number) => (
+                <tr key={row.shortPeriod + '-' + row.longPeriod} className="border-t border-slate-100 dark:border-slate-800">
+                  <td className="p-2 font-bold">{index + 1}. {numberFa(row.shortPeriod)}</td>
+                  <td className="p-2">{numberFa(row.longPeriod)}</td>
+                  <td className="p-2">{percentFa(row.returnPercent)}</td>
+                  <td className="p-2">{percentFa(row.excessReturnPercent)}</td>
+                  <td className="p-2">{percentFa(row.maxDrawdown)}</td>
+                  <td className="p-2">{numberFa(row.sharpe, 2)}</td>
+                  <td className="p-2">{numberFa(row.tradeCount)}</td>
+                  <td className="p-2">{percentFa(row.winRate)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+          <div className="mt-3 text-xs text-slate-500">{optimization.note}</div>
+        </div>
+      )}
+
+
 
       {result && (
         <>
