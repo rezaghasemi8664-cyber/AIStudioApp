@@ -37,6 +37,13 @@ export interface DailyFilter {
 
 export interface DailyFiltersResponse {
   success: boolean;
+  meta?: {
+    status: 'LIVE' | 'CACHED' | 'UNAVAILABLE';
+    source?: string;
+    fetchedAt?: string | null;
+    cachedAt?: string | null;
+    stale?: boolean;
+  };
   marketStatus: {
     isOpen: boolean;
     reason?: string;
