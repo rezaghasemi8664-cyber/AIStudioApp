@@ -11,6 +11,7 @@ interface MarketIndexProps {
 interface CacheEntry {
     data: MarketIndexData;
     timestamp: number;
+    meta?: { status: 'LIVE' | 'CACHED' | 'UNAVAILABLE'; source?: string; fetchedAt?: string; stale?: boolean };
 }
 
 const CACHE_KEY_LIVE = 'ronia_market_index_cache';
@@ -153,7 +154,7 @@ function getCachedByKey(key: string): CacheEntry | null {
         if (timestamp === null) return null;
         const data = normalizeLegacyOrModernMarketData(parsed.data);
         if (!data) return null;
-        return { data, timestamp };
+        return { data, timestamp, meta: parsed.meta };
     } catch {
         return null;
     }
@@ -163,16 +164,16 @@ function isCacheValid(cache: CacheEntry, ttl: number): boolean {
     return Date.now() - cache.timestamp < ttl;
 }
 
-function setCachedData(data: MarketIndexData, key: string): void {
+function setCachedData(data: MarketIndexData, key: string, meta?: CacheEntry['meta']): void {
     try {
-        localStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
+        localStorage.setItem(key, JSON.stringify({ data, meta, timestamp: Date.now() }));
         localStorage.setItem(`${key}_updated`, String(Date.now()));
     } catch {
         // localStorage may be unavailable.
     }
 }
 
-async function fetchMarketIndexFromAPI(): Promise<MarketIndexData | null> {
+async function fetchMarketIndexFromAPI(): Promise<{ data: MarketIndexData; meta?: CacheEntry['meta'] } | null> {
     try {
         const url = `${API_BASE_URL}/market/index`;
         const response = await fetch(url, {
@@ -189,8 +190,9 @@ async function fetchMarketIndexFromAPI(): Promise<MarketIndexData | null> {
 
         const result = await response.json();
         const normalized = normalizeLegacyOrModernMarketData(result);
+        const meta = result?.meta;
 
-        if (normalized) {
+        if (normalized && meta?.status !== 'UNAVAILABLE') {
             console.info('[MarketIndex] Live index loaded:', {
                 value: normalized.value,
                 changeValue: normalized.changeValue,
@@ -199,7 +201,7 @@ async function fetchMarketIndexFromAPI(): Promise<MarketIndexData | null> {
                 equalWeightedChangeValue: normalized.equalWeightedChangeValue,
                 equalWeightedChangePercent: normalized.equalWeightedChangePercent,
             });
-            return normalized;
+            return { data: normalized, meta };
         }
 
         console.error('[MarketIndex] Invalid live index response:', result);
@@ -220,10 +222,10 @@ interface IndexDisplayProps {
 
 const IndexDisplay: React.FC<IndexDisplayProps> = ({ name, value, changeValue, changePercent, showIcon = true }) => {
     const hasValue = isFiniteNumber(value) && value > 0;
-    const safeChangeValue = toFiniteNumber(changeValue, 0) ?? 0;
-    const safeChangePercent = toFiniteNumber(changePercent, 0) ?? 0;
-    const isPositive = safeChangeValue > 0;
-    const isNegative = safeChangeValue < 0;
+    const safeChangeValue = toFiniteNumber(changeValue);
+    const safeChangePercent = toFiniteNumber(changePercent);
+    const isPositive = safeChangeValue !== null && safeChangeValue > 0;
+    const isNegative = safeChangeValue !== null && safeChangeValue < 0;
     const valueColor = hasValue ? 'text-[var(--color-text-primary)]' : 'text-slate-500';
     const changeColor = isPositive ? 'text-[var(--color-positive)]' : isNegative ? 'text-[var(--color-negative)]' : 'text-slate-400';
     const Icon = isPositive ? ArrowTrendingUpIcon : ArrowTrendingDownIcon;
@@ -240,8 +242,8 @@ const IndexDisplay: React.FC<IndexDisplayProps> = ({ name, value, changeValue, c
             )}
             <div className={`mt-2 flex items-center gap-1.5 ${changeColor} text-[12px] sm:text-[13px] font-bold whitespace-nowrap tabular-nums`} dir="rtl">
                 {showIcon && <Icon className="h-4 w-4 shrink-0" />}
-                <span>{formatSignedNumber(safeChangeValue)}</span>
-                <span className="opacity-80">({formatPercent(safeChangePercent)})</span>
+                <span>{safeChangeValue === null ? 'داده در دسترس نیست' : formatSignedNumber(safeChangeValue)}</span>
+                <span className="opacity-80">({safeChangePercent === null ? '—' : formatPercent(safeChangePercent)})</span>
             </div>
         </div>
     );
@@ -251,6 +253,7 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
     const [data, setData] = useState<MarketIndexData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [dataMeta, setDataMeta] = useState<CacheEntry['meta']>();
     const [isMarketInScheduledTime, setIsMarketInScheduledTime] = useState(false);
     const isFetchingRef = useRef(false);
 
@@ -275,12 +278,13 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
 
         if (cache && isCacheValid(cache, cacheTTL)) {
             setData(cache.data);
+            setDataMeta(cache.meta);
             setIsLoading(false);
             return;
         }
 
         if (!isOnline) {
-            if (cache) setData(cache.data);
+            if (cache) { setData(cache.data); setDataMeta(cache.meta); }
             else setError('عدم دسترسی به اینترنت');
             setIsLoading(false);
             return;
@@ -293,17 +297,19 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
         try {
             const freshData = await fetchMarketIndexFromAPI();
             if (freshData) {
-                const normalized = { ...freshData, isMarketOpen: isLiveTime };
+                const normalized = freshData.data;
                 setData(normalized);
-                setCachedData(normalized, cacheKey);
+                setDataMeta(freshData.meta);
+                setCachedData(normalized, cacheKey, freshData.meta);
             } else if (cache) {
                 setData(cache.data);
+                setDataMeta(cache.meta);
             } else {
                 setError('خطا در دریافت داده‌های بازار');
             }
         } catch (err) {
             console.error('[MarketIndex] loadData failed:', err);
-            if (cache) setData(cache.data);
+            if (cache) { setData(cache.data); setDataMeta(cache.meta); }
             else setError('خطا در دریافت داده‌های بازار');
         } finally {
             isFetchingRef.current = false;
@@ -350,14 +356,14 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
         return <div dir="rtl" className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-center text-[13px] text-slate-400">داده‌ای برای نمایش شاخص موجود نیست.</div>;
     }
 
-    const showAsClosed = !isMarketInScheduledTime || !data.isMarketOpen;
+    const showAsClosed = data.isMarketOpen === false || (data.isMarketOpen === null && !isMarketInScheduledTime);
 
     return (
         <div dir="rtl" data-style-id={showAsClosed ? 'market-index-closed' : 'market-index-open'} data-style-name={showAsClosed ? 'شاخص بازار بسته' : 'شاخص بازار باز'} data-style-props="bg,border,positive,negative" className="market-index-widget market-index-workstation w-full min-w-0 max-w-[460px] overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg shadow-black/10">
             <div className="flex items-center justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3">
                 <div className="min-w-0">
                     <div className="text-[14px] font-bold text-[var(--color-text-primary)]">شاخص‌های بازار</div>
-                    <div className="mt-0.5 text-[11px] font-medium text-slate-400">وضعیت لحظه‌ای بازار</div>
+                    <div className="mt-0.5 text-[11px] font-medium text-slate-400">{dataMeta?.status === 'CACHED' ? 'آخرین داده معتبر ذخیره‌شده' : dataMeta?.status === 'LIVE' ? 'داده واقعی بازار' : 'وضعیت داده مشخص نیست'}</div>
                 </div>
                 <span className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1 text-[12px] font-bold leading-5 ${showAsClosed ? 'border-red-500/20 bg-red-500/10 text-red-400' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'}`}>
                     <span className={`h-2 w-2 rounded-full ${showAsClosed ? 'bg-red-400' : 'bg-emerald-400'}`} />
