@@ -2649,3 +2649,23 @@ a:focus-visible {
   .user-management-workstation { overflow-x: hidden; }
   .user-management-workstation table { min-width: 680px; }
 }
+
+
+/* User management RBAC workstation v48 */
+.user-management-rbac-workstation { --rbac-shadow: 0 12px 34px rgba(15,23,42,.065); }
+.user-management-rbac-workstation > div { border-color: var(--ws-border, var(--color-border)); }
+.user-management-rbac-workstation > div:not([class*="fixed"]) { box-shadow: var(--rbac-shadow); backdrop-filter: blur(8px); }
+.user-management-rbac-workstation h2, .user-management-rbac-workstation h3 { letter-spacing: -.02em; }
+.user-management-rbac-workstation input, .user-management-rbac-workstation select { min-height: 42px; }
+.user-management-rbac-workstation table thead { background: color-mix(in srgb, var(--color-surface) 92%, rgba(6,182,212,.05)); }
+.user-management-rbac-workstation table tbody tr:hover td { background: color-mix(in srgb, var(--color-surface) 88%, rgba(6,182,212,.07)); }
+.user-management-rbac-workstation [class*="fixed"] > div { border-color: var(--ws-border, var(--color-border)); box-shadow: 0 28px 80px rgba(0,0,0,.24); backdrop-filter: blur(14px); }
+.user-management-rbac-workstation [class*="fixed"] .grid > div { border-color: var(--ws-border, var(--color-border)); background: color-mix(in srgb, var(--color-surface) 96%, transparent); }
+.user-management-rbac-workstation [class*="fixed"] input:focus, .user-management-rbac-workstation [class*="fixed"] select:focus { border-color: rgba(6,182,212,.58) !important; box-shadow: 0 0 0 3px rgba(6,182,212,.10); }
+.user-management-rbac-workstation button:not(:disabled):hover { transform: translateY(-1px); }
+@media (max-width: 640px) {
+  .user-management-rbac-workstation { width: 100%; }
+  .user-management-rbac-workstation > div { border-radius: 14px; }
+  .user-management-rbac-workstation [class*="fixed"] { padding: 10px; }
+  .user-management-rbac-workstation [class*="fixed"] > div { max-height: 94vh; padding: 16px; border-radius: 16px; }
+}
