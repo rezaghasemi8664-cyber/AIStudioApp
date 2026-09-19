@@ -3,7 +3,7 @@ import React from 'react';
 interface DashboardHeaderProps { isMarketOpen: boolean; onRefresh: () => void; }
 
 const DashboardHeader: React.FC<DashboardHeaderProps> = ({ isMarketOpen, onRefresh }) => (
-  <header dir="rtl" className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+  <header dir="rtl" className="dashboard-header workstation-header flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
     <div>
       <h1 className="text-2xl font-black text-[var(--color-text-primary)]">داشبورد بازار</h1>
       <p className="mt-1 text-sm text-slate-500">نمای کلی بازار، شاخص‌ها و وضعیت معاملات</p>
