@@ -17,7 +17,7 @@ const PortfolioRiskContributionAnalysis: React.FC<Props> = ({ isOnline }) => {
   }, [isOnline]);
   useEffect(() => { load(); }, [load]);
 
-  return <div dir="rtl" className="space-y-5">
+  return <div dir="rtl" className="page-shell portfolio-risk-contribution-page space-y-5">
     <div className="flex items-center justify-between gap-3 flex-wrap"><div><h2 className="text-2xl font-black">سهم هر نماد در ریسک کل سبد</h2><p className="text-sm text-gray-500 dark:text-gray-400 mt-1">مقایسه وزن سرمایه، نوسان مستقل و سهم تقریبی هر موقعیت در ریسک تاریخی سبد</p></div><button type="button" onClick={load} disabled={loading || !isOnline} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading ? 'در حال محاسبه...' : 'بروزرسانی'}</button></div>
     {error && <div className="rounded-xl border border-red-300 bg-red-50 dark:bg-red-950/20 p-4 text-red-700 dark:text-red-300">{error}</div>}
     {data && <>
