@@ -128,7 +128,7 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
     return { points, first: historyPoints[0], last: historyPoints[historyPoints.length - 1], min, max };
   }, [historyPoints]);
 
-  return <div dir="rtl" className="space-y-5">
+  return <div dir="rtl" className="page-shell portfolio-intelligence-page space-y-5">
     <div className="flex items-center justify-between gap-3 flex-wrap"><div><h2 className="text-2xl font-black">هوشمندی سبد سهام</h2><p className="text-sm text-gray-500 dark:text-gray-400 mt-1">ارزش‌گذاری، عملکرد، توزیع سرمایه، ریسک افت و مقایسه با شاخص بازار بر اساس داده واقعی</p></div><button type="button" onClick={() => { load(); loadHistory(); loadBenchmark(); loadRealized(); }} disabled={loading || historyLoading || benchmarkLoading || !isOnline} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading || historyLoading || benchmarkLoading ? 'در حال بروزرسانی...' : 'بروزرسانی'}</button></div>
     {error && <div className="rounded-xl border border-red-300 bg-red-50 dark:bg-red-950/20 p-4 text-red-700 dark:text-red-300">{error}</div>}
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[['ارزش فعلی سبد', money(stats.totalValue)], ['بهای تمام‌شده', money(stats.totalCost)], ['سود/زیان کل', money(stats.pnl)], ['بازدهی کل', pct(stats.pnlPercent)]].map(([label, value]) => <div key={label} className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4"><p className="text-xs text-gray-500">{label}</p><p className="mt-2 text-xl font-black font-mono">{value}</p></div>)}</div>
