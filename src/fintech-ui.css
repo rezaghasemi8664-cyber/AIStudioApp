@@ -1261,3 +1261,54 @@ a:focus-visible {
     transition: none !important;
   }
 }
+
+
+/* Market radar workstation v10 */
+.market-radar-page {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  min-width: 0;
+}
+.market-radar-page > header,
+.market-radar-page > article,
+.market-radar-page > div > article {
+  border-color: var(--ui-border) !important;
+  box-shadow: var(--ui-shadow);
+}
+.market-radar-page button {
+  min-height: 42px;
+}
+.market-radar-page .tabular-nums,
+.market-radar-page .font-mono {
+  font-variant-numeric: tabular-nums;
+}
+.market-radar-page .overflow-x-auto {
+  max-width: 100%;
+  scrollbar-width: thin;
+}
+.market-radar-page svg {
+  max-width: 100%;
+}
+@media (max-width: 768px) {
+  .market-radar-page {
+    gap: 12px !important;
+  }
+  .market-radar-page > header {
+    padding: 14px !important;
+    border-radius: 16px !important;
+  }
+  .market-radar-page > header button {
+    width: 100%;
+  }
+  .market-radar-page > div > article,
+  .market-radar-page > article {
+    border-radius: 16px !important;
+    padding: 14px !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .market-radar-page * {
+    transition: none !important;
+  }
+}
