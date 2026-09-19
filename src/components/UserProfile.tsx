@@ -763,9 +763,10 @@ const UserProfile: React.FC<UserProfileProps> = ({
                 serverSubscription={serverSubscription}
               />
               <SubscriptionPlans
+                currentPlanId={(serverSubscription as any)?.plan?.id ?? (currentUser as any)?.subscriptionPlanId ?? null}
                 onRenew={(plan) =>
                   addNotification(
-                    `پلن «${plan.name}» انتخاب شد. اتصال به درگاه پرداخت در گام بعد انجام می‌شود.`,
+                    `پلن «${plan.name}» انتخاب شد. در حال انتقال به درگاه امن زرین‌پال...`,
                     'info',
                   )
                 }
