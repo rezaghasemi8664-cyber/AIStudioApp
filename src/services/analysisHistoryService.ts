@@ -61,6 +61,7 @@ interface ApiWrapped<T> {
   total?: number;
   limit?: number;
   offset?: number;
+  hasMore?: boolean;
 }
 
 function safeParseJSON<T>(
@@ -565,6 +566,52 @@ export async function getAnalysisHistoryStats(_userId: string): Promise<Analysis
 }
 
 export async function getAnalysisHistoryPage(_userId: string, limit = 10, offset = 0): Promise<AnalysisHistoryPage> {
-  const items = await getAnalysisHistory(_userId, limit, offset);
-  return { items, total: items.length, limit, offset, hasMore: items.length === limit };
+  const { safeLimit, safeOffset } = normalizePagination(limit, offset);
+
+  const raw = await appApiFetch<
+    | AnalysisHistoryItem[]
+    | ApiWrapped<AnalysisHistoryItem[]>
+  >(`/analysis-history?limit=${safeLimit}&offset=${safeOffset}`);
+
+  const wrapped =
+    raw && typeof raw === 'object' && 'success' in raw
+      ? (raw as ApiWrapped<AnalysisHistoryItem[]>)
+      : null;
+
+  if (wrapped?.success === false) {
+    throw new Error(wrapped.message || 'خطا در دریافت صفحه تاریخچه.');
+  }
+
+  const rawItems = Array.isArray(wrapped?.data)
+    ? wrapped.data
+    : Array.isArray(raw)
+      ? raw
+      : [];
+
+  const items = rawItems.map(normalizeHistoryItem).sort((a, b) => b.timestamp - a.timestamp);
+
+  const total = Number.isFinite(wrapped?.total)
+    ? Number(wrapped?.total)
+    : items.length;
+
+  const responseLimit = Number.isFinite(wrapped?.limit)
+    ? Number(wrapped?.limit)
+    : safeLimit;
+
+  const responseOffset = Number.isFinite(wrapped?.offset)
+    ? Number(wrapped?.offset)
+    : safeOffset;
+
+  const hasMore =
+    typeof wrapped?.hasMore === 'boolean'
+      ? wrapped.hasMore
+      : responseOffset + items.length < total;
+
+  return {
+    items,
+    total,
+    limit: responseLimit,
+    offset: responseOffset,
+    hasMore,
+  };
 }
