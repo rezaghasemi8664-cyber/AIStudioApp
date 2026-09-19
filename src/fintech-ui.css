@@ -2466,3 +2466,12 @@ a:focus-visible {
   .roniya-welcome-card { border-radius: 16px; }
   .roniya-welcome-card .roniya-welcome-content { padding: 24px 18px; }
 }
+
+
+/* Loading spinner workstation v38 */
+.roniya-loading-spinner { min-height: 220px; padding: 24px; }
+.roniya-loading-spinner-ring { width: 42px; height: 42px; border-width: 3px; filter: drop-shadow(0 4px 10px rgba(6,182,212,.18)); }
+@media (max-width: 640px) {
+  .roniya-loading-spinner { min-height: 180px; padding: 16px; }
+  .roniya-loading-spinner-ring { width: 38px; height: 38px; }
+}
