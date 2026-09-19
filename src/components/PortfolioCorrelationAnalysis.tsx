@@ -9,7 +9,7 @@ const PortfolioCorrelationAnalysis: React.FC<Props> = ({ isOnline }) => {
   const [loading, setLoading] = useState(false); const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => { if (!isOnline) { setError('برای محاسبه همبستگی سبد باید آنلاین باشید.'); return; } setLoading(true); setError(null); try { setData(await getPortfolioCorrelation()); } catch (e: any) { setError(e?.response?.data?.message || e?.message || 'محاسبه همبستگی سبد ناموفق بود.'); } finally { setLoading(false); } }, [isOnline]);
   useEffect(() => { load(); }, [load]);
-  return <div dir="rtl" className="space-y-5">
+  return <div dir="rtl" className="page-shell portfolio-correlation-analysis-page space-y-5">
     <div className="flex items-center justify-between gap-3 flex-wrap"><div><h2 className="text-2xl font-black">همبستگی و تمرکز ریسک مشترک</h2><p className="text-sm text-gray-500 dark:text-gray-400 mt-1">مقایسه حرکت روزانه نمادهای سبد بر اساس تاریخچه واقعی و تاریخ ورود هر موقعیت</p></div><button type="button" onClick={load} disabled={loading || !isOnline} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading ? 'در حال محاسبه...' : 'بروزرسانی'}</button></div>
     {error && <div className="rounded-xl border border-red-300 bg-red-50 dark:bg-red-950/20 p-4 text-red-700 dark:text-red-300">{error}</div>}
     {data && <>
