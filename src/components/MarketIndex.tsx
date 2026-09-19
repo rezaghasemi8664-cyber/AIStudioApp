@@ -353,7 +353,7 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
     const showAsClosed = !isMarketInScheduledTime || !data.isMarketOpen;
 
     return (
-        <div dir="rtl" data-style-id={showAsClosed ? 'market-index-closed' : 'market-index-open'} data-style-name={showAsClosed ? 'شاخص بازار بسته' : 'شاخص بازار باز'} data-style-props="bg,border,positive,negative" className="market-index-widget w-full min-w-0 max-w-[460px] overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg shadow-black/10">
+        <div dir="rtl" data-style-id={showAsClosed ? 'market-index-closed' : 'market-index-open'} data-style-name={showAsClosed ? 'شاخص بازار بسته' : 'شاخص بازار باز'} data-style-props="bg,border,positive,negative" className="market-index-widget market-index-workstation w-full min-w-0 max-w-[460px] overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg shadow-black/10">
             <div className="flex items-center justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3">
                 <div className="min-w-0">
                     <div className="text-[14px] font-bold text-[var(--color-text-primary)]">شاخص‌های بازار</div>
