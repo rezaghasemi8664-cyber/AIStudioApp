@@ -2377,3 +2377,23 @@ a:focus-visible {
   .smart-score-workstation > div { border-radius: 14px; }
   .smart-score-workstation .text-5xl { font-size: 2.5rem; }
 }
+
+
+/* Notification workstation v34 */
+.roniya-notification-container {
+  width: min(380px, calc(100vw - 24px));
+  pointer-events: none;
+}
+.roniya-notification {
+  pointer-events: auto;
+  border-radius: 14px;
+  border-width: 1px 1px 1px 4px;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(14px);
+  line-height: 1.65;
+}
+.roniya-notification button { flex: 0 0 auto; }
+@media (max-width: 640px) {
+  .roniya-notification-container { top: 12px; right: 12px; left: 12px; width: auto; }
+  .roniya-notification { margin-bottom: 10px; padding: 12px; }
+}
