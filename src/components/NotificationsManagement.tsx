@@ -120,7 +120,7 @@ const NotificationsManagement: React.FC<NotificationsManagementProps> = ({ isOnl
     };
 
     return (
-        <div className="max-w-4xl mx-auto">
+        <div className="notifications-management-workstation max-w-4xl mx-auto">
             <h2 className="text-2xl font-bold text-cyan-600 dark:text-cyan-400 mb-4">ارسال اطلاعیه</h2>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
                 یک پیام برای کاربران برنامه ارسال کنید. این پیام در پنل اطلاعیه‌های آن‌ها نمایش داده خواهد شد.
@@ -131,7 +131,7 @@ const NotificationsManagement: React.FC<NotificationsManagementProps> = ({ isOnl
                     onSubmit={handleSendNotification}
                     data-style-id="notifications-form-card"
                     data-style-name="فرم ارسال اطلاعیه"
-                    className="p-6 rounded-lg shadow-md space-y-6"
+                    className="notifications-form-card p-6 rounded-lg shadow-md space-y-6"
                     style={{
                         backgroundColor: 'var(--notifications-form-card-bg)',
                         color: 'var(--notifications-form-card-color)',
