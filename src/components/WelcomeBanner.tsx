@@ -65,16 +65,16 @@ const WelcomeBanner: React.FC<WelcomeBannerProps> = ({ onClose }) => {
     };
 
     return (
-        <div className={`fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}>
+        <div className={`roniya-welcome-banner fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}>
             <div
-                className={`relative w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-700 ${visible ? 'translate-y-0 scale-100' : 'translate-y-full scale-90'}`}
+                className={`roniya-welcome-card relative w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-700 ${visible ? 'translate-y-0 scale-100' : 'translate-y-full scale-90'}`}
                 style={{ fontFamily: 'var(--welcome-banner-text-font-family, inherit)' }}
             >
                 <div className="p-1">
                     <div className="absolute top-0 left-0 h-1 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500" style={{ width: `${progress}%`, transition: 'width 0.1s linear' }} />
                 </div>
 
-                <div className="p-6 sm:p-8 text-center">
+                <div className="roniya-welcome-content p-6 sm:p-8 text-center">
                     <div className="mb-4 inline-flex items-center justify-center w-16 h-16 rounded-full bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 animate-bounce">
                         <InfoIcon className="w-8 h-8" />
                     </div>
