@@ -111,32 +111,60 @@ async function deleteRule(userId, id) {
 }
 
 async function getQuote(symbol) {
-  const result = await brsService.getSymbolData(symbol); const raw = result?.data ?? result ?? {};
-  const number = (...values) => { for (const value of values) { if (value === null || value === undefined || value === '') continue; const n = Number(value); if (Number.isFinite(n)) return n; } return null; };
+  const result = await brsService.getSymbolData(symbol);
+  const raw = result?.data ?? result ?? {};
+  const number = (...values) => {
+    for (const value of values) {
+      if (value === null || value === undefined || value === '') continue;
+      const n = Number(value);
+      if (Number.isFinite(n)) return n;
+    }
+    return null;
+  };
+
+  const sourceMeta = result?._meta || result?.meta || {};
+  const source = String(sourceMeta.source || result?.source || '').toLowerCase();
+  const dataStatus = source === 'live'
+    ? 'LIVE'
+    : (source === 'cache' || source.includes('history') || source.includes('fallback') ? 'CACHED' : 'UNAVAILABLE');
+
   const lastPrice = number(raw.pDrCotVal, raw.pl, raw.last, raw.lastPrice, raw.priceLast);
   const closePrice = number(raw.pClosing, raw.pc, raw.close, raw.closingPrice);
   const volume = number(raw.tvol, raw.qTotTran5J, raw.volume, raw.tradeVolume);
   const lastChangePercent = number(raw.plp, raw.lastChangePercent, raw.percentChange, raw.priceChangePercent);
   const closeChangePercent = number(raw.pcp, raw.closeChangePercent, raw.closingChangePercent);
   const yesterday = number(raw.pYest, raw.py, raw.yesterdayPrice, raw.previousClose, raw.yesterday);
-  return { symbol: String(raw.symbol ?? raw.l18 ?? raw.lVal18AFC ?? raw.ticker ?? symbol).trim().toUpperCase(), lastPrice, lastChangePercent: lastChangePercent ?? (lastPrice != null && yesterday ? ((lastPrice - yesterday) / yesterday) * 100 : null), volume, closePrice, closeChangePercent: closeChangePercent ?? (closePrice != null && yesterday ? ((closePrice - yesterday) / yesterday) * 100 : null), capturedAt: new Date().toISOString() };
+
+  const hasUsableQuote = lastPrice != null || closePrice != null || volume != null;
+  return {
+    symbol: String(raw.symbol ?? raw.l18 ?? raw.lVal18AFC ?? raw.ticker ?? symbol).trim().toUpperCase(),
+    lastPrice,
+    lastChangePercent: lastChangePercent ?? (lastPrice != null && yesterday ? ((lastPrice - yesterday) / yesterday) * 100 : null),
+    volume,
+    closePrice,
+    closeChangePercent: closeChangePercent ?? (closePrice != null && yesterday ? ((closePrice - yesterday) / yesterday) * 100 : null),
+    capturedAt: sourceMeta.fetchedAt || result?.fetchedAt || new Date().toISOString(),
+    dataStatus: hasUsableQuote ? dataStatus : 'UNAVAILABLE',
+    source: source || 'unavailable',
+    stale: dataStatus !== 'LIVE'
+  };
 }
 
 async function evaluateArmedRules(userId) {
   const rules = await readRules(userId); const armed = rules.filter(rule => rule.status === 'armed'); const quotes = new Map(); const triggered = [];
   for (const rule of armed) {
     if (!quotes.has(rule.symbol)) { try { quotes.set(rule.symbol, await getQuote(rule.symbol)); } catch (_) { quotes.set(rule.symbol, null); } }
-    const quote = quotes.get(rule.symbol); const results = rule.conditions.map(condition => ({ ...condition, value: metricValue(quote, condition.metric), matched: evaluate(metricValue(quote, condition.metric), condition.operator, condition.threshold) }));
+    const quote = quotes.get(rule.symbol);\n    if (!quote || quote.dataStatus === 'UNAVAILABLE') continue;\n    const results = rule.conditions.map(condition => ({ ...condition, value: metricValue(quote, condition.metric), matched: evaluate(metricValue(quote, condition.metric), condition.operator, condition.threshold) }));
     const matched = rule.logic === 'OR' ? results.some(item => item.matched) : results.every(item => item.matched);
     if (!matched) continue;
     const triggeredAt = new Date().toISOString(); const nextRule = { ...rule, status: 'triggered', triggeredAt, updatedAt: triggeredAt }; const index = rules.findIndex(item => item.id === rule.id); if (index >= 0) rules[index] = nextRule;
     const primary = results[0];
-    const snapshot = quote ? { ...quote, metric: primary.metric, value: primary.value, ruleId: rule.id, capturedAt: quote.capturedAt } : { symbol: rule.symbol, metric: primary.metric, value: primary.value, ruleId: rule.id, capturedAt: triggeredAt };
+    const snapshot = { ...quote, metric: primary.metric, value: primary.value, ruleId: rule.id, capturedAt: quote.capturedAt };
     triggered.push({ rule: nextRule, snapshot, conditions: results });
   }
   if (triggered.length) {
     await writeRules(userId, rules); const history = await readHistory(userId);
-    const entries = triggered.map(item => ({ id: `${item.rule.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ruleId: item.rule.id, symbol: item.rule.symbol, metric: item.rule.metric, operator: item.rule.operator, threshold: item.rule.threshold, value: item.snapshot.value, triggeredAt: item.rule.triggeredAt, logic: item.rule.logic, conditions: item.conditions, snapshot: item.snapshot }));
+    const entries = triggered.map(item => ({ id: `${item.rule.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ruleId: item.rule.id, symbol: item.rule.symbol, metric: item.rule.metric, operator: item.rule.operator, threshold: item.rule.threshold, value: item.snapshot.value, triggeredAt: item.rule.triggeredAt, logic: item.rule.logic, conditions: item.conditions, snapshot: item.snapshot, dataStatus: item.snapshot.dataStatus, source: item.snapshot.source, stale: item.snapshot.stale }));
     await writeHistory(userId, [...entries.reverse(), ...history]);
   }
   return { checked: armed.length, triggered };
