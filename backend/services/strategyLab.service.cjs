@@ -123,6 +123,16 @@ async function runSmaCrossover(params = {}) {
   const sortinoRatio = downsideDeviation > 0 ? (meanReturn / downsideDeviation) * Math.sqrt(252) : null;
   const bestTradePercent = closedPairs.length ? Math.max(...closedPairs.map(t => t.pnlPercent ?? -Infinity)) : null;
   const worstTradePercent = closedPairs.length ? Math.min(...closedPairs.map(t => t.pnlPercent ?? Infinity)) : null;
+  const averageWinPercent = winners.length ? winners.reduce((sum, t) => sum + (t.pnlPercent ?? 0), 0) / winners.length : null;
+  const averageLossPercent = losers.length ? losers.reduce((sum, t) => sum + (t.pnlPercent ?? 0), 0) / losers.length : null;
+  const expectancyPercent = closedPairs.length ? closedPairs.reduce((sum, t) => sum + (t.pnlPercent ?? 0), 0) / closedPairs.length : null;
+  const exposureDays = closedPairs.reduce((sum, t) => {
+    const start = new Date(t.buyDate).getTime();
+    const end = new Date(t.date).getTime();
+    return sum + (Number.isFinite(start) && Number.isFinite(end) && end >= start ? (end - start) / 86400000 : 0);
+  }, 0);
+  const averageHoldingDays = closedPairs.length ? exposureDays / closedPairs.length : null;
+  const investedDays = equityCurve.reduce((sum, point, index) => sum + (index > 0 && point.equity > 0 && quantity > 0 ? 1 : 0), 0);
 
   return {
     success: true,
@@ -146,6 +156,10 @@ async function runSmaCrossover(params = {}) {
     sortinoRatio,
     bestTradePercent,
     worstTradePercent,
+    averageWinPercent,
+    averageLossPercent,
+    expectancyPercent,
+    averageHoldingDays,
     closedTradeResults: closedPairs,
     openQuantity: quantity,
     cash,
