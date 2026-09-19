@@ -1830,8 +1830,7 @@ const clearCurrentAnalysis = () => {
     };
   }, [analysisData, resolvedMarketMetrics]);
 
-  return (
-    <div className="space-y-5">
+  return (\n    <div className="page-shell stock-analysis-page space-y-5">
      <div className="flex flex-wrap gap-2">
   <button
     type="button"
