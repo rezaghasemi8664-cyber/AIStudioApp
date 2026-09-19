@@ -91,7 +91,7 @@ function normalizeLegacyOrModernMarketData(payload: unknown): MarketIndexData | 
 
     const changeValue = pickFirstNumber(rawData, [
         'changeValue', 'change', 'overallChangeValue', 'overallChange', 'indexChange', 'index_change', 'delta', 'index_change_value',
-    ], 0);
+    ]);
 
     const changePercent = pickFirstNumber(rawData, [
         'changePercent', 'overallChangePercent', 'indexChangePercent', 'index_change_percent', 'percent', 'percentChange',
@@ -100,7 +100,7 @@ function normalizeLegacyOrModernMarketData(payload: unknown): MarketIndexData | 
     const resolvedChangePercent = changePercent ?? (
         changeValue !== null && value - changeValue !== 0
             ? (changeValue / (value - changeValue)) * 100
-            : 0
+            : null
     );
 
     const equalWeightedValue = pickFirstNumber(rawData, [
@@ -113,7 +113,7 @@ function normalizeLegacyOrModernMarketData(payload: unknown): MarketIndexData | 
         'equalWeightedChangeValue', 'equalWeightChangeValue', 'equalWeightedChange', 'equalChange',
         'equalWeightedIndexChange', 'indexEqualWeightChange', 'index_equalWeight_change',
         'index_equal_weight_change', 'equal_weighted_change', 'equal_weighted_change_value',
-    ], 0);
+    ]);
 
     const equalWeightedChangePercent = pickFirstNumber(rawData, [
         'equalWeightedChangePercent', 'equalWeightChangePercent', 'equalChangePercent',
@@ -124,21 +124,21 @@ function normalizeLegacyOrModernMarketData(payload: unknown): MarketIndexData | 
     const resolvedEqualChangePercent = equalWeightedChangePercent ?? (
         equalWeightedValue !== null && equalWeightedChangeValue !== null && equalWeightedValue - equalWeightedChangeValue !== 0
             ? (equalWeightedChangeValue / (equalWeightedValue - equalWeightedChangeValue)) * 100
-            : 0
+            : null
     );
 
     const isMarketOpen = typeof rawData.isMarketOpen === 'boolean'
         ? rawData.isMarketOpen
         : typeof rawData.marketOpen === 'boolean'
             ? rawData.marketOpen
-            : true;
+            : null;
 
     return {
         value,
-        changeValue: changeValue ?? 0,
+        changeValue,
         changePercent: resolvedChangePercent,
-        equalWeightedValue: equalWeightedValue ?? Number.NaN,
-        equalWeightedChangeValue: equalWeightedChangeValue ?? 0,
+        equalWeightedValue,
+        equalWeightedChangeValue,
         equalWeightedChangePercent: resolvedEqualChangePercent,
         isMarketOpen,
     };
