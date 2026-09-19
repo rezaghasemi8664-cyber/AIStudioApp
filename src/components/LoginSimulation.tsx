@@ -39,7 +39,7 @@ const LoginSimulation: React.FC<LoginSimulationProps> = ({ onComplete }) => {
 
     return (
         <div 
-            className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-gray-900/95 backdrop-blur-sm transition-opacity duration-500 ${fadingOut ? 'opacity-0' : 'opacity-100'}`}
+            className={`login-simulation-workstation fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-gray-900/95 backdrop-blur-sm transition-opacity duration-500 ${fadingOut ? 'opacity-0' : 'opacity-100'}`}
         >
             <div className="flex flex-col items-center gap-6 animate-fade-in">
                 <RoniaLogo className="h-24 w-24 text-cyan-400" />
