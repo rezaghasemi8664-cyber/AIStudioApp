@@ -21,7 +21,7 @@ const PublicLandingPage: React.FC = () => {
   };
 
   return (
-    <div dir="rtl" className="roniya-public-page">
+    <div dir="rtl" className="roniya-public-page public-landing-workstation">
       <style>{`
         .roniya-public-page {
           --navy: #071426;
