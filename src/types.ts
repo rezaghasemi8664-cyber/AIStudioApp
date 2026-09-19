@@ -124,7 +124,7 @@ export interface PasswordChangeFormProps { onPasswordChange: (currentPass: strin
 export interface AnalysisHistoryItem { symbol: string; timestamp: number; result: AnalysisResult; summary?: string; }
 export interface AppNotification { id: string; message: string; timestamp: number; recipientUserId: string; read: boolean; attachment?: { name: string; type: string; data: string; }; }
 export interface Notification { id: number; message: string; type: 'success' | 'info' | 'error' | 'warning'; }
-export interface MarketIndexData { value: number; changeValue: number; changePercent: number; isMarketOpen: boolean; equalWeightedValue: number; equalWeightedChangeValue: number; equalWeightedChangePercent: number; }
+export interface MarketIndexData { value: number | null; changeValue: number | null; changePercent: number | null; isMarketOpen: boolean | null; equalWeightedValue: number | null; equalWeightedChangeValue: number | null; equalWeightedChangePercent: number | null; }
 export interface MarketIndexCache { data: MarketIndexData; timestamp: number; }
 export interface MarketIndexSchedule { isEnabled: boolean; startTime: string; endTime: string; days: number[]; interval: number; }
 export interface MarketSummarySchedule { isEnabled: boolean; analysisTime: string; days: number[]; }
