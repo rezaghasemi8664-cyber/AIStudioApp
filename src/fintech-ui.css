@@ -2016,3 +2016,58 @@ a:focus-visible {
     transition: none;
   }
 }
+
+
+/* Portfolio risk contribution workstation v25 */
+.portfolio-risk-contribution-page {
+  width: min(100%, 1440px);
+  margin-inline: auto;
+}
+.portfolio-risk-contribution-page h2 {
+  letter-spacing: -0.02em;
+  line-height: 1.45;
+}
+.portfolio-risk-contribution-page h3 {
+  line-height: 1.55;
+}
+.portfolio-risk-contribution-page button {
+  min-height: 42px;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.portfolio-risk-contribution-page button:hover:not(:disabled) {
+  box-shadow: var(--ui-shadow-sm);
+}
+.portfolio-risk-contribution-page button:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.portfolio-risk-contribution-page table {
+  min-width: 720px;
+  font-variant-numeric: tabular-nums;
+}
+.portfolio-risk-contribution-page table tbody tr {
+  transition: background-color 140ms ease;
+}
+.portfolio-risk-contribution-page table tbody tr:hover {
+  background: var(--ui-surface-hover);
+}
+@media (max-width: 767px) {
+  .portfolio-risk-contribution-page {
+    width: 100%;
+  }
+  .portfolio-risk-contribution-page h2 {
+    font-size: 1.2rem;
+  }
+  .portfolio-risk-contribution-page button {
+    min-height: 44px;
+  }
+  .portfolio-risk-contribution-page table {
+    min-width: 720px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .portfolio-risk-contribution-page button,
+  .portfolio-risk-contribution-page table tbody tr {
+    transition: none;
+  }
+}
