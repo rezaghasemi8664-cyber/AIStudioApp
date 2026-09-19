@@ -31,7 +31,7 @@ const CodalPeriodAnalysis: React.FC<Props> = ({ isOnline }) => {
   const max = Math.max(...recentPeriods.map(item => item.reports), 1);
 
   return (
-    <section dir="rtl" className="space-y-4">
+    <section dir="rtl" className="page-shell codal-period-analysis-page space-y-5">
       <div className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4">
         <div><h2 className="font-black text-lg">تحلیل دوره‌ای کدال</h2><p className="text-xs text-gray-500 mt-1">مقایسه بر اساس تاریخ انتشار واقعی اطلاعیه‌های دریافتی</p></div>
         <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading ? 'در حال دریافت…' : 'بروزرسانی'}</button>
