@@ -486,7 +486,9 @@ const REAL_DATA_API_PREFIXES = [
   '/api/analysis-data', '/api/v1/analysis-data',
   '/api/codal', '/api/v1/codal',
   '/api/codal-intelligence', '/api/v1/codal-intelligence',
-  '/api/daily-filters', '/api/v1/daily-filters'
+  '/api/daily-filters',
+  '/api/watchlist',
+  '/api/v1/watchlist', '/api/v1/daily-filters'
 ];
 
 function isRealDataApiPath(pathname) {
