@@ -10,6 +10,8 @@ import {
   getAnalysisHistory,
   getAnalysisHistoryItem,
   deleteAnalysisFromHistory,
+  getAnalysisHistoryStats,
+  type AnalysisHistoryStats,
 } from '../services/analysisHistoryService';
 
 
@@ -1005,6 +1007,7 @@ export default function StockAnalysis() {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisHistory, setAnalysisHistory] = useState<AnalysisHistoryItem[]>([]);
+  const [analysisHistoryStats, setAnalysisHistoryStats] = useState<AnalysisHistoryStats | null>(null);
   const [showHistoryLimitWarning, setShowHistoryLimitWarning] = useState(false);
   const [marketSummary, setMarketSummary] = useState<MarketSummary | null>(null);
   const [marketSummaryHistory, setMarketSummaryHistory] = useState<MarketSummary[]>([]);
@@ -1022,9 +1025,11 @@ useEffect(() => {
 
   const loadHistory = async () => {
     try {
-      const items = await getAnalysisHistory('');
+      const [items, stats] = await Promise.all([getAnalysisHistory('', 20, 0), getAnalysisHistoryStats('')]);
 
       if (cancelled) return;
+
+      setAnalysisHistoryStats(stats);
 
       setAnalysisHistory(
         items
@@ -2364,8 +2369,32 @@ const clearCurrentAnalysis = () => {
       {activeTab === 'history' && (
         <div
           dir="rtl"
-          className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
         >
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="text-[11px] font-semibold text-slate-500">کل تحلیل‌ها</div>
+              <div className="mt-1 text-lg font-extrabold text-slate-900">{faNumber(analysisHistoryStats?.total ?? analysisHistory.length)}</div>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+              <div className="text-[11px] font-semibold text-emerald-700">خرید</div>
+              <div className="mt-1 text-lg font-extrabold text-emerald-800">{faNumber(analysisHistoryStats?.buyCount ?? 0)}</div>
+            </div>
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+              <div className="text-[11px] font-semibold text-rose-700">فروش</div>
+              <div className="mt-1 text-lg font-extrabold text-rose-800">{faNumber(analysisHistoryStats?.sellCount ?? 0)}</div>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+              <div className="text-[11px] font-semibold text-amber-700">نگهداری</div>
+              <div className="mt-1 text-lg font-extrabold text-amber-800">{faNumber(analysisHistoryStats?.holdCount ?? 0)}</div>
+            </div>
+          </div>
+          {analysisHistoryStats?.total && analysisHistory.length < analysisHistoryStats.total ? (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-[12px] font-medium leading-6 text-blue-800">
+              ۲۰ رکورد اخیر نمایش داده می‌شود؛ تعداد کل ذخیره‌شده: {faNumber(analysisHistoryStats.total)}
+            </div>
+          ) : null}
+          <div className="space-y-3">
           {analysisHistory.length === 0 ? (
             <div className="text-[13px] font-medium text-slate-500">
               تحلیلی ذخیره نشده است
@@ -2421,6 +2450,7 @@ const clearCurrentAnalysis = () => {
               );
             })
           )}
+          </div>
         </div>
       )}
     </div>
