@@ -2,7 +2,8 @@
 
 const prisma = require('../config/prisma.cjs');
 
-const MAX_HISTORY_ITEMS = 3;
+const DEFAULT_HISTORY_LIMIT = 20;
+const MAX_HISTORY_LIMIT = 100;
 
 function toInt(value) {
   const n = Number.parseInt(value, 10);
@@ -27,6 +28,19 @@ function normalizeResultJson(input) {
     console.error('[AnalysisHistory] resultJson stringify failed:', error);
     return null;
   }
+}
+
+function getDataProvenance(parsed) {
+  const meta = parsed && typeof parsed === 'object'
+    ? (parsed.meta || parsed.dataSource || parsed.data?.meta || {})
+    : {};
+  const status = String(meta.status || parsed?.dataStatus || '').toUpperCase();
+  return {
+    dataStatus: status === 'LIVE' || status === 'CACHED' || status === 'UNAVAILABLE' ? status : undefined,
+    source: meta.source || parsed?.source || undefined,
+    fetchedAt: meta.fetchedAt || parsed?.fetchedAt || undefined,
+    stale: meta.stale === true || parsed?.stale === true,
+  };
 }
 
 function safeParseResultJson(input) {
@@ -297,17 +311,25 @@ const getAnalysisHistory = async (req, res) => {
       };
     }
 
-    const items = await prisma.analysisHistory.findMany({
-      where,
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: MAX_HISTORY_ITEMS,
-    });
+    const requestedLimit = Number.parseInt(req.query.limit, 10);
+    const requestedOffset = Number.parseInt(req.query.offset, 10);
+    const limit = Number.isInteger(requestedLimit) ? Math.min(MAX_HISTORY_LIMIT, Math.max(1, requestedLimit)) : DEFAULT_HISTORY_LIMIT;
+    const offset = Number.isInteger(requestedOffset) ? Math.max(0, requestedOffset) : 0;
+
+    const [items, total] = await Promise.all([
+      prisma.analysisHistory.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit,
+      }),
+      prisma.analysisHistory.count({ where }),
+    ]);
 
     const mapped = items.map((item) => {
       const parsedResult = safeParseResultJson(item.resultJson);
 
+      const provenance = getDataProvenance(parsedResult);
       return {
         ...item,
 
@@ -328,15 +350,17 @@ const getAnalysisHistory = async (req, res) => {
          */
         result: parsedResult,
         parsedResult,
+        ...provenance,
       };
     });
 
     return res.json({
       success: true,
       data: mapped,
-      total: mapped.length,
-      limit: MAX_HISTORY_ITEMS,
-      offset: 0,
+      total,
+      limit,
+      offset,
+      hasMore: offset + mapped.length < total,
     });
   } catch (error) {
     console.error('[AnalysisHistory] get list error:', error);
@@ -555,7 +579,7 @@ const getHistoryStats = async (req, res) => {
       orderBy: {
         createdAt: 'desc',
       },
-      take: MAX_HISTORY_ITEMS,
+      take: 5000,
     });
 
     let buyCount = 0;
@@ -600,7 +624,7 @@ const getHistoryStats = async (req, res) => {
               .filter(Boolean)
           ),
         ],
-        maxItems: MAX_HISTORY_ITEMS,
+        maxItems: 5000,
       },
     });
   } catch (error) {
