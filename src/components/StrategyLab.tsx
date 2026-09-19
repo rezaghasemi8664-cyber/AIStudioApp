@@ -9,7 +9,7 @@ interface BacktestResult {
   initialCapital: number; finalValue: number; returnPercent: number; buyHoldReturnPercent: number;
   excessReturnPercent: number; maxDrawdown: number; tradeCount: number; closedTradeCount: number;
   winRate: number | null; profitFactor: number | null; grossProfit: number; grossLoss: number; totalFees: number;
-  annualizedReturnPercent: number; annualizedVolatilityPercent: number; sharpeRatio: number | null;
+  annualizedReturnPercent: number; annualizedVolatilityPercent: number; sharpeRatio: number | null; sortinoRatio: number | null; bestTradePercent: number | null; worstTradePercent: number | null;
   openQuantity: number; cash: number;
   trades: Array<{ date: string; side: string; price: number; quantity: number; value: number; fee: number; reason: string }>;
   equityCurve: Array<{ date: string; close: number; shortSma: number | null; longSma: number | null; equity: number }>;
@@ -93,6 +93,9 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ isOnline }) => {
             <div><span className="text-slate-500">Sharpe</span><div className="font-black mt-1">{numberFa(result.sharpeRatio, 2)}</div></div>
           </div>
           <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+            <div>Sortino: <b>{numberFa(result.sortinoRatio, 2)}</b></div>
+            <div>بهترین معامله: <b>{percentFa(result.bestTradePercent)}</b></div>
+            <div>بدترین معامله: <b>{percentFa(result.worstTradePercent)}</b></div>
             <div>سود ناخالص: <b>{numberFa(result.grossProfit)}</b></div>
             <div>زیان ناخالص: <b>{numberFa(result.grossLoss)}</b></div>
             <div>مجموع کارمزد: <b>{numberFa(result.totalFees)}</b></div>
