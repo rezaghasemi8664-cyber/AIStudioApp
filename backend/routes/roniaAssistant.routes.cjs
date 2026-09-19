@@ -2,9 +2,10 @@
 
 const express = require('express');
 const router = express.Router();
+const authenticate = require('../middlewares/auth.middleware.cjs');
 const service = require('../services/roniaAssistant.service.cjs');
 
-router.post('/query', async (req, res) => {
+router.post('/query', authenticate, async (req, res) => {
   try {
     const result = await service.answer(req.body || {});
     res.json({ success: true, deterministic: true, engine: { name: 'ronia-assistant-rules', version: '1.0.0', deterministic: true }, data: result });
