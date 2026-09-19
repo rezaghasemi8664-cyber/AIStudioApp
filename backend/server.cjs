@@ -693,6 +693,8 @@ mountRoute('/api/portfolio',    './routes/portfolio.routes.cjs',       'Portfoli
 mountRoute('/api/v1/portfolio', './routes/portfolio.routes.cjs',       'Portfolio v1 alias');
 
 mountRoute('/api/watchlist',    './routes/watchlist.routes.cjs',       'Watchlist');
+mountRoute('/api/watchlist-alerts', './routes/watchlistAlert.routes.cjs', 'Watchlist Alerts');
+mountRoute('/api/v1/watchlist-alerts', './routes/watchlistAlert.routes.cjs', 'Watchlist Alerts v1 alias');
 mountRoute('/api/v1/watchlist', './routes/watchlist.routes.cjs',       'Watchlist v1 alias');
 
 mountRoute('/api/notifications',    './routes/notification.routes.cjs',  'Notifications');
