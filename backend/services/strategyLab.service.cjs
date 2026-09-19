@@ -118,6 +118,11 @@ async function runSmaCrossover(params = {}) {
   const annualizedReturnPercent = (Math.pow(finalValue / initialCapital, 252 / Math.max(1, candles.length - 1)) - 1) * 100;
   const annualizedVolatilityPercent = dailyVolatility * Math.sqrt(252) * 100;
   const sharpeRatio = dailyVolatility > 0 ? (meanReturn / dailyVolatility) * Math.sqrt(252) : null;
+  const downsideReturns = dailyReturns.filter(value => value < 0);
+  const downsideDeviation = downsideReturns.length ? Math.sqrt(downsideReturns.reduce((sum, value) => sum + (value ** 2), 0) / downsideReturns.length) : 0;
+  const sortinoRatio = downsideDeviation > 0 ? (meanReturn / downsideDeviation) * Math.sqrt(252) : null;
+  const bestTradePercent = closedPairs.length ? Math.max(...closedPairs.map(t => t.pnlPercent ?? -Infinity)) : null;
+  const worstTradePercent = closedPairs.length ? Math.min(...closedPairs.map(t => t.pnlPercent ?? Infinity)) : null;
 
   return {
     success: true,
@@ -138,6 +143,9 @@ async function runSmaCrossover(params = {}) {
     annualizedReturnPercent,
     annualizedVolatilityPercent,
     sharpeRatio,
+    sortinoRatio,
+    bestTradePercent,
+    worstTradePercent,
     closedTradeResults: closedPairs,
     openQuantity: quantity,
     cash,
