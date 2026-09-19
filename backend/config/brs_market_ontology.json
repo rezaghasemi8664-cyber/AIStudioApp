@@ -1,0 +1,140 @@
+{
+  "meta": {
+    "name": "BRS Market Ontology",
+    "version": "1.0.0",
+    "source": "BRS / TSETMC official guides",
+    "last_update": "2026-01-01",
+    "rtl": true,
+    "language": "fa"
+  },
+  "apis": {
+    "allSymbols": {
+      "description": "Universe of all tradable market symbols",
+      "fields": {
+        "I": { "fa": "نماد", "group": "identity", "type": "string" },
+        "id": { "fa": "شناسه داخلی نماد", "group": "identity", "type": "number" },
+        "isin": { "fa": "شناسه بین‌المللی نماد", "group": "identity", "type": "string" },
+        "cs": { "fa": "گروه صنعت", "group": "classification", "type": "string" },
+        "cs_id": { "fa": "شناسه گروه صنعت", "group": "classification", "type": "number" },
+        "cs_sub": { "fa": "زیرگروه صنعت", "group": "classification", "type": "string" },
+        "cs_sub_id": { "fa": "شناسه زیرگروه صنعت", "group": "classification", "type": "number" },
+        "m": { "fa": "بازار", "group": "market", "type": "string" },
+        "m_board": { "fa": "تابلو", "group": "market", "type": "string" },
+        "m_board_id": { "fa": "شناسه تابلو", "group": "market", "type": "number" },
+        "pc": { "fa": "قیمت پایانی", "group": "price", "type": "number" },
+        "pcc": { "fa": "تغییر قیمت پایانی", "group": "price", "type": "number" },
+        "pcp": { "fa": "درصد تغییر قیمت پایانی", "group": "price", "type": "number" },
+        "pl": { "fa": "آخرین قیمت", "group": "price", "type": "number" },
+        "plc": { "fa": "تغییر آخرین قیمت", "group": "price", "type": "number" },
+        "plp": { "fa": "درصد تغییر آخرین قیمت", "group": "price", "type": "number" },
+        "pf": { "fa": "اولین قیمت", "group": "price", "type": "number" },
+        "py": { "fa": "قیمت پایانی دیروز", "group": "price", "type": "number" },
+        "pmin": { "fa": "کمترین قیمت", "group": "price", "type": "number" },
+        "pmax": { "fa": "بیشترین قیمت", "group": "price", "type": "number" },
+        "tno": { "fa": "تعداد معاملات", "group": "volume", "type": "number" },
+        "tvol": { "fa": "حجم معاملات", "group": "volume", "type": "number" },
+        "tval": { "fa": "ارزش معاملات", "group": "volume", "type": "number" },
+        "z": { "fa": "تعداد سهام", "group": "fundamental", "type": "number" },
+        "bvol": { "fa": "حجم مبنا", "group": "fundamental", "type": "number" },
+        "mv": { "fa": "ارزش بازار", "group": "market", "type": "number" },
+        "ff": { "fa": "درصد سهام شناور", "group": "fundamental", "type": "number" },
+        "eps": { "fa": "EPS", "group": "fundamental", "type": "number" },
+        "pe": { "fa": "P/E", "group": "fundamental", "type": "number" },
+        "ps": { "fa": "P/S", "group": "fundamental", "type": "number" },
+        "tmin": { "fa": "آستانه مجاز پایین", "group": "limits", "type": "number" },
+        "tmax": { "fa": "آستانه مجاز بالا", "group": "limits", "type": "number" }
+      }
+    },
+    "symbol": {
+      "description": "Detailed symbol data including order book, money flow and assemblies",
+      "groups": [
+        "price",
+        "order_book.buy",
+        "order_book.sell",
+        "money_flow.real",
+        "money_flow.institutional",
+        "assembly"
+      ],
+      "fields": {
+        "pd1": { "fa": "قیمت خرید - سطر اول", "group": "order_book.buy", "level": 1, "type": "number" },
+        "pd2": { "fa": "قیمت خرید - سطر دوم", "group": "order_book.buy", "level": 2, "type": "number" },
+        "pd3": { "fa": "قیمت خرید - سطر سوم", "group": "order_book.buy", "level": 3, "type": "number" },
+        "pd4": { "fa": "قیمت خرید - سطر چهارم", "group": "order_book.buy", "level": 4, "type": "number" },
+        "pd5": { "fa": "قیمت خرید - سطر پنجم", "group": "order_book.buy", "level": 5, "type": "number" },
+
+        "qd1": { "fa": "حجم خرید - سطر اول", "group": "order_book.buy", "level": 1, "type": "number" },
+        "qd2": { "fa": "حجم خرید - سطر دوم", "group": "order_book.buy", "level": 2, "type": "number" },
+        "qd3": { "fa": "حجم خرید - سطر سوم", "group": "order_book.buy", "level": 3, "type": "number" },
+        "qd4": { "fa": "حجم خرید - سطر چهارم", "group": "order_book.buy", "level": 4, "type": "number" },
+        "qd5": { "fa": "حجم خرید - سطر پنجم", "group": "order_book.buy", "level": 5, "type": "number" },
+
+        "po1": { "fa": "قیمت فروش - سطر اول", "group": "order_book.sell", "level": 1, "type": "number" },
+        "po2": { "fa": "قیمت فروش - سطر دوم", "group": "order_book.sell", "level": 2, "type": "number" },
+        "po3": { "fa": "قیمت فروش - سطر سوم", "group": "order_book.sell", "level": 3, "type": "number" },
+        "po4": { "fa": "قیمت فروش - سطر چهارم", "group": "order_book.sell", "level": 4, "type": "number" },
+        "po5": { "fa": "قیمت فروش - سطر پنجم", "group": "order_book.sell", "level": 5, "type": "number" },
+
+        "qo1": { "fa": "حجم فروش - سطر اول", "group": "order_book.sell", "level": 1, "type": "number" },
+        "qo2": { "fa": "حجم فروش - سطر دوم", "group": "order_book.sell", "level": 2, "type": "number" },
+        "qo3": { "fa": "حجم فروش - سطر سوم", "group": "order_book.sell", "level": 3, "type": "number" },
+        "qo4": { "fa": "حجم فروش - سطر چهارم", "group": "order_book.sell", "level": 4, "type": "number" },
+        "qo5": { "fa": "حجم فروش - سطر پنجم", "group": "order_book.sell", "level": 5, "type": "number" },
+
+        "Buy_I_Volume": { "fa": "حجم خرید حقیقی", "group": "money_flow.real.buy", "type": "number" },
+        "Sell_I_Volume": { "fa": "حجم فروش حقیقی", "group": "money_flow.real.sell", "type": "number" },
+        "Buy_N_Volume": { "fa": "حجم خرید حقوقی", "group": "money_flow.institutional.buy", "type": "number" },
+        "Sell_N_Volume": { "fa": "حجم فروش حقوقی", "group": "money_flow.institutional.sell", "type": "number" },
+
+        "assembly": {
+          "fa": "اطلاعات مجامع",
+          "group": "assembly",
+          "type": "array",
+          "schema": {
+            "title": { "fa": "عنوان اطلاعیه", "type": "string" },
+            "date_title": { "fa": "تاریخ عنوان", "type": "string" },
+            "date_send": { "fa": "تاریخ ارسال", "type": "string" },
+            "time_send": { "fa": "زمان ارسال", "type": "string" },
+            "date_publish": { "fa": "تاریخ انتشار", "type": "string" },
+            "time_publish": { "fa": "زمان انتشار", "type": "string" },
+            "content": { "fa": "محتوا", "type": "string" }
+          }
+        }
+      }
+    },
+    "history": {
+      "description": "Daily historical trading data",
+      "timeframe": "daily",
+      "fields": {
+        "date": { "fa": "تاریخ", "type": "string" },
+        "pc": { "fa": "قیمت پایانی", "type": "number" },
+        "pl": { "fa": "آخرین قیمت", "type": "number" },
+        "pf": { "fa": "اولین قیمت", "type": "number" },
+        "pmin": { "fa": "کمترین قیمت", "type": "number" },
+        "pmax": { "fa": "بیشترین قیمت", "type": "number" },
+        "tvol": { "fa": "حجم معاملات", "type": "number" },
+        "tval": { "fa": "ارزش معاملات", "type": "number" },
+        "tno": { "fa": "تعداد معاملات", "type": "number" }
+      }
+    },
+    "indexes": {
+      "description": "Market indexes and macro context",
+      "fields": {
+        "date": { "fa": "تاریخ", "type": "string" },
+        "time": { "fa": "زمان", "type": "string" },
+        "name": { "fa": "نام شاخص", "type": "string" },
+        "state": { "fa": "وضعیت بازار", "type": "string" },
+        "index": { "fa": "شاخص", "group": "index", "type": "number" },
+        "index_change": { "fa": "تغییر شاخص", "group": "index", "type": "number" },
+        "index_change_percent": { "fa": "درصد تغییر شاخص", "group": "momentum", "type": "number" },
+        "index_equalWeight": { "fa": "شاخص هم‌وزن", "group": "index", "type": "number" },
+        "index_equalWeight_change": { "fa": "تغییر شاخص هم‌وزن", "group": "index", "type": "number" },
+        "min": { "fa": "کمترین مقدار شاخص", "group": "range", "type": "number" },
+        "max": { "fa": "بیشترین مقدار شاخص", "group": "range", "type": "number" },
+        "mv": { "fa": "ارزش بازار", "group": "market", "type": "number" },
+        "mv_main": { "fa": "ارزش بازار اول و دوم", "group": "market", "type": "number" },
+        "mv_base": { "fa": "ارزش بازار پایه", "group": "market", "type": "number" },
+        "tno": { "fa": "تعداد معاملات", "group": "volume", "type": "number" }
+      }
+    }
+  }
+}

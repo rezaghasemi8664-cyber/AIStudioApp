@@ -1,0 +1,8 @@
+﻿{
+    "Name":  "scalping-status",
+    "Url":  "http://localhost:3001/api/scalping/status?_t=1786951626091",
+    "StatusCode":  200,
+    "ContentType":  "application/json; charset=utf-8",
+    "BodyLength":  442,
+    "BodyPreview":  "{\"success\":true,\"data\":{\"isRunning\":false,\"lastRunId\":null,\"lastStatus\":null,\"lastUpdate\":\"2026-08-17T07:27:06.115Z\",\"lastUpdated\":\"2026-08-17T07:27:06.115Z\",\"statusCheckedAt\":\"2026-08-17T07:27:06.115Z\",\"todayTrades\":0,\"activePositions\":0,\"todayPnL\":0,\"marketStatus\":{\"isOpen\":true,\"source\":\"api\",\"reason\":\"OPEN\",\"available\":true,\"checkedAt\":\"2026-08-17T07:27:06.101Z\"},\"bestSignal\":null,\"totalSignals\":0,\"activeSignals\":0,\"marketOpen\":true}}"
+}

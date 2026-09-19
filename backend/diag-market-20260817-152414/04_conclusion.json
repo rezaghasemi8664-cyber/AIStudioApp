@@ -1,0 +1,11 @@
+﻿{
+    "backendReachable":  true,
+    "loginOk":  true,
+    "tokenDetected":  true,
+    "anyMarket200":  true,
+    "anyPayloadCompatibleWithCurrentFrontend":  true,
+    "rootCause":  "LIKELY_CACHE_OR_RUNTIME_CONFIG_ISSUE",
+    "action":  [
+                   "endpoint و parser ظاهراً سالم‌اند؛ کش مرورگر/لوکال‌استوریج یا build قدیمی را پاکسازی کن."
+               ]
+}

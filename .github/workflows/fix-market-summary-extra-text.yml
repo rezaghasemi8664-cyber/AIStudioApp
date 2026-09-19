@@ -1,0 +1,53 @@
+name: Fix market summary extra line
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-market-summary-extra-text.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix market summary momentum calculation
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('backend/controllers/liveMarketSummary.controller.cjs')
+          s = p.read_text(encoding='utf-8-sig')
+          old1 = "return n(snapshotValue(snapshot, ...(equal ? ['indexEqualWeight', 'index_equalWeight', 'equalIndex', 'equalWeightedValue'] : ['index', 'overallIndex', 'value'])));"
+          new1 = "return n(snapshotValue(snapshot, ...(equal ? ['indexEqualWeight', 'index_equalWeight', 'equalIndex', 'equalWeightedValue'] : ['index', 'overallIndex'])));"
+          if old1 not in s:
+              raise SystemExit('snapshotIndex target not found')
+          s = s.replace(old1, new1, 1)
+          old2 = "const valid = Array.isArray(sessions) ? sessions.filter(x => snapshotIndex(x.snapshot) !== null || snapshotIndex(x.snapshot, true) !== null) : [];"
+          new2 = "const valid = Array.isArray(sessions) ? sessions.filter(x => snapshotIndex(x.snapshot) !== null && snapshotIndex(x.snapshot, true) !== null) : [];"
+          if old2 not in s:
+              raise SystemExit('momentum valid-session target not found')
+          s = s.replace(old2, new2, 1)
+          p.write_text(s, encoding='utf-8')
+          print('Fixed momentum to use only index fields and require both indices per session.')
+      - name: Verify top volume field name
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('backend/services/marketBreadth.service.cjs')
+          s = p.read_text(encoding='utf-8-sig')
+          if 'changchangePercent' in s:
+              s = s.replace('changchangePercent', 'changePercent')
+              p.write_text(s, encoding='utf-8')
+              print('Fixed changchangePercent typo.')
+          else:
+              print('No changchangePercent typo in source; current source already uses changePercent.')
+      - name: Commit
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/controllers/liveMarketSummary.controller.cjs backend/services/marketBreadth.service.cjs
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: correct market summary momentum calculation"
+          git push origin main

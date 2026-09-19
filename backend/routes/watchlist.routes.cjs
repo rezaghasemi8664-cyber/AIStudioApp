@@ -1,0 +1,221 @@
+'use strict';
+
+const express = require('express');
+const router = express.Router();
+const authMiddleware = require('../middlewares/auth.middleware.cjs');
+const prismaModule = require('../config/prisma.cjs');
+const brsService = require('../services/brs.service.cjs');
+const prisma = prismaModule.prisma || prismaModule;
+
+const PREF_KEY = 'portfolio_watchlists';
+
+function getUserId(req) {
+  const id = Number(req.user && (req.user.id ?? req.user.userId));
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+function normalizeSymbol(value) { return String(value || '').trim().toUpperCase(); }
+function normalizeWatchlist(item) {
+  if (!item || typeof item !== 'object') return null;
+  const id = String(item.id || '').trim();
+  const name = String(item.name || '').trim();
+  if (!id || !name) return null;
+  const symbols = Array.isArray(item.symbols) ? item.symbols.map(symbol => ({
+    symbol: normalizeSymbol(symbol?.symbol),
+    name: String(symbol?.name || symbol?.symbol || '').trim(),
+    quote: symbol?.quote && typeof symbol.quote === 'object' ? {
+      volume: Number.isFinite(Number(symbol.quote.volume)) ? Number(symbol.quote.volume) : null,
+      lastPrice: Number.isFinite(Number(symbol.quote.lastPrice)) ? Number(symbol.quote.lastPrice) : null,
+      lastChangePercent: Number.isFinite(Number(symbol.quote.lastChangePercent)) ? Number(symbol.quote.lastChangePercent) : null,
+      closePrice: Number.isFinite(Number(symbol.quote.closePrice)) ? Number(symbol.quote.closePrice) : null,
+      closeChangePercent: Number.isFinite(Number(symbol.quote.closeChangePercent)) ? Number(symbol.quote.closeChangePercent) : null,
+      updatedAt: String(symbol.quote.updatedAt || ''),
+    } : null,
+  })).filter(symbol => symbol.symbol) : [];
+  return { id, name, symbols, createdAt: item.createdAt, updatedAt: item.updatedAt };
+}
+async function readWatchlists(userId) {
+  const row = await prisma.userPreference.findUnique({ where: { userId_key: { userId, key: PREF_KEY } } });
+  if (!row?.value) return [];
+  try {
+    const parsed = JSON.parse(row.value);
+    return Array.isArray(parsed) ? parsed.map(normalizeWatchlist).filter(Boolean) : [];
+  } catch (_) { return []; }
+}
+async function writeWatchlists(userId, watchlists) {
+  const value = JSON.stringify(watchlists);
+  await prisma.userPreference.upsert({
+    where: { userId_key: { userId, key: PREF_KEY } },
+    create: { userId, key: PREF_KEY, value },
+    update: { value },
+  });
+}
+
+async function validateMarketSymbol(symbol) {
+  const clean = normalizeSymbol(symbol);
+  if (!clean) return null;
+  try {
+    if (!brsService || typeof brsService.getSymbolData !== 'function') return null;
+    const result = await brsService.getSymbolData(clean);
+    const raw = result?.data ?? result ?? {};
+    if (!raw || raw.available === false) return null;
+    const resolved = normalizeSymbol(raw?.symbol ?? raw?.l18 ?? raw?.lVal18AFC ?? raw?.ticker ?? clean);
+    if (!resolved) return null;
+    return {
+      symbol: resolved,
+      name: String(raw?.name ?? raw?.lVal30 ?? raw?.companyName ?? resolved).trim() || resolved,
+    };
+  } catch (error) {
+    console.error('[WATCHLIST] symbol validation failed:', error.message);
+    return null;
+  }
+}
+
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
+    return res.json({ success: true, data: { watchlists: await readWatchlists(userId) } });
+  } catch (error) {
+    console.error('[WATCHLIST] GET failed:', error);
+    return res.status(500).json({ success: false, message: 'خطا در دریافت دیده‌بان‌ها.' });
+  }
+});
+
+router.post('/', authMiddleware, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
+    const name = String(req.body?.name || '').trim();
+    if (!name) return res.status(400).json({ success: false, message: 'نام دیده‌بان الزامی است.' });
+    const watchlists = await readWatchlists(userId);
+    if (watchlists.some(item => item.name.localeCompare(name, 'fa', { sensitivity: 'base' }) === 0)) return res.status(409).json({ success: false, message: 'دیده‌بانی با این نام قبلاً ایجاد شده است.' });
+    const now = new Date().toISOString();
+    const created = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name, symbols: [], createdAt: now, updatedAt: now };
+    watchlists.push(created);
+    await writeWatchlists(userId, watchlists);
+    return res.status(201).json({ success: true, data: created });
+  } catch (error) {
+    console.error('[WATCHLIST] POST failed:', error);
+    return res.status(500).json({ success: false, message: 'خطا در ایجاد دیده‌بان.' });
+  }
+});
+
+router.put('/:id', authMiddleware, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
+    const id = String(req.params.id);
+    const name = String(req.body?.name || '').trim();
+    if (!name) return res.status(400).json({ success: false, message: 'نام دیده‌بان الزامی است.' });
+    const watchlists = await readWatchlists(userId);
+    const index = watchlists.findIndex(item => item.id === id);
+    if (index < 0) return res.status(404).json({ success: false, message: 'دیده‌بان پیدا نشد.' });
+    if (watchlists.some(item => item.id !== id && item.name.localeCompare(name, 'fa', { sensitivity: 'base' }) === 0)) return res.status(409).json({ success: false, message: 'دیده‌بانی با این نام قبلاً وجود دارد.' });
+    watchlists[index] = { ...watchlists[index], name, updatedAt: new Date().toISOString() };
+    await writeWatchlists(userId, watchlists);
+    return res.json({ success: true, data: watchlists[index] });
+  } catch (error) {
+    console.error('[WATCHLIST] PUT failed:', error);
+    return res.status(500).json({ success: false, message: 'خطا در ویرایش دیده‌بان.' });
+  }
+});
+
+router.put('/:id/quotes', authMiddleware, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
+    const id = String(req.params.id);
+    const incoming = Array.isArray(req.body?.quotes) ? req.body.quotes : [];
+    const watchlists = await readWatchlists(userId);
+    const index = watchlists.findIndex(item => item.id === id);
+    if (index < 0) return res.status(404).json({ success: false, message: 'دیده‌بان پیدا نشد.' });
+
+    const bySymbol = new Map();
+    for (const quote of incoming) {
+      const symbol = normalizeSymbol(quote?.symbol);
+      if (!symbol) continue;
+      bySymbol.set(symbol, {
+        volume: Number.isFinite(Number(quote?.volume)) ? Number(quote.volume) : null,
+        lastPrice: Number.isFinite(Number(quote?.lastPrice)) ? Number(quote.lastPrice) : null,
+        lastChangePercent: Number.isFinite(Number(quote?.lastChangePercent)) ? Number(quote.lastChangePercent) : null,
+        closePrice: Number.isFinite(Number(quote?.closePrice)) ? Number(quote.closePrice) : null,
+        closeChangePercent: Number.isFinite(Number(quote?.closeChangePercent)) ? Number(quote.closeChangePercent) : null,
+        updatedAt: String(quote?.updatedAt || new Date().toISOString()),
+      });
+    }
+
+    watchlists[index] = {
+      ...watchlists[index],
+      symbols: watchlists[index].symbols.map(item => ({
+        ...item,
+        quote: bySymbol.has(item.symbol) ? bySymbol.get(item.symbol) : item.quote || null,
+      })),
+      updatedAt: new Date().toISOString(),
+    };
+    await writeWatchlists(userId, watchlists);
+    return res.json({ success: true, data: watchlists[index] });
+  } catch (error) {
+    console.error('[WATCHLIST] SAVE QUOTES failed:', error);
+    return res.status(500).json({ success: false, message: 'خطا در ذخیره اطلاعات بازار دیده‌بان.' });
+  }
+});
+
+router.delete('/:id', authMiddleware, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
+    const id = String(req.params.id);
+    const watchlists = await readWatchlists(userId);
+    const next = watchlists.filter(item => item.id !== id);
+    if (next.length === watchlists.length) return res.status(404).json({ success: false, message: 'دیده‌بان پیدا نشد.' });
+    await writeWatchlists(userId, next);
+    return res.json({ success: true, data: { id } });
+  } catch (error) {
+    console.error('[WATCHLIST] DELETE failed:', error);
+    return res.status(500).json({ success: false, message: 'خطا در حذف دیده‌بان.' });
+  }
+});
+
+router.post('/:id/symbols', authMiddleware, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
+    const id = String(req.params.id);
+    const symbol = normalizeSymbol(req.body?.symbol);
+    if (!symbol) return res.status(400).json({ success: false, message: 'نماد الزامی است.' });
+    const watchlists = await readWatchlists(userId);
+    const index = watchlists.findIndex(item => item.id === id);
+    if (index < 0) return res.status(404).json({ success: false, message: 'دیده‌بان پیدا نشد.' });
+    if (watchlists[index].symbols.some(item => item.symbol === symbol)) return res.status(409).json({ success: false, message: 'این نماد قبلاً در دیده‌بان وجود دارد.' });
+    const marketSymbol = await validateMarketSymbol(symbol);
+    if (!marketSymbol) return res.status(422).json({ success: false, message: `نماد «${symbol}» در بازار پیدا نشد.` });
+    watchlists[index] = { ...watchlists[index], symbols: [...watchlists[index].symbols, marketSymbol], updatedAt: new Date().toISOString() };
+    await writeWatchlists(userId, watchlists);
+    return res.status(201).json({ success: true, data: watchlists[index] });
+  } catch (error) {
+    console.error('[WATCHLIST] ADD SYMBOL failed:', error);
+    return res.status(500).json({ success: false, message: 'خطا در افزودن نماد به دیده‌بان.' });
+  }
+});
+
+router.delete('/:id/symbols', authMiddleware, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
+    const id = String(req.params.id);
+    const symbols = Array.isArray(req.body?.symbols) ? req.body.symbols.map(normalizeSymbol).filter(Boolean) : [];
+    if (!symbols.length) return res.status(400).json({ success: false, message: 'حداقل یک نماد برای حذف انتخاب کنید.' });
+    const watchlists = await readWatchlists(userId);
+    const index = watchlists.findIndex(item => item.id === id);
+    if (index < 0) return res.status(404).json({ success: false, message: 'دیده‌بان پیدا نشد.' });
+    const removeSet = new Set(symbols);
+    watchlists[index] = { ...watchlists[index], symbols: watchlists[index].symbols.filter(item => !removeSet.has(item.symbol)), updatedAt: new Date().toISOString() };
+    await writeWatchlists(userId, watchlists);
+    return res.json({ success: true, data: watchlists[index] });
+  } catch (error) {
+    console.error('[WATCHLIST] DELETE SYMBOLS failed:', error);
+    return res.status(500).json({ success: false, message: 'خطا در حذف نمادها از دیده‌بان.' });
+  }
+});
+
+module.exports = router;

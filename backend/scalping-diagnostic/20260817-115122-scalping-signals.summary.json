@@ -1,0 +1,8 @@
+﻿{
+    "Name":  "scalping-signals",
+    "Url":  "http://localhost:3001/api/scalping/signals?_t=1786951286964",
+    "StatusCode":  200,
+    "ContentType":  "application/json; charset=utf-8",
+    "BodyLength":  128,
+    "BodyPreview":  "{\"success\":true,\"data\":{\"signals\":[],\"totalSignals\":0,\"activeSignals\":0,\"bestSignal\":null,\"lastUpdate\":null,\"lastUpdated\":null}}"
+}

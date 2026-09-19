@@ -1,0 +1,69 @@
+﻿{
+    "ok":  true,
+    "method":  "GET",
+    "url":  "http://127.0.0.1:3001/api/v1/market-summary/latest?t=1786964082583",
+    "statusCode":  200,
+    "statusDesc":  "OK",
+    "error":  null,
+    "bodyText":  "{\"success\":true,\"data\":{\"id\":1,\"date\":\"2026-02-24T17:41:20.207Z\",\"overallIndex\":3652290.22,\"overallChange\":-27901.37,\"equalIndex\":944430.25,\"equalChange\":-5795.49,\"marketStatus\":\"close\",\"totalTrades\":388326,\"totalVolume\":27070733191,\"totalValue\":205452169997290,\"positiveStocks\":null,\"negativeStocks\":null,\"neutralStocks\":null,\"topGainers\":null,\"topLosers\":null,\"topVolumes\":null,\"rawJson\":{\"type\":\"index\",\"data\":{\"date\":\"1404-12-05\",\"time\":\"15:42:01\",\"state\":\"بسته\",\"index\":3652290.22,\"index_change\":-27901.37,\"index_equalWeight\":944430.25,\"index_equalWeight_change\":-5795.49,\"mv\":108976315840448180,\"tno\":388326,\"tval\":205452169997290,\"tvol\":27070733191},\"cachedAt\":\"2026-02-24T14:11:20.098Z\",\"snapshotCreatedAt\":\"2026-02-24T17:41:20.207Z\",\"isMarketOpen\":false},\"createdAt\":\"2026-08-01T14:58:34.579Z\",\"updatedAt\":\"2026-08-01T14:58:34.579Z\",\"content\":\"بازار بورس ایران در تاریخ ۵ اسفند ۱۴۰۴ بسته است و شاخص کل به رقم ۳۶۵۲۹۰۰.۲۲ رسیده که نسبت به روز گذشته کاهش ۲۷۹۰۱.۳۷ واحدی را نشان می‌دهد. همچنین، شاخص وزنی-ارزشی نیز با کاهش ۵۷۹۵.۴۹ واحدی به ۹۴۴۴۳۰.۲۵ رسیده است. حجم معاملات به ۲۷۰۷۰۷۳۳۱۹۱ و ارزش معاملات به ۲۰۵۴۵۲۱۶۹۹۹۷۲۹۰ تومان رسیده است. با توجه به کاهش شاخص‌ها، روند کلی بازار منفی به نظر می‌رسد و ریسک سرمایه‌گذاری در این شرایط افزایش یافته است.\",\"summary\":\"بازار بورس ایران در تاریخ ۵ اسفند ۱۴۰۴ بسته است و شاخص کل به رقم ۳۶۵۲۹۰۰.۲۲ رسیده که نسبت به روز گذشته کاهش ۲۷۹۰۱.۳۷ واحدی را نشان می‌دهد. همچنین، شاخص وزنی-ارزشی نیز با کاهش ۵۷۹۵.۴۹ واحدی به ۹۴۴۴۳۰.۲۵ رسیده است. حجم معاملات به ۲۷۰۷۰۷۳۳۱۹۱ و ارزش معاملات به ۲۰۵۴۵۲۱۶۹۹۹۷۲۹۰ تومان رسیده است. با توجه به کاهش شاخص‌ها، روند کلی بازار منفی به نظر می‌رسد و ریسک سرمایه‌گذاری در این شرایط افزایش یافته است.\",\"fallback\":false,\"sourceType\":\"db\",\"_meta\":{\"generatedAt\":\"2026-08-01T14:58:34.579Z\",\"ageMinutes\":22796,\"freshnessThresholdMinutes\":15,\"isStale\":true,\"source\":\"db\"}},\"fallback\":false,\"generated\":false,\"cached\":true,\"sourceType\":\"marketSummary\",\"isStale\":true,\"generatedAt\":\"2026-08-01T14:58:34.579Z\",\"message\":null}",
+    "json":  {
+                 "success":  true,
+                 "data":  {
+                              "id":  1,
+                              "date":  "2026-02-24T17:41:20.207Z",
+                              "overallIndex":  3652290.22,
+                              "overallChange":  -27901.37,
+                              "equalIndex":  944430.25,
+                              "equalChange":  -5795.49,
+                              "marketStatus":  "close",
+                              "totalTrades":  388326,
+                              "totalVolume":  27070733191,
+                              "totalValue":  205452169997290,
+                              "positiveStocks":  null,
+                              "negativeStocks":  null,
+                              "neutralStocks":  null,
+                              "topGainers":  null,
+                              "topLosers":  null,
+                              "topVolumes":  null,
+                              "rawJson":  {
+                                              "type":  "index",
+                                              "data":  {
+                                                           "date":  "1404-12-05",
+                                                           "time":  "15:42:01",
+                                                           "state":  "بسته",
+                                                           "index":  3652290.22,
+                                                           "index_change":  -27901.37,
+                                                           "index_equalWeight":  944430.25,
+                                                           "index_equalWeight_change":  -5795.49,
+                                                           "mv":  108976315840448180,
+                                                           "tno":  388326,
+                                                           "tval":  205452169997290,
+                                                           "tvol":  27070733191
+                                                       },
+                                              "cachedAt":  "2026-02-24T14:11:20.098Z",
+                                              "snapshotCreatedAt":  "2026-02-24T17:41:20.207Z",
+                                              "isMarketOpen":  false
+                                          },
+                              "createdAt":  "2026-08-01T14:58:34.579Z",
+                              "updatedAt":  "2026-08-01T14:58:34.579Z",
+                              "content":  "بازار بورس ایران در تاریخ ۵ اسفند ۱۴۰۴ بسته است و شاخص کل به رقم ۳۶۵۲۹۰۰.۲۲ رسیده که نسبت به روز گذشته کاهش ۲۷۹۰۱.۳۷ واحدی را نشان می‌دهد. همچنین، شاخص وزنی-ارزشی نیز با کاهش ۵۷۹۵.۴۹ واحدی به ۹۴۴۴۳۰.۲۵ رسیده است. حجم معاملات به ۲۷۰۷۰۷۳۳۱۹۱ و ارزش معاملات به ۲۰۵۴۵۲۱۶۹۹۹۷۲۹۰ تومان رسیده است. با توجه به کاهش شاخص‌ها، روند کلی بازار منفی به نظر می‌رسد و ریسک سرمایه‌گذاری در این شرایط افزایش یافته است.",
+                              "summary":  "بازار بورس ایران در تاریخ ۵ اسفند ۱۴۰۴ بسته است و شاخص کل به رقم ۳۶۵۲۹۰۰.۲۲ رسیده که نسبت به روز گذشته کاهش ۲۷۹۰۱.۳۷ واحدی را نشان می‌دهد. همچنین، شاخص وزنی-ارزشی نیز با کاهش ۵۷۹۵.۴۹ واحدی به ۹۴۴۴۳۰.۲۵ رسیده است. حجم معاملات به ۲۷۰۷۰۷۳۳۱۹۱ و ارزش معاملات به ۲۰۵۴۵۲۱۶۹۹۹۷۲۹۰ تومان رسیده است. با توجه به کاهش شاخص‌ها، روند کلی بازار منفی به نظر می‌رسد و ریسک سرمایه‌گذاری در این شرایط افزایش یافته است.",
+                              "fallback":  false,
+                              "sourceType":  "db",
+                              "_meta":  {
+                                            "generatedAt":  "2026-08-01T14:58:34.579Z",
+                                            "ageMinutes":  22796,
+                                            "freshnessThresholdMinutes":  15,
+                                            "isStale":  true,
+                                            "source":  "db"
+                                        }
+                          },
+                 "fallback":  false,
+                 "generated":  false,
+                 "cached":  true,
+                 "sourceType":  "marketSummary",
+                 "isStale":  true,
+                 "generatedAt":  "2026-08-01T14:58:34.579Z",
+                 "message":  null
+             }
+}

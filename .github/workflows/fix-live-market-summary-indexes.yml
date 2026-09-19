@@ -1,0 +1,55 @@
+name: Fix latest market summary indexes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-live-market-summary-indexes.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch latest summary to use live indexes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('backend/controllers/marketSummary.controller.cjs')
+          text = path.read_text(encoding='utf-8-sig')
+
+          old = "const data=await enrich(result.data);return sendResponse(res,200,{success:true,data,meta:{generated:!!result.generated,sourceType:result.sourceType,cached:!!result.cached,reason:result.reason,diagnostics:result.diagnostics||null}});"
+          new = "const data=await enrich(result.data,{useLiveMarketData:true});return sendResponse(res,200,{success:true,data,meta:{generated:!!result.generated,sourceType:result.sourceType,cached:!!result.cached,reason:result.reason,diagnostics:result.diagnostics||null}});"
+          if old not in text:
+              raise SystemExit('latest-summary target not found')
+          text = text.replace(old, new, 1)
+
+          old = "return sendResponse(res,200,{success:true,data:await enrich(item,{useLiveMarketData:false}),meta:{date:dateInput,sourceType:'by_date'}});"
+          new = "const todayTehran=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tehran',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());const useLiveMarketData=dateInput===todayTehran;return sendResponse(res,200,{success:true,data:await enrich(item,{useLiveMarketData}),meta:{date:dateInput,sourceType:'by_date',useLiveMarketData}});"
+          if old not in text:
+              raise SystemExit('by-date target not found')
+          text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding='utf-8')
+
+      - name: Validate controller syntax
+        run: node --check backend/controllers/marketSummary.controller.cjs
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/controllers/marketSummary.controller.cjs
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git commit -m 'fix: use live indexes for latest market summary'
+          git push origin HEAD:main

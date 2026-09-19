@@ -1,0 +1,49 @@
+'use strict';
+const express = require('express');
+const { prisma } = require('../config/prisma.cjs');
+const authMiddleware = require('../middlewares/auth.middleware.cjs');
+const maintenanceMiddleware = require('../middlewares/maintenance.middleware.cjs');
+const { invalidateSecurityPolicyCache } = require('../middlewares/securityPolicy.middleware.cjs');
+const router = express.Router();
+const DEFAULT_SECURITY={passwordMinLength:8,requireUppercase:true,requireLowercase:true,requireNumber:true,requireSpecial:false,maxLoginAttempts:20,lockoutMinutes:15,sessionMaxAgeHours:24,maxSessionsPerUser:5};
+const DEFAULT_SETTINGS={siteName:'تحلیلگر هوشمند بورس رونیا',defaultLanguage:'fa',timezone:'Asia/Tehran',defaultTheme:'system',enableNotifications:true,enableRegistration:true};
+const DEFAULT_MAINTENANCE={enabled:false,message:'سامانه موقتاً در حال بروزرسانی و نگهداری است. لطفاً بعداً مراجعه کنید.',allowAdmins:true};
+function uid(req){return Number(req.user?.id||req.user?.userId||0)||null;} function fail(res,status,message){return res.status(status).json({success:false,message});}
+function isAdmin(req){const u=req.user||{};if(u.isAdmin===true)return true;if(['admin','superadmin'].includes(String(u.role||'').toLowerCase()))return true;return(Array.isArray(u.roles)?u.roles:[]).some(r=>['admin','superadmin'].includes(String(typeof r==='string'?r:r?.name).toLowerCase()));}
+async function getSetting(category,key,fallback){const row=await prisma.globalSetting.findUnique({where:{key}});if(!row||row.category!==category)return fallback;try{return JSON.parse(row.value);}catch{return row.value;}}
+async function saveSetting(category,key,value,req){const row=await prisma.globalSetting.upsert({where:{key},update:{value:JSON.stringify(value),updatedBy:uid(req),updatedAt:new Date(),category},create:{category,key,value:JSON.stringify(value),updatedBy:uid(req)}});if(category==='security')invalidateSecurityPolicyCache();if(category==='maintenance')maintenanceMiddleware.invalidate();const io=req.app.get('io');if(io)io.emit('global-settings:updated',{category,key,value,updatedBy:uid(req),updatedAt:row.updatedAt});return value;}
+function normalizeSecurity(x){x=x||{};return{passwordMinLength:Math.min(64,Math.max(6,Number(x.passwordMinLength??8)||8)),requireUppercase:Boolean(x.requireUppercase),requireLowercase:Boolean(x.requireLowercase),requireNumber:Boolean(x.requireNumber),requireSpecial:Boolean(x.requireSpecial),maxLoginAttempts:Math.min(100,Math.max(3,Number(x.maxLoginAttempts??20)||20)),lockoutMinutes:Math.min(1440,Math.max(1,Number(x.lockoutMinutes??15)||15)),sessionMaxAgeHours:Math.min(720,Math.max(1,Number(x.sessionMaxAgeHours??24)||24)),maxSessionsPerUser:Math.min(50,Math.max(1,Number(x.maxSessionsPerUser??5)||5)}}
+function normalizeSettings(x){x=x||{};return{siteName:String(x.siteName??DEFAULT_SETTINGS.siteName).trim().slice(0,120)||DEFAULT_SETTINGS.siteName,defaultLanguage:['fa','en'].includes(String(x.defaultLanguage))?String(x.defaultLanguage):'fa',timezone:String(x.timezone??'Asia/Tehran').trim().slice(0,80)||'Asia/Tehran',defaultTheme:['system','light','dark'].includes(String(x.defaultTheme))?String(x.defaultTheme):'system',enableNotifications:Boolean(x.enableNotifications),enableRegistration:Boolean(x.enableRegistration)}}
+function normalizeMaintenance(x){x=x||{};return{enabled:Boolean(x.enabled),message:String(x.message??DEFAULT_MAINTENANCE.message).trim().slice(0,500)||DEFAULT_MAINTENANCE.message,allowAdmins:x.allowAdmins!==false}}
+router.use(authMiddleware,(req,res,next)=>isAdmin(req)?next():fail(res,403,'این بخش فقط برای مدیر سامانه مجاز است.'));
+router.get('/security',async(req,res)=>{try{return res.json({success:true,data:await getSetting('security','security.policy',DEFAULT_SECURITY)});}catch{return fail(res,500,'خطا در دریافت سیاست امنیتی.');}});
+router.get('/security/overview',async(req,res)=>{try{
+ const policy=normalizeSecurity(await getSetting('security','security.policy',DEFAULT_SECURITY));
+ const sessions=await prisma.$queryRawUnsafe(`SELECT COUNT_BIG(*) AS total FROM dbo.Session`);
+ const revokedKeys=await prisma.$queryRawUnsafe(`SELECT COUNT_BIG(*) AS total FROM dbo.ApiKey WHERE isRevoked=1`);
+ const activeKeys=await prisma.$queryRawUnsafe(`SELECT COUNT_BIG(*) AS total FROM dbo.ApiKey WHERE isRevoked=0`);
+ const users=await prisma.$queryRawUnsafe(`SELECT COUNT_BIG(*) AS total FROM dbo.[User] WHERE ISNULL(isDeleted,0)=0 AND ISNULL(isActive,1)=1`);
+ const roles=await prisma.$queryRawUnsafe(`SELECT COUNT_BIG(*) AS total FROM dbo.Role`);
+ let auditCount=0,securityEvents=[];
+ if(await prisma.$queryRawUnsafe(`SELECT OBJECT_ID(N'dbo.AdminAuditLog',N'U') AS id`).then(r=>!!r?.[0]?.id)){
+   const count=await prisma.$queryRawUnsafe(`SELECT COUNT_BIG(*) AS total FROM dbo.AdminAuditLog WHERE createdAt >= DATEADD(hour,-24,SYSDATETIME())`);
+   auditCount=Number(count?.[0]?.total||0);
+   securityEvents=await prisma.$queryRawUnsafe(`SELECT TOP 8 id,action,moduleKey,statusCode,createdAt,ipAddress,detailsJson FROM dbo.AdminAuditLog WHERE statusCode>=400 OR moduleKey IN (N'security',N'sessions',N'api',N'users') ORDER BY id DESC`);
+ }
+ const sessionTotal=Number(sessions?.[0]?.total||0), activeKeyTotal=Number(activeKeys?.[0]?.total||0), revokedKeyTotal=Number(revokedKeys?.[0]?.total||0), activeUserTotal=Number(users?.[0]?.total||0), roleTotal=Number(roles?.[0]?.total||0);
+ const warnings=[];
+ if(policy.maxLoginAttempts>20)warnings.push({level:'warning',code:'login-policy',message:'حد مجاز تلاش ورود نسبتاً بالا تنظیم شده است.'});
+ if(policy.passwordMinLength<10)warnings.push({level:'warning',code:'password-length',message:'حداقل طول رمز عبور کمتر از ۱۰ کاراکتر است.'});
+ if(!policy.requireSpecial)warnings.push({level:'warning',code:'password-special',message:'الزام کاراکتر ویژه برای رمز عبور فعال نیست.'});
+ if(revokedKeyTotal>0)warnings.push({level:'info',code:'revoked-keys',message:`${revokedKeyTotal.toLocaleString('fa-IR')} کلید API لغوشده در سامانه ثبت شده است.`});
+ if(auditCount>1000)warnings.push({level:'warning',code:'audit-volume',message:'تعداد رویدادهای Audit در ۲۴ ساعت اخیر بالا بوده است.'});
+ const overall=warnings.some(x=>x.level==='warning')?'warning':'healthy';
+ return res.json({success:true,data:{overall,checkedAt:new Date().toISOString(),metrics:{activeUsers:activeUserTotal,sessions:sessionTotal,activeApiKeys:activeKeyTotal,revokedApiKeys:revokedKeyTotal,roles:roleTotal,auditEvents24h:auditCount},policy,warnings,securityEvents}});
+ }catch(e){console.error('[ADMIN-SECURITY-OVERVIEW]',e);return fail(res,500,'دریافت داشبورد امنیتی ناموفق بود.');}});
+router.put('/security',async(req,res)=>{try{const data=normalizeSecurity(req.body);await saveSetting('security','security.policy',data,req);return res.json({success:true,message:'سیاست امنیتی ذخیره شد.',data});}catch(e){console.error('[ADMIN-SECURITY]',e);return fail(res,500,'ذخیره سیاست امنیتی ناموفق بود.');}});
+router.get('/settings',async(req,res)=>{try{return res.json({success:true,data:await getSetting('settings','system.settings',DEFAULT_SETTINGS)});}catch{return fail(res,500,'خطا در دریافت تنظیمات سامانه.');}});
+router.put('/settings',async(req,res)=>{try{const data=normalizeSettings(req.body);await saveSetting('settings','system.settings',data,req);return res.json({success:true,message:'تنظیمات سامانه ذخیره شد.',data});}catch(e){console.error('[ADMIN-SETTINGS]',e);return fail(res,500,'ذخیره تنظیمات سامانه ناموفق بود.');}});
+router.get('/maintenance',async(req,res)=>{try{return res.json({success:true,data:await getSetting('maintenance','maintenance.policy',DEFAULT_MAINTENANCE)});}catch{return fail(res,500,'خطا در دریافت وضعیت تعمیرات.');}});
+router.put('/maintenance',async(req,res)=>{try{const data=normalizeMaintenance(req.body);await saveSetting('maintenance','maintenance.policy',data,req);return res.json({success:true,message:data.enabled?'حالت تعمیرات فعال شد.':'حالت تعمیرات غیرفعال شد.',data});}catch(e){console.error('[ADMIN-MAINTENANCE]',e);return fail(res,500,'ذخیره حالت تعمیرات ناموفق بود.');}});
+router.post('/maintenance/toggle',async(req,res)=>{try{const current=await getSetting('maintenance','maintenance.policy',DEFAULT_MAINTENANCE);const data=normalizeMaintenance({...current,enabled:req.body?.enabled});await saveSetting('maintenance','maintenance.policy',data,req);return res.json({success:true,message:data.enabled?'حالت تعمیرات فعال شد.':'حالت تعمیرات غیرفعال شد.',data});}catch{return fail(res,500,'تغییر وضعیت تعمیرات ناموفق بود.');}});
+module.exports=router;
