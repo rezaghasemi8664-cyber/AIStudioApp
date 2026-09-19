@@ -58,6 +58,8 @@ const ProfessionalScreener: React.FC = () => {
   const [filters, setFilters] = useState<FilterView[]>([]);
   const [active, setActive] = useState('high-buy-power');
   const [marketOpen, setMarketOpen] = useState(false);
+  const [dataStatus, setDataStatus] = useState<'LIVE' | 'CACHED' | 'UNAVAILABLE'>('UNAVAILABLE');
+  const [dataSource, setDataSource] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -80,6 +82,8 @@ const ProfessionalScreener: React.FC = () => {
       const result = await getDailyFilters(force);
       setFilters(result.filters || []);
       setMarketOpen(Boolean(result.marketStatus?.isOpen));
+      setDataStatus(result.meta?.status || 'UNAVAILABLE');
+      setDataSource(result.meta?.source);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'خطا در دریافت داده‌های غربالگر';
       setError(message);
@@ -178,9 +182,9 @@ const ProfessionalScreener: React.FC = () => {
               <span className={`rounded-full px-3 py-1 text-xs font-bold ${marketOpen ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-500/10 text-slate-400'}`}>
                 {marketOpen ? 'بازار باز' : 'بازار بسته'}
               </span>
-              <span className="rounded-full bg-sky-500/10 px-3 py-1 text-xs font-bold text-sky-300">داده واقعی</span>
+              <span className={`rounded-full px-3 py-1 text-xs font-bold ${dataStatus === 'LIVE' ? 'bg-emerald-500/10 text-emerald-300' : dataStatus === 'CACHED' ? 'bg-amber-500/10 text-amber-300' : 'bg-rose-500/10 text-rose-300'}`}>{dataStatus === 'LIVE' ? 'داده زنده' : dataStatus === 'CACHED' ? 'داده ذخیره‌شده' : 'داده در دسترس نیست'}</span>
             </div>
-            <p className="mt-1 text-xs text-slate-500">غربال نمادها با معیارهای قطعی بازار؛ بدون AI و بدون تولید داده مصنوعی</p>
+            <p className="mt-1 text-xs text-slate-500">غربال نمادها با معیارهای قطعی بازار؛ بدون AI و بدون تولید داده مصنوعی{dataSource ? ` · منبع: ${dataSource}` : ''}</p>
           </div>
           <button onClick={() => void load(true)} disabled={refreshing} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-bold text-slate-200 hover:bg-white/[0.08] disabled:opacity-50">
             {refreshing ? 'در حال بروزرسانی…' : 'بروزرسانی داده'}
@@ -228,7 +232,7 @@ const ProfessionalScreener: React.FC = () => {
           <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">آخرین بروزرسانی</div><div className="mt-1 text-sm font-black text-slate-200">{selected?.updatedAt ? new Date(selected.updatedAt).toLocaleTimeString('fa-IR') : '—'}</div></div>
         </div>
 
-        {loading ? <div className="py-16 text-center text-sm text-slate-500">در حال دریافت داده بازار…</div> : error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-8 text-center text-sm text-rose-300">{error}<button onClick={() => void load(true)} className="mr-3 rounded-xl bg-white/10 px-3 py-2">تلاش مجدد</button></div> : !rows.length ? <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-10 text-center text-sm text-slate-500">با معیارهای فعلی نمادی پیدا نشد.</div> : (
+        {loading ? <div className="py-16 text-center text-sm text-slate-500">در حال دریافت داده بازار…</div> : error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-8 text-center text-sm text-rose-300">{error}<button onClick={() => void load(true)} className="mr-3 rounded-xl bg-white/10 px-3 py-2">تلاش مجدد</button></div> : dataStatus === 'UNAVAILABLE' ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-10 text-center text-sm text-rose-300">داده واقعی غربالگر در حال حاضر از منبع بازار در دسترس نیست؛ هیچ مقدار ساختگی نمایش داده نمی‌شود.</div> : !rows.length ? <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-10 text-center text-sm text-slate-500">با معیارهای فعلی نمادی پیدا نشد.</div> : (
           <div className="overflow-x-auto rounded-2xl border border-white/5">
             <table className="min-w-[1150px] w-full text-xs text-right">
               <thead className="bg-white/[0.03] text-slate-500"><tr>{['#','نماد','قدرت خرید','آخرین','پایانی','تغییر','حجم','ارزش','حجم/ماه','P/E','خرید حقیقی','فروش حقیقی'].map((heading) => <th key={heading} className="px-3 py-3 font-bold">{heading}</th>)}</tr></thead>
