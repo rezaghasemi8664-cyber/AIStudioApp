@@ -32,6 +32,10 @@ type AnalysisHistoryItem = {
   result: AnalysisResult | null;
   summary?: string;
   createdAt: string;
+  dataStatus?: 'LIVE' | 'CACHED' | 'UNAVAILABLE';
+  source?: string;
+  fetchedAt?: string;
+  stale?: boolean;
 };
 
 type MarketSummary = {
@@ -2428,6 +2432,32 @@ const clearCurrentAnalysis = () => {
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                          item.dataStatus === 'LIVE'
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : item.dataStatus === 'CACHED'
+                              ? 'border-amber-200 bg-amber-50 text-amber-700'
+                              : 'border-slate-200 bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {item.dataStatus === 'LIVE'
+                          ? 'داده زنده'
+                          : item.dataStatus === 'CACHED'
+                            ? 'داده ذخیره‌شده'
+                            : 'وضعیت داده نامشخص'}
+                      </span>
+                      {item.source ? (
+                        <span className="text-[10px] font-semibold text-slate-500">
+                          منبع: {item.source}
+                        </span>
+                      ) : null}
+                      {item.stale ? (
+                        <span className="text-[10px] font-semibold text-amber-600">قدیمی</span>
+                      ) : null}
                     </div>
 
                     <div className="mt-2 line-clamp-2 text-[13px] font-medium leading-7 text-slate-800">
