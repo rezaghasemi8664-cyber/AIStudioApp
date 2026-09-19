@@ -9,6 +9,7 @@ interface BacktestResult {
   initialCapital: number; finalValue: number; returnPercent: number; buyHoldReturnPercent: number;
   excessReturnPercent: number; maxDrawdown: number; tradeCount: number; closedTradeCount: number;
   winRate: number | null; profitFactor: number | null; grossProfit: number; grossLoss: number; totalFees: number;
+  historyCount: number; startDate: string; endDate: string; observations: number;
   annualizedReturnPercent: number; annualizedVolatilityPercent: number; sharpeRatio: number | null; sortinoRatio: number | null; bestTradePercent: number | null; worstTradePercent: number | null; averageWinPercent: number | null; averageLossPercent: number | null; expectancyPercent: number | null; averageHoldingDays: number | null;
   openQuantity: number; cash: number;
   trades: Array<{ date: string; side: string; price: number; quantity: number; value: number; fee: number; reason: string }>;
@@ -25,6 +26,7 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ isOnline }) => {
   const [shortPeriod, setShortPeriod] = useState('10');
   const [longPeriod, setLongPeriod] = useState('30');
   const [feePercent, setFeePercent] = useState('0.1');
+  const [historyCount, setHistoryCount] = useState('180');
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +40,7 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ isOnline }) => {
         body: JSON.stringify({
           strategy: 'sma-crossover', symbol: symbol.trim().toUpperCase(),
           initialCapital: Number(capital), shortPeriod: Number(shortPeriod),
-          longPeriod: Number(longPeriod), feePercent: Number(feePercent) / 100, historyCount: 180,
+          longPeriod: Number(longPeriod), feePercent: Number(feePercent) / 100, historyCount: Number(historyCount),
         }),
       });
       const data = response?.data?.data ?? response?.data ?? response;
@@ -70,6 +72,11 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ isOnline }) => {
         <label className="text-sm font-semibold">کارمزد هر معامله ٪
           <input type="number" min="0" max="10" step="0.01" value={feePercent} onChange={e => setFeePercent(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 bg-transparent" />
         </label>
+        <label className="text-sm font-semibold">بازه تاریخچه
+          <select value={historyCount} onChange={e => setHistoryCount(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 bg-transparent">
+            <option value="90">۳ ماه اخیر</option><option value="180">حدود ۶ ماه اخیر</option><option value="365">حدود ۱ سال اخیر</option><option value="500">حدود ۲ سال اخیر</option>
+          </select>
+        </label>
         <div className="lg:col-span-6 flex items-center gap-3">
           <button disabled={!isOnline || loading || !symbol.trim()} className="px-5 py-2.5 rounded-lg bg-cyan-600 text-white font-bold disabled:opacity-50">{loading ? 'در حال محاسبه...' : 'اجرای بک‌تست'}</button>
           <span className="text-xs text-slate-500">استراتژی این گام: تقاطع میانگین متحرک ساده</span>
@@ -91,6 +98,7 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ isOnline }) => {
             <div><span className="text-slate-500">بازده سالانه‌شده</span><div className="font-black mt-1">{percentFa(result.annualizedReturnPercent)}</div></div>
             <div><span className="text-slate-500">نوسان سالانه‌شده</span><div className="font-black mt-1">{percentFa(result.annualizedVolatilityPercent)}</div></div>
             <div><span className="text-slate-500">Sharpe</span><div className="font-black mt-1">{numberFa(result.sharpeRatio, 2)}</div></div>
+            <div><span className="text-slate-500">داده تاریخی</span><div className="font-black mt-1">{numberFa(result.historyCount)} رکورد</div></div>
           </div>
           <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
             <div>میانگین معامله برنده: <b>{percentFa(result.averageWinPercent)}</b></div>
