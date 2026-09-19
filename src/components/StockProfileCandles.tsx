@@ -7,13 +7,13 @@ const fmt=(v:number|null)=>v==null?'—':v.toLocaleString('fa-IR',{maximumFracti
 
 const StockProfileCandles:React.FC<Props>=({data})=>{
  const valid=useMemo(()=>data.filter(c=>c.open!=null&&c.high!=null&&c.low!=null&&c.close!=null),[data]);
- if(valid.length<2)return <div className="rounded-2xl border border-dashed border-[var(--color-border)] p-8 text-center text-gray-500">داده کندلی معتبر کافی برای این بازه موجود نیست.</div>;
+ if(valid.length<2)return <div className="stock-candles-chart rounded-2xl border border-dashed border-[var(--color-border)] p-8 text-center text-gray-500">داده کندلی معتبر کافی برای این بازه موجود نیست.</div>;
  const visible=valid.slice(-90), width=1000,height=360,left=56,right=18,top=20,bottom=48;
  const prices=visible.flatMap(c=>[c.high as number,c.low as number]);
  const min=Math.min(...prices),max=Math.max(...prices),range=max-min||1;
  const xStep=(width-left-right)/Math.max(visible.length-1,1), bodyWidth=Math.max(3,Math.min(10,xStep*.55));
  const y=(price:number)=>top+((max-price)/range)*(height-top-bottom);
- return <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4">
+ return <div className="stock-candles-chart rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4">
   <div className="flex items-center justify-between mb-3"><div className="font-black">نمودار کندلی</div><div className="text-xs text-gray-500">{visible.length} کندل واقعی</div></div>
   <div className="overflow-x-auto"><svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[720px] h-[360px]" role="img" aria-label="نمودار کندلی واقعی">
    {[0,1,2,3,4].map(i=>{const py=top+(i/4)*(height-top-bottom);const pv=max-(i/4)*range;return <g key={i}><line x1={left} x2={width-right} y1={py} y2={py} stroke="currentColor" opacity=".08"/><text x={left-8} y={py+4} textAnchor="end" fontSize="11" fill="currentColor" opacity=".55">{fmt(pv)}</text></g>})}
