@@ -7,6 +7,8 @@ interface BacktestResult {
   strategy: { name: string; shortPeriod: number; longPeriod: number; feePercent: number };
   initialCapital: number; finalValue: number; returnPercent: number; buyHoldReturnPercent: number;
   excessReturnPercent: number; maxDrawdown: number; tradeCount: number; closedTradeCount: number;
+  winRate: number | null; profitFactor: number | null; grossProfit: number; grossLoss: number; totalFees: number;
+  annualizedReturnPercent: number; annualizedVolatilityPercent: number; sharpeRatio: number | null;
   openQuantity: number; cash: number;
   trades: Array<{ date: string; side: string; price: number; quantity: number; value: number; fee: number; reason: string }>;
   equityCurve: Array<{ date: string; close: number; shortSma: number | null; longSma: number | null; equity: number }>;
@@ -80,7 +82,23 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ isOnline }) => {
             ['بازده خرید و نگهداری', percentFa(result.buyHoldReturnPercent)], ['حداکثر افت سرمایه', percentFa(result.maxDrawdown)],
           ].map(([label, value]) => <div key={label} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-4"><div className="text-xs text-slate-500">{label}</div><div className="text-xl font-black mt-1">{value}</div></div>)}
         </div>
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-5 mb-5 bg-white/70 dark:bg-slate-900/50">
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-5 mb-5 bg-white/70 dark:bg-slate-900/50">
+          <div className="font-bold mb-3">آمار عملکرد استراتژی</div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+            <div><span className="text-slate-500">نرخ برد</span><div className="font-black mt-1">{percentFa(result.winRate)}</div></div>
+            <div><span className="text-slate-500">Profit Factor</span><div className="font-black mt-1">{numberFa(result.profitFactor, 2)}</div></div>
+            <div><span className="text-slate-500">بازده سالانه‌شده</span><div className="font-black mt-1">{percentFa(result.annualizedReturnPercent)}</div></div>
+            <div><span className="text-slate-500">نوسان سالانه‌شده</span><div className="font-black mt-1">{percentFa(result.annualizedVolatilityPercent)}</div></div>
+            <div><span className="text-slate-500">Sharpe</span><div className="font-black mt-1">{numberFa(result.sharpeRatio, 2)}</div></div>
+          </div>
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+            <div>سود ناخالص: <b>{numberFa(result.grossProfit)}</b></div>
+            <div>زیان ناخالص: <b>{numberFa(result.grossLoss)}</b></div>
+            <div>مجموع کارمزد: <b>{numberFa(result.totalFees)}</b></div>
+          </div>
+          <p className="text-xs text-slate-500 mt-4">شاخص‌های عملکرد فقط از معاملات و تاریخچه واقعی همین اجرای بک‌تست محاسبه شده‌اند و پیش‌بینی آینده نیستند.</p>
+        </div>
+<div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-5 mb-5 bg-white/70 dark:bg-slate-900/50">
           <div className="font-bold mb-1">خلاصه آزمایش</div>
           <div className="text-sm text-slate-500 mb-4">مقایسه بازده استراتژی با خرید و نگهداری روی همان تاریخچه واقعی. این خروجی صرفاً نتیجه محاسبات تاریخی است و تضمین عملکرد آینده نیست.</div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
