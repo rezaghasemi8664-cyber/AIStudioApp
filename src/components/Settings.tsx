@@ -259,7 +259,7 @@ const Settings: React.FC<SettingsProps> = ({
 
   const LoadingCard = ({ text }: { text?: string }) => (
     <div
-      className="p-8 rounded-lg shadow-md border border-[var(--card-border-color)] flex flex-col items-center justify-center gap-3"
+      className="settings-loading-card p-8 rounded-lg shadow-md border border-[var(--card-border-color)] flex flex-col items-center justify-center gap-3"
       style={{ backgroundColor: 'var(--card-bg)' }}
     >
       <div className="w-8 h-8 border-3 border-cyan-500 border-t-transparent rounded-full animate-spin" />
@@ -278,7 +278,7 @@ const Settings: React.FC<SettingsProps> = ({
       <div
         data-style-id="settings-card"
         data-style-name="کارت تنظیمات"
-        className="p-6 rounded-lg shadow-md border border-[var(--card-border-color)]"
+        className="settings-general-card p-6 rounded-lg shadow-md border border-[var(--card-border-color)]"
         style={{
           backgroundColor: 'var(--settings-card-bg)',
           color: 'var(--settings-card-color)',
@@ -364,7 +364,7 @@ const Settings: React.FC<SettingsProps> = ({
     }
 
     return (
-      <div className="p-6 rounded-lg shadow-md border border-[var(--card-border-color)]" style={{ backgroundColor: 'var(--card-bg)' }}>
+      <div className="settings-ui-card p-6 rounded-lg shadow-md border border-[var(--card-border-color)]" style={{ backgroundColor: 'var(--card-bg)' }}>
         <h3 className="text-lg font-semibold mb-4">مدیریت لینک‌های تالار بورس</h3>
 
         <div className="space-y-3">
@@ -473,7 +473,7 @@ const Settings: React.FC<SettingsProps> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="settings-workstation max-w-7xl mx-auto">
       <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
         <nav className="-mb-px flex space-x-4 rtl:space-x-reverse" aria-label="Tabs">
           <TabButton
