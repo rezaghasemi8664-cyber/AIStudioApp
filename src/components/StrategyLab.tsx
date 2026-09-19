@@ -16,8 +16,13 @@ interface BacktestResult {
   maxDrawdown: number;
   tradeCount: number;
   closedTradeCount: number;
+  winRate: number | null;
+  profitFactor: number | null;
+  averageClosedTradePnl: number | null;
+  sharpe: number | null;
   openQuantity: number;
   cash: number;
+  closedTrades: Array<{ entryDate: string; exitDate: string; quantity: number; entryPrice: number; exitPrice: number; grossPnl: number; fees: number; netPnl: number; returnPercent: number | null }>;
   trades: Array<{
     date: string;
     side: string;
@@ -158,6 +163,10 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ isOnline }) => {
               مقایسه بازده استراتژی با خرید و نگهداری روی همان تاریخچه واقعی. این خروجی صرفاً نتیجه محاسبات تاریخی است و تضمین عملکرد آینده نیست.
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+              <div>نرخ معاملات موفق: <b>{percentFa(result.winRate)}</b></div>
+              <div>Profit Factor: <b>{numberFa(result.profitFactor, 2)}</b></div>
+              <div>میانگین سود/زیان معامله: <b>{numberFa(result.averageClosedTradePnl)}</b></div>
+              <div>Sharpe سالانه: <b>{numberFa(result.sharpe, 2)}</b></div>
               <div>تعداد معاملات: <b>{numberFa(result.tradeCount)}</b></div>
               <div>معاملات بسته‌شده: <b>{numberFa(result.closedTradeCount)}</b></div>
               <div>بازده مازاد: <b>{percentFa(result.excessReturnPercent)}</b></div>
@@ -179,6 +188,11 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ isOnline }) => {
                 ))}</tbody>
               </table>
             </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-5 mb-5 bg-white/70 dark:bg-slate-900/50">
+            <div className="font-bold mb-3">نتیجه معاملات بسته‌شده</div>
+            {result.closedTrades.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="bg-slate-100 dark:bg-slate-800"><th className="p-2">ورود</th><th className="p-2">خروج</th><th className="p-2">قیمت ورود</th><th className="p-2">قیمت خروج</th><th className="p-2">سود/زیان خالص</th><th className="p-2">بازده</th></tr></thead><tbody>{result.closedTrades.map((trade, i) => <tr key={trade.entryDate + '-' + trade.exitDate + '-' + i} className="border-t border-slate-100 dark:border-slate-800"><td className="p-2">{trade.entryDate}</td><td className="p-2">{trade.exitDate}</td><td className="p-2">{numberFa(trade.entryPrice)}</td><td className="p-2">{numberFa(trade.exitPrice)}</td><td className="p-2 font-bold">{numberFa(trade.netPnl)}</td><td className="p-2">{percentFa(trade.returnPercent)}</td></tr>)}</tbody></table></div> : <div className="text-sm text-slate-500">هنوز معامله بسته‌شده‌ای ثبت نشده است.</div>}
           </div>
 
           <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-5 bg-white/70 dark:bg-slate-900/50">
