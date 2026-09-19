@@ -672,3 +672,53 @@ a:focus-visible {
   }
 }
 
+/* Stock analysis workstation: clearer controls and result hierarchy. */
+.stock-analysis-page > .flex.flex-wrap {
+  padding: 5px;
+  border: 1px solid var(--ui-border);
+  border-radius: 14px;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow);
+}
+
+.stock-analysis-page > .flex.flex-wrap > button {
+  min-height: 42px;
+  border-color: var(--ui-border) !important;
+  color: var(--ui-muted);
+  background: transparent;
+}
+
+.stock-analysis-page > .flex.flex-wrap > button:hover {
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
+}
+
+.stock-analysis-page > .flex.flex-wrap > button[class*="bg-blue-50"] {
+  background: color-mix(in srgb, var(--ui-brand) 12%, var(--ui-surface)) !important;
+  border-color: var(--ui-brand) !important;
+  color: var(--ui-brand-strong) !important;
+}
+
+.dark .stock-analysis-page > .flex.flex-wrap > button[class*="bg-blue-50"] {
+  background: color-mix(in srgb, var(--ui-brand) 18%, var(--ui-surface)) !important;
+  color: var(--ui-brand-strong) !important;
+}
+
+@media (max-width: 640px) {
+  .stock-analysis-page > .flex.flex-wrap {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+  }
+
+  .stock-analysis-page > .flex.flex-wrap::-webkit-scrollbar {
+    display: none;
+  }
+
+  .stock-analysis-page > .flex.flex-wrap > button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding-inline: 12px !important;
+  }
+}
+
