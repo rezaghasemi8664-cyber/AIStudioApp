@@ -2907,3 +2907,9 @@ a:focus-visible {
     padding: 22px;
   }
 }
+
+
+/* --- Phase 2: real market data state system --- */
+.market-index-workstation { min-width: 0; }
+.market-index-workstation[data-data-status="UNAVAILABLE"] { opacity: .92; }
+.market-index-workstation .market-source-badge { font-variant-numeric: tabular-nums; }
