@@ -127,7 +127,7 @@ const Clock: React.FC = () => {
     );
 
     return (
-        <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
+        <div className="roniya-clock flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
             <CalendarDaysIcon className="h-6 w-6 text-cyan-600 dark:text-cyan-500 flex-shrink-0" />
             <div className="text-right">
                 <p className="font-semibold text-gray-800 dark:text-gray-300 whitespace-nowrap font-mono">{shamsiDate}</p>
