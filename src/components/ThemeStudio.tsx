@@ -94,7 +94,7 @@ const ThemeStudio: React.FC<ThemeStudioProps> = ({ allFonts }) => {
   const isBannerSelected = selectedElementId === 'welcome-banner-text';
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6 rounded-lg shadow-md border border-[var(--card-border-color)] bg-[var(--card-bg)]">
+    <div className="theme-studio-workstation grid grid-cols-1 lg:grid-cols-3 gap-6 p-6 rounded-lg shadow-md border border-[var(--card-border-color)] bg-[var(--card-bg)]">
       <div className="lg:col-span-1 h-[60vh] overflow-y-auto pr-2">
         <h3 className="text-lg font-semibold mb-4 text-cyan-600 dark:text-cyan-400">المان‌های قابل ویرایش</h3>
         {Object.entries(groupedElements).map(([groupName, groupElements]) => (
