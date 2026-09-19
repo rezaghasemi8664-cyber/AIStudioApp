@@ -534,3 +534,141 @@ a:focus-visible {
   }
 }
 
+/* --- Roniya internal page system v3 --- */
+/* Unify existing pages without changing component logic or data flow. */
+.app-main {
+  color: var(--ui-text);
+}
+
+.app-main > div {
+  min-width: 0;
+}
+
+.app-main .bg-white,
+.app-main .dark\:bg-gray-800,
+.app-main .dark\:bg-gray-900 {
+  color: var(--ui-text);
+}
+
+.app-main .bg-white {
+  background-color: var(--ui-surface) !important;
+}
+
+.app-main .bg-gray-50,
+.app-main .dark\:bg-gray-800\/50 {
+  background-color: var(--ui-surface-2) !important;
+}
+
+.app-main .border-gray-100,
+.app-main .border-gray-200,
+.app-main .border-gray-300,
+.app-main .dark\:border-gray-700 {
+  border-color: var(--ui-border) !important;
+}
+
+/* Common page cards and KPI blocks. */
+.app-main .shadow-sm,
+.app-main .shadow-md,
+.app-main .shadow-lg {
+  box-shadow: var(--ui-shadow);
+}
+
+.app-main .shadow-sm:hover,
+.app-main .shadow-md:hover {
+  box-shadow: var(--ui-shadow-hover);
+}
+
+.app-main [class*="rounded-lg"],
+.app-main [class*="rounded-xl"],
+.app-main [class*="rounded-2xl"] {
+  min-width: 0;
+}
+
+.app-main .text-gray-600,
+.app-main .text-gray-500,
+.app-main .dark\:text-gray-300,
+.app-main .dark\:text-gray-400 {
+  color: var(--ui-muted) !important;
+}
+
+/* Inputs, selects and text areas share one professional control language. */
+.app-main input,
+.app-main select,
+.app-main textarea {
+  color: var(--ui-text);
+  background-color: var(--ui-surface);
+  border-color: var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+}
+
+.app-main input::placeholder,
+.app-main textarea::placeholder {
+  color: var(--ui-muted);
+  opacity: .8;
+}
+
+.app-main input:hover,
+.app-main select:hover,
+.app-main textarea:hover {
+  border-color: color-mix(in srgb, var(--ui-brand) 45%, var(--ui-border));
+}
+
+.app-main input:focus,
+.app-main select:focus,
+.app-main textarea:focus {
+  border-color: var(--ui-brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-brand) 13%, transparent);
+}
+
+/* Financial KPI numbers remain aligned and easy to scan. */
+.app-main .font-mono,
+.app-main [class*="tabular-nums"] {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .01em;
+}
+
+/* Chart containers get a stable surface and responsive height behavior. */
+.app-main .recharts-responsive-container {
+  width: 100% !important;
+  max-width: 100%;
+}
+
+.app-main .recharts-tooltip-wrapper {
+  max-width: min(92vw, 360px);
+}
+
+.app-main .recharts-default-tooltip {
+  border: 1px solid var(--ui-border) !important;
+  border-radius: 12px !important;
+  background: var(--ui-surface) !important;
+  color: var(--ui-text) !important;
+  box-shadow: var(--ui-shadow) !important;
+}
+
+/* Mobile: stack controls and keep dense trading screens usable. */
+@media (max-width: 640px) {
+  .app-main {
+    padding-bottom: 12px;
+  }
+
+  .app-main .grid {
+    min-width: 0;
+  }
+
+  .app-main .flex-wrap {
+    row-gap: 8px;
+  }
+
+  .app-main button {
+    min-height: 42px;
+  }
+
+  .app-main .overflow-x-auto {
+    max-width: 100%;
+  }
+
+  .app-main .recharts-responsive-container {
+    min-height: 220px;
+  }
+}
+
