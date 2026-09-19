@@ -946,3 +946,107 @@ a:focus-visible {
     min-width: 1180px;
   }
 }
+
+
+/* --- Scalping workstation v6 --- */
+.scalping-page {
+  min-width: 0;
+}
+
+.scalping-page > :first-child {
+  padding: 14px 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow);
+}
+
+.scalping-page h2 {
+  color: var(--ui-text) !important;
+}
+
+.scalping-page [class*="text-[var(--color-text-secondary)"] {
+  color: var(--ui-muted) !important;
+}
+
+.scalping-page [class*="bg-[var(--color-surface)]"] {
+  background: var(--ui-surface) !important;
+}
+
+.scalping-page [class*="border-[var(--color-border)]"] {
+  border-color: var(--ui-border) !important;
+}
+
+.scalping-page > :first-child button {
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.scalping-page > :first-child button[class*="bg-cyan-500"] {
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--ui-brand) 20%, transparent);
+}
+
+.scalping-page .relative.min-h-\[300px\] {
+  min-width: 0;
+}
+
+.scalping-page .relative.min-h-\[300px\] > div {
+  min-width: 0;
+}
+
+.scalping-page .relative.min-h-\[300px\] .rounded-xl {
+  border-color: var(--ui-border);
+}
+
+.scalping-page .relative.min-h-\[300px\] .rounded-xl:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--ui-shadow-hover);
+}
+
+.scalping-page .relative.min-h-\[300px\] h3 {
+  color: var(--ui-brand-strong) !important;
+}
+
+.scalping-page .relative.min-h-\[300px\] .font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+.scalping-page .relative.min-h-\[300px\] .text-green-500 {
+  color: var(--ui-positive) !important;
+}
+
+.scalping-page .relative.min-h-\[300px\] .text-amber-500 {
+  color: var(--ui-warning) !important;
+}
+
+.scalping-page > :last-child {
+  color: var(--ui-muted) !important;
+}
+
+@media (max-width: 640px) {
+  .scalping-page {
+    gap: 12px !important;
+  }
+
+  .scalping-page > :first-child {
+    padding: 11px 12px;
+    border-radius: 14px;
+  }
+
+  .scalping-page > :first-child h2 {
+    font-size: 1.05rem !important;
+  }
+
+  .scalping-page .relative.min-h-\[300px\] {
+    min-height: 240px;
+  }
+
+  .scalping-page .relative.min-h-\[300px\] .rounded-xl {
+    border-radius: 13px !important;
+    padding: 13px !important;
+  }
+
+  .scalping-page > :last-child {
+    line-height: 1.8;
+  }
+}
