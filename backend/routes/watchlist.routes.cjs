@@ -29,6 +29,9 @@ function normalizeWatchlist(item) {
       closePrice: Number.isFinite(Number(symbol.quote.closePrice)) ? Number(symbol.quote.closePrice) : null,
       closeChangePercent: Number.isFinite(Number(symbol.quote.closeChangePercent)) ? Number(symbol.quote.closeChangePercent) : null,
       updatedAt: String(symbol.quote.updatedAt || ''),
+      dataStatus: ['LIVE', 'CACHED', 'UNAVAILABLE'].includes(symbol.quote.dataStatus) ? symbol.quote.dataStatus : 'CACHED',
+      source: symbol.quote.source ? String(symbol.quote.source) : undefined,
+      stale: Boolean(symbol.quote.stale),
     } : null,
   })).filter(symbol => symbol.symbol) : [];
   return { id, name, symbols, createdAt: item.createdAt, updatedAt: item.updatedAt };
