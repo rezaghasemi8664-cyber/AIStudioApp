@@ -142,21 +142,21 @@ export default function SoldPortfolioSection({ lots, isOnline, onChanged }: Prop
     })).sort((a, b) => b.realizedPnl - a.realizedPnl);
   }, [trades]);
 
-  return <section className="mt-10 p-5 rounded-xl shadow-md bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700">
+  return <section className="sold-portfolio-workstation mt-10 p-5 rounded-xl shadow-md bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700">
     <div className="mb-5">
       <h3 className="text-xl font-bold text-cyan-600 dark:text-cyan-400">سهام فروخته‌شده و معاملات بسته‌شده</h3>
       <p className="text-sm text-gray-500 mt-1">هر فروش می‌تواند از چند Lot خرید با قیمت و تاریخ متفاوت تشکیل شود. تخصیص فروش به‌صورت دستی انجام می‌شود.</p>
     </div>
 
     <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-      <div className="p-3 rounded-lg bg-white dark:bg-gray-900/30"><p className="text-xs text-gray-500">تعداد معاملات بسته‌شده</p><strong>{formatNumber(summary.tradeCount)}</strong></div>
+      <div className="sold-summary-card p-3 rounded-lg bg-white dark:bg-gray-900/30"><p className="text-xs text-gray-500">تعداد معاملات بسته‌شده</p><strong>{formatNumber(summary.tradeCount)}</strong></div>
       <div className="p-3 rounded-lg bg-white dark:bg-gray-900/30"><p className="text-xs text-gray-500">مبلغ فروش</p><strong>{formatNumber(summary.proceeds)} ریال</strong></div>
       <div className="p-3 rounded-lg bg-white dark:bg-gray-900/30"><p className="text-xs text-gray-500">بهای تمام‌شده فروش</p><strong>{formatNumber(summary.costBasis)} ریال</strong></div>
       <div className="p-3 rounded-lg bg-white dark:bg-gray-900/30"><p className="text-xs text-gray-500">سود/زیان تحقق‌یافته</p><strong className={summary.realizedPnl >= 0 ? 'text-green-600' : 'text-red-600'}>{formatNumber(summary.realizedPnl)} ریال</strong></div>
       <div className="p-3 rounded-lg bg-white dark:bg-gray-900/30"><p className="text-xs text-gray-500">بازده تحقق‌یافته</p><strong className={realizedPercent >= 0 ? 'text-green-600' : 'text-red-600'}>{realizedPercent.toFixed(2)}%</strong></div>
     </div>
 
-    <form onSubmit={submit} className="space-y-4">
+    <form onSubmit={submit} className="sold-trade-form space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <select value={symbol} onChange={e => { setSymbol(e.target.value); setAllocations({}); }} className="border rounded px-3 py-2" disabled={!isOnline}>
           <option value="">انتخاب نماد فروش</option>
