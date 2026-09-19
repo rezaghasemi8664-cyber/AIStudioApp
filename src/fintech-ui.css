@@ -2269,3 +2269,49 @@ a:focus-visible {
     transition: none;
   }
 }
+
+
+/* Money flow workstation v30 */
+.money-flow-card {
+  min-width: 0;
+  box-shadow: var(--ui-shadow-sm);
+  transition: box-shadow 160ms ease, border-color 160ms ease;
+}
+.money-flow-card:hover {
+  box-shadow: var(--ui-shadow-md);
+}
+.money-flow-card h3 {
+  letter-spacing: -0.015em;
+  line-height: 1.5;
+}
+.money-flow-card table {
+  font-variant-numeric: tabular-nums;
+}
+.money-flow-card table tbody tr {
+  transition: background-color 140ms ease;
+}
+.money-flow-card table tbody tr:hover {
+  background: var(--ui-surface-hover);
+}
+.money-flow-card table td,
+.money-flow-card table th {
+  vertical-align: middle;
+}
+@media (max-width: 767px) {
+  .money-flow-card {
+    padding: 1rem;
+    border-radius: 1rem;
+  }
+  .money-flow-card h3 {
+    font-size: 1.05rem;
+  }
+  .money-flow-card table {
+    min-width: 520px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .money-flow-card,
+  .money-flow-card table tbody tr {
+    transition: none;
+  }
+}
