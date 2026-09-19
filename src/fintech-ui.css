@@ -826,3 +826,123 @@ a:focus-visible {
     font-size: 1.65rem !important;
   }
 }
+
+
+/* --- Stock comparison workstation v5 --- */
+.stock-comparison-page {
+  min-width: 0;
+}
+
+.stock-comparison-page > h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 4px !important;
+  color: var(--ui-text) !important;
+}
+
+.stock-comparison-page > p {
+  color: var(--ui-muted) !important;
+  max-width: 920px;
+  line-height: 1.9;
+  margin-bottom: 18px !important;
+}
+
+.stock-comparison-page [data-style-id="analysis-form-card"] {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface) !important;
+  box-shadow: var(--ui-shadow);
+}
+
+.stock-comparison-page [data-style-id="analysis-form-card"] form {
+  align-items: stretch;
+}
+
+.stock-comparison-page [data-style-id="analysis-form-card"] input {
+  min-width: 0;
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface-2) !important;
+  color: var(--ui-text) !important;
+  border-radius: var(--ui-radius-sm);
+}
+
+.stock-comparison-page [data-style-id="analysis-form-card"] input:focus {
+  background: var(--ui-surface) !important;
+}
+
+.stock-comparison-page [data-style-id="analysis-form-card"] button {
+  border-radius: var(--ui-radius-sm);
+}
+
+.stock-comparison-page [data-style-id="analysis-button"] {
+  border: 1px solid color-mix(in srgb, var(--ui-brand) 65%, var(--ui-border));
+  background: var(--ui-brand) !important;
+  color: #fff !important;
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--ui-brand) 18%, transparent);
+}
+
+.stock-comparison-page [data-style-id="analysis-button"]:hover:not(:disabled) {
+  background: var(--ui-brand-strong) !important;
+}
+
+.stock-comparison-page .overflow-x-auto {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface);
+}
+
+.stock-comparison-page table thead tr {
+  background: var(--ui-surface-2) !important;
+}
+
+.stock-comparison-page table th {
+  color: var(--ui-text) !important;
+  font-weight: 700;
+}
+
+.stock-comparison-page table td {
+  border-color: var(--ui-border) !important;
+}
+
+.stock-comparison-page table tbody tr:hover {
+  background: color-mix(in srgb, var(--ui-brand) 4%, var(--ui-surface)) !important;
+}
+
+.stock-comparison-page [class*="rounded-lg"][class*="border"],
+.stock-comparison-page [class*="rounded-xl"][class*="border"],
+.stock-comparison-page [class*="rounded-2xl"][class*="border"] {
+  border-color: var(--ui-border) !important;
+}
+
+@media (max-width: 640px) {
+  .stock-comparison-page > h2 {
+    font-size: 1.35rem !important;
+  }
+
+  .stock-comparison-page > p {
+    font-size: .88rem;
+    line-height: 1.85;
+  }
+
+  .stock-comparison-page [data-style-id="analysis-form-card"] {
+    padding: 12px !important;
+    border-radius: 14px;
+  }
+
+  .stock-comparison-page [data-style-id="analysis-form-card"] form {
+    align-items: stretch;
+  }
+
+  .stock-comparison-page [data-style-id="analysis-form-card"] span {
+    text-align: center;
+    padding-block: 2px;
+  }
+
+  .stock-comparison-page [data-style-id="analysis-button"] {
+    width: 100%;
+  }
+
+  .stock-comparison-page table {
+    min-width: 1180px;
+  }
+}
