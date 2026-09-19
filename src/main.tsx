@@ -1,5 +1,6 @@
 ﻿// src/main.tsx - Entry Point اصلی اپلیکیشن رونیا
 import './index.css';
+import './fintech-ui.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
