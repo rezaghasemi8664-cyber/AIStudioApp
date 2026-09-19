@@ -41,7 +41,7 @@ const PortfolioReturnAnalysis: React.FC<Props> = ({ isOnline }) => {
     };
   }, [points]);
 
-  return <div dir="rtl" className="space-y-5">
+  return <div dir="rtl" className="page-shell portfolio-return-analysis-page space-y-5">
     <div className="flex items-center justify-between gap-3 flex-wrap">
       <div><h2 className="text-2xl font-black">بازدهی واقعی سرمایه‌گذاری</h2><p className="text-sm text-gray-500 dark:text-gray-400 mt-1">تفکیک تغییر سرمایه از سود و زیان ناشی از حرکت قیمت بر اساس داده واقعی</p></div>
       <button type="button" onClick={load} disabled={loading || !isOnline} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading ? 'در حال محاسبه...' : 'بروزرسانی'}</button>
