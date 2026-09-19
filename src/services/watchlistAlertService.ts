@@ -15,6 +15,8 @@ export interface CreateWatchlistAlertInput {
   status?: WatchlistAlertStatus;
 }
 
+export type WatchlistAlertDataStatus = 'LIVE' | 'CACHED' | 'UNAVAILABLE';
+
 export interface WatchlistAlertHistoryItem {
   id: string;
   ruleId: string;
@@ -26,7 +28,10 @@ export interface WatchlistAlertHistoryItem {
   triggeredAt: string;
   logic?: WatchlistAlertLogic;
   conditions?: Array<WatchlistAlertCondition & { value: number | null; matched: boolean }>;
-  snapshot?: { symbol: string; lastPrice: number | null; lastChangePercent: number | null; volume: number | null; closePrice: number | null; closeChangePercent: number | null; metric: WatchlistAlertMetric; value: number; capturedAt: string };
+  dataStatus?: WatchlistAlertDataStatus;
+  source?: string;
+  stale?: boolean;
+  snapshot?: { symbol: string; lastPrice: number | null; lastChangePercent: number | null; volume: number | null; closePrice: number | null; closeChangePercent: number | null; metric: WatchlistAlertMetric; value: number | null; capturedAt: string; dataStatus?: WatchlistAlertDataStatus; source?: string; stale?: boolean };
 }
 
 export async function getAlerts(): Promise<WatchlistAlertRule[]> { const response = await api.get(BASE_PATH); const data = unwrap<{ alerts?: WatchlistAlertRule[] }>(response); return Array.isArray(data?.alerts) ? data.alerts : []; }
@@ -34,4 +39,4 @@ export async function getAlertHistory(): Promise<WatchlistAlertHistoryItem[]> { 
 export async function createAlert(input: CreateWatchlistAlertInput): Promise<WatchlistAlertRule> { const response = await api.post(BASE_PATH, input); return unwrap<WatchlistAlertRule>(response); }
 export async function updateAlert(id: string, input: Partial<CreateWatchlistAlertInput>): Promise<WatchlistAlertRule> { const response = await api.put(`${BASE_PATH}/${encodeURIComponent(id)}`, input); return unwrap<WatchlistAlertRule>(response); }
 export async function deleteAlert(id: string): Promise<void> { await api.delete(`${BASE_PATH}/${encodeURIComponent(id)}`); }
-export async function evaluateAlerts(): Promise<{ triggered: number; evaluated: number }> { const response = await api.post(`${BASE_PATH}/evaluate`); return unwrap<{ triggered: number; evaluated: number }>(response); }
+export async function evaluateAlerts(): Promise<{ triggered: number; evaluated: number; details?: unknown[] }> { const response = await api.post(`${BASE_PATH}/evaluate`); return unwrap<{ triggered: number; evaluated: number }>(response); }
