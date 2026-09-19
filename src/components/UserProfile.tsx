@@ -130,7 +130,7 @@ const SubscriptionCard: React.FC<{
     <div
       data-style-id="user-profile-subscription-card"
       data-style-name="کارت وضعیت اشتراک"
-      className="p-6 rounded-lg shadow-md"
+      className="user-profile-card p-6 rounded-lg shadow-md"
       style={{
         backgroundColor: 'var(--user-profile-subscription-card-bg, var(--card-bg))',
         color: 'var(--user-profile-subscription-card-color, var(--card-color))',
