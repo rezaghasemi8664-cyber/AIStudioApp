@@ -440,6 +440,7 @@ const getAnalysisById = async (req, res) => {
        */
       result: parsedResult,
       parsedResult,
+      ...provenance,
     });
   } catch (error) {
     console.error('[AnalysisHistory] get by id error:', error);
