@@ -2358,3 +2358,22 @@ a:focus-visible {
   .analysis-data-quality-card { padding: 13px !important; border-radius: 14px !important; }
   .analysis-data-quality-card > div:first-child { gap: 8px !important; }
 }
+
+
+/* Smart Score workstation v33 */
+.smart-score-workstation { direction: rtl; }
+.smart-score-workstation > div {
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.055);
+  transition: box-shadow 160ms ease, transform 160ms ease;
+}
+.smart-score-workstation > div:hover { box-shadow: 0 14px 34px rgba(15, 23, 42, 0.09); }
+.smart-score-toolbar { border-color: var(--ws-border, var(--color-border)); }
+.smart-score-workstation select,
+.smart-score-workstation input { min-height: 42px; font-size: .86rem; }
+.smart-score-workstation button { min-height: 42px; box-shadow: 0 6px 16px rgba(8, 145, 178, .18); }
+.smart-score-workstation .text-5xl { font-variant-numeric: tabular-nums; line-height: 1; }
+.smart-score-workstation [style*="width"] { transition: width 350ms ease; }
+@media (max-width: 640px) {
+  .smart-score-workstation > div { border-radius: 14px; }
+  .smart-score-workstation .text-5xl { font-size: 2.5rem; }
+}
