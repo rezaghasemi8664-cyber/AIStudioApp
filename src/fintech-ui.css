@@ -2567,3 +2567,16 @@ a:focus-visible {
 .settings-ui-card form > div input:nth-child(2) { min-width: 260px; }
 .settings-loading-card { min-height: 220px; }
 @media (max-width: 640px) { .settings-workstation nav { width: 100%; overflow-x: auto; } .settings-workstation nav button { flex: 1 0 auto; } .settings-general-card, .settings-ui-card { padding: 18px; border-radius: 14px; } .settings-general-card .flex.items-center.justify-between { align-items: flex-start; gap: 12px; flex-direction: column; } .settings-ui-card form > div { flex-direction: column; align-items: stretch; } .settings-ui-card form > div input:first-child, .settings-ui-card form > div input:nth-child(2) { width: 100%; min-width: 0; } .settings-ui-card form > div button { align-self: flex-end; } }
+
+
+/* Public landing workstation v45 */
+.public-landing-workstation .public-card,
+.public-landing-workstation .public-step,
+.public-landing-workstation .public-cta { backdrop-filter: blur(12px); transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease; }
+.public-landing-workstation .public-card:hover { transform: translateY(-3px); border-color: rgba(34,211,238,.28); box-shadow: 0 24px 58px rgba(0,0,0,.20); }
+.public-landing-workstation .public-step:hover { transform: translateY(-2px); border-top-color: rgba(34,211,238,.55); }
+.public-landing-workstation .public-cta { box-shadow: 0 24px 70px rgba(0,0,0,.16); }
+.public-landing-workstation .public-btn { min-height: 44px; }
+.public-landing-workstation .public-btn-primary:hover { box-shadow: 0 14px 34px rgba(6,182,212,.28); }
+.public-landing-workstation .public-btn-ghost:hover { border-color: rgba(34,211,238,.28); background: rgba(34,211,238,.06); }
+@media (max-width: 560px) { .public-landing-workstation .public-card, .public-landing-workstation .public-step { border-radius: 16px; } .public-landing-workstation .public-btn { min-height: 46px; } }
