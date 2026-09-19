@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { appApiFetch } from '../services/apiConfigService';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
 interface StrategyLabProps { isOnline: boolean; }
 interface BacktestResult {
@@ -106,6 +107,41 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ isOnline }) => {
             <div>بازده مازاد: <b>{percentFa(result.excessReturnPercent)}</b></div><div>وجه نقد پایان: <b>{numberFa(result.cash)}</b></div>
           </div>
         </div>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mb-5">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-5 bg-white/70 dark:bg-slate-900/50">
+            <div className="font-bold mb-1">نمودار ارزش سرمایه</div>
+            <div className="text-xs text-slate-500 mb-3">مسیر سرمایه بر اساس معاملات واقعی شبیه‌سازی‌شده و قیمت‌های تاریخی؛ خط پایه برابر سرمایه اولیه است.</div>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={result.equityCurve}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} minTickGap={28} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(value) => numberFa(Number(value), 0)} />
+                  <Tooltip formatter={(value: number) => numberFa(Number(value), 0)} labelFormatter={(label) => String(label)} />
+                  <Line type="monotone" dataKey="equity" name="ارزش سرمایه" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-5 bg-white/70 dark:bg-slate-900/50">
+            <div className="font-bold mb-1">قیمت و میانگین‌های متحرک</div>
+            <div className="text-xs text-slate-500 mb-3">تقاطع‌ها مستقیماً از قیمت پایانی تاریخچه و میانگین‌های ساده انتخاب‌شده محاسبه شده‌اند.</div>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={result.equityCurve}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} minTickGap={28} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(value) => numberFa(Number(value), 0)} />
+                  <Tooltip formatter={(value: number) => numberFa(Number(value), 2)} labelFormatter={(label) => String(label)} />
+                  <Line type="monotone" dataKey="close" name="قیمت پایانی" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="shortSma" name="میانگین کوتاه" strokeWidth={1.5} dot={false} />
+                  <Line type="monotone" dataKey="longSma" name="میانگین بلند" strokeWidth={1.5} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
         <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-5 mb-5 bg-white/70 dark:bg-slate-900/50">
           <div className="font-bold mb-3">مسیر ارزش سبد در بک‌تست</div>
           <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="bg-slate-100 dark:bg-slate-800"><th className="p-2">تاریخ</th><th className="p-2">قیمت پایانی</th><th className="p-2">میانگین کوتاه</th><th className="p-2">میانگین بلند</th><th className="p-2">ارزش سبد</th></tr></thead><tbody>{equityPreview.map(point => <tr key={point.date} className="border-t border-slate-100 dark:border-slate-800"><td className="p-2">{point.date}</td><td className="p-2">{numberFa(point.close)}</td><td className="p-2">{numberFa(point.shortSma, 2)}</td><td className="p-2">{numberFa(point.longSma, 2)}</td><td className="p-2 font-bold">{numberFa(point.equity)}</td></tr>)}</tbody></table></div>
