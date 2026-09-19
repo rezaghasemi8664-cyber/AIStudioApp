@@ -10,7 +10,8 @@ interface Props { isOnline: boolean; }
 const READ_HISTORY_KEY = 'roniya_watchlist_alert_history_read';
 const metricLabel = (metric: WatchlistAlertMetric) => WATCHLIST_ALERT_METRICS.find(item => item.value === metric)?.label || metric;
 const operatorLabel = (operator: WatchlistAlertOperator) => WATCHLIST_ALERT_OPERATORS.find(item => item.value === operator)?.label || operator;
-const statusLabel: Record<WatchlistAlertRule['status'], string> = { armed: 'فعال', triggered: 'فعال‌شده', disabled: 'غیرفعال' };\nconst dataStatusLabel: Record<alertService.WatchlistAlertDataStatus, string> = { LIVE: 'داده زنده', CACHED: 'داده ذخیره‌شده', UNAVAILABLE: 'داده در دسترس نیست' };
+const statusLabel: Record<WatchlistAlertRule['status'], string> = { armed: 'فعال', triggered: 'فعال‌شده', disabled: 'غیرفعال' };
+const dataStatusLabel: Record<alertService.WatchlistAlertDataStatus, string> = { LIVE: 'داده زنده', CACHED: 'داده ذخیره‌شده', UNAVAILABLE: 'داده در دسترس نیست' };
 const readReadIds = (): string[] => { try { const value = JSON.parse(localStorage.getItem(READ_HISTORY_KEY) || '[]'); return Array.isArray(value) ? value.map(String) : []; } catch { return []; } };
 const persistReadIds = (ids: string[]) => { try { localStorage.setItem(READ_HISTORY_KEY, JSON.stringify(ids.slice(-500))); } catch { /* ignore */ } };
 
@@ -21,7 +22,8 @@ const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
   const [readIds, setReadIds] = useState<string[]>(readReadIds);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [symbols, setSymbols] = useState<watchlistService.WatchlistSymbol[]>([]);
-  const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [evaluating, setEvaluating] = useState(false);\n  const dataStatus = useMemo<alertService.WatchlistAlertDataStatus>(() => { const statuses = history.map(item => item.dataStatus || item.snapshot?.dataStatus).filter(Boolean) as alertService.WatchlistAlertDataStatus[]; return statuses.includes('LIVE') ? 'LIVE' : (statuses.includes('CACHED') ? 'CACHED' : 'UNAVAILABLE'); }, [history]);
+  const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [evaluating, setEvaluating] = useState(false);
+  const dataStatus = useMemo<alertService.WatchlistAlertDataStatus>(() => { const statuses = history.map(item => item.dataStatus || item.snapshot?.dataStatus).filter(Boolean) as alertService.WatchlistAlertDataStatus[]; return statuses.includes('LIVE') ? 'LIVE' : (statuses.includes('CACHED') ? 'CACHED' : 'UNAVAILABLE'); }, [history]);
   const [symbol, setSymbol] = useState('');
   const [logic, setLogic] = useState<WatchlistAlertLogic>('AND');
   const [conditions, setConditions] = useState<WatchlistAlertCondition[]>([{ metric: 'lastPrice', operator: 'gte', threshold: 0 }]);
@@ -81,7 +83,8 @@ const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
   };
 
   return <div dir="rtl" className="page-shell watchlist-alerts-page space-y-5">
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">\n      <div className={`col-span-2 md:col-span-5 rounded-2xl border p-3 watchlist-alert-data-${dataStatus}`}><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="text-xs text-gray-500 dark:text-gray-400">وضعیت داده موتور هشدار</div><div className="font-black mt-1">{dataStatusLabel[dataStatus]}</div></div><div className="text-xs text-gray-500 dark:text-gray-400">هشدار فقط با داده واقعی بازار بررسی می‌شود؛ در نبود داده هیچ Trigger جعلی ایجاد نمی‌شود.</div></div></div>
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className={`col-span-2 md:col-span-5 rounded-2xl border p-3 watchlist-alert-data-${dataStatus}`}><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="text-xs text-gray-500 dark:text-gray-400">وضعیت داده موتور هشدار</div><div className="font-black mt-1">{dataStatusLabel[dataStatus]}</div></div><div className="text-xs text-gray-500 dark:text-gray-400">هشدار فقط با داده واقعی بازار بررسی می‌شود؛ در نبود داده هیچ Trigger جعلی ایجاد نمی‌شود.</div></div></div>
       {[['کل هشدارها', stats.total], ['فعال', stats.armed], ['فعال‌شده', stats.triggered], ['غیرفعال', stats.disabled], ['خوانده‌نشده', stats.unread]].map(([label, value]) => <div key={String(label)} className={`rounded-2xl border p-4 ${label === 'خوانده‌نشده' && Number(value) > 0 ? 'border-amber-400 bg-amber-50/80 dark:bg-amber-950/20' : 'border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60'}`}><div className="text-xs text-gray-500 dark:text-gray-400">{label}</div><div className="mt-1 text-2xl font-black">{Number(value).toLocaleString('fa-IR')}</div></div>)}
     </div>
 
