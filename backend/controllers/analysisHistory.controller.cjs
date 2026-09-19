@@ -2,8 +2,8 @@
 
 const prisma = require('../config/prisma.cjs');
 
-const DEFAULT_HISTORY_LIMIT = 20;
-const MAX_HISTORY_LIMIT = 100;
+const DEFAULT_HISTORY_LIMIT = 10;
+const MAX_HISTORY_LIMIT = 10;
 
 function toInt(value) {
   const n = Number.parseInt(value, 10);
@@ -235,7 +235,7 @@ const createAnalysisHistory = async (req, res) => {
     });
 
     /*
-     * فقط 3 رکورد آخر هر کاربر نگه داشته می‌شود.
+     * فقط 10 رکورد آخر هر کاربر نگه داشته می‌شود.
      */
     const allIds = await prisma.analysisHistory.findMany({
       where: { userId },
@@ -243,9 +243,9 @@ const createAnalysisHistory = async (req, res) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    if (allIds.length > MAX_HISTORY_ITEMS) {
+    if (allIds.length > MAX_HISTORY_LIMIT) {
       const idsToDelete = allIds
-        .slice(MAX_HISTORY_ITEMS)
+        .slice(MAX_HISTORY_LIMIT)
         .map((item) => item.id);
 
       await prisma.analysisHistory.deleteMany({
@@ -282,7 +282,7 @@ const createAnalysisHistory = async (req, res) => {
 /**
  * GET /api/v1/analysis-history
  *
- * آخرین 3 تحلیل کاربر.
+ * آخرین 10 تحلیل کاربر.
  */
 const getAnalysisHistory = async (req, res) => {
   try {
@@ -579,7 +579,7 @@ const getHistoryStats = async (req, res) => {
       orderBy: {
         createdAt: 'desc',
       },
-      take: 5000,
+      take: MAX_HISTORY_LIMIT,
     });
 
     let buyCount = 0;
@@ -624,7 +624,7 @@ const getHistoryStats = async (req, res) => {
               .filter(Boolean)
           ),
         ],
-        maxItems: 5000,
+        maxItems: MAX_HISTORY_LIMIT,
       },
     });
   } catch (error) {
