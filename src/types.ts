@@ -63,7 +63,59 @@ export interface AdminDashboardStats { totalUsers: number; activeSubscriptions: 
 export interface AdminUserListItem { id: string; username: string; name: string | null; email: string | null; phone: string | null; mobile: string | null; role: string; isActive: boolean; isSubscriptionActive: boolean; subscriptionStart: string | null; subscriptionEnd: string | null; subscriptionDays: number; subscriptionMonths: number; analysisLimit: number; remainingDays: number; analysisCount: number; createdAt: string; updatedAt: string; }
 export interface AdminUpdateSubscriptionData { userId: string; isSubscriptionActive: boolean; subscriptionStart: string; subscriptionEnd: string; subscriptionDays: number; subscriptionMonths: number; analysisLimit: number; }
 export interface SystemRole { id: string; name: string; description?: string; }
-export interface ApiResponse<T = unknown> { success: boolean; data?: T; error?: string; message?: string; statusCode?: number; ok?: boolean; }
+
+// =============================================================================
+// Phase 1 - Real Data Contracts
+// These contracts describe only real, server/source-backed data.
+// No mock, demo, generated, or fallback market values are permitted.
+// =============================================================================
+export type DataSourceStatus = 'LIVE' | 'CACHED' | 'UNAVAILABLE';
+
+export interface DataSourceMeta {
+  status: DataSourceStatus;
+  source?: string;
+  fetchedAt?: string;
+  cachedAt?: string;
+  stale?: boolean;
+  requestId?: string;
+}
+
+export interface MarketQuoteContract {
+  symbol: string;
+  name?: string;
+  lastPrice: number | null;
+  closePrice: number | null;
+  change: number | null;
+  changePercent: number | null;
+  volume: number | null;
+  value: number | null;
+  timestamp: string;
+  source: string;
+}
+
+export interface MarketCandleContract {
+  symbol: string;
+  interval: string;
+  timestamp: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number | null;
+  source: string;
+}
+
+export interface CodalNoticeContract {
+  id: string;
+  symbol?: string;
+  title: string;
+  publishedAt: string;
+  url: string;
+  noticeType?: string;
+  source: 'CODAL';
+}
+
+export interface ApiResponse<T = unknown> { success: boolean; data?: T; error?: string; message?: string; statusCode?: number; ok?: boolean; meta?: DataSourceMeta; }
 export type ApiResult<T = unknown> = ApiResponse<T>;
 export interface LoginResponse { user: UserProfile; accessToken: string; refreshToken?: string; }
 export interface ChangePasswordResponse { message: string; }
