@@ -2452,3 +2452,17 @@ a:focus-visible {
   .market-index-workstation { border-radius: 14px; }
   .market-index-workstation > div:first-child { padding: 11px 12px; }
 }
+
+
+/* Welcome banner workstation v37 */
+.roniya-welcome-banner { background: rgba(2,6,23,.68); }
+.roniya-welcome-card { border: 1px solid var(--ws-border, var(--color-border)); background: var(--ws-card-bg, var(--color-surface)); box-shadow: 0 24px 70px rgba(0,0,0,.28); backdrop-filter: blur(18px); }
+.roniya-welcome-card h2 { letter-spacing: -.025em; }
+.roniya-welcome-card .roniya-welcome-content { padding-top: 30px; padding-bottom: 30px; }
+.roniya-welcome-card button { min-height: 44px; transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease; }
+.roniya-welcome-card button:hover { filter: brightness(1.04); box-shadow: 0 10px 24px rgba(15,23,42,.18); }
+.roniya-welcome-card > button { min-height: 40px; }
+@media (max-width: 640px) {
+  .roniya-welcome-card { border-radius: 16px; }
+  .roniya-welcome-card .roniya-welcome-content { padding: 24px 18px; }
+}
