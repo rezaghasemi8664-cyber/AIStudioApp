@@ -144,6 +144,9 @@ router.put('/:id/quotes', authMiddleware, async (req, res) => {
         closePrice: Number.isFinite(Number(quote?.closePrice)) ? Number(quote.closePrice) : null,
         closeChangePercent: Number.isFinite(Number(quote?.closeChangePercent)) ? Number(quote.closeChangePercent) : null,
         updatedAt: String(quote?.updatedAt || new Date().toISOString()),
+        dataStatus: ['LIVE', 'CACHED', 'UNAVAILABLE'].includes(quote?.dataStatus) ? quote.dataStatus : 'CACHED',
+        source: quote?.source ? String(quote.source) : undefined,
+        stale: Boolean(quote?.stale),
       });
     }
 
