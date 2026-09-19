@@ -54,8 +54,9 @@ const MostTradedStocks: React.FC<MostTradedStocksProps> = ({ onSymbolClick, isOn
     return (
         <div 
           data-style-id="most-traded-card"
+          data-workstation-page="most-traded"
           data-style-name="کارت پرتراکنش‌ها"
-          className="p-4 rounded-lg"
+          className="most-traded-stocks-card p-4 rounded-lg"
           style={{ 
               backgroundColor: 'var(--most-traded-card-bg)',
               color: 'var(--most-traded-card-color)',
