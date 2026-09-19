@@ -585,6 +585,9 @@ const getHistoryStats = async (req, res) => {
       take: MAX_HISTORY_LIMIT,
     });
 
+    const latestAt = items[0]?.createdAt ?? null;
+    const firstAt = items.length > 0 ? items[items.length - 1].createdAt : null;
+
     let buyCount = 0;
     let sellCount = 0;
     let holdCount = 0;
@@ -628,6 +631,8 @@ const getHistoryStats = async (req, res) => {
           ),
         ],
         maxItems: MAX_HISTORY_LIMIT,
+        latestAt,
+        firstAt,
       },
     });
   } catch (error) {
