@@ -41,7 +41,7 @@ const RoniaAssistant: React.FC<RoniaAssistantProps> = ({ isOnline, onNavigate })
   const examples = ['قیمت فملی چیست؟', 'امتیاز فملی', 'جریان پول فولاد', 'ریسک شپنا', 'بازده یک ماه فملی', 'کیفیت داده فملی', 'فملی و فولاد را مقایسه کن'];
 
   return (
-    <div className="max-w-6xl mx-auto" dir="rtl">
+    <div className="roniya-assistant-workstation max-w-6xl mx-auto" dir="rtl">
       <div className="mb-6">
         <h2 className="text-2xl font-black text-cyan-600 dark:text-cyan-400">دستیار رونیا</h2>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">دستیار قطعی و داده‌محور؛ بدون Gemini، بدون AI و بدون داده ساختگی.</p>
