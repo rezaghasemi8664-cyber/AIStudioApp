@@ -2452,7 +2452,7 @@ const clearCurrentAnalysis = () => {
                           ? 'داده زنده'
                           : item.dataStatus === 'CACHED'
                             ? 'داده ذخیره‌شده'
-                            : 'وضعیت داده نامشخص'}
+                            : 'داده در دسترس نیست'}
                       </span>
                       {item.source ? (
                         <span className="text-[10px] font-semibold text-slate-500">
