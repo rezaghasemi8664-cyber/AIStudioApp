@@ -33,7 +33,7 @@ const CodalSensitiveEvents: React.FC<Props> = ({ isOnline }) => {
   const visible = selectedCategory === 'all' ? items : items.filter(item => item.category === selectedCategory);
   const count = (category: string) => items.filter(item => item.category === category).length;
 
-  return <section dir="rtl" className="space-y-4">
+  return <section dir="rtl" className="page-shell codal-sensitive-events-page space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4">
       <div><h3 className="font-black text-lg">رویدادهای حساس کدال</h3><p className="text-xs text-gray-500 mt-1">فقط بر اساس دسته‌بندی قطعی اطلاعیه‌های واقعی کدال؛ بدون تحلیل هوش مصنوعی</p></div>
       <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading ? 'در حال دریافت…' : 'به‌روزرسانی'}</button>
