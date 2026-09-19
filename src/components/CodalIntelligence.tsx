@@ -19,7 +19,7 @@ const CodalIntelligence: React.FC<Props> = ({ isOnline }) => {
   const selectedMetrics = selected?.financialMetrics || {}; const timelineItems = filteredItems.slice(0, 12); const trend = result?.summary.periodicTrend;
   const trendMax = Math.max(...(trend?.periods || []).map(point => point.reports), 1);
 
-  return <section dir="rtl" className="space-y-4">
+  return <section dir="rtl" className="page-shell codal-intelligence-page space-y-5">
     <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4"><div className="flex flex-wrap items-end gap-3">
       <div className="min-w-[180px] flex-1"><label className="block text-sm font-bold mb-2">نماد</label><input value={symbol} onChange={e => setSymbol(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void load(); }} placeholder="مثلاً فملی" className="w-full rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2" /></div>
       <div><label className="block text-sm font-bold mb-2">از تاریخ</label><input value={from} onChange={e => setFrom(e.target.value)} placeholder="YYYY-MM-DD" className="rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2" /></div>
