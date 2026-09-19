@@ -21,8 +21,8 @@ const SmartScore: React.FC<Props> = ({ symbol: externalSymbol = '', isOnline }) 
   useEffect(() => { void load(); }, [load]);
   const submit = (event: React.FormEvent) => { event.preventDefault(); const clean = input.trim().toUpperCase(); if (clean) setSymbol(clean); };
 
-  return <div dir="rtl" className="space-y-4">
-    <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4">
+  return <div dir="rtl" className="smart-score-workstation space-y-4">
+    <div className="smart-score-toolbar rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3"><div><h2 className="text-xl font-black">Smart Score</h2><p className="text-xs text-gray-500 mt-1">امتیاز کاملاً داده‌محور و قابل ممیزی؛ بدون هوش مصنوعی</p></div><form onSubmit={submit} className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto"><select value={symbol} onChange={e => { setSymbol(e.target.value); setInput(e.target.value); }} className="rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2 min-w-52"><option value="">انتخاب از دیده‌بان</option>{watchlistSymbols.map(item => <option key={item.symbol} value={item.symbol}>{item.symbol} — {item.name}</option>)}</select><input value={input} onChange={e => setInput(e.target.value)} placeholder="مثلاً فملی" className="rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2 min-w-40"/><button type="submit" disabled={!isOnline || loading} className="rounded-xl bg-cyan-600 text-white px-5 py-2 font-bold disabled:opacity-50">محاسبه امتیاز</button></form></div>
     </div>
     {!symbol && <div className="rounded-2xl border border-dashed border-[var(--color-border)] p-10 text-center text-gray-500">یک نماد را انتخاب یا وارد کنید تا Smart Score محاسبه شود.</div>}
