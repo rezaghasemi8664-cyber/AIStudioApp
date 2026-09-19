@@ -1,0 +1,400 @@
+/* Roniya FinTech UI foundation
+ * Visual-only layer. Loaded after the legacy UI stylesheet so it can
+ * standardize readability and responsive behavior without changing data flow.
+ */
+
+:root {
+  color-scheme: light;
+  --ui-bg: #f4f7fb;
+  --ui-surface: #ffffff;
+  --ui-surface-2: #f8fafc;
+  --ui-border: #dbe3ee;
+  --ui-text: #172033;
+  --ui-muted: #5b667a;
+  --ui-brand: #0f766e;
+  --ui-brand-strong: #0b5f59;
+  --ui-positive: #15803d;
+  --ui-negative: #dc2626;
+  --ui-warning: #b45309;
+  --ui-radius: 16px;
+  --ui-radius-sm: 11px;
+  --ui-shadow: 0 8px 28px rgba(15, 23, 42, .07);
+  --ui-shadow-hover: 0 14px 34px rgba(15, 23, 42, .11);
+}
+
+html {
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html.dark {
+  color-scheme: dark;
+  --ui-bg: #0b1120;
+  --ui-surface: #111827;
+  --ui-surface-2: #172033;
+  --ui-border: #29364b;
+  --ui-text: #edf2f7;
+  --ui-muted: #aab6c8;
+  --ui-brand: #2aa89c;
+  --ui-brand-strong: #53c7bb;
+  --ui-positive: #4ade80;
+  --ui-negative: #fb7185;
+  --ui-warning: #fbbf24;
+  --ui-shadow: 0 10px 30px rgba(0, 0, 0, .20);
+  --ui-shadow-hover: 0 16px 38px rgba(0, 0, 0, .30);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font-family: var(--font-sans-fa), Vazirmatn, Estedad, Tahoma, Arial, sans-serif;
+  overflow-x: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+[role="button"],
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--ui-brand) 30%, transparent);
+  outline-offset: 2px;
+}
+
+.app-shell {
+  background: var(--ui-bg);
+  color: var(--ui-text);
+}
+
+.app-main {
+  min-width: 0;
+  width: 100%;
+}
+
+/* Shared surfaces */
+.app-shell .rounded-xl.border,
+.app-shell .rounded-2xl.border,
+.app-shell .rounded-3xl.border,
+.page-shell .rounded-xl.border,
+.page-shell .rounded-2xl.border,
+.page-shell .rounded-3xl.border {
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface);
+}
+
+.page-shell {
+  width: 100%;
+  max-width: 1320px;
+  margin-inline: auto;
+  min-width: 0;
+}
+
+.page-shell > * {
+  min-width: 0;
+}
+
+.page-shell table {
+  color: var(--ui-text);
+}
+
+.page-shell th {
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
+}
+
+.page-shell td {
+  color: var(--ui-text);
+}
+
+/* Keep secondary information readable in both themes. */
+.app-shell .text-gray-400,
+.app-shell .text-gray-500,
+.app-shell .text-slate-400,
+.app-shell .text-slate-500 {
+  color: var(--ui-muted) !important;
+}
+
+.dark .app-shell .text-white,
+.dark .page-shell .text-white {
+  color: #f8fafc !important;
+}
+
+/* Consistent interactive controls. */
+.page-shell button {
+  min-height: 40px;
+  border-radius: var(--ui-radius-sm);
+  transition: background-color .16s ease, border-color .16s ease,
+    color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.page-shell button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.page-shell button:disabled {
+  cursor: not-allowed;
+}
+
+/* Financial semantics */
+.page-shell .text-green-500,
+.page-shell .text-green-600,
+.page-shell .text-green-700,
+.page-shell .text-emerald-500,
+.page-shell .text-emerald-600,
+.page-shell .text-emerald-700 {
+  color: var(--ui-positive) !important;
+}
+
+.page-shell .text-red-500,
+.page-shell .text-red-600,
+.page-shell .text-red-700,
+.page-shell .text-rose-500,
+.page-shell .text-rose-600,
+.page-shell .text-rose-700 {
+  color: var(--ui-negative) !important;
+}
+
+/* Data tables: preserve horizontal scrolling instead of squeezing columns. */
+.page-shell .overflow-x-auto {
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.page-shell table {
+  font-variant-numeric: tabular-nums;
+}
+
+.page-shell th,
+.page-shell td {
+  white-space: nowrap;
+}
+
+.page-shell td,
+.page-shell th {
+  min-height: 42px;
+}
+
+/* Charts must never force the page wider than the viewport. */
+.page-shell .recharts-responsive-container,
+.page-shell .recharts-wrapper,
+.page-shell svg {
+  max-width: 100%;
+}
+
+.page-shell .recharts-responsive-container {
+  min-width: 0;
+}
+
+/* Header and navigation stay usable on narrow screens. */
+.app-header {
+  min-width: 0;
+  max-width: 1320px;
+  margin-inline: auto;
+}
+
+.app-header > * {
+  min-width: 0;
+}
+
+.app-nav {
+  min-width: 0;
+  max-width: 1320px;
+  margin-inline: auto;
+}
+
+.app-nav-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.app-nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.app-nav-scroll > button,
+.app-nav-scroll > .relative {
+  flex: 0 0 auto;
+}
+
+/* Avoid accidental viewport overflow from long Persian labels. */
+.page-shell h1,
+.page-shell h2,
+.page-shell h3,
+.page-shell h4,
+.page-shell p,
+.page-shell label {
+  overflow-wrap: anywhere;
+}
+
+/* Tablet */
+@media (max-width: 900px) {
+  .app-shell {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .app-header,
+  .app-nav {
+    max-width: 100%;
+  }
+
+  .page-shell {
+    max-width: 100%;
+  }
+
+  .page-shell .grid {
+    min-width: 0;
+  }
+
+  .page-shell .overflow-x-auto {
+    border-radius: 12px;
+  }
+}
+
+/* Phone */
+@media (max-width: 640px) {
+  body {
+    font-size: 14px;
+  }
+
+  .app-shell {
+    padding-inline: 6px !important;
+  }
+
+  .app-header {
+    border-radius: 14px !important;
+  }
+
+  .app-header .brand-title {
+    max-width: 48vw;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .app-nav-scroll {
+    border-radius: 13px;
+    padding: 4px;
+  }
+
+  .app-nav-scroll > button,
+  .app-nav-scroll > .relative > button {
+    min-height: 42px;
+    padding-inline: 11px !important;
+    font-size: .82rem !important;
+  }
+
+  .page-shell .p-6 {
+    padding: 14px !important;
+  }
+
+  .page-shell .p-5 {
+    padding: 13px !important;
+  }
+
+  .page-shell .p-4 {
+    padding: 12px !important;
+  }
+
+  .page-shell .gap-6 {
+    gap: 14px !important;
+  }
+
+  .page-shell .gap-5 {
+    gap: 12px !important;
+  }
+
+  .page-shell .gap-4 {
+    gap: 10px !important;
+  }
+
+  .page-shell input,
+  .page-shell select,
+  .page-shell textarea {
+    min-height: 42px;
+    font-size: 16px !important; /* prevents iOS Safari auto-zoom */
+  }
+
+  .page-shell table {
+    min-width: 620px;
+  }
+
+  .page-shell .text-3xl {
+    font-size: 1.55rem !important;
+  }
+
+  .page-shell .text-2xl {
+    font-size: 1.35rem !important;
+  }
+
+  .page-shell .text-xl {
+    font-size: 1.15rem !important;
+  }
+}
+
+/* Very small phones */
+@media (max-width: 390px) {
+  .app-shell {
+    padding-inline: 4px !important;
+  }
+
+  .app-header {
+    padding-inline: 8px !important;
+  }
+
+  .app-header .brand-logo {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .app-header .brand-title {
+    max-width: 42vw;
+    font-size: .82rem !important;
+  }
+
+  .app-nav-scroll > button,
+  .app-nav-scroll > .relative > button {
+    min-height: 40px;
+    padding-inline: 9px !important;
+    font-size: .78rem !important;
+  }
+
+  .page-shell .rounded-2xl,
+  .page-shell .rounded-3xl {
+    border-radius: 14px !important;
+  }
+}
+
+/* Accessibility: don't force motion on users who disable it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
