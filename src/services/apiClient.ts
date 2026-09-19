@@ -26,6 +26,24 @@ const buildUrl = (endpoint: string): string => {
   return /^https?:\/\//i.test(normalized) ? normalized : `${getBaseUrl()}${normalized}`;
 };
 
+function extractDataSourceMeta(payload: unknown, response: Response): import('../types').DataSourceMeta | undefined {
+  if (!payload || typeof payload !== 'object') return undefined;
+  const record = payload as Record<string, unknown>;
+  const candidate = record.meta ?? record.dataMeta ?? record.dataSource;
+  if (!candidate || typeof candidate !== 'object') return undefined;
+  const meta = candidate as Record<string, unknown>;
+  const status = meta.status;
+  if (status !== 'LIVE' && status !== 'CACHED' && status !== 'UNAVAILABLE') return undefined;
+  return {
+    status,
+    source: typeof meta.source === 'string' ? meta.source : undefined,
+    fetchedAt: typeof meta.fetchedAt === 'string' ? meta.fetchedAt : undefined,
+    cachedAt: typeof meta.cachedAt === 'string' ? meta.cachedAt : undefined,
+    stale: typeof meta.stale === 'boolean' ? meta.stale : undefined,
+    requestId: typeof meta.requestId === 'string' ? meta.requestId : response.headers.get('x-request-id') || undefined,
+  };
+}
+
 function toFinite(value: unknown): number | null {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
@@ -141,8 +159,8 @@ export async function request<T>(method: string, endpoint: string, data?: unknow
       payload = await enrichStockAnalysis(payload, symbol, headers);
     }
 
-    if (payload && typeof payload === 'object' && 'success' in payload) return { ...(payload as ApiResponse<T>), statusCode: response.status };
-    return { success: response.ok, data: payload as T, message: response.ok ? undefined : payload?.message || `HTTP Error ${response.status}`, statusCode: response.status };
+    if (payload && typeof payload === 'object' && 'success' in payload) return { ...(payload as ApiResponse<T>), statusCode: response.status, meta: extractDataSourceMeta(payload, response) };
+    return { success: response.ok, data: payload as T, message: response.ok ? undefined : payload?.message || `HTTP Error ${response.status}`, statusCode: response.status, meta: extractDataSourceMeta(payload, response) };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'An unexpected network error occurred';
     console.error(`[apiClient] ${method} ${endpoint} failed:`, error);
