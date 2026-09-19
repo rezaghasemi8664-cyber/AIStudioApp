@@ -236,11 +236,11 @@ function normalizePagination(
       ? Math.max(
           1,
           Math.min(
-            100,
+            10,
             Math.floor(limit)
           )
         )
-      : 3;
+      : 10;
 
   const safeOffset =
     Number.isFinite(offset)
@@ -362,7 +362,7 @@ export async function addAnalysisToHistory(
  */
 export async function getAnalysisHistory(
   _userId: string,
-  limit: number = 20,
+  limit: number = 10,
   offset: number = 0
 ): Promise<AnalysisHistoryItem[]> {
   const {
@@ -561,10 +561,10 @@ export async function clearAnalysisHistory(
 export async function getAnalysisHistoryStats(_userId: string): Promise<AnalysisHistoryStats> {
   const raw = await appApiFetch<ApiWrapped<AnalysisHistoryStats> | AnalysisHistoryStats>('/analysis-history/stats');
   const data = unwrapApiData<AnalysisHistoryStats>(raw);
-  return data ?? { total: 0, buyCount: 0, sellCount: 0, holdCount: 0, uniqueSymbols: [], maxItems: 5000, latestAt: null, firstAt: null };
+  return data ?? { total: 0, buyCount: 0, sellCount: 0, holdCount: 0, uniqueSymbols: [], maxItems: 10, latestAt: null, firstAt: null };
 }
 
-export async function getAnalysisHistoryPage(_userId: string, limit = 20, offset = 0): Promise<AnalysisHistoryPage> {
+export async function getAnalysisHistoryPage(_userId: string, limit = 10, offset = 0): Promise<AnalysisHistoryPage> {
   const items = await getAnalysisHistory(_userId, limit, offset);
   return { items, total: items.length, limit, offset, hasMore: items.length === limit };
 }
