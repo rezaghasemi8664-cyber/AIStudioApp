@@ -144,6 +144,7 @@ router.get('/stats', getHistoryStats);
 // DELETE /analysis-history/clear-all   → حذف کل تاریخچه کاربر
 // نکته: از /clear-all استفاده شد تا با DELETE /:id تداخل نکند
 router.delete('/clear-all', clearHistory);
+router.delete('/clear', clearHistory);
 
 // ══════════════════════════════════════════════════════════════════
 // مسیرهای ریشه (بدون پارامتر)
