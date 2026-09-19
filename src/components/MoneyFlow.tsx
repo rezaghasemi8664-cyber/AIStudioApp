@@ -67,7 +67,7 @@ const MoneyFlow: React.FC<MoneyFlowProps> = ({ type, isOnline }) => {
     return (
         <div 
           data-style-id="most-traded-card"
-          className="p-4 rounded-lg"
+          className="money-flow-card p-4 rounded-lg"
           style={{ 
               backgroundColor: 'var(--most-traded-card-bg)', 
               color: 'var(--most-traded-card-color)',
