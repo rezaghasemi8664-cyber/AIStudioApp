@@ -2232,3 +2232,40 @@ a:focus-visible {
     transition: none;
   }
 }
+
+
+/* Market breadth workstation v29 */
+.market-breadth-panel {
+  min-width: 0;
+  box-shadow: var(--ui-shadow-sm);
+}
+.market-breadth-panel h3 {
+  letter-spacing: -0.015em;
+  line-height: 1.5;
+}
+.market-breadth-panel .font-black {
+  font-variant-numeric: tabular-nums;
+}
+.market-breadth-panel > div:last-child > div:first-child {
+  min-width: 0;
+}
+.market-breadth-panel > div:last-child > div:first-child > div {
+  transition: width 180ms ease;
+}
+@media (max-width: 767px) {
+  .market-breadth-panel {
+    padding: 1rem;
+    border-radius: 1.25rem;
+  }
+  .market-breadth-panel .grid {
+    gap: 0.5rem;
+  }
+  .market-breadth-panel .grid > div {
+    padding: 0.75rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .market-breadth-panel > div:last-child > div:first-child > div {
+    transition: none;
+  }
+}
