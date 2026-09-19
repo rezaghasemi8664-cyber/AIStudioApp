@@ -22,6 +22,9 @@ export interface WatchlistQuote extends WatchlistSymbol {
   closePrice: number | null;
   closeChangePercent: number | null;
   updatedAt: string;
+  dataStatus?: 'LIVE' | 'CACHED' | 'UNAVAILABLE';
+  source?: string;
+  stale?: boolean;
 }
 
 function unwrap<T>(response: any): T {
@@ -88,6 +91,8 @@ export async function getQuote(symbol: string): Promise<WatchlistQuote> {
   const volume = number(data.tvol, data.qTotTran5J, data.volume, data.tradeVolume);
   const lastChangePercent = number(data.plp, data.lastChangePercent, data.percentChange, data.priceChangePercent);
   const closeChangePercent = number(data.pcp, data.closeChangePercent, data.closingChangePercent);
+  const meta = raw?.meta ?? response?.data?.meta ?? {};
+  const dataStatus = meta.status === 'LIVE' || meta.status === 'CACHED' || meta.status === 'UNAVAILABLE' ? meta.status : 'UNAVAILABLE';
   const yesterday = number(data.pYest, data.py, data.yesterdayPrice, data.previousClose, data.yesterday);
 
   return {
@@ -99,6 +104,9 @@ export async function getQuote(symbol: string): Promise<WatchlistQuote> {
     closePrice,
     closeChangePercent: closeChangePercent ?? (closePrice != null && yesterday ? ((closePrice - yesterday) / yesterday) * 100 : null),
     updatedAt: new Date().toISOString(),
+    dataStatus,
+    source: meta.source ? String(meta.source) : undefined,
+    stale: Boolean(meta.stale),
   };
 }
 
