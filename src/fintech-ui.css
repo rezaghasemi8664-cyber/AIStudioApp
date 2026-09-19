@@ -2414,3 +2414,23 @@ a:focus-visible {
 @media (max-width: 640px) {
   .user-profile-card { border-radius: 14px; padding: 1rem !important; }
 }
+
+
+/* Dashboard header workstation v36 */
+.dashboard-header {
+  padding: 14px 16px;
+  border: 1px solid var(--ws-border, rgba(148, 163, 184, .16));
+  border-radius: 16px;
+  background: var(--ws-card-bg, rgba(255,255,255,.72));
+  box-shadow: 0 10px 26px rgba(15,23,42,.055);
+  backdrop-filter: blur(10px);
+}
+.dashboard-header h1 { letter-spacing: -.02em; }
+.dashboard-header button { min-height: 40px; transition: transform 140ms ease, box-shadow 140ms ease; }
+.dashboard-header button:hover { transform: translateY(-1px); box-shadow: 0 7px 16px rgba(15,23,42,.10); }
+.dashboard-header span { white-space: nowrap; }
+@media (max-width: 640px) {
+  .dashboard-header { padding: 13px; border-radius: 14px; }
+  .dashboard-header > div:last-child { width: 100%; }
+  .dashboard-header button { flex: 1; }
+}
