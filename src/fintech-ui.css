@@ -1601,3 +1601,65 @@ a:focus-visible {
     animation: none !important;
   }
 }
+
+
+/* Trader dashboard workstation v18 */
+.trader-dashboard-page {
+  width: min(100%, 1440px);
+  margin-inline: auto;
+}
+
+.trader-dashboard-page > header {
+  padding: 0.15rem 0;
+}
+
+.trader-dashboard-page > header h1 {
+  letter-spacing: -0.02em;
+}
+
+.trader-dashboard-page section,
+.trader-dashboard-page > div > section {
+  min-width: 0;
+}
+
+.trader-dashboard-page button {
+  min-height: 42px;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.trader-dashboard-page button:hover:not(:disabled) {
+  box-shadow: var(--ui-shadow-sm);
+}
+
+.trader-dashboard-page .tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.trader-dashboard-page a {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+  .trader-dashboard-page {
+    width: 100%;
+  }
+
+  .trader-dashboard-page > header h1 {
+    font-size: 1.35rem;
+    line-height: 1.35;
+  }
+
+  .trader-dashboard-page > header p {
+    line-height: 1.8;
+  }
+
+  .trader-dashboard-page button {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trader-dashboard-page button {
+    transition: none;
+  }
+}
