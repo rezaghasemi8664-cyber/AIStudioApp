@@ -2128,3 +2128,52 @@ a:focus-visible {
     transition: none;
   }
 }
+
+
+/* Codal period analysis workstation v27 */
+.codal-period-analysis-page {
+  width: min(100%, 1440px);
+  margin-inline: auto;
+}
+.codal-period-analysis-page h2 {
+  letter-spacing: -0.02em;
+  line-height: 1.45;
+}
+.codal-period-analysis-page button {
+  min-height: 42px;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.codal-period-analysis-page button:hover:not(:disabled) {
+  box-shadow: var(--ui-shadow-sm);
+}
+.codal-period-analysis-page button:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.codal-period-analysis-page [class*="rounded-2xl"],
+.codal-period-analysis-page [class*="rounded-xl"] {
+  border-color: var(--ui-border);
+}
+.codal-period-analysis-page [class*="text-2xl"],
+.codal-period-analysis-page [class*="font-black"] {
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 767px) {
+  .codal-period-analysis-page {
+    width: 100%;
+  }
+  .codal-period-analysis-page h2 {
+    font-size: 1.2rem;
+  }
+  .codal-period-analysis-page button {
+    min-height: 44px;
+  }
+  .codal-period-analysis-page > div:first-child {
+    align-items: stretch;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .codal-period-analysis-page button {
+    transition: none;
+  }
+}
