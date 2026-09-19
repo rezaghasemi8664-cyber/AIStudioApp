@@ -9,7 +9,7 @@ interface BacktestResult {
   initialCapital: number; finalValue: number; returnPercent: number; buyHoldReturnPercent: number;
   excessReturnPercent: number; maxDrawdown: number; tradeCount: number; closedTradeCount: number;
   winRate: number | null; profitFactor: number | null; grossProfit: number; grossLoss: number; totalFees: number;
-  annualizedReturnPercent: number; annualizedVolatilityPercent: number; sharpeRatio: number | null; sortinoRatio: number | null; bestTradePercent: number | null; worstTradePercent: number | null;
+  annualizedReturnPercent: number; annualizedVolatilityPercent: number; sharpeRatio: number | null; sortinoRatio: number | null; bestTradePercent: number | null; worstTradePercent: number | null; averageWinPercent: number | null; averageLossPercent: number | null; expectancyPercent: number | null; averageHoldingDays: number | null;
   openQuantity: number; cash: number;
   trades: Array<{ date: string; side: string; price: number; quantity: number; value: number; fee: number; reason: string }>;
   equityCurve: Array<{ date: string; close: number; shortSma: number | null; longSma: number | null; equity: number }>;
@@ -91,6 +91,12 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ isOnline }) => {
             <div><span className="text-slate-500">بازده سالانه‌شده</span><div className="font-black mt-1">{percentFa(result.annualizedReturnPercent)}</div></div>
             <div><span className="text-slate-500">نوسان سالانه‌شده</span><div className="font-black mt-1">{percentFa(result.annualizedVolatilityPercent)}</div></div>
             <div><span className="text-slate-500">Sharpe</span><div className="font-black mt-1">{numberFa(result.sharpeRatio, 2)}</div></div>
+          </div>
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+            <div>میانگین معامله برنده: <b>{percentFa(result.averageWinPercent)}</b></div>
+            <div>میانگین معامله بازنده: <b>{percentFa(result.averageLossPercent)}</b></div>
+            <div>امید ریاضی هر معامله: <b>{percentFa(result.expectancyPercent)}</b></div>
+            <div>میانگین مدت نگهداری: <b>{numberFa(result.averageHoldingDays, 1)} روز</b></div>
           </div>
           <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
             <div>Sortino: <b>{numberFa(result.sortinoRatio, 2)}</b></div>
