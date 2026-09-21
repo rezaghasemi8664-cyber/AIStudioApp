@@ -84,5 +84,17 @@ export async function applyGiftSubscription(days: number): Promise<{ days: numbe
   return response.data;
 }
 
-export default { getSummary, getPlans, createPlan, updatePlan, deletePlan, applyGiftSubscription };
+export async function applyGiftSubscriptionToUser(userId: number, days: number): Promise<{ userId: number; days: number; previousEnd: string; newEnd: string }> {
+  const value = Number(days);
+  if (!Number.isInteger(userId) || userId <= 0) throw new Error('شناسه کاربر نامعتبر است.');
+  if (!Number.isInteger(value) || value <= 0) throw new Error('تعداد روزهای اشتراک هدیه باید بیشتر از صفر باشد.');
+  const response = await apiClient.post<{ userId: number; days: number; previousEnd: string; newEnd: string }>(
+    `/admin/users/${encodeURIComponent(String(userId))}/subscription/gift`,
+    { days: value },
+  );
+  if (!response?.success || !response.data) throw new Error(response?.message || 'اعمال اشتراک هدیه ناموفق بود.');
+  return response.data;
+}
+
+export default { getSummary, getPlans, createPlan, updatePlan, deletePlan, applyGiftSubscription, applyGiftSubscriptionToUser };
 
