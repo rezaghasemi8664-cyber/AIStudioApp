@@ -51,34 +51,62 @@ const formatScore = (value?: number | null) =>
 
 /**
  * کامپوننت نمایش کارت یک فرصت نوسان‌گیری
+ * نقاط ورود، خروج، حد سود و حد ضرر مستقیماً از سیگنال سرور نمایش داده می‌شوند.
  */
-const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ opportunity }) => (
-  <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-    <div className="flex items-center justify-between mb-3">
-      <h3 className="text-lg font-bold text-[var(--color-accent)]">{opportunity.symbol}</h3>
-      <div className="flex items-center gap-1 text-xs font-medium text-green-500 bg-green-500/10 px-2 py-1 rounded-full">
-        <ArrowTrendingUpIcon className="w-3 h-3" />
-        <span>فرصت فعال</span>
+const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ opportunity }) => {
+  const entryPrice = opportunity.entryPrice ?? opportunity.price;
+  const exitPrice = opportunity.exitPrice ?? opportunity.targetPrice;
+  const stopLossPrice = opportunity.stopLossPrice;
+  const currentPrice = opportunity.currentPrice ?? opportunity.price;
+  const signalType = opportunity.signalType ?? opportunity.signal ?? opportunity.type;
+
+  return (
+    <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-lg font-bold text-[var(--color-accent)]">{opportunity.symbol}</h3>
+        <div className="flex items-center gap-1 text-xs font-medium text-green-500 bg-green-500/10 px-2 py-1 rounded-full">
+          <ArrowTrendingUpIcon className="w-3 h-3" />
+          <span>{signalType === 'SELL' ? 'سیگنال فروش' : 'فرصت فعال'}</span>
+        </div>
+      </div>
+
+      <p className="text-sm text-[var(--color-text-secondary)] mb-4 line-clamp-2 min-h-[40px]">
+        <span className="font-bold ml-1">دلیل:</span>
+        {opportunity.reason || 'تأیید بر اساس فاکتورهای هفت‌گانه'}
+      </p>
+
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 p-2">
+          <span className="block text-[10px] text-cyan-600 dark:text-cyan-400">نقطه ورود</span>
+          <span className="block text-sm font-mono font-bold">{formatPrice(entryPrice)}</span>
+        </div>
+        <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-2">
+          <span className="block text-[10px] text-emerald-600 dark:text-emerald-400">نقطه خروج / هدف</span>
+          <span className="block text-sm font-mono font-bold">{formatPrice(exitPrice)}</span>
+        </div>
+        <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-2">
+          <span className="block text-[10px] text-red-600 dark:text-red-400">حد ضرر</span>
+          <span className="block text-sm font-mono font-bold">{formatPrice(stopLossPrice)}</span>
+        </div>
+        <div className="rounded-lg bg-gray-500/10 border border-gray-500/20 p-2">
+          <span className="block text-[10px] text-gray-500">قیمت فعلی</span>
+          <span className="block text-sm font-mono font-bold">{formatPrice(currentPrice)}</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 pt-3 border-t border-[var(--color-border)]">
+        <div className="flex flex-col">
+          <span className="text-[10px] text-gray-400">امتیاز تحلیل</span>
+          <span className="text-sm font-mono font-bold text-amber-500">{formatScore(opportunity.score)}</span>
+        </div>
+        <div className="flex flex-col items-end">
+          <span className="text-[10px] text-gray-400">اعتبار سیگنال</span>
+          <span className="text-sm font-mono font-bold text-cyan-500">{formatScore(opportunity.confidence)}</span>
+        </div>
       </div>
     </div>
-
-    <p className="text-sm text-[var(--color-text-secondary)] mb-4 line-clamp-2 min-h-[40px]">
-      <span className="font-bold ml-1">دلیل:</span>
-      {opportunity.reason || 'تأیید بر اساس فاکتورهای هفت‌گانه'}
-    </p>
-
-    <div className="grid grid-cols-2 gap-2 pt-3 border-t border-[var(--color-border)]">
-      <div className="flex flex-col">
-        <span className="text-[10px] text-gray-400">آخرین قیمت</span>
-        <span className="text-sm font-mono font-bold">{formatPrice(opportunity.price)}</span>
-      </div>
-      <div className="flex flex-col items-end">
-        <span className="text-[10px] text-gray-400">امتیاز تحلیل</span>
-        <span className="text-sm font-mono font-bold text-amber-500">{formatScore(opportunity.score)}</span>
-      </div>
-    </div>
-  </div>
-);
+  );
+};
 
 const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
   const [opportunities, setOpportunities] = useState<ScalpingOpportunity[]>([]);
@@ -125,7 +153,7 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
 
   useEffect(() => {
     loadData();
-    const timer = setInterval(loadData, 60000); // به‌روزرسانی خودکار هر یک دقیقه
+    const timer = setInterval(loadData, 30000); // بررسی اعتبار نقاط ورود و خروج هر ۳۰ ثانیه
     return () => clearInterval(timer);
   }, [loadData]);
 
