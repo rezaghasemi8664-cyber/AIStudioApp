@@ -72,6 +72,7 @@ app.set('trust proxy', 1);
 
 // Disable x-powered-by header (security)
 app.disable('x-powered-by');
+app.use(require('./middleware/productionSecurity.cjs'));
 
 // ═══════════════════════════════════════════════════════════════════
 // 3. SECURITY HEADERS (manual helmet alternative)
@@ -694,6 +695,8 @@ mountRoute('/api/trader-journal', './routes/traderJournal.routes.cjs', 'Trader J
 mountRoute('/api/strategy', './routes/strategy.routes.cjs', 'Strategy Backtest');
 mountRoute('/api/paper-trading', './routes/paperTrading.routes.cjs', 'Paper Trading');
 mountRoute('/api/trader-performance', './routes/traderPerformance.routes.cjs', 'Trader Performance');
+mountRoute('/api/production-readiness', './routes/productionReadiness.routes.cjs', 'Production Readiness');
+mountRoute('/api/v1/production-readiness', './routes/productionReadiness.routes.cjs', 'Production Readiness v1 alias');
 mountRoute('/api/v1/trader-performance', './routes/traderPerformance.routes.cjs', 'Trader Performance v1 alias');
 mountRoute('/api/v1/trader-journal', './routes/traderJournal.routes.cjs', 'Trader Journal v1 alias');
 mountRoute('/api/v1/portfolio', './routes/portfolio.routes.cjs',       'Portfolio v1 alias');
