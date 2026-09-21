@@ -65,7 +65,7 @@ router.post('/subscriptions/gift',authMiddleware,requireAdmin,async function(req
         if(current){
           await tx.subscription.update({where:{id:current.id},data:{expiresAt:end}});
         }else{
-          await tx.subscription.create({data:{userId:u.id,planId:null,type:String(current&&current.type||u.subscriptionType||'free'),status:'ACTIVE',startsAt:start,expiresAt:end}});
+          await tx.subscription.create({data:{userId:u.id,planId:null,type:'ADMIN',status:'ACTIVE',startsAt:start,expiresAt:end}});
         }
         affected++;
       }
@@ -141,7 +141,7 @@ router.put('/users/:id/subscription',authMiddleware,requireAdmin,async function(
       if(isActive&&start&&end&&end>now){
         await tx.subscription.updateMany({where:{userId:id,status:'ACTIVE',expiresAt:{gt:now}},data:{status:'CANCELLED'}});
         await tx.subscription.create({data:{
-          userId:id,planId:null,type:String(d.subscriptionType||ex.subscriptionType||'ADMIN'),
+          userId:id,planId:null,type:current&&current.type?String(current.type):'ADMIN',
           status:'ACTIVE',startsAt:start,expiresAt:end
         }});
       }else if(!isActive){
