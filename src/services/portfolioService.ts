@@ -1,15 +1,15 @@
 import api from '../api/apiClient';
 import type { PortfolioItem } from '../types';
 
-export interface PortfolioApiItem extends PortfolioItem { name?: string; }
+export interface PortfolioApiItem extends PortfolioItem { name?: string; currentPrice?: number | null; dataStatus?: 'LIVE' | 'CACHED' | 'UNAVAILABLE'; source?: string | null; fetchedAt?: string | null; stale?: boolean; }
 export interface PortfolioLot extends PortfolioApiItem { availableQuantity: number; }
 export interface SoldTradeAllocation { lotId: string; quantity: number; buyPrice: number; buyDate: string; costBasis: number; holdingDays: number | null; }
 export interface SoldTrade { id: string; symbol: string; name?: string; soldQuantity: number; sellPrice: number; sellDate: string; allocationMethod: 'MANUAL'; allocations: SoldTradeAllocation[]; proceeds: number; costBasis: number; realizedPnl: number; realizedPnlPercent: number; createdAt: string; }
 export interface SoldTradesResult { trades: SoldTrade[]; realizedPnl: number; proceeds: number; costBasis: number; }
 
-type ApiPortfolioItem = { id: string | number; symbol?: string; stockSymbol?: string; ticker?: string; name?: string; quantity: number; buyPrice: number; entryDate: string; };
+type ApiPortfolioItem = { id: string | number; symbol?: string; stockSymbol?: string; ticker?: string; name?: string; quantity: number; buyPrice: number; entryDate: string; currentPrice?: number | null; dataStatus?: 'LIVE' | 'CACHED' | 'UNAVAILABLE'; source?: string | null; fetchedAt?: string | null; stale?: boolean; };
 function resolveSymbol(item: { symbol?: string; stockSymbol?: string; ticker?: string }): string { return String(item.symbol ?? item.stockSymbol ?? item.ticker ?? '').trim().toUpperCase(); }
-function normalize(item: ApiPortfolioItem): PortfolioApiItem { const symbol = resolveSymbol(item); return { id: String(item.id), symbol, name: item.name || symbol, quantity: Number(item.quantity), entryPrice: Number(item.buyPrice), entryDate: item.entryDate }; }
+function normalize(item: ApiPortfolioItem): PortfolioApiItem { const symbol = resolveSymbol(item); return { id: String(item.id), symbol, name: item.name || symbol, quantity: Number(item.quantity), entryPrice: Number(item.buyPrice), entryDate: item.entryDate, currentPrice: item.currentPrice == null ? null : Number(item.currentPrice), dataStatus: item.dataStatus, source: item.source, fetchedAt: item.fetchedAt, stale: item.stale === true }; }
 function unwrap<T>(response: any): T { return (response?.data?.data ?? response?.data ?? response) as T; }
 
 export async function getPortfolio(): Promise<PortfolioApiItem[]> {
