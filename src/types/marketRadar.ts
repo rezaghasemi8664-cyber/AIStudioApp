@@ -61,8 +61,13 @@ export interface MarketRadarHistory {
   generatedAt: string | null;
 }
 
+export type MarketRadarDataStatus = 'LIVE' | 'CACHED' | 'UNAVAILABLE';
+
 export interface MarketRadarSnapshot {
   fetchedAt: string;
+  dataStatus: MarketRadarDataStatus;
+  source?: string | null;
+  stale?: boolean;
   marketOpen: boolean;
   indices: MarketRadarIndex[];
   totalValue: number | null;
