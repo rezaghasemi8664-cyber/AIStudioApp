@@ -1,7 +1,8 @@
 import React,{useEffect,useMemo,useState}from'react';
 import{createJournalEntry,deleteJournalEntry,getJournal,TraderJournalEntry}from'../services/traderJournalService';
 import{PlusIcon,TrashIcon}from'./Icons';
-const initial={symbol:'',side:'BUY' as const,tradeDate:new Date().toISOString().slice(0,10),quantity:'',entryPrice:'',exitPrice:'',setup:'',emotion:'',thesis:'',lesson:'',notes:''};
+type JournalForm={symbol:string;side:'BUY'|'SELL';tradeDate:string;quantity:string;entryPrice:string;exitPrice:string;setup:string;emotion:string;thesis:string;lesson:string;notes:string};
+const initial:JournalForm={symbol:'',side:'BUY',tradeDate:new Date().toISOString().slice(0,10),quantity:'',entryPrice:'',exitPrice:'',setup:'',emotion:'',thesis:'',lesson:'',notes:''};
 const num=(n:number|null)=>n==null?'—':new Intl.NumberFormat('fa-IR').format(Math.round(n));
 export default function TraderJournal(){const[items,setItems]=useState<TraderJournalEntry[]>([]),[form,setForm]=useState(initial),[busy,setBusy]=useState(false),[error,setError]=useState('');
 const load=async()=>{try{setItems(await getJournal());setError('')}catch(e:any){setError(e?.message||'خطا در دریافت دفترچه')}};useEffect(()=>{void load()},[]);
