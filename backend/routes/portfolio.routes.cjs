@@ -5,6 +5,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/auth.middleware.cjs');
 const prismaModule = require('../config/prisma.cjs');
 const prisma = prismaModule.prisma || prismaModule;
+const brsService = require('../services/brs.service.cjs');
 
 function getUserId(req) {
   const raw = req.user && (req.user.id ?? req.user.userId);
@@ -23,7 +24,7 @@ function normalizeItem(item) {
   if (!id || !symbol || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(buyPrice) || buyPrice <= 0) return null;
   return { id, symbol, name, quantity, buyPrice, entryDate: entryDate || new Date().toISOString() };
 }
-
+\nasync function enrichWithRealQuotes(items) {\n  const results = await Promise.all(items.map(async (item) => {\n    try {\n      const envelope = await brsService.getSymbolData(item.symbol);\n      const data = envelope && envelope.data ? envelope.data : {};\n      const meta = envelope && envelope._meta ? envelope._meta : {};\n      const currentPrice = Number(data.lastPrice ?? data.pl ?? data.pDrCotVal ?? data.closingPrice ?? data.pc);\n      const sourceRaw = String(meta.source || '').toLowerCase();\n      const dataStatus = sourceRaw === 'live' ? 'LIVE' : (sourceRaw ? 'CACHED' : 'UNAVAILABLE');\n      return { ...item, currentPrice: Number.isFinite(currentPrice) && currentPrice > 0 ? currentPrice : null, dataStatus, source: meta.source || null, fetchedAt: meta.fetchedAt || null, stale: dataStatus !== 'LIVE' };\n    } catch (error) {\n      return { ...item, currentPrice: null, dataStatus: 'UNAVAILABLE', source: null, fetchedAt: null, stale: true };\n    }\n  }));\n  return results;\n}\n
 function normalizeSoldTrade(trade) {
   if (!trade || typeof trade !== 'object') return null;
   const id = String(trade.id ?? '');
