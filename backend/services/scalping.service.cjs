@@ -73,6 +73,106 @@ async function runScalping(userId, options) { const opts = options || {}; const 
 async function runEngine(userId) { return runScalping(userId, { onlyConfiguredSymbols: false }); }
 async function getHistory(userId, page, limit) { const normalizedUserId = normalizeUserId(userId); const safePage = Math.max(parseInt(page, 10) || 1, 1); const safeLimit = Math.min(Math.max(parseInt(limit, 10) || DEFAULT_HISTORY_LIMIT, 1), 100); const skip = (safePage - 1) * safeLimit; const where = normalizedUserId ? { userId: normalizedUserId } : {}; const [runs, total] = await Promise.all([prisma.scalpingRun.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: safeLimit, include: { results: true } }), prisma.scalpingRun.count({ where })]); return { items: runs.map(mapRunForOutput), total, page: safePage, limit: safeLimit }; }
 async function getLatest(userId) { const normalizedUserId = normalizeUserId(userId); const where = normalizedUserId ? { userId: normalizedUserId } : {}; return mapRunForOutput(await prisma.scalpingRun.findFirst({ where, orderBy: { createdAt: 'desc' }, include: { results: true } })); }
-async function getOpportunities(userId, options) { const normalizedUserId = normalizeUserId(userId); const limit = Math.min(Math.max(parseInt(options && options.limit, 10) || 50, 1), 200); const where = normalizedUserId ? { userId: normalizedUserId, status: 'active' } : { status: 'active' }; return (await prisma.scalpingOpportunity.findMany({ where, orderBy: [{ score: 'desc' }, { createdAt: 'desc' }], take: limit })).map(mapOpportunityForOutput); }
+async function refreshActiveOpportunities(userId, limit = 200) {
+  const normalizedUserId = normalizeUserId(userId);
+  const where = normalizedUserId ? { userId: normalizedUserId, status: 'active' } : { status: 'active' };
+  const opportunities = await prisma.scalpingOpportunity.findMany({
+    where,
+    orderBy: [{ score: 'desc' }, { createdAt: 'desc' }],
+    take: Math.min(Math.max(limit, 1), 200)
+  });
+
+  await Promise.all(opportunities.map(async (opportunity) => {
+    try {
+      if (!brsService || typeof brsService.getSymbolData !== 'function') return;
+
+      const snapshot = await brsService.getSymbolData(opportunity.symbol);
+      const rawSnapshot = unwrapData(snapshot);
+      const normalizedSnapshot = normalizeUniverseItem(
+        rawSnapshot && typeof rawSnapshot === 'object'
+          ? Object.assign({}, rawSnapshot, { symbol: opportunity.symbol })
+          : { symbol: opportunity.symbol }
+      );
+
+      const currentPrice = safeNumber(
+        pickPrice(rawSnapshot),
+        safeNumber(normalizedSnapshot.lastPrice, 0)
+      );
+
+      // اگر منبع بازار قیمت معتبر نداد، فرصت را حذف نکن؛ فقط در بررسی بعدی دوباره تلاش می‌کنیم.
+      if (!(currentPrice > 0)) return;
+
+      const entryPrice = safeNumber(opportunity.entryPrice, 0);
+      const stopLoss = safeNumber(opportunity.stopLoss, 0);
+      const takeProfit = safeNumber(opportunity.takeProfit, 0);
+      const signal = String(opportunity.signal || 'BUY').toUpperCase();
+
+      const scored = scoreUniverseItem(
+        Object.assign({}, normalizedSnapshot, {
+          lastPrice: currentPrice,
+          closingPrice: safeNumber(normalizedSnapshot.closingPrice, currentPrice)
+        })
+      );
+
+      let invalidReason = null;
+
+      // خروج به هدف یا حد ضرر، سیگنال را خاتمه می‌دهد.
+      if (signal === 'SELL') {
+        if (takeProfit > 0 && currentPrice <= takeProfit) invalidReason = 'take-profit-reached';
+        else if (stopLoss > 0 && currentPrice >= stopLoss) invalidReason = 'stop-loss-reached';
+      } else {
+        if (takeProfit > 0 && currentPrice >= takeProfit) invalidReason = 'take-profit-reached';
+        else if (stopLoss > 0 && currentPrice <= stopLoss) invalidReason = 'stop-loss-reached';
+      }
+
+      // اگر شرایط اصلی تولید سیگنال دیگر برقرار نباشد، فرصت معتبر نیست.
+      if (!invalidReason && scored.score < CONFIDENCE_THRESHOLD) invalidReason = 'signal-invalidated';
+      if (!invalidReason && scored.signal === 'none') invalidReason = 'signal-invalidated';
+
+      if (invalidReason) {
+        const meta = safeJsonParse(opportunity.meta, {});
+        await prisma.scalpingOpportunity.update({
+          where: { id: opportunity.id },
+          data: {
+            status: 'invalid',
+            meta: JSON.stringify(Object.assign({}, meta, {
+              invalidatedAt: new Date().toISOString(),
+              invalidationReason: invalidReason,
+              lastCheckedPrice: currentPrice,
+              lastCheckedScore: scored.score,
+              entryPrice,
+              stopLoss,
+              takeProfit
+            }))
+          }
+        });
+      }
+    } catch (error) {
+      // خطای دریافت داده نباید باعث حذف اشتباه سیگنال شود.
+      console.warn('[SCALPING SERVICE] Active opportunity validation failed:', opportunity.symbol, error.message);
+    }
+  }));
+}
+
+async function getOpportunities(userId, options) {
+  const normalizedUserId = normalizeUserId(userId);
+  const limit = Math.min(Math.max(parseInt(options && options.limit, 10) || 50, 1), 200);
+  await refreshActiveOpportunities(normalizedUserId, limit);
+
+  const where = normalizedUserId ? { userId: normalizedUserId, status: 'active' } : { status: 'active' };
+  const rows = await prisma.scalpingOpportunity.findMany({
+    where,
+    orderBy: [{ score: 'desc' }, { createdAt: 'desc' }],
+    take: limit
+  });
+
+  // در هر اسکن فقط یک کارت برای هر نماد نمایش داده شود.
+  const uniqueBySymbol = new Map();
+  for (const row of rows) {
+    if (!uniqueBySymbol.has(row.symbol)) uniqueBySymbol.set(row.symbol, row);
+  }
+
+  return Array.from(uniqueBySymbol.values()).map(mapOpportunityForOutput);
+}
 async function getBest(userId) { return (await getOpportunities(userId, { limit: 1 }))[0] || null; }
 module.exports = { getSettings, saveConfig, updateSettings, runScalping, runEngine, getHistory, getLatest, getOpportunities, getBest, getMarketStatus };
