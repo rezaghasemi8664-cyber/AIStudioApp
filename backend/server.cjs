@@ -696,6 +696,7 @@ mountRoute('/api/strategy', './routes/strategy.routes.cjs', 'Strategy Backtest')
 mountRoute('/api/paper-trading', './routes/paperTrading.routes.cjs', 'Paper Trading');
 mountRoute('/api/trader-performance', './routes/traderPerformance.routes.cjs', 'Trader Performance');
 mountRoute('/api/production-readiness', './routes/productionReadiness.routes.cjs', 'Production Readiness');
+mountRoute('/api/site-analytics', './routes/siteAnalytics.routes.cjs', 'Site Analytics');
 mountRoute('/api/v1/production-readiness', './routes/productionReadiness.routes.cjs', 'Production Readiness v1 alias');
 mountRoute('/api/v1/trader-performance', './routes/traderPerformance.routes.cjs', 'Trader Performance v1 alias');
 mountRoute('/api/v1/trader-journal', './routes/traderJournal.routes.cjs', 'Trader Journal v1 alias');
