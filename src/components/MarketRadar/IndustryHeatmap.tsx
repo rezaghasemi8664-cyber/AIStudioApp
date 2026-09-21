@@ -15,13 +15,13 @@ const signedPercent = (value: number | null | undefined): string => {
 };
 
 const heatClass = (changePercent: number): string => {
-  if (changePercent >= 4) return 'border-emerald-400/40 bg-emerald-500/25 text-emerald-100';
-  if (changePercent >= 2) return 'border-emerald-400/25 bg-emerald-500/15 text-emerald-200';
-  if (changePercent > 0) return 'border-emerald-400/15 bg-emerald-500/10 text-emerald-300';
-  if (changePercent <= -4) return 'border-rose-400/40 bg-rose-500/25 text-rose-100';
-  if (changePercent <= -2) return 'border-rose-400/25 bg-rose-500/15 text-rose-200';
-  if (changePercent < 0) return 'border-rose-400/15 bg-rose-500/10 text-rose-300';
-  return 'border-slate-400/15 bg-slate-500/10 text-slate-300';
+  if (changePercent >= 4) return 'border-emerald-700 bg-emerald-700 text-white';
+  if (changePercent >= 2) return 'border-emerald-600 bg-emerald-600 text-white';
+  if (changePercent > 0) return 'border-emerald-500 bg-emerald-500 text-white';
+  if (changePercent <= -4) return 'border-rose-700 bg-rose-700 text-white';
+  if (changePercent <= -2) return 'border-rose-600 bg-rose-600 text-white';
+  if (changePercent < 0) return 'border-rose-500 bg-rose-500 text-white';
+  return 'border-slate-500 bg-slate-500 text-white';
 };
 
 const IndustryHeatmap: React.FC<{ rows: MarketRadarSector[] }> = ({ rows }) => {
@@ -44,7 +44,7 @@ const IndustryHeatmap: React.FC<{ rows: MarketRadarSector[] }> = ({ rows }) => {
 
   return (
     <div>
-      <div className="mb-4 flex flex-col gap-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-4 flex flex-col gap-3 text-xs text-slate-700 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-emerald-400" />رشد</span>
           <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-slate-400" />خنثی</span>
@@ -61,7 +61,7 @@ const IndustryHeatmap: React.FC<{ rows: MarketRadarSector[] }> = ({ rows }) => {
         </label>
       </div>
 
-      <div className="mb-3 text-[11px] text-slate-500">اندازه کارت متناسب با تعداد نمادهای صنعت است؛ رنگ بر اساس درصد تغییر واقعی بازار محاسبه می‌شود.</div>
+      <div className="mb-3 text-[11px] font-semibold text-slate-700 dark:text-slate-300">اندازه کارت متناسب با تعداد نمادهای صنعت است؛ رنگ بر اساس درصد تغییر واقعی بازار محاسبه می‌شود.</div>
 
       <div className="flex flex-wrap gap-2">
         {sortedRows.map((row) => {
@@ -75,11 +75,11 @@ const IndustryHeatmap: React.FC<{ rows: MarketRadarSector[] }> = ({ rows }) => {
             >
               <div className="flex h-full flex-col justify-between gap-3">
                 <div className="flex items-start justify-between gap-2">
-                  <span className="line-clamp-2 text-sm font-black leading-5">{row.name}</span>
+                  <span className="line-clamp-2 text-sm font-black leading-5 text-white">{row.name}</span>
                   <span className="shrink-0 rounded-lg bg-black/10 px-2 py-1 text-xs font-black tabular-nums">{signedPercent(row.changePercent)}</span>
                 </div>
                 <div className="flex items-end justify-between gap-2">
-                  <div><div className="text-[10px] opacity-60">تعداد نماد</div><div className="mt-0.5 text-sm font-black tabular-nums">{fa(row.symbols)}</div></div>
+                  <div><div className="text-[10px] font-semibold text-white/80">تعداد نماد</div><div className="mt-0.5 text-sm font-black tabular-nums">{fa(row.symbols)}</div></div>
                   <div className="text-left"><div className="text-[10px] opacity-60">ارزش معاملات</div><div className="mt-0.5 text-xs font-bold tabular-nums">{fa(row.value)}</div></div>
                 </div>
               </div>
