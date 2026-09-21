@@ -106,7 +106,7 @@ function getTodayStats() {
     date: day,
     totalVisits: Number(current.total || 0),
     uniqueVisitors: Number(current.unique || 0),
-    onlineCount: online.length,
+    onlineCount: online.filter(item => item.userId).length,
     onlineUsers: online
       .filter(item => item.userId)
       .map(item => ({ userId: item.userId, username: item.username || 'کاربر', lastSeenAt: item.lastSeenAt }))
