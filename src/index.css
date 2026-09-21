@@ -627,7 +627,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .header-actions button:hover { background: var(--surface-2) !important; color: var(--text-1); }
 .market-status > * { min-height: 36px; }
 
-.app-nav { position: sticky; top: 80px; z-index: 30; }
+.app-nav { position: static !important; top: auto; z-index: auto; width: auto; max-width: none; box-sizing: border-box; margin-bottom: 24px; }
 .nav-strip {
   gap: 4px;
   padding: 6px;
@@ -1602,6 +1602,9 @@ body {
 }
 
 .app-nav-scroll {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   gap: 5px;
   padding: 6px;
   border: 1px solid var(--line-1);
