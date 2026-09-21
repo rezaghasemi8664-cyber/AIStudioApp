@@ -690,6 +690,8 @@ mountRoute('/api/analyze',               './routes/analyze.routes.cjs',         
 mountRoute('/api/v1/analyze',            './routes/analyze.routes.cjs',          'Analyze v1 alias');
 
 mountRoute('/api/portfolio',    './routes/portfolio.routes.cjs',       'Portfolio');
+mountRoute('/api/trader-journal', './routes/traderJournal.routes.cjs', 'Trader Journal');
+mountRoute('/api/v1/trader-journal', './routes/traderJournal.routes.cjs', 'Trader Journal v1 alias');
 mountRoute('/api/v1/portfolio', './routes/portfolio.routes.cjs',       'Portfolio v1 alias');
 
 mountRoute('/api/watchlist',    './routes/watchlist.routes.cjs',       'Watchlist');
