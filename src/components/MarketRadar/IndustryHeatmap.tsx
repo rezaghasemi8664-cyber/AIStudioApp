@@ -15,13 +15,13 @@ const signedPercent = (value: number | null | undefined): string => {
 };
 
 const heatClass = (changePercent: number): string => {
-  if (changePercent >= 4) return 'border-emerald-700 bg-emerald-700 text-white';
-  if (changePercent >= 2) return 'border-emerald-600 bg-emerald-600 text-white';
+  if (changePercent >= 4) return 'border-emerald-700 bg-emerald-700 text-emerald-100';
+  if (changePercent >= 2) return 'border-emerald-600 bg-emerald-600 text-rose-100';
   if (changePercent > 0) return 'border-emerald-500 bg-emerald-500 text-white';
   if (changePercent <= -4) return 'border-rose-700 bg-rose-700 text-white';
   if (changePercent <= -2) return 'border-rose-600 bg-rose-600 text-white';
   if (changePercent < 0) return 'border-rose-500 bg-rose-500 text-white';
-  return 'border-slate-500 bg-slate-500 text-white';
+  return 'border-slate-500 bg-slate-500 text-slate-100';
 };
 
 const IndustryHeatmap: React.FC<{ rows: MarketRadarSector[] }> = ({ rows }) => {
@@ -75,7 +75,7 @@ const IndustryHeatmap: React.FC<{ rows: MarketRadarSector[] }> = ({ rows }) => {
             >
               <div className="flex h-full flex-col justify-between gap-3">
                 <div className="flex items-start justify-between gap-2">
-                  <span className="line-clamp-2 text-sm font-black leading-5 text-white">{row.name}</span>
+                  <span className={`line-clamp-2 text-sm font-black leading-5 ${change > 0 ? "text-emerald-100" : change < 0 ? "text-rose-100" : "text-slate-100"}`}>{row.name}</span>
                   <span className="shrink-0 rounded-lg bg-black/10 px-2 py-1 text-xs font-black tabular-nums">{signedPercent(row.changePercent)}</span>
                 </div>
                 <div className="flex items-end justify-between gap-2">
