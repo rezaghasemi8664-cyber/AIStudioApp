@@ -1,10 +1,37 @@
 export interface JalaliDate { year:number; month:number; day:number; }
 
-function div(a:number,b:number){return Math.floor(a/b);}
-function jalCal(jy:number){const breaks=[-61,9,38,199,426,686,756,818,1111,1181,1210,1635,2060,2097,2192,2262,2347,2370,2455,3178];let bl=breaks.length,gy=jy+621,leapJ=-14,jp=breaks[0],jm=0, jump=0;for(let i=1;i<bl;i++){jm=breaks[i];jump=jm-jp;if(jy<jm)break;leapJ+=div(jump,33)*8+div(jump%33,4);jp=jm;}let n=jy-jp;leapJ+=div(n,33)*8+div((n%33)+3,4);if(jump%33===4&&jump-n===4)leapJ++;const leapG=div(gy,4)-div((div(gy,100)+1)*3,4)-150;const march=20+leapJ-leapG;return{gy,march};}
-function toJalali(gy:number,gm:number,gd:number):JalaliDate{const r=jalCal(gy-621);let jy=gy-621;const march=r.march;const gDayNo=365*(gy-1)+div(gy-1,4)-div(gy-1,100)+div(gy-1,400)+[0,31,59,90,120,151,181,212,243,273,304,334][gm-1]+gd-1;const marchDayNo=365*(r.gy-1)+div(r.gy-1,4)-div(r.gy-1,100)+div(r.gy-1,400)+march-1;let jDayNo=gDayNo-marchDayNo;if(jDayNo>=0){jy=r.gy-621;}else{jy=r.gy-622;jDayNo+=365+(jy%33===1||jy%33===5||jy%33===9||jy%33===13||jy%33===17||jy%33===22||jy%33===26||jy%33===30?1:0);}const jm=jDayNo<186?1+div(jDayNo,31):7+div(jDayNo-186,30);const jd=1+(jDayNo<186?jDayNo%31:(jDayNo-186)%30);return{year:jy,month:jm,day:jd};}
-function isLeapJalali(jy:number){const r=jalCal(jy);return (365*(jy+621-1)+div(jy+621-1,4)-div(jy+621-1,100)+div(jy+621-1,400)+[0,31,59,90,120,151,181,212,243,273,304,334][2]+r.march)%1===0 && [1,5,9,13,17,22,26,30].includes(jy%33);}
-export function gregorianToJalali(date:Date|string|null|undefined):JalaliDate|null{if(!date)return null;const d=new Date(date);if(Number.isNaN(d.getTime()))return null;return toJalali(d.getFullYear(),d.getMonth()+1,d.getDate());}
-export function jalaliToGregorian(jy:number,jm:number,jd:number):Date{let gy=jy+621;let guess=new Date(gy,2,20);for(let i=0;i<370;i++){const j=toJalali(guess.getFullYear(),guess.getMonth()+1,guess.getDate());if(j.year===jy&&j.month===jm&&j.day===jd){return new Date(guess.getFullYear(),guess.getMonth(),guess.getDate(),12,0,0);}guess.setDate(guess.getDate()+1);}throw new Error('تاریخ شمسی نامعتبر است');}
-export function jalaliToIso(value:JalaliDate|null):string|null{if(!value)return null;const d=jalaliToGregorian(value.year,value.month,value.day);return d.toISOString().slice(0,10);}
-export function isoToJalali(value:string|null|undefined):JalaliDate|null{return gregorianToJalali(value);}
+function parts(date:Date):JalaliDate{
+  const raw=new Intl.DateTimeFormat('en-US-u-ca-persian',{year:'numeric',month:'numeric',day:'numeric'}).formatToParts(date);
+  const get=(type:string)=>Number(raw.find(x=>x.type===type)?.value||0);
+  return {year:get('year'),month:get('month'),day:get('day')};
+}
+
+export function gregorianToJalali(date:Date|string|null|undefined):JalaliDate|null{
+  if(!date)return null;
+  const d=new Date(date);
+  if(Number.isNaN(d.getTime()))return null;
+  return parts(d);
+}
+
+export function jalaliToGregorian(value:JalaliDate|null):Date|null{
+  if(!value)return null;
+  const target={year:Number(value.year),month:Number(value.month),day:Number(value.day)};
+  if(!target.year||target.month<1||target.month>12||target.day<1||target.day>31)return null;
+  const approx=new Date(target.year+621,2,21,12,0,0);
+  for(let offset=-370;offset<=370;offset++){
+    const d=new Date(approx);
+    d.setDate(approx.getDate()+offset);
+    const p=parts(d);
+    if(p.year===target.year&&p.month===target.month&&p.day===target.day)return d;
+  }
+  return null;
+}
+
+export function jalaliToIso(value:JalaliDate|null):string|null{
+  const d=jalaliToGregorian(value);
+  return d?d.toISOString().slice(0,10):null;
+}
+
+export function isoToJalali(value:string|null|undefined):JalaliDate|null{
+  return gregorianToJalali(value);
+}
