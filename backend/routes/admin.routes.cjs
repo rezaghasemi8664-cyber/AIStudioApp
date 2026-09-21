@@ -65,7 +65,7 @@ router.post('/subscriptions/gift',authMiddleware,requireAdmin,async function(req
         if(current){
           await tx.subscription.update({where:{id:current.id},data:{expiresAt:end}});
         }else{
-          await tx.subscription.create({data:{userId:u.id,planId:null,type:'ADMIN',status:'ACTIVE',startsAt:start,expiresAt:end}});
+          await tx.subscription.create({data:{userId:u.id,planId:null,type:'FREE_TRIAL',status:'ACTIVE',startsAt:start,expiresAt:end}});
         }
         affected++;
       }
@@ -94,7 +94,7 @@ router.post('/users/:id/subscription/gift',authMiddleware,requireAdmin,async fun
       if(current){
         await tx.subscription.update({where:{id:current.id},data:{expiresAt:newEnd}});
       }else{
-        await tx.subscription.create({data:{userId:id,planId:null,type:'ADMIN',status:'ACTIVE',startsAt:ex.subscriptionStart&&new Date(ex.subscriptionStart)<now?new Date(ex.subscriptionStart):now,expiresAt:newEnd}});
+        await tx.subscription.create({data:{userId:id,planId:null,type:'FREE_TRIAL',status:'ACTIVE',startsAt:ex.subscriptionStart&&new Date(ex.subscriptionStart)<now?new Date(ex.subscriptionStart):now,expiresAt:newEnd}});
       }
     });
     return res.json({success:true,message:'اشتراک هدیه فقط برای همین کاربر اعمال شد.',data:{userId:id,days,previousEnd:end,newEnd}});
