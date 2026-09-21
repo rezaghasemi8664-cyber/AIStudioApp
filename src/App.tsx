@@ -86,6 +86,7 @@ const NotificationsManagement = lazy(() => import('./components/NotificationsMan
 const Settings = lazy(() => import('./components/Settings'));
 const MarketRadar = lazy(() => import('./components/MarketRadar/MarketRadar'));
 const StrategyLab = lazy(() => import('./components/StrategyLab'));
+const PaperTrading = lazy(() => import('./components/PaperTrading'));
 const RoniaAssistant = lazy(() => import('./components/RoniaAssistant'));
 
 type Tab =
@@ -103,6 +104,7 @@ type Tab =
   | 'profile'
   | 'marketRadar'
   | 'strategyLab'
+  | 'paperTrading'
   | 'roniaAssistant';
 
 const TIMING = {
@@ -984,7 +986,10 @@ const App: React.FC = () => {
       case 'codalIntelligence': return <CodalIntelligence isOnline={isOnline} />;
       case 'comparison': return <StockComparison currentUser={currentUser} isOnline={isOnline} />;
       case 'marketRadar': return <MarketRadar />;
-      case 'strategyLab': return <StrategyLab isOnline={isOnline} />;
+      case 'strategyLab':
+        return <StrategyLab isOnline={isOnline} />;
+      case 'paperTrading':
+        return <PaperTrading isOnline={isOnline} />;
       case 'roniaAssistant': return <RoniaAssistant isOnline={isOnline} onNavigate={(tab) => handleTabClick(tab as Tab)} />;
       case 'dailyFilters': return <DailyFilters />;
       case 'profile': return <UserProfile currentUser={currentUser} onProfileUpdate={handleProfileUpdate} onPasswordChange={handlePasswordChange} />;
