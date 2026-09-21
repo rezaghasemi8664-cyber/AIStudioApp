@@ -51,6 +51,7 @@ import {
   ChevronDownIcon,
   PresentationChartLineIcon,
   ClipboardDocumentIcon,
+  DocumentTextIcon,
   LockClosedIcon,
   PaperclipIcon,
 } from './components/Icons';
@@ -76,6 +77,7 @@ const StockAnalysis = lazy(() => import('./components/StockAnalysis'));
 const Scalping = lazy(() => import('./components/Scalping'));
 const Portfolio = lazy(() => import('./components/PortfolioEnhanced'));
 const TraderJournal = lazy(() => import('./components/TraderJournal'));
+const CodalIntelligence = lazy(() => import('./components/CodalIntelligence'));
 const StockComparison = lazy(() => import('./components/StockComparison'));
 const DailyFilters = lazy(() => import('./components/DailyFilters'));
 const UserProfile = lazy(() => import('./components/UserProfile'));
@@ -92,6 +94,7 @@ type Tab =
   | 'scalping'
   | 'portfolio'
   | 'traderJournal'
+  | 'codalIntelligence'
   | 'comparison'
   | 'dailyFilters'
   | 'users'
@@ -978,6 +981,7 @@ const App: React.FC = () => {
       case 'scalping': return <Scalping isOnline={isOnline} />;
       case 'portfolio': return <Portfolio onAlertChange={setPortfolioAlert} currentUser={currentUser} isOnline={isOnline} />;
       case 'traderJournal': return <TraderJournal />;
+      case 'codalIntelligence': return <CodalIntelligence isOnline={isOnline} />;
       case 'comparison': return <StockComparison currentUser={currentUser} isOnline={isOnline} />;
       case 'marketRadar': return <MarketRadar />;
       case 'strategyLab': return <StrategyLab isOnline={isOnline} />;
@@ -1015,6 +1019,7 @@ const App: React.FC = () => {
           <TabButton tab="scalping" label="نوسان‌گیری" icon={<ChartBarIcon />} alertType={scalpingAlert ? 'cyan' : 'none'} locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="portfolio" label="سبد سهام" icon={<BriefcaseIcon />} alertType={portfolioAlert === 'buy' ? 'green' : portfolioAlert === 'sell' ? 'red' : 'none'} locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="traderJournal" label="دفترچه معاملات" icon={<ClipboardDocumentIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="codalIntelligence" label="مرکز رویداد کدال" icon={<DocumentTextIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="comparison" label="مقایسه" icon={<ClipboardDocumentIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="strategyLab" label="آزمایشگاه استراتژی" icon={<PresentationChartLineIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="dailyFilters" label="فیلترهای روزانه" icon={<PresentationChartLineIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
