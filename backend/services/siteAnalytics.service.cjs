@@ -49,7 +49,7 @@ function recordVisit({ visitorId, user }) {
   const store = readStore();
   cleanupOldDays(store);
   const day = todayKey();
-  if (!store.days[day]) store.days[day] = { total: 0, unique: 0, visitors: {}, online: {} };
+  if (!store.days[day]) store.days[day] = { total: 0, unique: 0, visitors: {}, events: [], online: {} };
 
   const id = visitorId || createVisitorId();
   const now = new Date().toISOString();
@@ -67,6 +67,9 @@ function recordVisit({ visitorId, user }) {
     lastVisitAt: now,
     visits: Number(existing?.visits || 0) + 1,
   };
+  store.days[day].events = Array.isArray(store.days[day].events) ? store.days[day].events : [];
+  store.days[day].events.push({ id: crypto.randomBytes(8).toString('hex'), visitorId: id, username: user?.username || user?.email || null, userId: user?.userId || user?.id || null, visitedAt: now });
+  if (store.days[day].events.length > 5000) store.days[day].events = store.days[day].events.slice(-5000);
   writeStore(store);
   return { visitorId: id, timestamp: now };
 }
@@ -75,7 +78,7 @@ function heartbeat({ visitorId, user }) {
   const store = readStore();
   cleanupOldDays(store);
   const day = todayKey();
-  if (!store.days[day]) store.days[day] = { total: 0, unique: 0, visitors: {}, online: {} };
+  if (!store.days[day]) store.days[day] = { total: 0, unique: 0, visitors: {}, events: [], online: {} };
   const id = visitorId || createVisitorId();
   const now = Date.now();
   store.days[day].online[id] = {
@@ -92,12 +95,12 @@ function getTodayStats() {
   const store = readStore();
   cleanupOldDays(store);
   const day = todayKey();
-  const current = store.days[day] || { total: 0, unique: 0, visitors: {}, online: {} };
+  const current = store.days[day] || { total: 0, unique: 0, visitors: {}, events: [], online: {} };
   const cutoff = Date.now() - ONLINE_TTL_MS;
   const online = Object.values(current.online || {}).filter(item => Date.parse(item.lastSeenAt) >= cutoff);
-  const visits = Object.values(current.visitors || {})
-    .map(item => ({ ...item }))
-    .sort((a, b) => Date.parse(b.lastVisitAt) - Date.parse(a.lastVisitAt));
+  const visits = (Array.isArray(current.events) ? current.events : Object.values(current.visitors || {}).map(item => ({ ...item, visitedAt: item.lastVisitAt })))
+    .map(item => ({ id: item.id || item.visitorId, username: item.username || null, userId: item.userId || null, visitedAt: item.visitedAt }))
+    .sort((a, b) => Date.parse(b.visitedAt) - Date.parse(a.visitedAt));
 
   return {
     date: day,
