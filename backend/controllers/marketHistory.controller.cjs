@@ -213,32 +213,9 @@ function calcChangePercent(value, change) {
 }
 
 function deriveIsMarketOpen(raw) {
-  const stateRaw = coalesce(raw.marketState, raw.state, raw.market_status, raw.status);
-  if (stateRaw !== null && typeof stateRaw !== 'undefined' && stateRaw !== '') {
-    const state = String(stateRaw).toLowerCase();
-
-    if (
-      state.indexOf('open') !== -1 ||
-      state.indexOf('trading') !== -1 ||
-      state.indexOf('continuous') !== -1 ||
-      state.indexOf('باز') !== -1
-    ) {
-      return true;
-    }
-
-    if (
-      state.indexOf('close') !== -1 ||
-      state.indexOf('closed') !== -1 ||
-      state.indexOf('end') !== -1 ||
-      state.indexOf('بسته') !== -1
-    ) {
-      return false;
-    }
-  }
-
-  // BRS does not always expose the market state. In that case do not
-  // assume "open"; use the Tehran Stock Exchange regular session:
-  // Sunday through Thursday, 09:00–12:30 Asia/Tehran.
+  // The Tehran regular session is Sunday through Thursday, 09:00–12:30.
+  // Outside that window the market must be reported as closed, even if an
+  // upstream/cached payload incorrectly says "open".
   try {
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: 'Asia/Tehran',
@@ -253,12 +230,27 @@ function deriveIsMarketOpen(raw) {
     const hour = Number(values.hour);
     const minute = Number(values.minute);
     const totalMinutes = hour * 60 + minute;
-
     const tradingDay = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu'].includes(weekday);
-    return tradingDay && totalMinutes >= 9 * 60 && totalMinutes < 12 * 60 + 30;
+    const inRegularSession = tradingDay && totalMinutes >= 9 * 60 && totalMinutes < 12 * 60 + 30;
+
+    if (!inRegularSession) return false;
   } catch (_error) {
     return false;
   }
+
+  const explicit = normalizeBoolean(
+    coalesce(raw.isMarketOpen, raw.marketOpen, raw.is_open, raw.open)
+  );
+  if (typeof explicit === 'boolean') return explicit;
+
+  const stateRaw = coalesce(raw.marketState, raw.state, raw.market_status, raw.status);
+  if (stateRaw !== null && typeof stateRaw !== 'undefined' && stateRaw !== '') {
+    const state = String(stateRaw).toLowerCase();
+    if (state.indexOf('open') !== -1 || state.indexOf('trading') !== -1 || state.indexOf('continuous') !== -1 || state.indexOf('باز') !== -1) return true;
+    if (state.indexOf('close') !== -1 || state.indexOf('closed') !== -1 || state.indexOf('end') !== -1 || state.indexOf('بسته') !== -1) return false;
+  }
+
+  return true;
 }
 
 /**
