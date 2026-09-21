@@ -28,6 +28,8 @@ function ChartLine({ values, secondaryValues, width = 760, height = 270, padding
   const all = [...values, ...(secondaryValues ?? [])];
   const valid = all.map((value, index) => ({ value, index })).filter((item): item is { value: number; index: number } => valueIsValid(item.value));
   if (!valid.length) return null;
+  // Keep a one-point daily range visible instead of rendering an invisible zero-length polyline.
+  const singlePoint = valid.length === 1;
   const min = Math.min(...valid.map((item) => item.value));
   const max = Math.max(...valid.map((item) => item.value));
   const span = max - min || Math.max(Math.abs(max) * 0.01, 1);
@@ -40,6 +42,7 @@ function ChartLine({ values, secondaryValues, width = 760, height = 270, padding
       return <g key={`grid-${index}`} pointerEvents="none"><line x1={padding} x2={width - padding} y1={y} y2={y} stroke="currentColor" strokeOpacity="0.10" strokeDasharray="3 5" /><text x={padding - 8} y={y + 4} textAnchor="end" className="fill-slate-500 text-[10px]">{fa(tick, 0)}</text></g>;
     })}
     <polyline points={buildPoints(values)} fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+    {singlePoint && (() => { const point = toPoint(valid[0].value, valid[0].index); return <circle cx={point.x} cy={point.y} r="7" fill="currentColor" stroke="var(--color-surface)" strokeWidth="3" />; })()}
     {secondaryValues && <polyline points={buildPoints(secondaryValues)} fill="none" stroke="currentColor" strokeOpacity="0.45" strokeWidth="3" strokeDasharray="7 5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
     {values.map((value, index) => valueIsValid(value) ? (() => { const point = toPoint(value, index); return <circle key={`p-${index}`} cx={point.x} cy={point.y} r="5" fill="currentColor" stroke="var(--color-surface)" strokeWidth="2" className="cursor-pointer" onMouseEnter={() => onHover?.(index, point.x, point.y)} onFocus={() => onHover?.(index, point.x, point.y)} tabIndex={0} aria-label={`نقطه ${index + 1}`} />; })() : null)}
   </>;
