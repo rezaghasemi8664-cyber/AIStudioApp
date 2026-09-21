@@ -24,7 +24,24 @@ function normalizeItem(item) {
   if (!id || !symbol || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(buyPrice) || buyPrice <= 0) return null;
   return { id, symbol, name, quantity, buyPrice, entryDate: entryDate || new Date().toISOString() };
 }
-\nasync function enrichWithRealQuotes(items) {\n  const results = await Promise.all(items.map(async (item) => {\n    try {\n      const envelope = await brsService.getSymbolData(item.symbol);\n      const data = envelope && envelope.data ? envelope.data : {};\n      const meta = envelope && envelope._meta ? envelope._meta : {};\n      const currentPrice = Number(data.lastPrice ?? data.pl ?? data.pDrCotVal ?? data.closingPrice ?? data.pc);\n      const sourceRaw = String(meta.source || '').toLowerCase();\n      const dataStatus = sourceRaw === 'live' ? 'LIVE' : (sourceRaw ? 'CACHED' : 'UNAVAILABLE');\n      return { ...item, currentPrice: Number.isFinite(currentPrice) && currentPrice > 0 ? currentPrice : null, dataStatus, source: meta.source || null, fetchedAt: meta.fetchedAt || null, stale: dataStatus !== 'LIVE' };\n    } catch (error) {\n      return { ...item, currentPrice: null, dataStatus: 'UNAVAILABLE', source: null, fetchedAt: null, stale: true };\n    }\n  }));\n  return results;\n}\n
+
+async function enrichWithRealQuotes(items) {
+  const results = await Promise.all(items.map(async (item) => {
+    try {
+      const envelope = await brsService.getSymbolData(item.symbol);
+      const data = envelope && envelope.data ? envelope.data : {};
+      const meta = envelope && envelope._meta ? envelope._meta : {};
+      const currentPrice = Number(data.lastPrice ?? data.pl ?? data.pDrCotVal ?? data.closingPrice ?? data.pc);
+      const sourceRaw = String(meta.source || '').toLowerCase();
+      const dataStatus = sourceRaw === 'live' ? 'LIVE' : (sourceRaw ? 'CACHED' : 'UNAVAILABLE');
+      return { ...item, currentPrice: Number.isFinite(currentPrice) && currentPrice > 0 ? currentPrice : null, dataStatus, source: meta.source || null, fetchedAt: meta.fetchedAt || null, stale: dataStatus !== 'LIVE' };
+    } catch (error) {
+      return { ...item, currentPrice: null, dataStatus: 'UNAVAILABLE', source: null, fetchedAt: null, stale: true };
+    }
+  }));
+  return results;
+}
+
 function normalizeSoldTrade(trade) {
   if (!trade || typeof trade !== 'object') return null;
   const id = String(trade.id ?? '');
@@ -77,7 +94,13 @@ router.get('/', authMiddleware, async (req, res) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
     const state = await readPortfolio(userId);
-    return res.json({ success: true, data: state.portfolio });
+    const items = await enrichWithRealQuotes(state.portfolio.items);
+    const quoted = items.filter(item => Number.isFinite(item.currentPrice) && item.currentPrice > 0);
+    const currentValue = quoted.reduce((sum, item) => sum + item.currentPrice * item.quantity, 0);
+    const costBasis = quoted.reduce((sum, item) => sum + item.buyPrice * item.quantity, 0);
+    const unrealizedPnl = currentValue - costBasis;
+    const dataStatus = items.some(item => item.dataStatus === 'LIVE') ? 'LIVE' : (items.some(item => item.dataStatus === 'CACHED') ? 'CACHED' : 'UNAVAILABLE');
+    return res.json({ success: true, data: { ...state.portfolio, items, currentValue, costBasis, unrealizedPnl, dataStatus } });
   } catch (error) {
     console.error('[PORTFOLIO] GET failed:', error);
     return res.status(500).json({ success: false, message: 'خطا در دریافت سبد سهام.', error: error.message });
@@ -112,9 +135,15 @@ router.get('/summary', authMiddleware, async (req, res) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
     const state = await readPortfolio(userId);
+    const items = await enrichWithRealQuotes(state.portfolio.items);
+    const quoted = items.filter(item => Number.isFinite(item.currentPrice) && item.currentPrice > 0);
     const totalInvested = state.portfolio.items.reduce((sum, item) => sum + item.quantity * item.buyPrice, 0);
+    const currentValue = quoted.reduce((sum, item) => sum + item.currentPrice * item.quantity, 0);
+    const quotedCostBasis = quoted.reduce((sum, item) => sum + item.quantity * item.buyPrice, 0);
+    const unrealizedPnl = currentValue - quotedCostBasis;
     const realizedPnl = state.portfolio.soldTrades.reduce((sum, trade) => sum + trade.realizedPnl, 0);
-    return res.json({ success: true, data: { totalItems: state.portfolio.items.length, totalInvested, realizedPnl, soldTrades: state.portfolio.soldTrades, items: state.portfolio.items } });
+    const dataStatus = items.some(item => item.dataStatus === 'LIVE') ? 'LIVE' : (items.some(item => item.dataStatus === 'CACHED') ? 'CACHED' : 'UNAVAILABLE');
+    return res.json({ success: true, data: { totalItems: items.length, totalInvested, currentValue, unrealizedPnl, realizedPnl, dataStatus, soldTrades: state.portfolio.soldTrades, items } });
   } catch (error) {
     console.error('[PORTFOLIO] SUMMARY failed:', error);
     return res.status(500).json({ success: false, message: 'خطا در دریافت خلاصه سبد.', error: error.message });
