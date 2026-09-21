@@ -71,5 +71,18 @@ export async function deletePlan(id: number): Promise<void> {
   }
 }
 
-export default { getSummary, getPlans, createPlan, updatePlan, deletePlan };
+
+export async function applyGiftSubscription(days: number): Promise<{ days: number; affectedUsers: number }> {
+  const value = Number(days);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error('تعداد روزهای اشتراک هدیه باید بیشتر از صفر باشد.');
+  }
+  const response = await apiClient.post<{ days: number; affectedUsers: number }>('/admin/subscriptions/gift', { days: value });
+  if (!response?.success || !response.data) {
+    throw new Error(response?.message || 'اعمال اشتراک هدیه ناموفق بود.');
+  }
+  return response.data;
+}
+
+export default { getSummary, getPlans, createPlan, updatePlan, deletePlan, applyGiftSubscription };
 
