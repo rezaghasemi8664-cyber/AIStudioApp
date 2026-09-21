@@ -680,6 +680,7 @@ mountRoute('/api/v1/market-summary',   './routes/marketSummary.routes.cjs',   'M
 
 mountRoute('/api/scalping',      './routes/scalping.routes.cjs',       'Scalping');
 mountRoute('/api/v1/scalping',   './routes/scalping.routes.cjs',       'Scalping v1 alias');
+mountRoute('/api/v1/ronia-assistant', './routes/roniaAssistant.routes.cjs', 'Ronia Assistant v1 alias');
 
 mountRoute('/api/analysis-history',      './routes/analysisHistory.routes.cjs',  'Analysis History');
 mountRoute('/api/v1/analysis-history',   './routes/analysisHistory.routes.cjs',  'Analysis History v1 alias');
