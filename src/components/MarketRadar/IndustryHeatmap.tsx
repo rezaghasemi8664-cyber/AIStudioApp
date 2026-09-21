@@ -16,11 +16,11 @@ const signedPercent = (value: number | null | undefined): string => {
 
 const heatClass = (changePercent: number): string => {
   if (changePercent >= 4) return 'border-emerald-700 bg-emerald-700 text-emerald-100';
-  if (changePercent >= 2) return 'border-emerald-600 bg-emerald-600 text-rose-100';
-  if (changePercent > 0) return 'border-emerald-500 bg-emerald-500 text-white';
-  if (changePercent <= -4) return 'border-rose-700 bg-rose-700 text-white';
-  if (changePercent <= -2) return 'border-rose-600 bg-rose-600 text-white';
-  if (changePercent < 0) return 'border-rose-500 bg-rose-500 text-white';
+  if (changePercent >= 2) return 'border-emerald-600 bg-emerald-600 text-emerald-100';
+  if (changePercent > 0) return 'border-emerald-500 bg-emerald-500 text-emerald-100';
+  if (changePercent <= -4) return 'border-rose-700 bg-rose-700 text-rose-100';
+  if (changePercent <= -2) return 'border-rose-600 bg-rose-600 text-rose-100';
+  if (changePercent < 0) return 'border-rose-500 bg-rose-500 text-rose-100';
   return 'border-slate-500 bg-slate-500 text-slate-100';
 };
 
