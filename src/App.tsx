@@ -29,6 +29,7 @@ import * as storageServiceModule from './services/storageService';
 import * as apiEndpointServiceModule from './services/apiEndpointService';
 import * as gapgptServiceModule from './services/gapgptService';
 import * as socketServiceModule from './services/socketService';
+import { recordSiteVisit, sendSiteHeartbeat } from './services/siteAnalyticsService';
 import { globalSettings } from './services/settingsService';
 
 import { useNotification } from './components/NotificationSystem';
@@ -440,6 +441,21 @@ const App: React.FC = () => {
     setActiveTab('dashboard');
     setPortfolioAlert('none');
     setScalpingAlert(false);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const visit = async () => {
+      try { await recordSiteVisit(); } catch (error) { console.warn('[SiteAnalytics] visit failed:', error); }
+    };
+    const heartbeat = async () => {
+      if (!mounted) return;
+      try { await sendSiteHeartbeat(); } catch (error) { console.warn('[SiteAnalytics] heartbeat failed:', error); }
+    };
+    void visit();
+    void heartbeat();
+    const timer = window.setInterval(heartbeat, TIMING.PRESENCE_INTERVAL);
+    return () => { mounted = false; window.clearInterval(timer); };
   }, []);
 
   useEffect(() => {
