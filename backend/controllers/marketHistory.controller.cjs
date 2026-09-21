@@ -219,31 +219,51 @@ function deriveIsMarketOpen(raw) {
   if (typeof explicit === 'boolean') return explicit;
 
   const stateRaw = coalesce(raw.marketState, raw.state, raw.market_status, raw.status);
-  if (stateRaw === null || typeof stateRaw === 'undefined' || stateRaw === '') {
-    return undefined;
+  if (stateRaw !== null && typeof stateRaw !== 'undefined' && stateRaw !== '') {
+    const state = String(stateRaw).toLowerCase();
+
+    if (
+      state.indexOf('open') !== -1 ||
+      state.indexOf('trading') !== -1 ||
+      state.indexOf('continuous') !== -1 ||
+      state.indexOf('باز') !== -1
+    ) {
+      return true;
+    }
+
+    if (
+      state.indexOf('close') !== -1 ||
+      state.indexOf('closed') !== -1 ||
+      state.indexOf('end') !== -1 ||
+      state.indexOf('بسته') !== -1
+    ) {
+      return false;
+    }
   }
 
-  const state = String(stateRaw).toLowerCase();
+  // BRS does not always expose the market state. In that case do not
+  // assume "open"; use the Tehran Stock Exchange regular session:
+  // Sunday through Thursday, 09:00–12:30 Asia/Tehran.
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Tehran',
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).formatToParts(new Date());
 
-  if (
-    state.indexOf('open') !== -1 ||
-    state.indexOf('trading') !== -1 ||
-    state.indexOf('continuous') !== -1 ||
-    state.indexOf('باز') !== -1
-  ) {
-    return true;
-  }
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    const weekday = values.weekday;
+    const hour = Number(values.hour);
+    const minute = Number(values.minute);
+    const totalMinutes = hour * 60 + minute;
 
-  if (
-    state.indexOf('close') !== -1 ||
-    state.indexOf('closed') !== -1 ||
-    state.indexOf('end') !== -1 ||
-    state.indexOf('بسته') !== -1
-  ) {
+    const tradingDay = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu'].includes(weekday);
+    return tradingDay && totalMinutes >= 9 * 60 && totalMinutes < 12 * 60 + 30;
+  } catch (_error) {
     return false;
   }
-
-  return undefined;
 }
 
 /**
