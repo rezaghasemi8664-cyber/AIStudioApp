@@ -6,6 +6,7 @@ export interface SiteVisit {
   userId: string | number | null;
   lastVisitAt: string;
   visits: number;
+  visitedAt?: string;
 }
 
 export interface OnlineUser {
