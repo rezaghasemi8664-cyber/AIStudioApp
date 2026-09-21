@@ -60,7 +60,8 @@ export async function getMarketRadarSnapshot(): Promise<MarketRadarSnapshot> {
   const [indexResult, breadthResult] = await Promise.allSettled([apiFetch('/market/index'), apiFetch('/market/breadth')]);
   const indexPayload = indexResult.status === 'fulfilled' ? indexResult.value : null; const breadthPayload = breadthResult.status === 'fulfilled' ? breadthResult.value : null;
   if (indexResult.status === 'rejected' && breadthResult.status === 'rejected') throw new Error('Market Radar data unavailable');
-  const root = record(unwrap(indexPayload)); const marketOpen = typeof root.isMarketOpen === 'boolean' ? root.isMarketOpen : true;
+  const root = record(unwrap(indexPayload));
+  const marketOpen = typeof root.isMarketOpen === 'boolean' ? root.isMarketOpen : false;
   return { fetchedAt: new Date().toISOString(), dataStatus: 'LIVE', source: 'BRS Market API', stale: false, marketOpen, indices: normalizeIndexRows(indexPayload), totalValue: numberFrom(root, ['totalValue', 'marketValue', 'tradeValue', 'valueTraded']), totalVolume: numberFrom(root, ['totalVolume', 'volume', 'tradeVolume']), totalTrades: numberFrom(root, ['totalTrades', 'trades', 'tradeCount']), breadth: normalizeBreadth(breadthPayload) };
 }
 
