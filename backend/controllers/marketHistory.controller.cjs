@@ -213,11 +213,6 @@ function calcChangePercent(value, change) {
 }
 
 function deriveIsMarketOpen(raw) {
-  const explicit = normalizeBoolean(
-    coalesce(raw.isMarketOpen, raw.marketOpen, raw.is_open, raw.open)
-  );
-  if (typeof explicit === 'boolean') return explicit;
-
   const stateRaw = coalesce(raw.marketState, raw.state, raw.market_status, raw.status);
   if (stateRaw !== null && typeof stateRaw !== 'undefined' && stateRaw !== '') {
     const state = String(stateRaw).toLowerCase();
