@@ -22,6 +22,8 @@ interface BacktestResult {
   sharpe: number | null;
   openQuantity: number;
   cash: number;
+  dataStatus?: 'LIVE' | 'CACHED' | 'UNAVAILABLE';
+  source?: string;
   closedTrades: Array<{ entryDate: string; exitDate: string; quantity: number; entryPrice: number; exitPrice: number; grossPnl: number; fees: number; netPnl: number; returnPercent: number | null }>;
   trades: Array<{
     date: string;
@@ -200,6 +202,7 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ isOnline }) => {
 
 
 
+      {result && <div className="mb-4 flex flex-wrap items-center gap-2 text-xs"><span className="rounded-full bg-emerald-100 px-3 py-1 font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">{result.dataStatus === 'LIVE' ? 'داده زنده' : result.dataStatus === 'CACHED' ? 'داده ذخیره‌شده' : 'داده در دسترس نیست'}</span><span className="text-slate-500">منبع: {result.source || 'BRS History API'}</span></div>}
       {result && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
