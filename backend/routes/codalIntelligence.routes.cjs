@@ -14,7 +14,7 @@ router.get('/reports', authenticate, async (req, res) => {
       to: String(req.query.to || '').trim(),
       limit: req.query.limit,
     });
-    return res.json({ success: true, data: result });
+    return res.json({ success: true, data: result, meta: { status: 'LIVE', source: 'BRS Codal API', fetchedAt: result.fetchedAt, stale: false } });
   } catch (error) {
     const status = error?.code === 'CODAL_NOT_CONFIGURED' ? 503 : 502;
     return res.status(status).json({
