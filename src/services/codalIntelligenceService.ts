@@ -61,6 +61,7 @@ export interface CodalReportsResult {
   fetchedAt: string;
   source: string;
   configured: boolean;
+  meta?: { status: 'LIVE' | 'CACHED' | 'UNAVAILABLE'; source?: string; fetchedAt?: string; stale?: boolean };
 }
 
 export async function getCodalReports(params: {
