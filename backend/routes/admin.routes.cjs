@@ -63,9 +63,9 @@ router.post('/subscriptions/gift',authMiddleware,requireAdmin,async function(req
         var end=new Date(currentEnd.getTime()+days*86400000);
         await tx.user.update({where:{id:u.id},data:{subscriptionStart:start,subscriptionEnd:end,subscriptionMonths:0,subscriptionType:'GIFT'}});
         if(current){
-          await tx.subscription.update({where:{id:current.id},data:{expiresAt:end,type:'GIFT'}});
+          await tx.subscription.update({where:{id:current.id},data:{expiresAt:end}});
         }else{
-          await tx.subscription.create({data:{userId:u.id,planId:null,type:'GIFT',status:'ACTIVE',startsAt:start,expiresAt:end}});
+          await tx.subscription.create({data:{userId:u.id,planId:null,type:String(current&&current.type||u.subscriptionType||'free'),status:'ACTIVE',startsAt:start,expiresAt:end}});
         }
         affected++;
       }
