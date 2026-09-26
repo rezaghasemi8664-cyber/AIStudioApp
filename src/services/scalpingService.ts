@@ -288,16 +288,6 @@ const defaultHistory = (page: number, limit: number): ScalpingHistoryResult => (
   pagination: { page, limit, total: 0, pages: 0 }
 });
 
-const defaultStartResult = (): StartScalpingResult => ({
-  signals: [],
-  count: 0,
-  status: 'failed',
-  marketStatus: {
-    isOpen: false,
-    available: false
-  }
-});
-
 export const scalpingService = {
   async getScalpingStatus(): Promise<ScalpingStatus> {
     try {
