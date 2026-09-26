@@ -154,17 +154,32 @@ async function refreshActiveOpportunities(userId, limit = 200) {
   }));
 }
 
+let backgroundScalpingRun = null;
+
 async function getOpportunities(userId, options) {
   const normalizedUserId = normalizeUserId(userId);
   const limit = Math.min(Math.max(parseInt(options && options.limit, 10) || 50, 1), 200);
-  await refreshActiveOpportunities(normalizedUserId, limit);
 
   const where = normalizedUserId ? { userId: normalizedUserId, status: 'active' } : { status: 'active' };
-  const rows = await prisma.scalpingOpportunity.findMany({
+  let rows = await prisma.scalpingOpportunity.findMany({
     where,
     orderBy: [{ score: 'desc' }, { createdAt: 'desc' }],
     take: limit
   });
+
+  if (rows.length) {
+    // Validate existing real-data opportunities in the background; never block
+    // the initial signals response on BRS.
+    void refreshActiveOpportunities(normalizedUserId, limit).catch(error => {
+      console.warn('[SCALPING SERVICE] Background opportunity refresh failed:', error.message);
+    });
+  } else if (!backgroundScalpingRun) {
+    // No synthetic fallback: trigger a real BRS scan once and let the next poll
+    // consume the persisted opportunities.
+    backgroundScalpingRun = runScalping(normalizedUserId, { onlyConfiguredSymbols: false })
+      .catch(error => console.warn('[SCALPING SERVICE] Background scan failed:', error.message))
+      .finally(() => { backgroundScalpingRun = null; });
+  }
 
   // در هر اسکن فقط یک کارت برای هر نماد نمایش داده شود.
   const uniqueBySymbol = new Map();
