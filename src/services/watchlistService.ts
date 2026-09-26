@@ -62,7 +62,7 @@ export async function removeSymbolsFromWatchlist(id: string, symbols: string[]):
 }
 
 export async function validateSymbol(symbol: string): Promise<WatchlistSymbol | null> {
-  const response = await api.get(`/brs/symbol/${encodeURIComponent(symbol)}`);
+  const response = await api.get(`/market/symbol/${encodeURIComponent(symbol)}`);
   const raw: any = unwrap<any>(response);
   if (!raw || raw.available === false) return null;
   const data = raw?.data ?? raw;
@@ -72,7 +72,7 @@ export async function validateSymbol(symbol: string): Promise<WatchlistSymbol | 
 }
 
 export async function getQuote(symbol: string): Promise<WatchlistQuote> {
-  const response = await api.get(`/brs/symbol/${encodeURIComponent(symbol)}`);
+  const response = await api.get(`/market/symbol/${encodeURIComponent(symbol)}`);
   const raw: any = unwrap<any>(response);
   const data: any = raw?.data ?? raw ?? {};
   if (raw?.available === false || data?.available === false) throw new Error(`اطلاعات نماد ${symbol} در دسترس نیست.`);
