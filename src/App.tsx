@@ -356,7 +356,7 @@ const BackgroundTabLoader: React.FC<{
   onAlertChange,
   onNavigate,
 }) => {
-  const [preloadedKeys, setPreloadedKeys] = useState<Set<Tab>>(() => new Set());
+  const [ready, setReady] = useState(false);
 
   const preloadItems = useMemo<Array<{ key: Tab; node: React.ReactNode }>>(
     () => [
@@ -383,31 +383,16 @@ const BackgroundTabLoader: React.FC<{
   );
 
   useEffect(() => {
-    if (isExpired || preloadedKeys.size >= preloadItems.length) return;
+    if (isExpired) {
+      setReady(false);
+      return;
+    }
 
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      if (cancelled) return;
-      setPreloadedKeys(previous => {
-        const next = new Set(previous);
-        const nextItem = preloadItems.find(item => !next.has(item.key));
-        if (!nextItem) return previous;
-        next.add(nextItem.key);
-        return next;
-      });
-    }, 900);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [isExpired, preloadItems, preloadedKeys.size]);
-
-  useEffect(() => {
-    if (isExpired) setPreloadedKeys(new Set());
+    const timer = window.setTimeout(() => setReady(true), 1200);
+    return () => window.clearTimeout(timer);
   }, [isExpired]);
 
-  if (isExpired || preloadedKeys.size === 0) return null;
+  if (isExpired || !ready) return null;
 
   const hiddenStyle: React.CSSProperties = {
     position: 'fixed',
@@ -424,7 +409,7 @@ const BackgroundTabLoader: React.FC<{
   return (
     <div aria-hidden="true" style={hiddenStyle} data-background-tab-loader="true">
       {preloadItems
-        .filter(item => preloadedKeys.has(item.key) && item.key !== activeTab)
+        .filter(item => item.key !== activeTab)
         .map(item => (
           <div key={item.key} data-preloaded-tab={item.key}>
             <LazyErrorBoundary fallback={null}>
