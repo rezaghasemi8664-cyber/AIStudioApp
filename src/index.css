@@ -2012,7 +2012,7 @@ body {
     min-width: 0 !important;
     flex: 0 0 100% !important;
     display: grid !important;
-    grid-template-columns: minmax(0, 42%) minmax(0, 58%) !important;
+    grid-template-columns: minmax(0, 40%) minmax(0, 60%) !important;
     align-items: center !important;
     justify-items: stretch !important;
     gap: 4px !important;
@@ -2030,8 +2030,7 @@ body {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 2px !important;
-    padding: 0 2px !important;
+    padding: 0 !important;
     overflow: hidden !important;
   }
 
@@ -2072,16 +2071,23 @@ body {
     overflow: hidden !important;
   }
 
+  .app-header-center .market-index-widget .market-index-header {
+    min-width: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
   .app-header-center .market-index-widget .market-index-values {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     grid-template-rows: 1fr !important;
     grid-auto-flow: column !important;
     align-items: stretch !important;
-    justify-items: stretch !important;
     width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
   }
 
   .app-header-center .market-index-widget .market-index-column {
@@ -2097,25 +2103,24 @@ body {
     min-width: 0 !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
-    padding-inline: 4px !important;
+    padding-inline: 3px !important;
   }
 
   .app-header-center .market-index-widget .market-index-column > div > div {
     min-width: 0 !important;
     max-width: 100% !important;
-    box-sizing: border-box !important;
   }
 
   .app-header-center .market-index-widget .market-index-column > div > div:nth-child(2) {
-    font-size: 15px !important;
+    font-size: 14px !important;
     white-space: nowrap !important;
   }
 
   .app-header-center .market-index-widget .market-index-column > div > div:last-child {
     min-width: 0 !important;
     max-width: 100% !important;
-    font-size: 10px !important;
-    gap: 2px !important;
+    font-size: 9px !important;
+    gap: 1px !important;
     white-space: nowrap !important;
     overflow: hidden !important;
   }
