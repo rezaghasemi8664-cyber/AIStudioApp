@@ -142,6 +142,44 @@ async function updateSymbolsAndMovers() {
 }
 
 
+
+async function updateMarketDaily(symbols) {
+  const marketDate = sqlDate(tehranDateKey());
+  let written = 0;
+  for (const item of symbols) {
+    const open = num(item.open);
+    const high = num(item.high);
+    const low = num(item.low);
+    const close = num(item.closingPrice ?? item.closePrice ?? item.lastPrice);
+    if (![open, high, low, close].every(Number.isFinite)) continue;
+    await prisma.marketDaily.upsert({
+      where: { symbol_date: { symbol: item.symbol, date: marketDate } },
+      create: {
+        symbol: item.symbol,
+        date: marketDate,
+        open,
+        high,
+        low,
+        close,
+        volume: BigInt(Math.max(0, int(item.tradeVolume, 0))),
+        value: BigInt(Math.max(0, Math.trunc(num(item.tradeValue, 0)))),
+        trades: Math.max(0, int(item.tradeCount, 0))
+      },
+      update: {
+        open,
+        high,
+        low,
+        close,
+        volume: BigInt(Math.max(0, int(item.tradeVolume, 0))),
+        value: BigInt(Math.max(0, Math.trunc(num(item.tradeValue, 0)))),
+        trades: Math.max(0, int(item.tradeCount, 0))
+      }
+    });
+    written += 1;
+  }
+  return written;
+}
+
 async function updateIndustries(symbols) {
   const groups = new Map();
   for (const item of symbols) {
@@ -238,6 +276,7 @@ async function runMarketWorker() {
 
   await runJob('market-current', updateMarketCurrent);
   const symbols = await updateSymbolsAndMovers();
+  await runJob('market-daily', () => updateMarketDaily(symbols));
   await runJob('industries', () => updateIndustries(symbols));
   await runJob('scalping-opportunities', () => updateScalpingOpportunities(symbols));
   return { status: 'success', symbols: symbols.length };
@@ -251,4 +290,4 @@ function startMarketWorker() {
   console.log('[MARKET WORKER] Central market worker started');
 }
 
-module.exports = { runMarketWorker, startMarketWorker, updateMarketCurrent, updateSymbolsAndMovers, updateIndustries, updateScalpingOpportunities };
+module.exports = { runMarketWorker, startMarketWorker, updateMarketCurrent, updateSymbolsAndMovers, updateIndustries, updateMarketDaily, updateScalpingOpportunities };
