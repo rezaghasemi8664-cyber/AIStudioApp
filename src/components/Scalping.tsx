@@ -1,5 +1,5 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { scalpingService, type ScalpingStatus } from '../services/scalpingService';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { scalpingService } from '../services/scalpingService';
 import {
   ChartBarIcon,
   ArrowTrendingUpIcon,
@@ -13,22 +13,6 @@ interface ScalpingProps {
   isOnline: boolean;
 }
 
-// ایجاد وضعیت پیش‌فرض برای جلوگیری از خطاهای undefined در اولین رندر
-const createDefaultStatus = (): ScalpingStatus => ({
-  isRunning: false,
-  lastRunId: null,
-  lastStatus: null,
-  lastUpdate: null,
-  todayTrades: 0,
-  activePositions: 0,
-  todayPnL: 0,
-  marketStatus: {
-    isOpen: false,
-    available: false
-  }
-});
-
-// فرمت‌دهی زمان به صورت محلی و خوانا
 const formatRelativeTime = (value?: string | number | null) => {
   if (!value) return 'نامشخص';
   const timestamp = typeof value === 'number' ? value : new Date(value).getTime();
@@ -43,16 +27,12 @@ const formatRelativeTime = (value?: string | number | null) => {
   return rtf.format(-Math.floor(diffInSeconds / 86400), 'day');
 };
 
-const formatPrice = (value?: number | null) => 
-  (value && value > 0) ? new Intl.NumberFormat('fa-IR').format(value) : '---';
+const formatPrice = (value?: number | null) =>
+  value && value > 0 ? new Intl.NumberFormat('fa-IR').format(value) : '---';
 
-const formatScore = (value?: number | null) => 
+const formatScore = (value?: number | null) =>
   typeof value === 'number' ? value.toFixed(1) : '0.0';
 
-/**
- * کامپوننت نمایش کارت یک فرصت نوسان‌گیری
- * نقاط ورود، خروج، حد سود و حد ضرر مستقیماً از سیگنال سرور نمایش داده می‌شوند.
- */
 const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ opportunity }) => {
   const entryPrice = opportunity.entryPrice ?? opportunity.price;
   const exitPrice = opportunity.exitPrice ?? opportunity.targetPrice;
@@ -110,11 +90,9 @@ const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ oppor
 
 const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
   const [opportunities, setOpportunities] = useState<ScalpingOpportunity[]>([]);
-  const [status, setStatus] = useState<ScalpingStatus>(createDefaultStatus());
+  const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isLoading, setIsLoading] = useState(true);
-  const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now());
-
   const requestIdRef = useRef(0);
 
   const loadData = useCallback(async () => {
@@ -126,24 +104,16 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
 
     setIsLoading(true);
     try {
-      // دریافت همزمان وضعیت و سیگنال‌ها برای سرعت بیشتر
-      const [statusRes, signalsRes] = await Promise.all([
-        scalpingService.getScalpingStatus(),
-        scalpingService.getScalpingSignals()
-      ]);
+      // فقط یک درخواست برای دریافت snapshot مرکزی نوسان‌گیری.
+      // تولید و به‌روزرسانی داده‌ها توسط Central Market Worker انجام می‌شود.
+      const signalsRes = await scalpingService.getScalpingSignals();
 
       if (currentId !== requestIdRef.current) return;
 
-      // توجه: scalpingService خود دارای لایه نرمال‌سازی است
-      if (statusRes) setStatus(statusRes);
-      
-      // استخراج لیست سیگنال‌ها با اولویت فیلد signals طبق اینترفیس سرویس
-      const rawSignals = (signalsRes as any)?.signals || (signalsRes as any)?.data || [];
-      setOpportunities(Array.isArray(rawSignals) ? rawSignals : []);
-      
+      setOpportunities(Array.isArray(signalsRes.signals) ? signalsRes.signals : []);
       setLastRefreshed(Date.now());
     } catch (error) {
-      console.error('[Scalping] Error fetching data:', error);
+      console.error('[Scalping] Error fetching shared signals:', error);
     } finally {
       if (currentId === requestIdRef.current) {
         setIsLoading(false);
@@ -153,12 +123,11 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
 
   useEffect(() => {
     loadData();
-    const timer = setInterval(loadData, 30000); // بررسی اعتبار نقاط ورود و خروج هر ۳۰ ثانیه
+
+    // همگام‌سازی خودکار با snapshot مرکزی؛ بدون دکمه شروع/توقف/به‌روزرسانی.
+    const timer = setInterval(loadData, 30000);
     return () => clearInterval(timer);
   }, [loadData]);
-
-  // تعیین وضعیت بازار: اولویت با فیلد صریح isOpen است
-  const isMarketOpen = status.marketStatus?.isOpen || status.isRunning;
 
   const renderContent = () => {
     if (!isOnline) {
@@ -179,27 +148,21 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
       );
     }
 
-    if (!isMarketOpen && opportunities.length === 0) {
+    if (opportunities.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center py-16 bg-[var(--color-surface)] border border-dashed border-[var(--color-border)] rounded-2xl">
           <ClockIcon className="w-12 h-12 text-gray-300 mb-4" />
-          <h3 className="text-lg font-bold text-[var(--color-text-primary)]">بازار بسته است</h3>
-          <p className="text-sm text-[var(--color-text-secondary)] mt-2">سیگنال‌های نوسان‌گیری فقط در زمان فعالیت بازار ارائه می‌شوند.</p>
-        </div>
-      );
-    }
-
-    if (opportunities.length === 0) {
-      return (
-        <div className="text-center py-12">
-          <p className="text-[var(--color-text-secondary)]">در حال حاضر فرصت نوسان‌گیری فعالی یافت نشد.</p>
+          <h3 className="text-lg font-bold text-[var(--color-text-primary)]">در حال حاضر فرصت نوسان‌گیری فعالی یافت نشد</h3>
+          <p className="text-sm text-[var(--color-text-secondary)] mt-2">
+            این بخش به‌صورت خودکار با داده‌های مرکزی رونیـا همگام می‌شود.
+          </p>
         </div>
       );
     }
 
     return (
       <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'flex flex-col gap-2'}>
-        {opportunities.map((op) => (
+        {opportunities.map(op => (
           <OpportunityCard key={op.id || op.symbol} opportunity={op} />
         ))}
       </div>
@@ -208,7 +171,6 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
 
   return (
     <div className="page-shell scalping-page space-y-5" dir="rtl">
-      {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-cyan-500/10 rounded-lg">
@@ -217,11 +179,9 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
           <div>
             <h2 className="text-xl font-bold text-[var(--color-text-primary)]">فرصت‌های نوسان‌گیری</h2>
             <div className="flex items-center gap-2 mt-1 text-xs text-[var(--color-text-secondary)]">
-              <span>بروزرسانی: {formatRelativeTime(lastRefreshed)}</span>
+              <span>همگام‌سازی خودکار: {formatRelativeTime(lastRefreshed)}</span>
               <span className="w-1 h-1 bg-gray-400 rounded-full" />
-              <span className={isMarketOpen ? 'text-green-500' : 'text-amber-500'}>
-                {isMarketOpen ? 'بازار باز' : 'بازار بسته'}
-              </span>
+              <span className="text-green-500">داده مرکزی فعال</span>
             </div>
           </div>
         </div>
@@ -242,14 +202,12 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="relative min-h-[300px]">
         {renderContent()}
       </div>
 
-      {/* Footer Info */}
       <div className="text-[10px] text-gray-400 text-center pt-4">
-        * تحلیل‌ها بر اساس الگوریتم اختصاصی و فاکتورهای هفت‌گانه رونیـا انجام می‌شود.
+        * سیگنال‌ها توسط موتور مرکزی رونیـا تولید و در پایگاه داده مشترک به‌روزرسانی می‌شوند.
       </div>
     </div>
   );
