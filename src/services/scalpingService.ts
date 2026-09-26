@@ -401,7 +401,7 @@ export const scalpingService = {
       console.error('Start Scalping API Error:', error);
       return defaultStartResult();
     }
-  }
+  },
 
   async stopScalping(): Promise<{ success: boolean; [key: string]: unknown }> {
     try {
