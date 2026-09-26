@@ -2312,3 +2312,45 @@ body {
     overflow: hidden !important;
   }
 }
+
+/* ---------- Market index mobile: absolute final two-column layout ---------- */
+@media (max-width: 640px) {
+  .market-index-widget .market-index-values {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    grid-template-rows: 1fr !important;
+    grid-auto-flow: column !important;
+    align-items: stretch !important;
+    justify-items: stretch !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex-direction: initial !important;
+    flex-wrap: initial !important;
+  }
+
+  .market-index-widget .market-index-column {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex: none !important;
+    grid-row: 1 !important;
+    box-sizing: border-box !important;
+  }
+
+  .market-index-widget .market-index-column > div {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex: none !important;
+    box-sizing: border-box !important;
+  }
+
+  .market-index-widget .market-index-column > div > div {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+}
