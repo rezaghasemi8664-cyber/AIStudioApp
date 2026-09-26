@@ -48,7 +48,7 @@ const Clock: React.FC = () => {
     // runtime instead of manually adding a fixed offset.
     const tehranTimeZone = 'Asia/Tehran';
 
-    const shamsiDate = useMemo(() => new Intl.DateTimeFormat('fa-IR-u-ca-persian-u-nu-latn', {
+    const shamsiDate = useMemo(() => new Intl.DateTimeFormat('fa-IR-u-ca-persian-nu-latn', {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
