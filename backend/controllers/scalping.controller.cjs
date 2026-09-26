@@ -28,19 +28,6 @@ function sendSuccess(res, data, message, statusCode) {
   });
 }
 
-function getServiceMethod(methodNames) {
-  for (const methodName of methodNames) {
-    if (typeof scalpingService[methodName] === 'function') return methodName;
-  }
-  return null;
-}
-
-async function callFirstAvailable(methodNames, args) {
-  const methodName = getServiceMethod(methodNames);
-  if (methodName) return scalpingService[methodName](...args);
-  throw new Error(`Methods not available: ${methodNames.join(', ')}`);
-}
-
 async function resolveMarketStatus() {
   try {
     const market = await sharedMarketService.getMarketCurrent();
@@ -191,14 +178,13 @@ async function start(req, res) {
 async function runScalping(req, res) { return start(req, res); }
 
 async function stop(req, res) {
-  try {
-    const userId = getUserId(req);
-    if (!userId) return sendUnauthorized(res);
-    const result = await callFirstAvailable(['stopEngine', 'stopScalping'], [userId]);
-    return sendSuccess(res, result, 'اسکالپینگ با موفقیت متوقف شد');
-  } catch (error) {
-    return sendError(res, error, /Methods not available/.test(error.message) ? 501 : 500);
-  }
+  const userId = getUserId(req);
+  if (!userId) return sendUnauthorized(res);
+  return res.status(409).json({
+    success: false,
+    message: 'تولید اسکالپینگ به‌صورت مرکزی انجام می‌شود و توسط کاربر قابل توقف نیست',
+    code: 'CENTRAL_SCALPING_WORKER'
+  });
 }
 
 module.exports = {
