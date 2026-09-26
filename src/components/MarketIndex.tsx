@@ -14,8 +14,8 @@ interface CacheEntry {
     meta?: { status: 'LIVE' | 'CACHED' | 'UNAVAILABLE'; source?: string; fetchedAt?: string; stale?: boolean };
 }
 
-const CACHE_KEY_LIVE = 'ronia_market_index_cache';
-const CACHE_KEY_FINAL = 'ronia_market_index_final_daily';
+const CACHE_KEY_LIVE = 'ronia_market_index_cache_v2';
+const CACHE_KEY_FINAL = 'ronia_market_index_final_daily_v2';
 
 const CACHE_TTL_LIVE = 2 * 60 * 1000;
 const CACHE_TTL_FINAL = 10 * 60 * 1000;
@@ -234,13 +234,13 @@ const IndexDisplay: React.FC<IndexDisplayProps> = ({ name, value, changeValue, c
         <div className="min-w-0 flex-1 px-2 sm:px-3">
             <div className="mb-2 text-[13px] font-bold leading-6 text-slate-300 whitespace-normal break-words">{name}</div>
             {hasValue ? (
-                <div className={`${valueColor} whitespace-nowrap text-[20px] sm:text-[22px] lg:text-[24px] font-black leading-tight tracking-tight tabular-nums`} dir="ltr">
+                <div className={`${valueColor} whitespace-nowrap text-[16px] sm:text-[22px] lg:text-[24px] font-black leading-tight tracking-tight tabular-nums`} dir="ltr">
                     {formatIndexValue(value)}
                 </div>
             ) : (
                 <div className="text-[12px] sm:text-[13px] font-semibold leading-5 text-slate-500 whitespace-nowrap">داده در دسترس نیست</div>
             )}
-            <div className={`mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 ${changeColor} text-[11px] sm:text-[13px] font-bold tabular-nums`} dir="rtl">
+            <div className={`mt-2 flex min-w-0 flex-nowrap items-center gap-1 ${changeColor} text-[10px] sm:text-[13px] font-bold tabular-nums whitespace-nowrap`} dir="ltr">
                 {showIcon && <Icon className="h-4 w-4 shrink-0" />}
                 <span>{safeChangeValue === null ? 'داده در دسترس نیست' : formatSignedNumber(safeChangeValue)}</span>
                 <span className="opacity-80">({safeChangePercent === null ? '—' : formatPercent(safeChangePercent)})</span>
@@ -370,7 +370,7 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
                     {showAsClosed ? 'بازار بسته' : 'بازار باز'}
                 </span>
             </div>
-            <div className="relative grid grid-cols-2 gap-0 px-2 py-4">
+            <div className="relative grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-0 px-1.5 py-4 sm:px-2">
                 <div aria-hidden="true" className="pointer-events-none absolute right-1/2 top-4 bottom-4 w-px translate-x-1/2 bg-[var(--color-border)]" />
                 <div className="min-w-0 px-0 sm:pl-5">
                     <IndexDisplay name="شاخص کل" value={data.value} changeValue={data.changeValue} changePercent={data.changePercent} showIcon={!showAsClosed} />
