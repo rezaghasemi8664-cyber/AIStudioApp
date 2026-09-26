@@ -258,6 +258,126 @@ model MarketSummary {
   @@schema("dbo")
 }
 
+model MarketCurrent {
+  id             Int      @id @default(autoincrement())
+  marketDate     DateTime @unique @db.Date
+  marketStatus   String   @db.NVarChar(30)
+  overallIndex   Decimal? @db.Decimal(20, 4)
+  overallChange  Decimal? @db.Decimal(20, 4)
+  equalIndex     Decimal? @db.Decimal(20, 4)
+  equalChange    Decimal? @db.Decimal(20, 4)
+  totalTrades    BigInt?
+  totalVolume    BigInt?
+  totalValue     Decimal? @db.Decimal(24, 2)
+  positiveStocks Int?
+  negativeStocks Int?
+  neutralStocks  Int?
+  updatedAt      DateTime @default(now())
+  source         String?  @db.NVarChar(50)
+  isStale        Boolean  @default(false)
+  dataJson       String?  @db.NVarChar(Max)
+
+  @@index([updatedAt])
+  @@map("MarketCurrent")
+  @@schema("dbo")
+}
+
+model MarketSymbolCurrent {
+  id              Int      @id @default(autoincrement())
+  symbol          String   @unique @db.NVarChar(100)
+  name            String?  @db.NVarChar(200)
+  insCode         String?  @db.NVarChar(100)
+  lastPrice       Decimal? @db.Decimal(18, 2)
+  closePrice      Decimal? @db.Decimal(18, 2)
+  change          Decimal? @db.Decimal(18, 4)
+  changePercent   Decimal? @db.Decimal(10, 4)
+  volume          BigInt?
+  value           Decimal? @db.Decimal(24, 2)
+  tradeCount      BigInt?
+  sector          String?  @db.NVarChar(200)
+  realBuyVolume   BigInt?
+  realSellVolume  BigInt?
+  legalBuyVolume  BigInt?
+  legalSellVolume BigInt?
+  updatedAt       DateTime @default(now())
+  source          String?  @db.NVarChar(50)
+  isStale         Boolean  @default(false)
+  dataJson        String?  @db.NVarChar(Max)
+
+  @@index([insCode])
+  @@index([sector])
+  @@index([updatedAt])
+  @@map("MarketSymbolCurrent")
+  @@schema("dbo")
+}
+
+model MarketMoverCurrent {
+  id            Int      @id @default(autoincrement())
+  category      String   @db.NVarChar(30)
+  symbol        String   @db.NVarChar(100)
+  price         Decimal? @db.Decimal(18, 2)
+  changePercent Decimal? @db.Decimal(10, 4)
+  volume        BigInt?
+  value         Decimal? @db.Decimal(24, 2)
+  rank          Int
+  updatedAt     DateTime @default(now())
+
+  @@unique([category, symbol])
+  @@index([category])
+  @@index([updatedAt])
+  @@map("MarketMoverCurrent")
+  @@schema("dbo")
+}
+
+model MarketIndustryCurrent {
+  id            Int      @id @default(autoincrement())
+  industryCode  String?  @db.NVarChar(100)
+  industryName  String   @db.NVarChar(200)
+  symbolCount   Int
+  changePercent Decimal? @db.Decimal(10, 4)
+  value         Decimal? @db.Decimal(24, 2)
+  rank          Int
+  updatedAt     DateTime @default(now())
+  source        String?  @db.NVarChar(50)
+  isStale       Boolean  @default(false)
+
+  @@index([industryCode])
+  @@index([industryName])
+  @@index([updatedAt])
+  @@map("MarketIndustryCurrent")
+  @@schema("dbo")
+}
+
+model MarketScalpingOpportunity {
+  id                 Int      @id @default(autoincrement())
+  symbol             String   @db.NVarChar(100)
+  score              Decimal? @db.Decimal(10, 4)
+  signal             String?  @db.NVarChar(50)
+  entryPrice         Decimal? @db.Decimal(18, 2)
+  stopLoss           Decimal? @db.Decimal(18, 2)
+  takeProfit         Decimal? @db.Decimal(18, 2)
+  currentPrice       Decimal? @db.Decimal(18, 2)
+  confidence         Decimal? @db.Decimal(10, 4)
+  strategyName       String   @db.NVarChar(100)
+  recommendationText String?  @db.NVarChar(1000)
+  marketDate         DateTime @db.Date
+  status             String   @db.NVarChar(30)
+  meta               String?  @db.NVarChar(Max)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  expiresAt          DateTime?
+  source             String?  @db.NVarChar(50)
+
+  @@unique([symbol, marketDate, strategyName])
+  @@index([symbol])
+  @@index([status])
+  @@index([score])
+  @@index([marketDate])
+  @@index([updatedAt])
+  @@map("MarketScalpingOpportunity")
+  @@schema("dbo")
+}
+
 model ThemeConfig {
   id        Int       @id(map: "PK__ThemeCon__3213E83FEEABC965") @default(autoincrement())
   name      String?   @db.NVarChar(100)
