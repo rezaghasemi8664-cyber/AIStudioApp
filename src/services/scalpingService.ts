@@ -46,11 +46,9 @@ export interface ScalpingHistoryResult {
 }
 
 export interface StartScalpingResult {
-  runId: string | number;
+  signals: ScalpingOpportunity[];
   status: string;
   count: number;
-  results: any[];
-  errors: any[];
   marketStatus: {
     isOpen: boolean;
     available: boolean;
