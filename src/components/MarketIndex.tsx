@@ -370,12 +370,12 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
                     {showAsClosed ? 'بازار بسته' : 'بازار باز'}
                 </span>
             </div>
-            <div className="relative grid grid-cols-1 gap-4 px-3 py-4 sm:grid-cols-2 sm:gap-0 sm:px-2">
-                <div aria-hidden="true" className="pointer-events-none absolute right-3 left-3 top-1/2 h-px w-auto translate-y-1/2 bg-[var(--color-border)] sm:right-1/2 sm:left-auto sm:top-4 sm:bottom-4 sm:h-auto sm:w-px sm:translate-x-1/2 sm:translate-y-0" />
-                <div className="min-w-0 px-0 pb-2 sm:pl-5 sm:pb-0">
+            <div className="relative grid grid-cols-2 gap-0 px-2 py-4">
+                <div aria-hidden="true" className="pointer-events-none absolute right-1/2 top-4 bottom-4 w-px translate-x-1/2 bg-[var(--color-border)]" />
+                <div className="min-w-0 px-0 sm:pl-5">
                     <IndexDisplay name="شاخص کل" value={data.value} changeValue={data.changeValue} changePercent={data.changePercent} showIcon={!showAsClosed} />
                 </div>
-                <div className="min-w-0 px-0 pt-2 sm:pr-5 sm:pt-0">
+                <div className="min-w-0 px-0 sm:pr-5">
                     <IndexDisplay name="شاخص هم‌وزن" value={data.equalWeightedValue} changeValue={data.equalWeightedChangeValue} changePercent={data.equalWeightedChangePercent} showIcon={!showAsClosed} />
                 </div>
             </div>
