@@ -171,11 +171,12 @@ async function getSymbolHistory(symbol, limit = 60) {
 }
 
 async function getBreadth() {
-  const [market, gainers, losers, highVolume] = await Promise.all([
+  const [market, gainers, losers, highVolume, industries] = await Promise.all([
     getMarketCurrent(),
     getMovers('GAINERS', 10),
     getMovers('LOSERS', 10),
     getMovers('VOLUME', 10),
+    getIndustries(100),
   ]);
 
   if (!market) return null;
@@ -184,6 +185,22 @@ async function getBreadth() {
   const negative = Number(market.negativeStocks || 0);
   const neutral = Number(market.neutralStocks || 0);
   const total = positive + negative + neutral;
+
+  const sectors = industries.map((row) => ({
+    name: row.industryName,
+    symbols: Number(row.symbolCount || 0),
+    changePercent: row.changePercent,
+    value: row.value,
+    rank: row.rank,
+  }));
+
+  const leaders = [...sectors]
+    .sort((a, b) => (b.changePercent || 0) - (a.changePercent || 0))
+    .slice(0, 6);
+
+  const laggards = [...sectors]
+    .sort((a, b) => (a.changePercent || 0) - (b.changePercent || 0))
+    .slice(0, 6);
 
   return {
     available: true,
@@ -198,9 +215,16 @@ async function getBreadth() {
     negativePercent: total ? (negative / total) * 100 : 0,
     neutralPercent: total ? (neutral / total) * 100 : 0,
     advanceDeclineRatio: negative ? positive / negative : null,
+    coveragePercent: total ? 100 : 0,
     topGainers: gainers,
     topLosers: losers,
     topVolumes: highVolume,
+    sectors: {
+      available: sectors.length > 0,
+      leaders,
+      laggards,
+      rows: sectors,
+    },
   };
 }
 
