@@ -144,6 +144,40 @@ async function searchSymbols(query, limit = 50) {
   return rows.map(normalizeSymbol);
 }
 
+async function getBreadth() {
+  const [market, gainers, losers, highVolume] = await Promise.all([
+    getMarketCurrent(),
+    getMovers('GAINERS', 10),
+    getMovers('LOSERS', 10),
+    getMovers('VOLUME', 10),
+  ]);
+
+  if (!market) return null;
+
+  const positive = Number(market.positiveStocks || 0);
+  const negative = Number(market.negativeStocks || 0);
+  const neutral = Number(market.neutralStocks || 0);
+  const total = positive + negative + neutral;
+
+  return {
+    available: true,
+    stale: !!market.isStale,
+    source: market.source || 'shared-db',
+    updatedAt: market.updatedAt,
+    positive,
+    negative,
+    neutral,
+    total,
+    positivePercent: total ? (positive / total) * 100 : 0,
+    negativePercent: total ? (negative / total) * 100 : 0,
+    neutralPercent: total ? (neutral / total) * 100 : 0,
+    advanceDeclineRatio: negative ? positive / negative : null,
+    topGainers: gainers,
+    topLosers: losers,
+    topVolumes: highVolume,
+  };
+}
+
 async function getMovers(category, limit = 10) {
   const take = Math.max(1, Math.min(Number(limit) || 10, 100));
   const rows = await prisma.marketMoverCurrent.findMany({
@@ -178,6 +212,7 @@ module.exports = {
   getSymbols,
   searchSymbols,
   getMovers,
+  getBreadth,
   getIndustries,
   getScalpingOpportunities,
   normalizeMarketCurrent,
