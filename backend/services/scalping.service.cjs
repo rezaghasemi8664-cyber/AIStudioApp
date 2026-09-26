@@ -157,37 +157,42 @@ async function refreshActiveOpportunities(userId, limit = 200) {
 let backgroundScalpingRun = null;
 
 async function getOpportunities(userId, options) {
-  const normalizedUserId = normalizeUserId(userId);
   const limit = Math.min(Math.max(parseInt(options && options.limit, 10) || 50, 1), 200);
+  const sharedMarketService = require('./sharedMarket.service.cjs');
 
-  const where = normalizedUserId ? { userId: normalizedUserId, status: 'active' } : { status: 'active' };
-  let rows = await prisma.scalpingOpportunity.findMany({
-    where,
-    orderBy: [{ score: 'desc' }, { createdAt: 'desc' }],
-    take: limit
+  // User-facing signals are now read only from the shared market snapshot.
+  // The central worker is responsible for refreshing MarketScalpingOpportunity.
+  const rows = await sharedMarketService.getScalpingOpportunities({
+    status: 'ACTIVE',
+    limit
   });
 
-  if (rows.length) {
-    // Validate existing real-data opportunities in the background; never block
-    // the initial signals response on BRS.
-    void refreshActiveOpportunities(normalizedUserId, limit).catch(error => {
-      console.warn('[SCALPING SERVICE] Background opportunity refresh failed:', error.message);
-    });
-  } else if (!backgroundScalpingRun) {
-    // No synthetic fallback: trigger a real BRS scan once and let the next poll
-    // consume the persisted opportunities.
-    backgroundScalpingRun = runScalping(normalizedUserId, { onlyConfiguredSymbols: false })
-      .catch(error => console.warn('[SCALPING SERVICE] Background scan failed:', error.message))
-      .finally(() => { backgroundScalpingRun = null; });
-  }
-
-  // در هر اسکن فقط یک کارت برای هر نماد نمایش داده شود.
-  const uniqueBySymbol = new Map();
-  for (const row of rows) {
-    if (!uniqueBySymbol.has(row.symbol)) uniqueBySymbol.set(row.symbol, row);
-  }
-
-  return Array.from(uniqueBySymbol.values()).map(mapOpportunityForOutput);
+  return rows.map((row) => ({
+    id: row.id,
+    userId: normalizeUserId(userId),
+    symbol: row.symbol,
+    price: row.currentPrice ?? row.entryPrice ?? 0,
+    currentPrice: row.currentPrice ?? row.entryPrice ?? 0,
+    reason: row.recommendationText || '',
+    score: safeNumber(row.score, 0),
+    signalType: row.signal || 'none',
+    entryPrice: safeNumber(row.entryPrice, 0),
+    exitPrice: safeNumber(row.takeProfit, 0),
+    targetPrice: safeNumber(row.takeProfit, 0),
+    stopLossPrice: safeNumber(row.stopLoss, 0),
+    recommendationText: row.recommendationText || '',
+    marketStatus: null,
+    strategyName: row.strategyName || null,
+    confidence: safeNumber(row.confidence, 0),
+    aiScore: safeNumber(row.score, 0),
+    baseScore: safeNumber(row.score, 0),
+    isGeneratedByAi: false,
+    createdAt: row.createdAt || null,
+    updatedAt: row.updatedAt || null,
+    source: row.source || 'shared-db',
+    marketDate: row.marketDate || null,
+    status: row.status || 'ACTIVE'
+  }));
 }
 async function getBest(userId) { return (await getOpportunities(userId, { limit: 1 }))[0] || null; }
 module.exports = { getSettings, saveConfig, updateSettings, runScalping, runEngine, getHistory, getLatest, getOpportunities, getBest, getMarketStatus };
