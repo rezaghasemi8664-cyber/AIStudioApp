@@ -303,11 +303,9 @@ const defaultHistory = (page: number, limit: number): ScalpingHistoryResult => (
 });
 
 const defaultStartResult = (): StartScalpingResult => ({
-  runId: 0,
-  status: 'failed',
+  signals: [],
   count: 0,
-  results: [],
-  errors: [],
+  status: 'failed',
   marketStatus: {
     isOpen: false,
     available: false
@@ -388,44 +386,22 @@ export const scalpingService = {
     }
   },
 
-  async startScalping(payload?: unknown): Promise<StartScalpingResult> {
+  async startScalping(): Promise<StartScalpingResult> {
     try {
-      const response = await apiClient.post('/scalping/start', payload);
-      const raw = unwrapData<UnknownRecord>(response, {});
-
-      const marketRaw = isObject(raw.marketStatus) ? raw.marketStatus : undefined;
-
+      const response = await apiClient.post('/scalping/start');
+      const raw = unwrapData<unknown>(response, []);
+      const signals = Array.isArray(raw) ? raw : [];
       return {
         ...defaultStartResult(),
-        ...raw,
-        runId:
-          typeof raw.runId === 'string' || typeof raw.runId === 'number'
-            ? raw.runId
-            : 0,
-        status: typeof raw.status === 'string' ? raw.status : 'failed',
-        count: typeof raw.count === 'number' ? raw.count : 0,
-        results: Array.isArray(raw.results) ? raw.results : [],
-        errors: Array.isArray(raw.errors) ? raw.errors : [],
-        marketStatus: {
-          isOpen:
-            typeof marketRaw?.isOpen === 'boolean'
-              ? marketRaw.isOpen
-              : typeof marketRaw?.open === 'boolean'
-                ? marketRaw.open
-                : false,
-          available:
-            typeof marketRaw?.available === 'boolean'
-              ? marketRaw.available
-              : typeof marketRaw?.known === 'boolean'
-                ? marketRaw.known
-                : false
-        }
+        signals: signals as ScalpingOpportunity[],
+        count: signals.length,
+        status: 'ready'
       };
     } catch (error) {
       console.error('Start Scalping API Error:', error);
       return defaultStartResult();
     }
-  },
+  }
 
   async stopScalping(): Promise<{ success: boolean; [key: string]: unknown }> {
     try {
