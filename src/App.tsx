@@ -251,7 +251,6 @@ const TabButton: React.FC<TabButtonProps> = React.memo(
 TabButton.displayName = 'TabButton';
 
 interface ValidityBadgeProps {
-  validityInfo: { daysRemaining: number | null; isExpired: boolean; expiryDate: string | null } | null;
 }
 
 const ValidityBadge: React.FC<ValidityBadgeProps> = ({ validityInfo }) => {
@@ -342,7 +341,7 @@ const BackgroundTabLoader: React.FC<{
   onPasswordChange: (oldPassword: string, newPassword: string) => Promise<void>;
   onAlertChange: (type: PortfolioAlertType) => void;
   onNavigate: (tab: Tab) => void;
-}> = ({ currentUser, isOnline, activeTab, isExpired, validityInfo, initialSettingsTab, onProfileUpdate, onPasswordChange, onAlertChange, onNavigate }) => {
+}> = ({ currentUser, isOnline, activeTab, isExpired, initialSettingsTab, onProfileUpdate, onPasswordChange, onAlertChange, onNavigate }) => {
   if (isExpired) return null;
 
   const hiddenStyle: React.CSSProperties = {
@@ -1135,7 +1134,6 @@ const App: React.FC = () => {
           isOnline={isOnline}
           activeTab={activeTab}
           isExpired={isExpired}
-          validityInfo={validityInfo}
           initialSettingsTab={initialSettingsTab}
           onProfileUpdate={handleProfileUpdate}
           onPasswordChange={handlePasswordChange}
