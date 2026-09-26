@@ -2006,34 +2006,34 @@ body {
     overflow: visible !important;
   }
 
-  /* موبایل: مرکز هدر یک ستون کامل و بدون محدودیت عرض */
+  /* مرکز هدر باید یک ردیف مستقل با 100٪ عرض واقعی هدر باشد */
   .app-header-center {
     order: 3 !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
     gap: 8px !important;
-    width: calc(100% + 20px) !important;
+    flex: 0 0 100% !important;
+    width: 100% !important;
     min-width: 0 !important;
-    max-width: none !important;
-    flex: 0 0 calc(100% + 20px) !important;
-    margin-inline: -10px !important;
+    max-width: 100% !important;
+    margin-inline: 0 !important;
     box-sizing: border-box !important;
   }
 
-  /* ردیف اول: تاریخ و زمان کامل */
+  /* ردیف زمان و تاریخ */
   .app-header-center > .roniya-clock {
     order: 1 !important;
     width: 100% !important;
     min-width: 0 !important;
-    max-width: none !important;
+    max-width: 100% !important;
     flex: 0 0 auto !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     box-sizing: border-box !important;
     overflow: visible !important;
-    padding-inline: 8px !important;
+    padding-inline: 0 !important;
   }
 
   .app-header-center > .roniya-clock > svg {
@@ -2046,7 +2046,6 @@ body {
     flex: 1 1 auto !important;
   }
 
-  /* تاریخ شمسی در یک خط و تاریخ میلادی + ساعت در خط دوم؛ هیچ بخشی بریده نشود */
   .app-header-center .roniya-clock-date-row {
     width: 100% !important;
     min-width: 0 !important;
@@ -2072,14 +2071,15 @@ body {
     justify-content: center !important;
   }
 
-  /* ردیف دوم: کادر شاخص‌های بازار با کل عرض داخلی هدر */
+  /* شاخص‌های بازار: دقیقاً به اندازه کل عرض هدر */
   .app-header-center > .market-index-widget {
     order: 2 !important;
+    display: block !important;
     width: 100% !important;
     min-width: 0 !important;
-    max-width: none !important;
-    flex: 0 0 auto !important;
-    display: block !important;
+    max-width: 100% !important;
+    flex: 0 0 100% !important;
+    align-self: stretch !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
   }
@@ -2097,25 +2097,25 @@ body {
     grid-auto-flow: column !important;
     width: 100% !important;
     min-width: 0 !important;
-    max-width: none !important;
+    max-width: 100% !important;
     align-items: stretch !important;
-    padding: 10px 6px !important;
+    padding: 10px 8px !important;
     box-sizing: border-box !important;
   }
 
   .app-header-center .market-index-widget .market-index-column {
     width: 100% !important;
     min-width: 0 !important;
-    max-width: none !important;
+    max-width: 100% !important;
     box-sizing: border-box !important;
   }
 
   .app-header-center .market-index-widget .market-index-column > div {
     width: 100% !important;
     min-width: 0 !important;
-    max-width: none !important;
+    max-width: 100% !important;
     box-sizing: border-box !important;
-    padding-inline: 4px !important;
+    padding-inline: 6px !important;
   }
 
   .app-header-center .market-index-widget .market-index-column > div > div {
