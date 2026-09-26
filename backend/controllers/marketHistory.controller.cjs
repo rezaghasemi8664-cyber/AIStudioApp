@@ -10,14 +10,6 @@
  */
 'use strict';
 
-let brsService = null;
-try {
-  brsService = require('../services/brs.service.cjs');
-  console.log('[MARKET CTRL v6.1] brs.service loaded');
-} catch (e) {
-  console.error('[MARKET CTRL v6.1] brs.service load failed:', e.message);
-}
-
 let sharedMarketService = null;
 try {
   sharedMarketService = require('../services/sharedMarket.service.cjs');
@@ -32,13 +24,6 @@ try {
   console.log('[MARKET CTRL v6.1] marketHistory.service loaded');
 } catch (e) {
   console.warn('[MARKET CTRL v6.1] marketHistory.service unavailable:', e.message);
-}
-
-let endpoints = {};
-try {
-  endpoints = require('../config/defaultEndpoints.cjs');
-} catch (_e) {
-  endpoints = {};
 }
 
 function getErrorMessage(err) {
@@ -60,23 +45,6 @@ function hasOwn(obj, key) {
 
 function isObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value);
-}
-
-function getEndpointUrl(name) {
-  const value = endpoints && endpoints[name];
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value.url === 'string') return value.url;
-  return '';
-}
-
-function maskApiKeyInUrl(url) {
-  if (!url || typeof url !== 'string') return '';
-
-  return url
-    .replace(/([?&]key=)([^&]+)/i, '$1***')
-    .replace(/([?&]api[_-]?key=)([^&]+)/i, '$1***')
-    .replace(/([?&]token=)([^&]+)/i, '$1***');
 }
 
 function getDbHistoryMethod() {
@@ -101,26 +69,6 @@ function getDbHistoryMethod() {
   }
 
   return null;
-}
-
-async function callMarketIndex() {
-  if (!brsService) {
-    const err = new Error('BRS service not available');
-    err.statusCode = 503;
-    throw err;
-  }
-
-  if (typeof brsService.getMarketIndex === 'function') {
-    return brsService.getMarketIndex();
-  }
-
-  if (typeof brsService.fetchIndex === 'function') {
-    return brsService.fetchIndex();
-  }
-
-  const err = new Error('No compatible BRS market index method found');
-  err.statusCode = 500;
-  throw err;
 }
 
 function normalizeServiceEnvelope(result) {
@@ -854,46 +802,22 @@ async function searchSymbols(req, res) {
 function debugMarketData(req, res) {
   if (!ensurePrivilegedAccess(req, res)) return;
 
-  const cacheStats =
-    brsService && typeof brsService.getCacheStats === 'function'
-      ? brsService.getCacheStats()
-      : {};
-
-  const serviceMethods = brsService
-    ? Object.keys(brsService).filter(function (key) {
-        return typeof brsService[key] === 'function';
+  const sharedMethods = sharedMarketService
+    ? Object.keys(sharedMarketService).filter(function (key) {
+        return typeof sharedMarketService[key] === 'function';
       })
     : [];
 
-  res.json({
+  return res.json({
     success: true,
-    version: '6.1',
-    api: {
-      keyPresent: !!process.env.BRS_API_KEY,
-      keyPreview: process.env.BRS_API_KEY
-        ? process.env.BRS_API_KEY.substring(0, 4) + '...' + process.env.BRS_API_KEY.slice(-4)
-        : 'NOT SET',
-      endpoints: {
-        index: maskApiKeyInUrl(getEndpointUrl('BRS_INDEX')),
-        symbol: maskApiKeyInUrl(getEndpointUrl('BRS_SYMBOL')),
-        history: maskApiKeyInUrl(getEndpointUrl('BRS_HISTORY')),
-        allSymbols: maskApiKeyInUrl(getEndpointUrl('BRS_ALL_SYMBOLS'))
-      }
-    },
+    version: '8.0',
+    source: 'shared-db',
     services: {
-      brsService: !!brsService,
-      brsServiceMethods: serviceMethods,
-      marketHistoryService: !!marketHistoryService,
-      marketHistoryServiceMethods: marketHistoryService
-        ? Object.keys(marketHistoryService).filter(function (key) {
-            return typeof marketHistoryService[key] === 'function';
-          })
-        : []
+      sharedMarketService: !!sharedMarketService,
+      sharedMarketServiceMethods: sharedMethods
     },
-    cache: cacheStats,
     env: {
-      NODE_ENV: process.env.NODE_ENV || 'not set',
-      BRS_API_KEY: process.env.BRS_API_KEY ? 'SET' : 'NOT SET'
+      NODE_ENV: process.env.NODE_ENV || 'not set'
     },
     timestamp: new Date().toISOString()
   });
@@ -903,16 +827,11 @@ function debugMarketData(req, res) {
 function clearCacheEndpoint(req, res) {
   if (!ensurePrivilegedAccess(req, res)) return;
 
-  let cleared = 0;
-
-  if (brsService && typeof brsService.clearCache === 'function') {
-    cleared = brsService.clearCache();
-  }
-
   return res.json({
     success: true,
-    message: 'کش پاک شد (' + cleared + ' آیتم)',
-    cleared: cleared,
+    message: 'کش درخواست‌های بازار در این معماری مستقل است؛ داده‌ها از دیتابیس مشترک خوانده می‌شوند.',
+    source: 'shared-db',
+    cleared: 0,
     timestamp: new Date().toISOString()
   });
 }
