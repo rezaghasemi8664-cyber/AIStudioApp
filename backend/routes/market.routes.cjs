@@ -18,99 +18,31 @@ router.get('/summary', marketSummaryController.getLatestMarketSummary);
 // تاریخچه واقعی رادار بازار از MarketSummary - بدون داده ساختگی و بدون هوش مصنوعی
 router.get('/history/radar', marketRadarHistoryController.getHistory);
 
-// عرض بازار - محاسبه قطعی و بدون هوش مصنوعی
+// داده‌های رشد/افت/حجم و breadth فقط از دیتابیس مشترک خوانده می‌شوند.
+// درخواست کاربر نباید مستقیماً به BRS/TSETMC متصل شود.
+var sharedMarketService = require('../services/sharedMarket.service.cjs');
 
-// Real-data fallback: if live breadth sources are temporarily unavailable,
-// serve the latest persisted daily market snapshot instead of an empty dashboard.
-// This is explicitly marked stale; no synthetic values are generated.
-async function getBreadthWithStoredFallback() {
-  const live = await marketBreadth.getMarketBreadth();
-  if (live && (
-    live.available === true ||
-    (Array.isArray(live.topGainers) && live.topGainers.length) ||
-    (Array.isArray(live.topLosers) && live.topLosers.length) ||
-    (Array.isArray(live.topVolumes) && live.topVolumes.length)
-  )) {
-    return live;
-  }
-
-  try {
-    const latest = await marketSummaryService.findOrGenerateLatest();
-    const stored = latest && latest.data ? latest.data : null;
-    if (!stored) return live;
-
-    let raw = stored.rawJson;
-    if (typeof raw === 'string') {
-      try { raw = JSON.parse(raw); } catch (_) { raw = null; }
-    }
-    const rawData = raw && typeof raw === 'object' && raw.data && typeof raw.data === 'object' ? raw.data : raw;
-    const topGainers = Array.isArray(stored.topGainers) ? stored.topGainers : (Array.isArray(rawData?.topGainers) ? rawData.topGainers : []);
-    const topLosers = Array.isArray(stored.topLosers) ? stored.topLosers : (Array.isArray(rawData?.topLosers) ? rawData.topLosers : []);
-    const topVolumes = Array.isArray(stored.topVolumes) ? stored.topVolumes : (Array.isArray(rawData?.topVolumes) ? rawData.topVolumes : []);
-    const rawSectors = rawData?.sectors || rawData?.sectorSummary || rawData?.sectorSummaries;
-    const sectors = Array.isArray(rawSectors)
-      ? { available: true, rows: rawSectors, leaders: rawSectors.slice(0, 5), laggards: rawSectors.slice(-5).reverse(), source: 'db-daily-summary' }
-      : (rawSectors && typeof rawSectors === 'object' ? { ...rawSectors, source: 'db-daily-summary' } : undefined);
-    const positive = Number(stored.positiveStocks);
-    const negative = Number(stored.negativeStocks);
-    const neutral = Number(stored.neutralStocks);
-
-    return {
-      ...(live || {}),
-      available: false,
-      stale: true,
-      source: 'db-daily-summary',
-      topGainers,
-      topLosers,
-      topVolumes,
-      ...(sectors ? { sectors } : {}),
-      positive: Number.isFinite(positive) ? positive : (live?.positive ?? 0),
-      negative: Number.isFinite(negative) ? negative : (live?.negative ?? 0),
-      neutral: Number.isFinite(neutral) ? neutral : (live?.neutral ?? 0),
-      total: Number.isFinite(positive) && Number.isFinite(negative) && Number.isFinite(neutral)
-        ? positive + negative + neutral
-        : (live?.total ?? 0),
-      storedAt: stored.createdAt || stored.updatedAt || null,
-      diagnostics: {
-        ...(live?.diagnostics || {}),
-        servedFromStoredSummary: true
-      }
-    };
-  } catch (error) {
-    console.warn('[MARKET ROUTES] Stored breadth fallback failed:', error.message);
-    return live;
-  }
-}
-
-
-// Dashboard movers compatibility endpoint.
-// Uses the same deterministic breadth dataset; no AI and no synthetic data.
 router.get('/movers', async function getMarketMovers(_req, res, next) {
   try {
-    const data = await getBreadthWithStoredFallback();
+    const breadth = await sharedMarketService.getBreadth();
+    if (!breadth) {
+      return res.status(503).json({
+        success: false,
+        message: 'هنوز داده مشترک بازار ثبت نشده است',
+        code: 'NO_SHARED_MARKET_DATA'
+      });
+    }
+
     return res.json({
       success: true,
       data: {
-        items: [...(data.topGainers || []), ...(data.topLosers || []), ...(data.topVolumes || [])],
-        gainers: data.topGainers || [],
-        losers: data.topLosers || [],
-        highVolume: data.topVolumes || []
-      }
-    });
-  } catch (error) {
-    return next(error);
-  }
-});
-
-// Dashboard industries compatibility endpoint.
-router.get('/industries', async function getMarketIndustries(_req, res, next) {
-  try {
-    const data = await getBreadthWithStoredFallback();
-    const sectors = data.sectors || {};
-    const rows = sectors.rows || [];
-    return res.json({
-      success: true,
-      data: rows.length ? rows : [...(sectors.leaders || []), ...(sectors.laggards || [])]
+        items: [...breadth.topGainers, ...breadth.topLosers, ...breadth.topVolumes],
+        gainers: breadth.topGainers,
+        losers: breadth.topLosers,
+        highVolume: breadth.topVolumes
+      },
+      source: 'shared-db',
+      stale: breadth.stale
     });
   } catch (error) {
     return next(error);
@@ -119,8 +51,35 @@ router.get('/industries', async function getMarketIndustries(_req, res, next) {
 
 router.get('/breadth', async function getMarketBreadth(_req, res, next) {
   try {
-    const data = await getBreadthWithStoredFallback();
-    return res.json({ success: true, data });
+    const breadth = await sharedMarketService.getBreadth();
+    if (!breadth) {
+      return res.status(503).json({
+        success: false,
+        message: 'هنوز داده مشترک بازار ثبت نشده است',
+        code: 'NO_SHARED_MARKET_DATA'
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: breadth,
+      source: 'shared-db',
+      stale: breadth.stale
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// صنایع در گام بعدی به MarketIndustryCurrent متصل می‌شوند.
+router.get('/industries', async function getMarketIndustries(_req, res, next) {
+  try {
+    const rows = await sharedMarketService.getIndustries();
+    return res.json({
+      success: true,
+      data: rows,
+      source: 'shared-db'
+    });
   } catch (error) {
     return next(error);
   }
