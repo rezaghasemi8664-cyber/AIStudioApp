@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/auth.middleware.cjs');
 const prismaModule = require('../config/prisma.cjs');
-const brsService = require('../services/brs.service.cjs');
+const sharedMarketService = require('../services/sharedMarket.service.cjs');
 const prisma = prismaModule.prisma || prismaModule;
 
 const PREF_KEY = 'portfolio_watchlists';
@@ -57,9 +57,9 @@ async function validateMarketSymbol(symbol) {
   const clean = normalizeSymbol(symbol);
   if (!clean) return null;
   try {
-    if (!brsService || typeof brsService.getSymbolData !== 'function') return null;
-    const result = await brsService.getSymbolData(clean);
-    const raw = result?.data ?? result ?? {};
+    const result = await sharedMarketService.getSymbols({ symbol: clean, limit: 1 });
+    const raw = Array.isArray(result) && result.length ? result[0] : null;
+    if (!raw) return null;
     if (!raw || raw.available === false) return null;
     const resolved = normalizeSymbol(raw?.symbol ?? raw?.l18 ?? raw?.lVal18AFC ?? raw?.ticker ?? clean);
     if (!resolved) return null;
