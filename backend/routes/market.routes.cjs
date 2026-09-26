@@ -6,7 +6,6 @@ var router = express.Router();
 var marketHistoryController = require('../controllers/marketHistory.controller.cjs');
 var marketSummaryController = require('../controllers/marketSummary.controller.cjs');
 var marketRadarHistoryController = require('../controllers/marketRadarHistory.controller.cjs');
-var marketBreadth = require('../services/marketBreadth.service.cjs');
 var marketSummaryService = require('../services/marketSummary.service.cjs');
 
 // شاخص بازار
