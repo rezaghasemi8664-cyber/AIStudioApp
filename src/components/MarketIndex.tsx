@@ -13,10 +13,6 @@ const CACHE_TTL_LIVE = 2 * 60 * 1000;
 const CACHE_TTL_FINAL = 10 * 60 * 1000;
 const MARKET_INDEX_REQUEST_TIMEOUT_MS = 3000;
 
-// Keep the latest valid market index alive while the user switches between tabs.
-// This avoids remounting the widget into a loading state and re-requesting data.
-let sessionMarketIndexCache: CacheEntry | null = null;
-let sessionMarketIndexFetchPromise: Promise<{ data: MarketIndexData; meta?: CacheEntry['meta'] } | null> | null = null;
 
 const toFiniteNumber = (value: unknown, fallback: number | null = null): number | null => {
     if (value === null || value === undefined || value === '') return fallback;
@@ -93,8 +89,8 @@ const IndexDisplay: React.FC<IndexDisplayProps> = ({ name, value, changeValue, c
 };
 
 const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
-    const [data, setData] = useState<MarketIndexData | null>(() => sessionMarketIndexCache?.data ?? null);
-    const [isLoading, setIsLoading] = useState(() => sessionMarketIndexCache === null);
+    const [data, setData] = useState<MarketIndexData | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [dataMeta, setDataMeta] = useState<CacheEntry['meta']>();
     const [isMarketInScheduledTime, setIsMarketInScheduledTime] = useState(false);
@@ -116,26 +112,14 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
         setError(null);
         const cacheKey = isLiveTime ? CACHE_KEY_LIVE : CACHE_KEY_FINAL;
         const cacheTTL = isLiveTime ? CACHE_TTL_LIVE : CACHE_TTL_FINAL;
-        const persistentCache = getCachedByKey(cacheKey);
-        const sessionCache = sessionMarketIndexCache;
-        const cache = sessionCache && isCacheValid(sessionCache, CACHE_TTL_LIVE) ? sessionCache : persistentCache;
+        const cache = getCachedByKey(cacheKey);
 
-        if (sessionCache) {
-            setData(sessionCache.data);
-            setDataMeta(sessionCache.meta ? { ...sessionCache.meta, status: 'CACHED', stale: !isCacheValid(sessionCache, CACHE_TTL_LIVE) } : { status: 'CACHED', stale: !isCacheValid(sessionCache, CACHE_TTL_LIVE) });
+        if (cache) {
+            setData(cache.data);
+            setDataMeta(cache.meta ? { ...cache.meta, status: 'CACHED', stale: !isCacheValid(cache, cacheTTL) } : { status: 'CACHED', stale: !isCacheValid(cache, cacheTTL) });
             setIsLoading(false);
+            if (isCacheValid(cache, cacheTTL) || !isOnline) return;
         }
-
-        if (persistentCache) {
-            if (!sessionCache) {
-                setData(persistentCache.data);
-                setDataMeta(persistentCache.meta ? { ...persistentCache.meta, status: 'CACHED', stale: !isCacheValid(persistentCache, cacheTTL) } : { status: 'CACHED', stale: !isCacheValid(persistentCache, cacheTTL) });
-                setIsLoading(false);
-            }
-            if (isCacheValid(persistentCache, cacheTTL) || !isOnline) return;
-        }
-
-        if (sessionCache && isCacheValid(sessionCache, CACHE_TTL_LIVE)) return;
 
         if (!isOnline) {
             if (!cache) setError('عدم دسترسی به اینترنت');
@@ -144,23 +128,10 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
         }
 
         if (isFetchingRef.current) return;
-        if (sessionMarketIndexFetchPromise) {
-            const sharedData = await sessionMarketIndexFetchPromise;
-            if (sharedData) {
-                sessionMarketIndexCache = { data: sharedData.data, meta: sharedData.meta, timestamp: Date.now() };
-                setData(sharedData.data);
-                setDataMeta(sharedData.meta);
-                setError(null);
-            }
-            setIsLoading(false);
-            return;
-        }
         isFetchingRef.current = true;
-        sessionMarketIndexFetchPromise = fetchMarketIndexFromAPI();
         try {
-            const freshData = await sessionMarketIndexFetchPromise;
+            const freshData = await fetchMarketIndexFromAPI();
             if (freshData) {
-                sessionMarketIndexCache = { data: freshData.data, meta: freshData.meta, timestamp: Date.now() };
                 setData(freshData.data);
                 setDataMeta(freshData.meta);
                 setCachedData(freshData.data, cacheKey, freshData.meta);
@@ -168,7 +139,6 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
             } else if (!cache) setError('خطا در دریافت داده‌های بازار');
         } finally {
             isFetchingRef.current = false;
-            sessionMarketIndexFetchPromise = null;
             setIsLoading(false);
         }
     }, [isOnline, checkMarketTime]);
