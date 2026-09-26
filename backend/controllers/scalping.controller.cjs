@@ -51,13 +51,6 @@ async function resolveMarketStatus() {
 
 function ensureMarketOpenResponse(res, marketStatus) {
   if (marketStatus && marketStatus.isOpen === true) return null;
-  if (marketStatus && marketStatus.source === 'market-status-missing') {
-    return res.status(503).json({
-      success: false,
-      message: 'وضعیت بازار قابل تشخیص نیست و اجرای اسکالپینگ متوقف شد',
-      data: { marketStatus }
-    });
-  }
   return res.status(403).json({
     success: false,
     message: 'بازار بسته است و اجرای اسکالپینگ مجاز نیست',
@@ -69,10 +62,10 @@ async function getSettings(req, res) {
   try {
     const userId = getUserId(req);
     if (!userId) return sendUnauthorized(res);
-    const config = await callFirstAvailable(['getSettings', 'getConfig'], [userId]);
+    const config = await scalpingService.getSettings(userId);
     return sendSuccess(res, config);
   } catch (error) {
-    return sendError(res, error, /Methods not available/.test(error.message) ? 501 : 500);
+    return sendError(res, error, 500);
   }
 }
 
@@ -80,11 +73,10 @@ async function updateSettings(req, res) {
   try {
     const userId = getUserId(req);
     if (!userId) return sendUnauthorized(res);
-    const payload = req.body || {};
-    const savedConfig = await callFirstAvailable(['updateSettings', 'saveConfig'], [userId, payload]);
+    const savedConfig = await scalpingService.updateSettings(userId, req.body || {});
     return sendSuccess(res, savedConfig, 'تنظیمات اسکالپینگ با موفقیت به‌روزرسانی شد');
   } catch (error) {
-    return sendError(res, error, /Methods not available/.test(error.message) ? 501 : 500);
+    return sendError(res, error, 500);
   }
 }
 
@@ -92,10 +84,15 @@ async function getSignals(req, res) {
   try {
     const userId = getUserId(req);
     if (!userId) return sendUnauthorized(res);
-    const signals = await callFirstAvailable(['getSignals', 'getScalpingSignals', 'getOpportunities'], [userId]);
-    return sendSuccess(res, signals);
+    const signals = await scalpingService.getOpportunities(userId, {});
+    return sendSuccess(res, {
+      signals,
+      totalSignals: signals.length,
+      activeSignals: signals.length,
+      lastUpdate: signals.reduce((latest, signal) => signal.updatedAt || signal.createdAt || latest, null)
+    });
   } catch (error) {
-    return sendError(res, error, /Methods not available/.test(error.message) ? 501 : 500);
+    return sendError(res, error, 500);
   }
 }
 
@@ -103,10 +100,10 @@ async function getBestSignal(req, res) {
   try {
     const userId = getUserId(req);
     if (!userId) return sendUnauthorized(res);
-    const bestSignal = await callFirstAvailable(['getBestSignal', 'getTopSignal', 'getRecommendedSignal', 'getBest'], [userId]);
+    const bestSignal = await scalpingService.getBest(userId);
     return sendSuccess(res, bestSignal);
   } catch (error) {
-    return sendError(res, error, /Methods not available/.test(error.message) ? 501 : 500);
+    return sendError(res, error, 500);
   }
 }
 
@@ -115,11 +112,11 @@ async function getHistory(req, res) {
     const userId = getUserId(req);
     if (!userId) return sendUnauthorized(res);
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
-    const limit = Math.max(parseInt(req.query.limit, 10) || 20, 1);
-    const history = await callFirstAvailable(['getHistory', 'getScalpingHistory'], [userId, page, limit]);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+    const history = await scalpingService.getHistory(userId, page, limit);
     return sendSuccess(res, history);
   } catch (error) {
-    return sendError(res, error, /Methods not available/.test(error.message) ? 501 : 500);
+    return sendError(res, error, 500);
   }
 }
 
@@ -131,12 +128,10 @@ async function getStatus(req, res) {
     const marketStatus = await resolveMarketStatus();
     let latestRun = null;
 
-    if (typeof scalpingService.getLatest === 'function') {
-      try {
-        latestRun = await scalpingService.getLatest(userId);
-      } catch (error) {
-        console.warn('[SCALPING CTRL] Failed to load latest scalping run:', error.message);
-      }
+    try {
+      latestRun = await scalpingService.getLatest(userId);
+    } catch (error) {
+      console.warn('[SCALPING CTRL] Failed to load latest scalping run:', error.message);
     }
 
     const latestMeta = latestRun && typeof latestRun === 'object' ? latestRun : {};
@@ -167,15 +162,17 @@ async function start(req, res) {
     const marketStatus = await resolveMarketStatus();
     const blockedResponse = ensureMarketOpenResponse(res, marketStatus);
     if (blockedResponse) return blockedResponse;
-    const result = await callFirstAvailable(['getOpportunities', 'getSignals'], [userId]);
+    const result = await scalpingService.getOpportunities(userId, {});
     return sendSuccess(res, result, 'سیگنال‌های مرکزی اسکالپینگ آماده هستند');
   } catch (error) {
     console.error('[SCALPING CTRL] start failed:', error && error.stack ? error.stack : error);
-    return sendError(res, error, /Methods not available/.test(error.message) ? 501 : 500);
+    return sendError(res, error, 500);
   }
 }
 
-async function runScalping(req, res) { return start(req, res); }
+async function runScalping(req, res) {
+  return start(req, res);
+}
 
 async function stop(req, res) {
   const userId = getUserId(req);
