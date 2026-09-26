@@ -18,6 +18,12 @@ export async function getPortfolio(): Promise<PortfolioApiItem[]> {
   return Array.isArray(data?.items) ? data.items.map(normalize).filter(item => Boolean(item.symbol)) : [];
 }
 
+export async function refreshPortfolioQuotes(): Promise<PortfolioApiItem[]> {
+  const response = await api.get('/portfolio/quotes', { timeout: 12000 });
+  const data = unwrap<{ items?: ApiPortfolioItem[] }>(response);
+  return Array.isArray(data?.items) ? data.items.map(normalize).filter(item => Boolean(item.symbol)) : [];
+}
+
 export async function addPortfolioItem(item: Omit<PortfolioApiItem, 'id'>): Promise<PortfolioApiItem> {
   const symbol = resolveSymbol(item);
   if (!symbol) throw new Error('نماد سهم برای ذخیره مشخص نشده است.');
