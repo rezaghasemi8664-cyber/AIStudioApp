@@ -2,6 +2,7 @@
 
 const prismaModule = require('../config/prisma.cjs');
 const env = require('../config/env.cjs');
+const sharedMarketService = require('./sharedMarket.service.cjs');
 
 function resolvePrismaClient(mod) {
   const candidates = [mod?.prisma, mod?.db, mod?.client, mod?.default, mod];
@@ -356,15 +357,55 @@ async function retainOnlyLastNSummaries(keep = SUMMARY_RETENTION_COUNT) {
 }
 
 async function findLatestUsableMarketHistoryRow() {
-  const model = getMarketHistoryModel();
-  if (!model) return null;
-  const rows = await model.findMany({ orderBy: { createdAt: 'desc' }, take: 30 });
-  for (const row of rows) {
-    const parsed = parseJsonSafe(row.jsonData);
-    const marketData = extractMarketDataCandidate(parsed);
-    if (marketData && !isLikelySyntheticMarketData(marketData)) return { row, marketData };
-  }
-  return null;
+  // Manual/admin summary generation must use the same central market source
+  // as the live UI. Legacy MarketHistory is intentionally not a market-data
+  // source anymore.
+  const [market, breadth, industries] = await Promise.all([
+    sharedMarketService.getMarketCurrent(),
+    sharedMarketService.getBreadth(),
+    sharedMarketService.getIndustries(50)
+  ]);
+
+  if (!market || !breadth) return null;
+
+  const industryRows = Array.isArray(industries) ? industries : [];
+  const marketData = {
+    ...market,
+    index: market.overallIndex,
+    index_change: market.overallChange,
+    indexEqualWeight: market.equalIndex,
+    indexEqualWeightChange: market.equalChange,
+    marketStatus: market.marketStatus,
+    totalTrades: market.totalTrades,
+    totalVolume: market.totalVolume,
+    totalValue: market.totalValue,
+    topGainers: breadth.topGainers || [],
+    topLosers: breadth.topLosers || [],
+    topVolumes: breadth.topVolumes || [],
+    positiveStocks: breadth.positive ?? null,
+    negativeStocks: breadth.negative ?? null,
+    neutralStocks: breadth.neutral ?? null,
+    industries: industryRows.map(x => ({
+      name: x.industryName,
+      changePercent: x.changePercent,
+      value: x.value,
+      symbolCount: x.symbolCount
+    })),
+    sectors: industryRows.map(x => ({
+      name: x.industryName,
+      changePercent: x.changePercent,
+      value: x.value,
+      symbolCount: x.symbolCount
+    }))
+  };
+
+  return {
+    row: {
+      id: market.id,
+      createdAt: market.updatedAt || new Date()
+    },
+    marketData
+  };
 }
 
 async function buildMergedMarketDataForDay(referenceDate, { take = 1500 } = {}) {
