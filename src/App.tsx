@@ -335,26 +335,13 @@ const BackgroundTabLoader: React.FC<{
   isOnline: boolean;
   activeTab: Tab;
   isExpired: boolean;
-  validityInfo: { daysRemaining: number | null; isExpired: boolean; expiryDate: string | null } | null;
   initialSettingsTab?: string;
   onProfileUpdate: (user: StoredUser) => void;
   onPasswordChange: (oldPassword: string, newPassword: string) => Promise<void>;
   onAlertChange: (type: PortfolioAlertType) => void;
   onNavigate: (tab: Tab) => void;
 }> = ({ currentUser, isOnline, activeTab, isExpired, initialSettingsTab, onProfileUpdate, onPasswordChange, onAlertChange, onNavigate }) => {
-  if (isExpired) return null;
-
-  const hiddenStyle: React.CSSProperties = {
-    position: 'fixed',
-    insetInlineStart: '-10000px',
-    top: 0,
-    width: '1px',
-    height: '1px',
-    overflow: 'hidden',
-    opacity: 0,
-    pointerEvents: 'none',
-    zIndex: -1,
-  };
+  const [preloadIndex, setPreloadIndex] = useState(0);
 
   const preloadItems: Array<{ key: Tab; node: React.ReactNode }> = [
     { key: 'analysis', node: <StockAnalysis /> },
@@ -377,13 +364,61 @@ const BackgroundTabLoader: React.FC<{
     ] : []),
   ];
 
+  useEffect(() => {
+    if (isExpired || preloadIndex >= preloadItems.length) return;
+    const timer = window.setTimeout(() => setPreloadIndex(index => index + 1), 2500);
+    return () => window.clearTimeout(timer);
+  }, [isExpired, preloadIndex, preloadItems.length]);
+
+  if (isExpired || preloadIndex >= preloadItems.length) return null;
+
+  const current = preloadItems[preloadIndex];
+  if (current.key === activeTab) {
+    return (
+      <div aria-hidden="true" data-background-tab-loader="true">
+        <BackgroundTabLoader
+          currentUser={currentUser}
+          isOnline={isOnline}
+          activeTab={activeTab}
+          isExpired={isExpired}
+          initialSettingsTab={initialSettingsTab}
+          onProfileUpdate={onProfileUpdate}
+          onPasswordChange={onPasswordChange}
+          onAlertChange={onAlertChange}
+          onNavigate={onNavigate}
+        />
+      </div>
+    );
+  }
+
+  const hiddenStyle: React.CSSProperties = {
+    position: 'fixed',
+    insetInlineStart: '-10000px',
+    top: 0,
+    width: '1px',
+    height: '1px',
+    overflow: 'hidden',
+    opacity: 0,
+    pointerEvents: 'none',
+    zIndex: -1,
+  };
+
   return (
     <div aria-hidden="true" style={hiddenStyle} data-background-tab-loader="true">
-      {preloadItems.map(({ key, node }) => key !== activeTab ? (
-        <LazyErrorBoundary key={key} fallback={null}>
-          <Suspense fallback={null}>{node}</Suspense>
-        </LazyErrorBoundary>
-      ) : null)}
+      <LazyErrorBoundary fallback={null}>
+        <Suspense fallback={null}>{current.node}</Suspense>
+      </LazyErrorBoundary>
+      <BackgroundTabLoader
+        currentUser={currentUser}
+        isOnline={isOnline}
+        activeTab={activeTab}
+        isExpired={isExpired}
+        initialSettingsTab={initialSettingsTab}
+        onProfileUpdate={onProfileUpdate}
+        onPasswordChange={onPasswordChange}
+        onAlertChange={onAlertChange}
+        onNavigate={onNavigate}
+      />
     </div>
   );
 };
