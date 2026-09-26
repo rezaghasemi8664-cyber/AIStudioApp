@@ -43,17 +43,39 @@ function normalizeMarketStatus(status, sourceName) {
   return { isOpen: !!isOpen, available: status.available === undefined ? (hasExplicitOpen || hasScheduleOpen) : !!status.available, source: status.source || sourceName || 'unknown', reason: status.reason || (isOpen ? 'market-open' : 'market-closed'), checkedAt };
 }
 async function getMarketStatus() {
+  const sharedMarketService = require('./sharedMarket.service.cjs');
   try {
-    // BRS API status is authoritative and already combines Tehran schedule + live market state.
-    if (brsService && typeof brsService.getMarketStatus === 'function') return normalizeMarketStatus(await brsService.getMarketStatus(), 'brs.getMarketStatus');
-    if (brsService && typeof brsService.getLocalMarketWindowStatus === 'function') return normalizeMarketStatus(await brsService.getLocalMarketWindowStatus(), 'brs.getLocalMarketWindowStatus');
-    if (brsService && typeof brsService.isMarketOpen === 'function') { const isOpen = await Promise.resolve(brsService.isMarketOpen()); return { isOpen: !!isOpen, available: true, source: 'brs.isMarketOpen', reason: isOpen ? 'market-open' : 'market-closed', checkedAt: new Date().toISOString() }; }
-  } catch (error) { return { isOpen: false, available: false, source: 'market-status-error', reason: error && error.message ? error.message : 'market-status-failed', checkedAt: new Date().toISOString() }; }
-  return { isOpen: false, available: false, source: 'market-status-missing', reason: 'BRS market status function is not available', checkedAt: new Date().toISOString() };
+    const market = await sharedMarketService.getMarketCurrent();
+    if (!market) {
+      return {
+        isOpen: false,
+        available: false,
+        source: 'shared-db',
+        reason: 'NO_SHARED_MARKET_DATA',
+        checkedAt: new Date().toISOString()
+      };
+    }
+    return {
+      isOpen: market.marketStatus === 'OPEN',
+      available: true,
+      source: 'shared-db',
+      stale: !!market.isStale,
+      updatedAt: market.updatedAt || null,
+      marketDate: market.marketDate || null,
+      reason: market.marketStatus === 'OPEN' ? 'OPEN' : 'CLOSED',
+      checkedAt: new Date().toISOString()
+    };
+  } catch (error) {
+    console.warn('[SCALPING SERVICE] Shared market status unavailable:', error.message);
+    return {
+      isOpen: false,
+      available: false,
+      source: 'shared-db',
+      reason: 'SHARED_MARKET_DATA_UNAVAILABLE',
+      checkedAt: new Date().toISOString()
+    };
+  }
 }
-function extractSymbolIdentity(item) { const symbol = String(pickFirstNonEmpty(item.symbol, item.Symbol, item.l18, item.insCodeSymbol, item.ticker, item.code) || '').trim().toUpperCase(); const companyName = String(pickFirstNonEmpty(item.companyName, item.CompanyName, item.name, item.l30, item.title, item.fullName) || '').trim(); const insCode = String(pickFirstNonEmpty(item.insCode, item.InsCode, item.instrumentCode, item.id, item.ID) || '').trim(); return { symbol, companyName, insCode }; }
-function normalizeCandle(candle) { if (!candle || typeof candle !== 'object') return null; const open = safeNumber(pickFirstNonEmpty(candle.open, candle.o, candle.OpenPrice, candle.pf), 0); const high = safeNumber(pickFirstNonEmpty(candle.high, candle.h, candle.HighPrice, candle.pmax), 0); const low = safeNumber(pickFirstNonEmpty(candle.low, candle.l, candle.LowPrice, candle.pmin), 0); const close = safeNumber(pickFirstNonEmpty(candle.close, candle.c, candle.lastPrice, candle.finalPrice, candle.ClosePrice, candle.pc, candle.pl), 0); const last = safeNumber(pickFirstNonEmpty(candle.last, candle.lastPrice, candle.pl, candle.pc, close), close); const volume = safeNumber(pickFirstNonEmpty(candle.volume, candle.v, candle.qTotTran5J, candle.Volume, candle.tradedVolume, candle.tradeVolume), 0); const value = safeNumber(pickFirstNonEmpty(candle.value, candle.qTotCap, candle.tradeValue, candle.Value, candle.tradedValue), 0); const count = safeNumber(pickFirstNonEmpty(candle.count, candle.tradeCount, candle.zTotTran, candle.tno), 0); const date = pickFirstNonEmpty(candle.date, candle.dEven, candle.Date, candle.tradeDate, candle.jdate, candle.gdate, candle.insDate) || null; if (close <= 0 && last <= 0) return null; return { date, open: open > 0 ? open : (close || last), high: high > 0 ? high : (close || last), low: low > 0 ? low : (close || last), close: close || last, last: last || close, volume, value, count }; }
-function normalizeUniverseItem(item) { const identity = extractSymbolIdentity(item || {}); return Object.assign({}, item || {}, identity, { lastPrice: safeNumber(pickFirstNonEmpty(item && item.lastPrice, item && item.pl, item && item.last), 0), closingPrice: safeNumber(pickFirstNonEmpty(item && item.closingPrice, item && item.pc, item && item.close), 0), yesterday: safeNumber(pickFirstNonEmpty(item && item.yesterday, item && item.py), 0), high: safeNumber(pickFirstNonEmpty(item && item.high, item && item.pmax), 0), low: safeNumber(pickFirstNonEmpty(item && item.low, item && item.pmin), 0), open: safeNumber(pickFirstNonEmpty(item && item.open, item && item.pf), 0), tradeVolume: safeNumber(pickFirstNonEmpty(item && item.tradeVolume, item && item.tvol, item && item.volume), 0), tradeValue: safeNumber(pickFirstNonEmpty(item && item.tradeValue, item && item.tval, item && item.value), 0), tradeCount: safeNumber(pickFirstNonEmpty(item && item.tradeCount, item && item.tno, item && item.count), 0), lastChangePercent: safeNumber(pickFirstNonEmpty(item && item.lastChangePercent, item && item.plp), 0), closingChangePercent: safeNumber(pickFirstNonEmpty(item && item.closingChangePercent, item && item.pcp), 0), realBuyVolume: safeNumber(pickFirstNonEmpty(item && item.realBuyVolume, item && item.Buy_I_Volume), 0), realSellVolume: safeNumber(pickFirstNonEmpty(item && item.realSellVolume, item && item.Sell_I_Volume), 0), instBuyVolume: safeNumber(pickFirstNonEmpty(item && item.instBuyVolume, item && item.Buy_N_Volume), 0), instSellVolume: safeNumber(pickFirstNonEmpty(item && item.instSellVolume, item && item.Sell_N_Volume), 0) }); }
 function unwrapData(response) { if (!response) return {}; if (Array.isArray(response)) return response; if (response.data && typeof response.data === 'object') return Array.isArray(response.data) ? response.data : unwrapData(response.data); if (response.result && typeof response.result === 'object') return Array.isArray(response.result) ? response.result : unwrapData(response.result); if (response.symbolData && typeof response.symbolData === 'object') return response.symbolData; if (response.snapshot && typeof response.snapshot === 'object') return response.snapshot; return response; }
 function extractArray(response) { if (Array.isArray(response)) return response; const unwrapped = unwrapData(response); if (Array.isArray(unwrapped)) return unwrapped; if (unwrapped && typeof unwrapped === 'object') { for (const key of ['items','rows','records','candles','history','daily','data','result']) if (Array.isArray(unwrapped[key])) return unwrapped[key]; } return []; }
 async function fetchRecentCandles(symbol, limit) { const loaders = []; if (brsService && typeof brsService.getAdjustedDailyCandlestick === 'function') loaders.push(['adjusted', () => brsService.getAdjustedDailyCandlestick(symbol, limit)]); if (brsService && typeof brsService.getSymbolHistory === 'function') loaders.push(['history', () => brsService.getSymbolHistory(symbol, limit)]); for (const [name, loader] of loaders) { try { const normalized = extractArray(await loader()).map(normalizeCandle).filter(Boolean); if (normalized.length > 0) { console.log('[SCALPING SERVICE] Candles loaded:', symbol, name, normalized.length); return normalized.slice(0, limit); } } catch (error) { console.warn('[SCALPING SERVICE] Candle fetch failed:', symbol, name, error.message); } } return []; }
