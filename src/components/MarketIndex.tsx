@@ -232,7 +232,7 @@ const IndexDisplay: React.FC<IndexDisplayProps> = ({ name, value, changeValue, c
 
     return (
         <div className="min-w-0 flex-1 px-2 sm:px-3">
-            <div className="mb-2 text-[13px] font-bold leading-6 text-slate-300 whitespace-nowrap">{name}</div>
+            <div className="mb-2 text-[13px] font-bold leading-6 text-slate-300 whitespace-normal break-words">{name}</div>
             {hasValue ? (
                 <div className={`${valueColor} whitespace-nowrap text-[20px] sm:text-[22px] lg:text-[24px] font-black leading-tight tracking-tight tabular-nums`} dir="ltr">
                     {formatIndexValue(value)}
@@ -240,7 +240,7 @@ const IndexDisplay: React.FC<IndexDisplayProps> = ({ name, value, changeValue, c
             ) : (
                 <div className="text-[12px] sm:text-[13px] font-semibold leading-5 text-slate-500 whitespace-nowrap">داده در دسترس نیست</div>
             )}
-            <div className={`mt-2 flex items-center gap-1.5 ${changeColor} text-[12px] sm:text-[13px] font-bold whitespace-nowrap tabular-nums`} dir="rtl">
+            <div className={`mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 ${changeColor} text-[11px] sm:text-[13px] font-bold tabular-nums`} dir="rtl">
                 {showIcon && <Icon className="h-4 w-4 shrink-0" />}
                 <span>{safeChangeValue === null ? 'داده در دسترس نیست' : formatSignedNumber(safeChangeValue)}</span>
                 <span className="opacity-80">({safeChangePercent === null ? '—' : formatPercent(safeChangePercent)})</span>
@@ -360,22 +360,22 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
 
     return (
         <div dir="rtl" data-style-id={showAsClosed ? 'market-index-closed' : 'market-index-open'} data-style-name={showAsClosed ? 'شاخص بازار بسته' : 'شاخص بازار باز'} data-style-props="bg,border,positive,negative" className="market-index-widget market-index-workstation w-full min-w-0 max-w-[460px] overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg shadow-black/10">
-            <div className="flex items-center justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3">
+            <div className="flex flex-col items-stretch gap-2 border-b border-[var(--color-border)] px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-4">
                 <div className="min-w-0">
                     <div className="text-[14px] font-bold text-[var(--color-text-primary)]">شاخص‌های بازار</div>
                     <div className="mt-0.5 text-[11px] font-medium text-slate-400">{dataMeta?.status === 'CACHED' ? 'آخرین داده معتبر ذخیره‌شده' : dataMeta?.status === 'LIVE' ? 'داده واقعی بازار' : 'وضعیت داده مشخص نیست'}</div>
                 </div>
-                <span className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1 text-[12px] font-bold leading-5 ${showAsClosed ? 'border-red-500/20 bg-red-500/10 text-red-400' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'}`}>
+                <span className={`inline-flex w-fit shrink-0 items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold leading-5 sm:text-[12px] ${showAsClosed ? 'border-red-500/20 bg-red-500/10 text-red-400' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'}`}>
                     <span className={`h-2 w-2 rounded-full ${showAsClosed ? 'bg-red-400' : 'bg-emerald-400'}`} />
                     {showAsClosed ? 'بازار بسته' : 'بازار باز'}
                 </span>
             </div>
-            <div className="relative grid grid-cols-2 px-2 py-4">
-                <div aria-hidden="true" className="pointer-events-none absolute right-1/2 top-4 bottom-4 w-px translate-x-1/2 bg-[var(--color-border)]" />
-                <div className="min-w-0 pl-5">
+            <div className="relative grid grid-cols-1 gap-4 px-3 py-4 sm:grid-cols-2 sm:gap-0 sm:px-2">
+                <div aria-hidden="true" className="pointer-events-none absolute right-3 left-3 top-1/2 h-px w-auto translate-y-1/2 bg-[var(--color-border)] sm:right-1/2 sm:left-auto sm:top-4 sm:bottom-4 sm:h-auto sm:w-px sm:translate-x-1/2 sm:translate-y-0" />
+                <div className="min-w-0 px-0 pb-2 sm:pl-5 sm:pb-0">
                     <IndexDisplay name="شاخص کل" value={data.value} changeValue={data.changeValue} changePercent={data.changePercent} showIcon={!showAsClosed} />
                 </div>
-                <div className="min-w-0 pr-5">
+                <div className="min-w-0 px-0 pt-2 sm:pr-5 sm:pt-0">
                     <IndexDisplay name="شاخص هم‌وزن" value={data.equalWeightedValue} changeValue={data.equalWeightedChangeValue} changePercent={data.equalWeightedChangePercent} showIcon={!showAsClosed} />
                 </div>
             </div>
