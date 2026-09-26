@@ -370,7 +370,7 @@ const BackgroundTabLoader: React.FC<{
       { key: 'strategyLab', node: <StrategyLab isOnline={isOnline} /> },
       { key: 'paperTrading', node: <PaperTrading isOnline={isOnline} /> },
       { key: 'traderPerformance', node: <TraderPerformance /> },
-      { key: 'roniaAssistant', node: <RoniaAssistant isOnline={isOnline} onNavigate={onNavigate} /> },
+      { key: 'roniaAssistant', node: <RoniaAssistant isOnline={isOnline} onNavigate={(tab) => onNavigate(tab as Tab)} /> },
       { key: 'dailyFilters', node: <DailyFilters /> },
       { key: 'profile', node: <UserProfile currentUser={currentUser} onProfileUpdate={onProfileUpdate} onPasswordChange={onPasswordChange} /> },
       { key: 'settings', node: <Settings currentUser={currentUser} initialTab={initialSettingsTab} /> },
