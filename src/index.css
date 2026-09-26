@@ -2000,24 +2000,34 @@ body {
 
 /* ---------- Dashboard header: mobile-only full-width rows ---------- */
 @media (max-width: 640px) {
+  /* موبایل: هدر را به دو ردیف واقعی تبدیل می‌کنیم؛
+     ردیف اول برند/عملیات و ردیف دوم زمان + شاخص‌ها با عرض کامل هدر */
   .app-header {
-    flex-wrap: wrap !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-auto-rows: auto !important;
     align-items: center !important;
+    column-gap: 8px !important;
+    row-gap: 8px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
     overflow: visible !important;
   }
 
-  /* مرکز هدر باید یک ردیف مستقل با 100٪ عرض واقعی هدر باشد */
+  /* مرکز هدر یک ردیف مستقل و واقعاً full-width است */
   .app-header-center {
-    order: 3 !important;
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    order: initial !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
     gap: 8px !important;
-    flex: 0 0 100% !important;
     width: 100% !important;
     min-width: 0 !important;
-    max-width: 100% !important;
+    max-width: none !important;
     margin-inline: 0 !important;
+    flex: none !important;
     box-sizing: border-box !important;
   }
 
