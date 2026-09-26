@@ -594,7 +594,11 @@ async function getMarketIndex(req, res) {
   try {
     const fallbackData = await getLatestMarketSnapshotFallback();
     if (hasUsableMarketIndexData(fallbackData)) {
-      if (brsService && typeof brsService.refreshMarketIndexInBackground === 'function') {
+      const snapshotTime = Date.parse(String(fallbackData.lastUpdate || fallbackData.updatedAt || ''));
+      const snapshotAgeMs = Number.isFinite(snapshotTime) ? Date.now() - snapshotTime : Number.POSITIVE_INFINITY;
+      // Refresh only when the stored snapshot is stale. This keeps login fast
+      // without turning every dashboard request into an upstream BRS request.
+      if (snapshotAgeMs > 60 * 1000 && brsService && typeof brsService.refreshMarketIndexInBackground === 'function') {
         void brsService.refreshMarketIndexInBackground();
       }
       return res.json({
