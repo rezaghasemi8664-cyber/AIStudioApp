@@ -2354,3 +2354,51 @@ body {
     box-sizing: border-box !important;
   }
 }
+
+/* ---------- Mobile header: clock and market index side by side ---------- */
+@media (max-width: 640px) {
+  .app-header > div:nth-child(2) {
+    order: 3 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: 0 0 100% !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    gap: 6px !important;
+  }
+
+  .app-header > div:nth-child(2) .roniya-clock {
+    flex: 0 0 calc(42% - 3px) !important;
+    width: calc(42% - 3px) !important;
+    max-width: calc(42% - 3px) !important;
+    min-width: 0 !important;
+    padding-inline: 2px !important;
+    justify-content: center !important;
+  }
+
+  .app-header > div:nth-child(2) .roniya-clock > div {
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .app-header > div:nth-child(2) .roniya-clock-date-row {
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+  }
+
+  .app-header > div:nth-child(2) .market-index-widget {
+    flex: 0 0 calc(58% - 3px) !important;
+    width: calc(58% - 3px) !important;
+    max-width: calc(58% - 3px) !important;
+    min-width: 0 !important;
+  }
+
+  .app-header > div:nth-child(2) .market-index-widget > div:first-child {
+    padding-inline: 7px !important;
+  }
+}
