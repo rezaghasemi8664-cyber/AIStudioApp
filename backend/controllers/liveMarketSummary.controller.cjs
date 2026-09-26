@@ -215,43 +215,94 @@ function makeText({ market, breadth, momentum }) {
   ].join('\n\n');
 }
 
+const sharedMarketService = require('../services/sharedMarket.service.cjs');
+
 exports.getLatestMarketSummary = async function getLatestMarketSummary(req, res) {
   try {
-    const [marketResult, breadthResult, historyResult] = await Promise.all([
-      brsService.getMarketIndex(),
-      breadthService.getMarketBreadth().catch(error => ({ available: false, reason: error.message })),
-      marketHistoryService.getMarketHistory(3000).catch(error => [])
+    const [market, breadth, industries] = await Promise.all([
+      sharedMarketService.getMarketCurrent(),
+      sharedMarketService.getBreadth(),
+      sharedMarketService.getIndustries(10)
     ]);
 
-    const marketRoot = marketResult && typeof marketResult === 'object' ? marketResult : {};
-    const marketData = marketRoot.data && typeof marketRoot.data === 'object' ? marketRoot.data : {};
-    const marketPayload = marketRoot.payload && typeof marketRoot.payload === 'object' ? marketRoot.payload : {};
-    const market = Object.assign({}, marketRoot, marketPayload, marketData, marketData.data && typeof marketData.data === 'object' ? marketData.data : {});
-    const breadth = breadthResult || { available: false };
-    const sessions = buildTradingSessions(historyResult, market);
-    const momentum = calculateMomentum(sessions);
-    const content = makeText({ market, breadth, momentum });
-    const overall = n(market.index ?? market.overallIndex ?? market.value);
-    const overallChange = n(market.index_change ?? market.indexChange ?? market.overallChange ?? market.changeValue ?? market.change);
-    const equal = n(market.indexEqualWeight ?? market.index_equalWeight ?? market.equalIndex ?? market.equalWeightedValue);
-    const equalChange = n(market.indexEqualWeightChange ?? market.index_equalWeight_change ?? market.equalChange ?? market.equalWeightedChangeValue);
+    if (!market || !breadth) {
+      return res.status(503).json({
+        success: false,
+        error: 'SHARED_MARKET_DATA_UNAVAILABLE',
+        message: 'داده مشترک بازار هنوز در دسترس نیست؛ خلاصه بازار تولید نشد.'
+      });
+    }
+
+    const overall = n(market.overallIndex);
+    const overallChange = n(market.overallChange);
+    const equal = n(market.equalIndex);
+    const equalChange = n(market.equalChange);
     const overallPct = signedPercent(overall, overallChange);
     const equalPct = signedPercent(equal, equalChange);
+
+    const industryRows = Array.isArray(industries) ? industries.filter(Boolean) : [];
+    const leaders = industryRows
+      .filter(x => n(x.changePercent) !== null)
+      .sort((a, b) => n(b.changePercent) - n(a.changePercent))
+      .slice(0, 3)
+      .map(x => ({ name: x.industryName, change: n(x.changePercent) }));
+    const laggards = industryRows
+      .filter(x => n(x.changePercent) !== null)
+      .sort((a, b) => n(a.changePercent) - n(b.changePercent))
+      .slice(0, 3)
+      .map(x => ({ name: x.industryName, change: n(x.changePercent) }));
+
+    const enrichedBreadth = {
+      ...breadth,
+      sectors: { leaders, laggards },
+      moneyFlow: {},
+    };
+
+    const marketForText = {
+      ...market,
+      index: overall,
+      index_change: overallChange,
+      indexEqualWeight: equal,
+      indexEqualWeightChange: equalChange,
+      totalTrades: market.totalTrades,
+      totalVolume: market.totalVolume,
+      totalValue: market.totalValue,
+      isMarketOpen: String(market.marketStatus || '').toLowerCase().includes('open') || String(market.marketStatus || '').includes('باز'),
+      marketState: market.marketStatus,
+      topGainers: breadth.topGainers,
+      topLosers: breadth.topLosers,
+      topVolumes: breadth.topVolumes,
+    };
+
+    const content = makeText({
+      market: marketForText,
+      breadth: enrichedBreadth,
+      momentum: {
+        available: false,
+        sessions: 0,
+        oneDay: null,
+        threeDay: null,
+        fiveDay: null,
+        bias: 'خنثی'
+      }
+    });
+
     const now = new Date();
-    const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', calendar: 'gregory' }).format(now);
-    const marketDateJalali = market.date || null;
-    const totalTrades = n(market.totalTrades ?? market.tradeCount ?? market.tno);
-    const totalVolume = n(market.totalVolume ?? market.tradeVolume ?? market.tvol);
-    const totalValue = n(market.totalValue ?? market.tradeValue ?? market.tval);
+    const date = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Tehran',
+      calendar: 'gregory'
+    }).format(now);
+
+    const stale = !!market.isStale;
 
     return res.status(200).json({
       success: true,
       data: {
-        id: 0,
+        id: market.id,
         date,
         summaryDate: date,
-        marketDateJalali,
-        createdAt: now.toISOString(),
+        marketDateJalali: market.marketDate || null,
+        createdAt: market.updatedAt ? new Date(market.updatedAt).toISOString() : now.toISOString(),
         overallIndex: overall,
         overallChange,
         overallChangePercent: overallPct,
@@ -262,51 +313,53 @@ exports.getLatestMarketSummary = async function getLatestMarketSummary(req, res)
         displayOverallChange: fa(overallChange),
         displayEqualIndex: fa(equal),
         displayEqualChange: fa(equalChange),
-        marketStatus: market.isMarketOpen === true || String(market.marketState || '').includes('باز') ? 'open' : 'closed',
-        totalTrades: totalTrades === null ? '' : String(totalTrades),
-        totalVolume: totalVolume === null ? '' : String(totalVolume),
-        totalValue: totalValue === null ? '' : String(totalValue),
-        positiveStocks: breadth.positive ?? breadth.positiveStocks ?? null,
-        negativeStocks: breadth.negative ?? breadth.negativeStocks ?? null,
-        neutralStocks: breadth.neutral ?? breadth.neutralStocks ?? null,
-        topGainers: breadth.topGainers || market.topGainers || [],
-        topLosers: breadth.topLosers || market.topLosers || [],
-        topVolumes: breadth.topVolumes || market.topVolumes || [],
-        symbolsCoverage: breadth.coveragePercent ?? breadth.symbolsCoverage ?? null,
-        stale: false,
+        marketStatus: marketForText.isMarketOpen ? 'open' : 'closed',
+        totalTrades: market.totalTrades == null ? '' : String(market.totalTrades),
+        totalVolume: market.totalVolume == null ? '' : String(market.totalVolume),
+        totalValue: market.totalValue == null ? '' : String(market.totalValue),
+        positiveStocks: breadth.positive ?? null,
+        negativeStocks: breadth.negative ?? null,
+        neutralStocks: breadth.neutral ?? null,
+        topGainers: breadth.topGainers || [],
+        topLosers: breadth.topLosers || [],
+        topVolumes: breadth.topVolumes || [],
+        symbolsCoverage: breadth.coveragePercent ?? null,
+        stale,
         staleHours: 0,
-        staleReason: null,
+        staleReason: stale ? 'SHARED_MARKET_DATA_MARKED_STALE' : null,
         content,
         summary: content,
         fallback: false,
         aiPending: false,
-        source: 'brs-live-snapshot',
+        source: 'shared-db',
         diagnostics: {
-          source: 'brs-live-snapshot',
-          marketTimestamp: market.lastUpdate || market.timestamp || null,
-          marketOpen: market.isMarketOpen === true,
+          source: 'shared-db',
+          marketTimestamp: market.updatedAt || null,
+          marketOpen: marketForText.isMarketOpen,
           breadthAvailable: breadth.available !== false,
-          momentumSessions: momentum.sessions,
-          momentumAvailable: momentum.available
+          momentumSessions: 0,
+          momentumAvailable: false,
+          stale
         }
       },
       meta: {
         generated: true,
-        sourceType: 'live_brs_snapshot',
-        cached: false,
-        reason: 'LATEST_BUILT_FROM_LIVE_BRS',
+        sourceType: 'shared_db_live_snapshot',
+        cached: true,
+        reason: 'LATEST_BUILT_FROM_SHARED_MARKET_DATA',
         diagnostics: {
-          marketTimestamp: market.lastUpdate || market.timestamp || null,
+          marketTimestamp: market.updatedAt || null,
           breadthAvailable: breadth.available !== false,
-          momentumSessions: momentum.sessions
+          stale
         }
       }
     });
   } catch (error) {
+    console.error('[LiveMarketSummaryController][SharedDB]', error);
     return res.status(503).json({
       success: false,
-      error: 'LIVE_MARKET_DATA_UNAVAILABLE',
-      message: 'داده زنده بازار در دسترس نیست؛ برای جلوگیری از نمایش داده قدیمی، خلاصه بازار تولید نشد.',
+      error: 'SHARED_MARKET_DATA_UNAVAILABLE',
+      message: 'داده مشترک بازار در دسترس نیست؛ برای جلوگیری از نمایش داده قدیمی، خلاصه بازار تولید نشد.',
       details: process.env.NODE_ENV === 'production' ? undefined : error.message
     });
   }
