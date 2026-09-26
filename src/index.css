@@ -2134,3 +2134,86 @@ body {
     min-height: 112px;
   }
 }
+
+
+/* ---------- Dashboard header: mobile overflow refinement ---------- */
+@media (max-width: 640px) {
+  /* Keep the clock content inside the mobile header. */
+  .app-header > div:nth-child(2) .roniya-clock {
+    box-sizing: border-box;
+    padding-inline: 4px;
+  }
+
+  .app-header > div:nth-child(2) .roniya-clock > div {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .app-header > div:nth-child(2) .roniya-clock > div > p {
+    max-width: 100% !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    line-height: 1.6;
+  }
+
+  .app-header > div:nth-child(2) .roniya-clock > div > div {
+    max-width: 100% !important;
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  /* Keep the market card fully inside the available mobile width. */
+  .app-header > div:nth-child(2) .market-index-widget {
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .app-header > div:nth-child(2) .market-index-widget > div:first-child {
+    min-width: 0 !important;
+    gap: 6px !important;
+    padding-inline: 10px !important;
+  }
+
+  .app-header > div:nth-child(2) .market-index-widget > div:first-child > div {
+    min-width: 0 !important;
+  }
+
+  .app-header > div:nth-child(2) .market-index-widget > div:first-child > div:first-child > div:first-child {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .app-header > div:nth-child(2) .market-index-widget > div:first-child > span {
+    padding-inline: 8px !important;
+    white-space: nowrap;
+  }
+
+  .app-header > div:nth-child(2) .market-index-widget > div:last-child {
+    min-width: 0 !important;
+    padding-inline: 2px !important;
+  }
+
+  .app-header > div:nth-child(2) .market-index-widget > div:last-child > div {
+    min-width: 0 !important;
+    padding-inline: 3px !important;
+  }
+
+  .app-header > div:nth-child(2) .market-index-widget > div:last-child > div > div {
+    min-width: 0 !important;
+    padding-inline: 2px !important;
+  }
+
+  .app-header > div:nth-child(2) .market-index-widget > div:last-child > div > div > div:nth-child(2) {
+    min-width: 0 !important;
+    font-size: 17px !important;
+  }
+
+  .app-header > div:nth-child(2) .market-index-widget > div:last-child > div > div > div:last-child {
+    min-width: 0 !important;
+    gap: 3px !important;
+    font-size: 11px !important;
+  }
+}
