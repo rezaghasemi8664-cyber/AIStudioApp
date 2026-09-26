@@ -373,23 +373,7 @@ const BackgroundTabLoader: React.FC<{
   if (isExpired || preloadIndex >= preloadItems.length) return null;
 
   const current = preloadItems[preloadIndex];
-  if (current.key === activeTab) {
-    return (
-      <div aria-hidden="true" data-background-tab-loader="true">
-        <BackgroundTabLoader
-          currentUser={currentUser}
-          isOnline={isOnline}
-          activeTab={activeTab}
-          isExpired={isExpired}
-          initialSettingsTab={initialSettingsTab}
-          onProfileUpdate={onProfileUpdate}
-          onPasswordChange={onPasswordChange}
-          onAlertChange={onAlertChange}
-          onNavigate={onNavigate}
-        />
-      </div>
-    );
-  }
+  if (current.key === activeTab) return null;
 
   const hiddenStyle: React.CSSProperties = {
     position: 'fixed',
@@ -408,17 +392,6 @@ const BackgroundTabLoader: React.FC<{
       <LazyErrorBoundary fallback={null}>
         <Suspense fallback={null}>{current.node}</Suspense>
       </LazyErrorBoundary>
-      <BackgroundTabLoader
-        currentUser={currentUser}
-        isOnline={isOnline}
-        activeTab={activeTab}
-        isExpired={isExpired}
-        initialSettingsTab={initialSettingsTab}
-        onProfileUpdate={onProfileUpdate}
-        onPasswordChange={onPasswordChange}
-        onAlertChange={onAlertChange}
-        onNavigate={onNavigate}
-      />
     </div>
   );
 };
