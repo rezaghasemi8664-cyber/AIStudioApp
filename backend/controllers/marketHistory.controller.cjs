@@ -666,10 +666,11 @@ async function getMarketIndex(req, res) {
 
 // GET /api/market/symbol/:name
 async function getSymbolData(req, res) {
-  if (!brsService || typeof brsService.getSymbolData !== 'function') {
+  if (!sharedMarketService || typeof sharedMarketService.getSymbols !== 'function') {
     return res.status(503).json({
       success: false,
-      message: 'سرویس BRS برای دریافت اطلاعات نماد در دسترس نیست'
+      message: 'سرویس داده مشترک بازار در دسترس نیست',
+      code: 'SHARED_MARKET_SERVICE_UNAVAILABLE'
     });
   }
 
@@ -683,20 +684,31 @@ async function getSymbolData(req, res) {
   }
 
   try {
-    const result = await brsService.getSymbolData(symbol);
+    const rows = await sharedMarketService.getSymbols({ symbol, limit: 1 });
+    const data = rows[0] || null;
+
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        message: 'نماد در داده مشترک بازار پیدا نشد',
+        code: 'SYMBOL_NOT_FOUND'
+      });
+    }
 
     return res.json({
       success: true,
-      data: hasOwn(result, 'data') ? result.data : result,
-      cached: !!(result && result._cached),
+      data,
+      cached: true,
+      stale: !!data.isStale,
+      source: 'shared-db',
       timestamp: new Date().toISOString()
     });
   } catch (err) {
-    console.error('[MARKET CTRL v6.1] Symbol error (' + symbol + '):', getErrorMessage(err));
-
-    return res.status(502).json({
+    console.error('[MARKET CTRL v8.0] Shared symbol error (' + symbol + '):', getErrorMessage(err));
+    return res.status(500).json({
       success: false,
-      message: 'خطا در دریافت اطلاعات نماد: ' + symbol,
+      message: 'خطا در دریافت اطلاعات نماد',
+      code: 'SHARED_SYMBOL_READ_ERROR',
       error: isDev() ? getErrorMessage(err) : undefined
     });
   }
@@ -817,29 +829,32 @@ async function getMarketHistory(req, res) {
 
 // GET /api/market/symbols
 async function getAllSymbols(req, res) {
-  if (!brsService || typeof brsService.getAllSymbols !== 'function') {
+  if (!sharedMarketService || typeof sharedMarketService.getSymbols !== 'function') {
     return res.status(503).json({
       success: false,
-      message: 'سرویس BRS برای دریافت لیست نمادها در دسترس نیست'
+      message: 'سرویس داده مشترک بازار در دسترس نیست',
+      code: 'SHARED_MARKET_SERVICE_UNAVAILABLE'
     });
   }
 
   try {
-    const result = await brsService.getAllSymbols();
+    const data = await sharedMarketService.getSymbols({
+      limit: parseLimit(req.query.limit) || 5000
+    });
 
     return res.json({
       success: true,
-      data: hasOwn(result, 'data') ? result.data : result,
-      total: result && typeof result.total !== 'undefined' ? result.total : undefined,
-      cached: !!(result && result._cached),
+      data,
+      total: data.length,
+      source: 'shared-db',
       timestamp: new Date().toISOString()
     });
   } catch (err) {
-    console.error('[MARKET CTRL v6.1] AllSymbols error:', getErrorMessage(err));
-
-    return res.status(502).json({
+    console.error('[MARKET CTRL v8.0] Shared symbols error:', getErrorMessage(err));
+    return res.status(500).json({
       success: false,
       message: 'خطا در دریافت لیست نمادها',
+      code: 'SHARED_SYMBOLS_READ_ERROR',
       error: isDev() ? getErrorMessage(err) : undefined
     });
   }
@@ -847,10 +862,11 @@ async function getAllSymbols(req, res) {
 
 // GET /api/market/search?q=فولاد
 async function searchSymbols(req, res) {
-  if (!brsService || typeof brsService.searchSymbols !== 'function') {
+  if (!sharedMarketService || typeof sharedMarketService.searchSymbols !== 'function') {
     return res.status(503).json({
       success: false,
-      message: 'سرویس BRS برای جستجوی نماد در دسترس نیست'
+      message: 'سرویس داده مشترک بازار در دسترس نیست',
+      code: 'SHARED_MARKET_SERVICE_UNAVAILABLE'
     });
   }
 
@@ -864,21 +880,22 @@ async function searchSymbols(req, res) {
   }
 
   try {
-    const result = await brsService.searchSymbols(query);
+    const data = await sharedMarketService.searchSymbols(query, parseLimit(req.query.limit) || 50);
 
     return res.json({
       success: true,
-      data: hasOwn(result, 'data') ? result.data : result,
-      total: result && typeof result.total !== 'undefined' ? result.total : undefined,
-      query: result && typeof result.query !== 'undefined' ? result.query : query,
+      data,
+      total: data.length,
+      query,
+      source: 'shared-db',
       timestamp: new Date().toISOString()
     });
   } catch (err) {
-    console.error('[MARKET CTRL v6.1] Search error (' + query + '):', getErrorMessage(err));
-
-    return res.status(502).json({
+    console.error('[MARKET CTRL v8.0] Shared symbol search error (' + query + '):', getErrorMessage(err));
+    return res.status(500).json({
       success: false,
       message: 'خطا در جستجوی نماد',
+      code: 'SHARED_SYMBOL_SEARCH_ERROR',
       error: isDev() ? getErrorMessage(err) : undefined
     });
   }
