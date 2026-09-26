@@ -7,6 +7,7 @@ var marketHistoryController = require('../controllers/marketHistory.controller.c
 var marketSummaryController = require('../controllers/marketSummary.controller.cjs');
 var marketRadarHistoryController = require('../controllers/marketRadarHistory.controller.cjs');
 var marketBreadth = require('../services/marketBreadth.service.cjs');
+var marketSummaryService = require('../services/marketSummary.service.cjs');
 
 // شاخص بازار
 router.get('/index', marketHistoryController.getMarketIndex);
@@ -19,11 +20,69 @@ router.get('/history/radar', marketRadarHistoryController.getHistory);
 
 // عرض بازار - محاسبه قطعی و بدون هوش مصنوعی
 
+// Real-data fallback: if live breadth sources are temporarily unavailable,
+// serve the latest persisted daily market snapshot instead of an empty dashboard.
+// This is explicitly marked stale; no synthetic values are generated.
+async function getBreadthWithStoredFallback() {
+  const live = await marketBreadth.getMarketBreadth();
+  if (live && (
+    live.available === true ||
+    (Array.isArray(live.topGainers) && live.topGainers.length) ||
+    (Array.isArray(live.topLosers) && live.topLosers.length) ||
+    (Array.isArray(live.topVolumes) && live.topVolumes.length)
+  )) {
+    return live;
+  }
+
+  try {
+    const latest = await marketSummaryService.findOrGenerateLatest();
+    const stored = latest && latest.data ? latest.data : null;
+    if (!stored) return live;
+
+    let raw = stored.rawJson;
+    if (typeof raw === 'string') {
+      try { raw = JSON.parse(raw); } catch (_) { raw = null; }
+    }
+    const rawData = raw && typeof raw === 'object' && raw.data && typeof raw.data === 'object' ? raw.data : raw;
+    const topGainers = Array.isArray(stored.topGainers) ? stored.topGainers : (Array.isArray(rawData?.topGainers) ? rawData.topGainers : []);
+    const topLosers = Array.isArray(stored.topLosers) ? stored.topLosers : (Array.isArray(rawData?.topLosers) ? rawData.topLosers : []);
+    const topVolumes = Array.isArray(stored.topVolumes) ? stored.topVolumes : (Array.isArray(rawData?.topVolumes) ? rawData.topVolumes : []);
+    const positive = Number(stored.positiveStocks);
+    const negative = Number(stored.negativeStocks);
+    const neutral = Number(stored.neutralStocks);
+
+    return {
+      ...(live || {}),
+      available: false,
+      stale: true,
+      source: 'db-daily-summary',
+      topGainers,
+      topLosers,
+      topVolumes,
+      positive: Number.isFinite(positive) ? positive : (live?.positive ?? 0),
+      negative: Number.isFinite(negative) ? negative : (live?.negative ?? 0),
+      neutral: Number.isFinite(neutral) ? neutral : (live?.neutral ?? 0),
+      total: Number.isFinite(positive) && Number.isFinite(negative) && Number.isFinite(neutral)
+        ? positive + negative + neutral
+        : (live?.total ?? 0),
+      storedAt: stored.createdAt || stored.updatedAt || null,
+      diagnostics: {
+        ...(live?.diagnostics || {}),
+        servedFromStoredSummary: true
+      }
+    };
+  } catch (error) {
+    console.warn('[MARKET ROUTES] Stored breadth fallback failed:', error.message);
+    return live;
+  }
+}
+
+
 // Dashboard movers compatibility endpoint.
 // Uses the same deterministic breadth dataset; no AI and no synthetic data.
 router.get('/movers', async function getMarketMovers(_req, res, next) {
   try {
-    const data = await marketBreadth.getMarketBreadth();
+    const data = await getBreadthWithStoredFallback();
     return res.json({
       success: true,
       data: {
@@ -41,7 +100,7 @@ router.get('/movers', async function getMarketMovers(_req, res, next) {
 // Dashboard industries compatibility endpoint.
 router.get('/industries', async function getMarketIndustries(_req, res, next) {
   try {
-    const data = await marketBreadth.getMarketBreadth();
+    const data = await getBreadthWithStoredFallback();
     const sectors = data.sectors || {};
     const rows = sectors.rows || [];
     return res.json({
@@ -55,7 +114,7 @@ router.get('/industries', async function getMarketIndustries(_req, res, next) {
 
 router.get('/breadth', async function getMarketBreadth(_req, res, next) {
   try {
-    const data = await marketBreadth.getMarketBreadth();
+    const data = await getBreadthWithStoredFallback();
     return res.json({ success: true, data });
   } catch (error) {
     return next(error);
