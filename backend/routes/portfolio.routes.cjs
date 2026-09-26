@@ -5,7 +5,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/auth.middleware.cjs');
 const prismaModule = require('../config/prisma.cjs');
 const prisma = prismaModule.prisma || prismaModule;
-const brsService = require('../services/brs.service.cjs');
+const sharedMarketService = require('../services/sharedMarket.service.cjs');
 
 function getUserId(req) {
   const raw = req.user && (req.user.id ?? req.user.userId);
@@ -26,47 +26,36 @@ function normalizeItem(item) {
 }
 
 async function enrichWithRealQuotes(items) {
-  const results = new Array(items.length);
-  let nextIndex = 0;
+  if (!items.length) return [];
 
-  async function worker() {
-    while (nextIndex < items.length) {
-      const index = nextIndex++;
-      const item = items[index];
-      try {
-        const envelope = await Promise.race([
-          brsService.getSymbolData(item.symbol),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('BRS quote timeout')), 9000))
-        ]);
-        const data = envelope && envelope.data ? envelope.data : {};
-        const meta = envelope && envelope._meta ? envelope._meta : {};
-        const currentPrice = Number(data.lastPrice ?? data.pl ?? data.pDrCotVal ?? data.closingPrice ?? data.pc);
-        const sourceRaw = String(meta.source || '').toLowerCase();
-        const dataStatus = sourceRaw === 'live' ? 'LIVE' : (sourceRaw ? 'CACHED' : 'UNAVAILABLE');
-        results[index] = {
-          ...item,
-          currentPrice: Number.isFinite(currentPrice) && currentPrice > 0 ? currentPrice : null,
-          dataStatus,
-          source: meta.source || null,
-          fetchedAt: meta.fetchedAt || null,
-          stale: dataStatus !== 'LIVE'
-        };
-      } catch (error) {
-        results[index] = {
-          ...item,
-          currentPrice: null,
-          dataStatus: 'UNAVAILABLE',
-          source: null,
-          fetchedAt: null,
-          stale: true
-        };
-      }
+  const symbols = Array.from(new Set(items.map(item => item.symbol).filter(Boolean)));
+  const rows = await Promise.all(symbols.map(async symbol => {
+    try {
+      const data = await sharedMarketService.getSymbols({ symbol, limit: 1 });
+      return [symbol, Array.isArray(data) && data.length ? data[0] : null];
+    } catch (error) {
+      console.error('[PORTFOLIO] Shared quote read failed for ' + symbol + ':', error.message);
+      return [symbol, null];
     }
-  }
+  }));
 
-  const workerCount = Math.min(3, items.length);
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
-  return results;
+  const quoteMap = new Map(rows);
+  return items.map(item => {
+    const quote = quoteMap.get(item.symbol);
+    const currentPrice = quote ? Number(quote.lastPrice ?? quote.closePrice) : null;
+    const hasPrice = Number.isFinite(currentPrice) && currentPrice > 0;
+    const stale = !quote || quote.isStale === true;
+    const dataStatus = !hasPrice ? 'UNAVAILABLE' : (stale ? 'CACHED' : 'LIVE');
+
+    return {
+      ...item,
+      currentPrice: hasPrice ? currentPrice : null,
+      dataStatus,
+      source: quote ? (quote.source || 'shared-db') : null,
+      fetchedAt: quote ? (quote.updatedAt || null) : null,
+      stale
+    };
+  });
 }
 
 function normalizeSoldTrade(trade) {
@@ -146,7 +135,7 @@ router.get('/', authMiddleware, async (req, res) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
     const state = await readPortfolio(userId);
-    // DB is the authoritative first response. Live BRS quotes are refreshed by /quotes.
+    // DB is the authoritative first response. Shared MarketSymbolCurrent quotes are refreshed by /quotes.
     const items = state.portfolio.items.map(item => ({
       ...item,
       currentPrice: null,
