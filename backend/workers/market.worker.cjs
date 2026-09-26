@@ -141,6 +141,44 @@ async function updateSymbolsAndMovers() {
   return symbols;
 }
 
+
+async function updateIndustries(symbols) {
+  const groups = new Map();
+  for (const item of symbols) {
+    const name = String(item.sector || '').trim();
+    if (!name) continue;
+    const current = groups.get(name) || { industryName: name, symbolCount: 0, value: 0, changeSum: 0, changeCount: 0 };
+    current.symbolCount += 1;
+    current.value += num(item.tradeValue, 0);
+    const change = num(item.lastChangePercent);
+    if (change !== null) { current.changeSum += change; current.changeCount += 1; }
+    groups.set(name, current);
+  }
+  const rows = Array.from(groups.values()).map(x => ({
+    industryName: x.industryName,
+    symbolCount: x.symbolCount,
+    value: x.value,
+    changePercent: x.changeCount ? x.changeSum / x.changeCount : 0
+  })).sort((a, b) => b.value - a.value);
+  await prisma.marketIndustryCurrent.deleteMany({});
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i];
+    await prisma.marketIndustryCurrent.create({
+      data: {
+        industryName: row.industryName,
+        symbolCount: row.symbolCount,
+        value: row.value,
+        changePercent: row.changePercent,
+        rank: i + 1,
+        updatedAt: new Date(),
+        source: 'brs-central-worker',
+        isStale: false
+      }
+    });
+  }
+  return rows.length;
+}
+
 async function updateScalpingOpportunities(symbols) {
   const marketDate = sqlDate(tehranDateKey());
   const candidates = symbols.map(item => ({ item, scored: scoreSymbol(item) }))
@@ -200,6 +238,7 @@ async function runMarketWorker() {
 
   await runJob('market-current', updateMarketCurrent);
   const symbols = await updateSymbolsAndMovers();
+  await runJob('industries', () => updateIndustries(symbols));
   await runJob('scalping-opportunities', () => updateScalpingOpportunities(symbols));
   return { status: 'success', symbols: symbols.length };
 }
@@ -212,4 +251,4 @@ function startMarketWorker() {
   console.log('[MARKET WORKER] Central market worker started');
 }
 
-module.exports = { runMarketWorker, startMarketWorker, updateMarketCurrent, updateSymbolsAndMovers, updateScalpingOpportunities };
+module.exports = { runMarketWorker, startMarketWorker, updateMarketCurrent, updateSymbolsAndMovers, updateIndustries, updateScalpingOpportunities };
