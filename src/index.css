@@ -1998,7 +1998,7 @@ body {
   }
 }
 
-/* ---------- Dashboard header: clean responsive mobile layout ---------- */
+/* ---------- Dashboard header: mobile-only stacked layout ---------- */
 @media (max-width: 640px) {
   .app-header {
     flex-wrap: wrap !important;
@@ -2009,9 +2009,8 @@ body {
   .app-header-center {
     order: 3 !important;
     display: flex !important;
-    flex-direction: row !important;
+    flex-direction: column !important;
     align-items: stretch !important;
-    justify-content: flex-start !important;
     gap: 8px !important;
     width: 100% !important;
     min-width: 100% !important;
@@ -2020,30 +2019,17 @@ body {
     box-sizing: border-box !important;
   }
 
-  .app-header-center > .roniya-clock,
-  .app-header-center > .market-index-widget {
-    min-width: 0 !important;
-    max-width: none !important;
-    box-sizing: border-box !important;
+  /* ردیف اول: تاریخ و زمان با عرض کامل */
+  .app-header-center > .roniya-clock {
+    order: 1 !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
     flex: 0 0 auto !important;
-  }
-
-  /* Keep the two widgets beside each other on mobile without CSS grid
-     track calculation. This prevents the market widget from collapsing. */
-  .app-header-center > .roniya-clock {
-    width: 36% !important;
-    max-width: 36% !important;
-  }
-
-  .app-header-center > .market-index-widget {
-    width: calc(64% - 8px) !important;
-    max-width: calc(64% - 8px) !important;
-  }
-
-  .app-header-center > .roniya-clock {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
+    box-sizing: border-box !important;
     overflow: visible !important;
   }
 
@@ -2061,30 +2047,37 @@ body {
     width: 100% !important;
     min-width: 0 !important;
     display: flex !important;
-    flex-direction: column !important;
+    flex-direction: row !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 0 !important;
+    gap: 8px !important;
     overflow: visible !important;
   }
 
   .app-header-center .roniya-clock-date-row p,
   .app-header-center .roniya-clock-date-row > div {
-    min-width: 0 !important;
-    max-width: 100% !important;
+    min-width: max-content !important;
+    max-width: none !important;
     white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
   }
 
+  /* ردیف دوم: کادر شاخص‌های بازار با کل عرض موبایل */
   .app-header-center > .market-index-widget {
+    order: 2 !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    flex: 0 0 auto !important;
     display: block !important;
+    box-sizing: border-box !important;
     overflow: hidden !important;
   }
 
   .app-header-center .market-index-widget .market-index-header {
-    min-width: 0 !important;
     width: 100% !important;
+    min-width: 0 !important;
     box-sizing: border-box !important;
   }
 
@@ -2093,16 +2086,15 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     grid-template-rows: 1fr !important;
     grid-auto-flow: column !important;
-    align-items: stretch !important;
     width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
-    padding-top: 10px !important;
-    padding-bottom: 10px !important;
+    align-items: stretch !important;
+    padding: 10px 4px !important;
+    box-sizing: border-box !important;
   }
 
   .app-header-center .market-index-widget .market-index-column {
-    display: block !important;
     width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
@@ -2114,25 +2106,11 @@ body {
     min-width: 0 !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
-    padding-inline: 3px !important;
+    padding-inline: 4px !important;
   }
 
   .app-header-center .market-index-widget .market-index-column > div > div {
     min-width: 0 !important;
     max-width: 100% !important;
-  }
-
-  .app-header-center .market-index-widget .market-index-column > div > div:nth-child(2) {
-    font-size: 13px !important;
-    white-space: nowrap !important;
-  }
-
-  .app-header-center .market-index-widget .market-index-column > div > div:last-child {
-    min-width: 0 !important;
-    max-width: 100% !important;
-    font-size: 9px !important;
-    gap: 1px !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
   }
 }
