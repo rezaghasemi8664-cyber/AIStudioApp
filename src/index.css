@@ -1998,6 +1998,31 @@ body {
   }
 }
 
+/* ---------- Dashboard header: mobile-only layout fix ---------- */
+@media (max-width: 640px) {
+  .app-header > div:nth-child(2) {
+    order: 3;
+    width: 100%;
+    min-width: 0;
+    flex: 0 0 100%;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 10px !important;
+  }
+
+  .app-header > div:nth-child(2) .roniya-clock {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .app-header > div:nth-child(2) .market-index-widget {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+}
+
 /* ---------- Tight mobile ---------- */
 @media (max-width: 640px) {
   body {
