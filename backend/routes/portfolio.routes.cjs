@@ -26,9 +26,18 @@ function normalizeItem(item) {
 }
 
 async function enrichWithRealQuotes(items) {
-  const results = await Promise.all(items.map(async (item) => {
-    try {
-      const envelope = await brsService.getSymbolData(item.symbol);
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      const item = items[index];
+      try {
+        const envelope = await Promise.race([
+          brsService.getSymbolData(item.symbol),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('BRS quote timeout')), 9000))
+        ]);
       const data = envelope && envelope.data ? envelope.data : {};
       const meta = envelope && envelope._meta ? envelope._meta : {};
       const currentPrice = Number(data.lastPrice ?? data.pl ?? data.pDrCotVal ?? data.closingPrice ?? data.pc);
@@ -89,7 +98,7 @@ async function writePortfolio(userId, state) {
   await prisma.user.update({ where: { id: userId }, data: { marketSummary: JSON.stringify(root) } });
 }
 
-router.get('/', authMiddleware, async (req, res) => {
+router.get('/quotes', authMiddleware, async (req, res) => {
   try {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
@@ -98,9 +107,48 @@ router.get('/', authMiddleware, async (req, res) => {
     const quoted = items.filter(item => Number.isFinite(item.currentPrice) && item.currentPrice > 0);
     const currentValue = quoted.reduce((sum, item) => sum + item.currentPrice * item.quantity, 0);
     const costBasis = quoted.reduce((sum, item) => sum + item.buyPrice * item.quantity, 0);
-    const unrealizedPnl = currentValue - costBasis;
-    const dataStatus = items.some(item => item.dataStatus === 'LIVE') ? 'LIVE' : (items.some(item => item.dataStatus === 'CACHED') ? 'CACHED' : 'UNAVAILABLE');
-    return res.json({ success: true, data: { ...state.portfolio, items, currentValue, costBasis, unrealizedPnl, dataStatus } });
+    return res.json({
+      success: true,
+      data: {
+        items,
+        currentValue,
+        costBasis,
+        unrealizedPnl: currentValue - costBasis,
+        dataStatus: items.some(item => item.dataStatus === 'LIVE') ? 'LIVE' : (items.some(item => item.dataStatus === 'CACHED') ? 'CACHED' : 'UNAVAILABLE')
+      }
+    });
+  } catch (error) {
+    console.error('[PORTFOLIO] QUOTES failed:', error);
+    return res.status(500).json({ success: false, message: 'به‌روزرسانی قیمت‌های سبد ناموفق بود.', error: error.message });
+  }
+});
+
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
+    const state = await readPortfolio(userId);
+    // DB is the authoritative first response. Live BRS quotes are refreshed by /quotes.
+    const items = state.portfolio.items.map(item => ({
+      ...item,
+      currentPrice: null,
+      dataStatus: 'UNAVAILABLE',
+      source: null,
+      fetchedAt: null,
+      stale: true
+    }));
+    const costBasis = items.reduce((sum, item) => sum + item.buyPrice * item.quantity, 0);
+    return res.json({
+      success: true,
+      data: {
+        ...state.portfolio,
+        items,
+        currentValue: 0,
+        costBasis,
+        unrealizedPnl: 0,
+        dataStatus: 'UNAVAILABLE'
+      }
+    });
   } catch (error) {
     console.error('[PORTFOLIO] GET failed:', error);
     return res.status(500).json({ success: false, message: 'خطا در دریافت سبد سهام.', error: error.message });
