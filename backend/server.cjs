@@ -664,8 +664,7 @@ mountRoute('/api/v1/profile',  './routes/profile.routes.cjs',          'User Pro
 mountRoute('/api/users',       './routes/user.routes.cjs',             'User Management');
 mountRoute('/api/v1/users',    './routes/user.routes.cjs',             'User Management v1 alias');
 
-mountRoute('/api/market',      './routes/market.routes.cjs',           'Market Data (BRS)');
-mountRoute('/api/v1/market',   './routes/market.routes.cjs',           'Market Data v1 alias');
+mountRoute('/api/market',      './routes/market.routes.cjs',           'Market Data');
 mountRoute('/api/brs',         './routes/brs.routes.cjs',              'BRS Direct API');
 mountRoute('/api/v1/brs',      './routes/brs.routes.cjs',              'BRS Direct v1 alias');
 
