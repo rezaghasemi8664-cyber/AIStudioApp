@@ -1998,464 +1998,68 @@ body {
   }
 }
 
-/* ---------- Dashboard header: mobile-only layout fix ---------- */
+/* ---------- Dashboard header: clean responsive mobile layout ---------- */
 @media (max-width: 640px) {
-  /* Mobile only: wrap the header so the center block stays visible. */
   .app-header {
     flex-wrap: wrap !important;
     align-items: center !important;
     overflow: visible !important;
   }
 
-  .app-header > div:nth-child(2) {
-    order: 3;
+  .app-header-center {
+    order: 3 !important;
     width: 100% !important;
     min-width: 0 !important;
     flex: 0 0 100% !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: stretch !important;
-    justify-content: center !important;
-    gap: 10px !important;
-  }
-
-  .app-header > div:nth-child(2) .roniya-clock {
-    display: flex !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    justify-content: center !important;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget {
-    display: block !important;
-    width: 100% !important;
-    max-width: none !important;
-    min-width: 0 !important;
-  }
-}
-
-/* ---------- Tight mobile ---------- */
-@media (max-width: 640px) {
-  body {
-    font-size: 14.5px;
-  }
-
-  .app-shell {
-    padding-inline: 7px !important;
-  }
-
-  .app-header {
-    gap: 8px !important;
-    border-radius: 15px;
-  }
-
-  .app-header .flex.items-center {
-    gap: 9px;
-  }
-
-  .app-header .brand-logo {
-    width: 44px !important;
-    height: 44px !important;
-  }
-
-  .brand-title {
-    font-size: .88rem !important;
-  }
-
-  .header-actions button {
-    min-height: 40px;
-    min-width: 40px;
-  }
-
-  .app-nav-scroll {
-    border-radius: 14px;
-    gap: 4px;
-  }
-
-  .app-nav-scroll > button,
-  .app-nav-scroll > .relative > button {
-    min-height: 43px;
-    font-size: .82rem !important;
-  }
-
-  .page-shell,
-  [data-page="marketRadar"] > section {
-    width: 100%;
-  }
-
-  .page-shell [data-style-id$="card"],
-  .page-shell .rounded-xl.border,
-  .page-shell .rounded-2xl.border,
-  .page-shell .rounded-3xl.border,
-  [data-page="marketRadar"] > section > article {
-    border-radius: 15px !important;
-  }
-
-  .page-shell .p-6 {
-    padding: 1rem !important;
-  }
-
-  .page-shell .p-5 {
-    padding: .9rem !important;
-  }
-
-  .page-shell h2,
-  [data-page="marketRadar"] h2 {
-    font-size: 1.04rem;
-  }
-
-  .page-shell .text-xs,
-  [data-page="marketRadar"] .text-xs {
-    font-size: .78rem;
-  }
-
-  .page-shell .text-sm,
-  [data-page="marketRadar"] .text-sm {
-    font-size: .86rem;
-  }
-
-  .page-shell thead th,
-  [data-page="marketRadar"] thead th {
-    font-size: .76rem !important;
-    padding: 10px 9px !important;
-  }
-
-  .page-shell tbody td,
-  [data-page="marketRadar"] tbody td {
-    font-size: .81rem !important;
-    padding: 10px 8px !important;
-  }
-
-  [data-page="marketRadar"] > section > article {
-    padding: 14px !important;
-  }
-
-  [data-page="marketRadar"] .group.min-h-\[112px\] {
-    min-height: 112px;
-  }
-}
-
-
-/* ---------- Dashboard header: mobile overflow refinement ---------- */
-@media (max-width: 640px) {
-  /* Keep the clock content inside the mobile header. */
-  .app-header > div:nth-child(2) .roniya-clock {
-    box-sizing: border-box;
-    padding-inline: 4px;
-  }
-
-  .app-header > div:nth-child(2) .roniya-clock > div {
-    min-width: 0 !important;
-    max-width: 100% !important;
-  }
-
-  .app-header > div:nth-child(2) .roniya-clock > div > p {
-    max-width: 100% !important;
-    white-space: normal !important;
-    overflow-wrap: anywhere;
-    line-height: 1.6;
-  }
-
-  .app-header > div:nth-child(2) .roniya-clock > div > div {
-    max-width: 100% !important;
-    flex-wrap: wrap;
-    row-gap: 2px;
-  }
-
-  /* Keep the market card fully inside the available mobile width. */
-  .app-header > div:nth-child(2) .market-index-widget {
-    box-sizing: border-box;
-    width: 100% !important;
-    max-width: 100% !important;
-    overflow: hidden !important;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget > div:first-child {
-    min-width: 0 !important;
-    gap: 6px !important;
-    padding-inline: 10px !important;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget > div:first-child > div {
-    min-width: 0 !important;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget > div:first-child > div:first-child > div:first-child {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget > div:first-child > span {
-    padding-inline: 8px !important;
-    white-space: nowrap;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget > div:last-child {
-    min-width: 0 !important;
-    padding-inline: 2px !important;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget > div:last-child > div {
-    min-width: 0 !important;
-    padding-inline: 3px !important;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget > div:last-child > div > div {
-    min-width: 0 !important;
-    padding-inline: 2px !important;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget > div:last-child > div > div > div:nth-child(2) {
-    min-width: 0 !important;
-    font-size: 17px !important;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget > div:last-child > div > div > div:last-child {
-    min-width: 0 !important;
-    gap: 3px !important;
-    font-size: 11px !important;
-  }
-}
-
-
-/* ---------- Mobile dashboard header: final stable layout ---------- */
-@media (max-width: 640px) {
-  .app-header > div:nth-child(2) .roniya-clock {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-    box-sizing: border-box !important;
-    justify-content: center !important;
-    align-items: center !important;
-  }
-
-  .app-header > div:nth-child(2) .roniya-clock > div {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-    flex: 1 1 auto !important;
-  }
-
-  .app-header > div:nth-child(2) .roniya-clock-date-row {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: wrap !important;
-    align-items: center !important;
-    justify-content: center !important;
-    column-gap: 4px !important;
-    row-gap: 1px !important;
-    overflow: visible !important;
-    white-space: normal !important;
-  }
-
-  .app-header > div:nth-child(2) .roniya-clock-date-row p {
-    margin: 0 !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-    line-height: 1.55 !important;
-    overflow: visible !important;
-    text-overflow: clip !important;
-  }
-
-  .app-header > div:nth-child(2) .roniya-clock-date-row p:first-child {
-    flex: 0 1 auto !important;
-    white-space: normal !important;
-  }
-
-  .app-header > div:nth-child(2) .roniya-clock-date-row p:nth-of-type(2),
-  .app-header > div:nth-child(2) .roniya-clock-date-row p:nth-of-type(3) {
-    flex: 0 0 auto !important;
-    white-space: nowrap !important;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget .market-index-values {
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
-    align-items: stretch !important;
-    width: 100% !important;
-    min-width: 0 !important;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget .market-index-column {
-    display: block !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-    box-sizing: border-box !important;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget .market-index-column > div {
-    min-width: 0 !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-    padding-inline: 5px !important;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget .market-index-column > div > div {
-    min-width: 0 !important;
-    max-width: 100% !important;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget .market-index-column > div > div:nth-child(2) {
-    font-size: 15px !important;
-    white-space: nowrap !important;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget .market-index-column > div > div:last-child {
-    font-size: 10px !important;
-    gap: 2px !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-  }
-}
-
-/* ---------- Market index mobile: absolute final two-column layout ---------- */
-@media (max-width: 640px) {
-  .market-index-widget .market-index-values {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
-    grid-template-rows: 1fr !important;
-    grid-auto-flow: column !important;
-    align-items: stretch !important;
+    grid-template-columns: minmax(0, 42%) minmax(0, 58%) !important;
+    align-items: center !important;
     justify-items: stretch !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-    flex-direction: initial !important;
-    flex-wrap: initial !important;
-  }
-
-  .market-index-widget .market-index-column {
-    display: block !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-    flex: none !important;
-    grid-row: 1 !important;
-    box-sizing: border-box !important;
-  }
-
-  .market-index-widget .market-index-column > div {
-    display: block !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-    flex: none !important;
-    box-sizing: border-box !important;
-  }
-
-  .market-index-widget .market-index-column > div > div {
-    min-width: 0 !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-  }
-}
-
-/* ---------- Mobile header: clock and market index side by side ---------- */
-@media (max-width: 640px) {
-  .app-header > div:nth-child(2) {
-    order: 3 !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    flex: 0 0 100% !important;
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: stretch !important;
-    justify-content: stretch !important;
-    gap: 6px !important;
-  }
-
-  .app-header > div:nth-child(2) .roniya-clock {
-    flex: 0 0 calc(42% - 3px) !important;
-    width: calc(42% - 3px) !important;
-    max-width: calc(42% - 3px) !important;
-    min-width: 0 !important;
-    padding-inline: 2px !important;
-    justify-content: center !important;
-  }
-
-  .app-header > div:nth-child(2) .roniya-clock > div {
-    min-width: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-
-  .app-header > div:nth-child(2) .roniya-clock-date-row {
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 100% !important;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget {
-    flex: 0 0 calc(58% - 3px) !important;
-    width: calc(58% - 3px) !important;
-    max-width: calc(58% - 3px) !important;
-    min-width: 0 !important;
-  }
-
-  .app-header > div:nth-child(2) .market-index-widget > div:first-child {
-    padding-inline: 7px !important;
-  }
-}
-
-/* ---------- Mobile header: restore compact horizontal center row ---------- */
-@media (max-width: 640px) {
-  .app-header > div:nth-child(2) {
-    order: 3 !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    flex: 0 0 100% !important;
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    align-items: center !important;
-    justify-content: space-between !important;
     gap: 4px !important;
   }
 
-  .app-header > div:nth-child(2) .roniya-clock {
-    flex: 0 0 42% !important;
-    width: 42% !important;
-    max-width: 42% !important;
-    min-width: 0 !important;
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 2px !important;
-    padding: 0 !important;
-  }
-
-  .app-header > div:nth-child(2) .roniya-clock > svg {
-    display: none !important;
-  }
-
-  .app-header > div:nth-child(2) .roniya-clock > div {
-    flex: 1 1 auto !important;
+  .app-header-center .roniya-clock,
+  .app-header-center .market-index-widget {
     width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
+    box-sizing: border-box !important;
   }
 
-  .app-header > div:nth-child(2) .roniya-clock-date-row {
+  .app-header-center .roniya-clock {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 2px !important;
+    padding: 0 2px !important;
+    overflow: hidden !important;
+  }
+
+  .app-header-center .roniya-clock > svg {
+    display: none !important;
+  }
+
+  .app-header-center .roniya-clock > div {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex: 1 1 auto !important;
+  }
+
+  .app-header-center .roniya-clock-date-row {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
     display: flex !important;
     flex-direction: column !important;
-    flex-wrap: nowrap !important;
     align-items: center !important;
     justify-content: center !important;
     gap: 0 !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    white-space: nowrap !important;
+    overflow: hidden !important;
   }
 
-  .app-header > div:nth-child(2) .roniya-clock-date-row p,
-  .app-header > div:nth-child(2) .roniya-clock-date-row > div {
+  .app-header-center .roniya-clock-date-row p,
+  .app-header-center .roniya-clock-date-row > div {
     min-width: 0 !important;
     max-width: 100% !important;
     white-space: nowrap !important;
@@ -2463,20 +2067,56 @@ body {
     text-overflow: ellipsis !important;
   }
 
-  .app-header > div:nth-child(2) .market-index-widget {
-    flex: 0 0 58% !important;
-    width: 58% !important;
-    max-width: 58% !important;
-    min-width: 0 !important;
+  .app-header-center .market-index-widget {
     display: block !important;
     overflow: hidden !important;
   }
 
-  .app-header > div:nth-child(2) .market-index-widget .market-index-values {
+  .app-header-center .market-index-widget .market-index-values {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-rows: 1fr !important;
     grid-auto-flow: column !important;
+    align-items: stretch !important;
+    justify-items: stretch !important;
     width: 100% !important;
     min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .app-header-center .market-index-widget .market-index-column {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .app-header-center .market-index-widget .market-index-column > div {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    padding-inline: 4px !important;
+  }
+
+  .app-header-center .market-index-widget .market-index-column > div > div {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .app-header-center .market-index-widget .market-index-column > div > div:nth-child(2) {
+    font-size: 15px !important;
+    white-space: nowrap !important;
+  }
+
+  .app-header-center .market-index-widget .market-index-column > div > div:last-child {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    font-size: 10px !important;
+    gap: 2px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
   }
 }
