@@ -2273,9 +2273,8 @@ body {
   }
 
   .app-header > div:nth-child(2) .market-index-widget .market-index-values {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
     align-items: stretch !important;
     width: 100% !important;
     min-width: 0 !important;
@@ -2283,10 +2282,9 @@ body {
 
   .app-header > div:nth-child(2) .market-index-widget .market-index-column {
     display: block !important;
-    width: 50% !important;
+    width: 100% !important;
     min-width: 0 !important;
-    max-width: 50% !important;
-    flex: 0 0 50% !important;
+    max-width: none !important;
     box-sizing: border-box !important;
   }
 
