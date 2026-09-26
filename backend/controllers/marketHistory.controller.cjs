@@ -589,58 +589,52 @@ function ensurePrivilegedAccess(req, res) {
 
 // GET /api/market/index
 async function getMarketIndex(req, res) {
-  let upstreamError = null;
+  // DB-first: never make the user wait for a slow upstream provider.
+  // A live refresh is started after the response and updates the durable snapshot.
+  try {
+    const fallbackData = await getLatestMarketSnapshotFallback();
+    if (hasUsableMarketIndexData(fallbackData)) {
+      if (brsService && typeof brsService.refreshMarketIndexInBackground === 'function') {
+        void brsService.refreshMarketIndexInBackground();
+      }
+      return res.json({
+        success: true,
+        data: fallbackData,
+        cached: true,
+        source: 'db-fallback',
+        message: 'آخرین داده معتبر بازار نمایش داده شد و بروزرسانی در پس‌زمینه انجام می‌شود',
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (dbErr) {
+    console.warn('[MARKET CTRL] DB-first snapshot unavailable:', getErrorMessage(dbErr));
+  }
 
+  // No durable snapshot exists (for example, first deployment). In this case
+  // perform one live request, but keep the existing safe fallback/error handling.
   try {
     const result = await callMarketIndex();
     const envelope = normalizeServiceEnvelope(result);
     const stableData = normalizeMarketIndexPayload(envelope.data);
-
     if (hasUsableMarketIndexData(stableData)) {
       return res.json({
         success: true,
         data: stableData,
         cached: envelope.cached,
         source: envelope.usedFallback ? 'db-fallback' : 'brs-api',
-        message: envelope.usedFallback
-          ? 'داده‌ها از آخرین ذخیره‌سازی نمایش داده می‌شوند'
-          : 'موفق',
+        message: envelope.usedFallback ? 'داده‌ها از آخرین ذخیره‌سازی نمایش داده می‌شوند' : 'موفق',
         timestamp: new Date().toISOString()
       });
     }
-
-    upstreamError = new Error('Market index payload is empty or unusable');
-    upstreamError.statusCode = 502;
   } catch (err) {
-    upstreamError = err;
     console.error('[MARKET CTRL v6.1] Index upstream error:', getErrorMessage(err));
   }
 
-  try {
-    const fallbackData = await getLatestMarketSnapshotFallback();
-
-    if (hasUsableMarketIndexData(fallbackData)) {
-      return res.json({
-        success: true,
-        data: fallbackData,
-        cached: true,
-        source: 'db-fallback',
-        message: 'داده‌ها از آخرین ذخیره‌سازی نمایش داده می‌شوند',
-        timestamp: new Date().toISOString()
-      });
-    }
-  } catch (fallbackErr) {
-    console.error('[MARKET CTRL v6.1] DB fallback error:', getErrorMessage(fallbackErr));
-  }
-
-  return res
-    .status(upstreamError && upstreamError.statusCode ? upstreamError.statusCode : 502)
-    .json({
-      success: false,
-      message: 'در حال حاضر داده‌ای برای نمایش موجود نیست. لطفا دقایقی دیگر تلاش کنید.',
-      code: 'NO_MARKET_DATA',
-      error: isDev() ? getErrorMessage(upstreamError) : undefined
-    });
+  return res.status(502).json({
+    success: false,
+    message: 'در حال حاضر داده‌ای برای نمایش موجود نیست. لطفا دقایقی دیگر تلاش کنید.',
+    code: 'NO_MARKET_DATA'
+  });
 }
 
 // GET /api/market/symbol/:name
