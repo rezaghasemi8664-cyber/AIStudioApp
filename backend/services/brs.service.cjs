@@ -1905,8 +1905,38 @@ async function isMarketOpen() {
   return status.isOpen;
 }
 
+var marketIndexRefreshRunning = false;
+
+async function refreshMarketIndexInBackground() {
+  if (marketIndexRefreshRunning) return null;
+  marketIndexRefreshRunning = true;
+  try {
+    // Force a fresh upstream attempt by clearing only the market-index cache.
+    delete cache.market_index;
+    const result = await getMarketIndex();
+    const data = result && result.data ? result.data : result;
+    if (data && typeof data === 'object') {
+      try {
+        var historyService = require('./marketHistory.service.cjs');
+        if (historyService && typeof historyService.saveMarketSnapshot === 'function') {
+          await historyService.saveMarketSnapshot(data);
+        }
+      } catch (persistError) {
+        console.warn('[BRS SERVICE] Background market index persistence skipped:', persistError.message);
+      }
+    }
+    return result;
+  } catch (error) {
+    console.warn('[BRS SERVICE] Background market index refresh failed:', error.message);
+    return null;
+  } finally {
+    marketIndexRefreshRunning = false;
+  }
+}
+
 module.exports = {
   getMarketIndex: getMarketIndex,
+  refreshMarketIndexInBackground: refreshMarketIndexInBackground,
   getMarketSummary: getMarketSummary,
   getSymbolData: getSymbolData,
   getMoneyFlow: getMoneyFlow,
