@@ -2000,26 +2000,37 @@ body {
 
 /* ---------- Dashboard header: mobile-only layout fix ---------- */
 @media (max-width: 640px) {
+  /* Mobile only: wrap the header so the center block stays visible. */
+  .app-header {
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    overflow: visible !important;
+  }
+
   .app-header > div:nth-child(2) {
     order: 3;
-    width: 100%;
-    min-width: 0;
-    flex: 0 0 100%;
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: center;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: 0 0 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: center !important;
     gap: 10px !important;
   }
 
   .app-header > div:nth-child(2) .roniya-clock {
-    width: 100%;
-    justify-content: center;
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-content: center !important;
   }
 
   .app-header > div:nth-child(2) .market-index-widget {
-    width: 100%;
-    max-width: none;
-    min-width: 0;
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
   }
 }
 
