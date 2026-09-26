@@ -2012,7 +2012,7 @@ body {
     min-width: 0 !important;
     flex: 0 0 100% !important;
     display: grid !important;
-    grid-template-columns: minmax(0, 40%) minmax(0, 60%) !important;
+    grid-template-columns: minmax(132px, 38%) minmax(0, 62%) !important;
     align-items: center !important;
     justify-items: stretch !important;
     gap: 4px !important;
@@ -2062,8 +2062,13 @@ body {
     min-width: 0 !important;
     max-width: 100% !important;
     white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+
+  .app-header-center .roniya-clock-date-row > div {
+    width: max-content !important;
+    max-width: 100% !important;
   }
 
   .app-header-center .market-index-widget {
@@ -2112,7 +2117,7 @@ body {
   }
 
   .app-header-center .market-index-widget .market-index-column > div > div:nth-child(2) {
-    font-size: 14px !important;
+    font-size: 13px !important;
     white-space: nowrap !important;
   }
 
