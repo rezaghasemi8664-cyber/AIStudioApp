@@ -331,6 +331,64 @@ const staticTseIcons: Record<string, React.ReactElement> = {
   'شبکه کدال': <ClipboardDocumentIcon className="w-4 h-4" />,
 };
 
+const BackgroundTabLoader: React.FC<{
+  currentUser: StoredUser;
+  isOnline: boolean;
+  activeTab: Tab;
+  isExpired: boolean;
+  validityInfo: { daysRemaining: number | null; isExpired: boolean; expiryDate: string | null } | null;
+  initialSettingsTab?: string;
+  onProfileUpdate: (user: StoredUser) => void;
+  onPasswordChange: (oldPassword: string, newPassword: string) => Promise<void>;
+  onAlertChange: (type: PortfolioAlertType) => void;
+  onNavigate: (tab: Tab) => void;
+}> = ({ currentUser, isOnline, activeTab, isExpired, validityInfo, initialSettingsTab, onProfileUpdate, onPasswordChange, onAlertChange, onNavigate }) => {
+  if (isExpired) return null;
+
+  const hiddenStyle: React.CSSProperties = {
+    position: 'fixed',
+    insetInlineStart: '-10000px',
+    top: 0,
+    width: '1px',
+    height: '1px',
+    overflow: 'hidden',
+    opacity: 0,
+    pointerEvents: 'none',
+    zIndex: -1,
+  };
+
+  const preloadItems: Array<{ key: Tab; node: React.ReactNode }> = [
+    { key: 'analysis', node: <StockAnalysis /> },
+    { key: 'scalping', node: <Scalping isOnline={isOnline} /> },
+    { key: 'portfolio', node: <Portfolio onAlertChange={onAlertChange} currentUser={currentUser} isOnline={isOnline} /> },
+    { key: 'traderJournal', node: <TraderJournal /> },
+    { key: 'codalIntelligence', node: <CodalIntelligence isOnline={isOnline} /> },
+    { key: 'comparison', node: <StockComparison currentUser={currentUser} isOnline={isOnline} /> },
+    { key: 'marketRadar', node: <MarketRadar /> },
+    { key: 'strategyLab', node: <StrategyLab isOnline={isOnline} /> },
+    { key: 'paperTrading', node: <PaperTrading isOnline={isOnline} /> },
+    { key: 'traderPerformance', node: <TraderPerformance /> },
+    { key: 'roniaAssistant', node: <RoniaAssistant isOnline={isOnline} onNavigate={onNavigate} /> },
+    { key: 'dailyFilters', node: <DailyFilters /> },
+    { key: 'profile', node: <UserProfile currentUser={currentUser} onProfileUpdate={onProfileUpdate} onPasswordChange={onPasswordChange} /> },
+    { key: 'settings', node: <Settings currentUser={currentUser} initialTab={initialSettingsTab} /> },
+    ...(currentUser.isAdmin ? [
+      { key: 'users' as Tab, node: <UserManagement isOnline={isOnline} onMessageUpdate={() => undefined} onlineCount={0} /> },
+      { key: 'notifications' as Tab, node: <NotificationsManagement isOnline={isOnline} /> },
+    ] : []),
+  ];
+
+  return (
+    <div aria-hidden="true" style={hiddenStyle} data-background-tab-loader="true">
+      {preloadItems.map(({ key, node }) => key !== activeTab ? (
+        <LazyErrorBoundary key={key} fallback={null}>
+          <Suspense fallback={null}>{node}</Suspense>
+        </LazyErrorBoundary>
+      ) : null)}
+    </div>
+  );
+};
+
 const App: React.FC = () => {
   const [isInitializing, setIsInitializing] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
@@ -1072,6 +1130,18 @@ const App: React.FC = () => {
           <TabButton tab="profile" label="پروفایل" icon={<UserCircleIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /><TabButton tab="settings" label="تنظیمات" icon={<Cog6ToothIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
         </div></nav>
         <main className="app-main flex-grow" data-page={activeTab}><LazyErrorBoundary><Suspense fallback={<LoadingSpinner />}>{renderContent()}</Suspense></LazyErrorBoundary></main>
+        <BackgroundTabLoader
+          currentUser={currentUser}
+          isOnline={isOnline}
+          activeTab={activeTab}
+          isExpired={isExpired}
+          validityInfo={validityInfo}
+          initialSettingsTab={initialSettingsTab}
+          onProfileUpdate={handleProfileUpdate}
+          onPasswordChange={handlePasswordChange}
+          onAlertChange={setPortfolioAlert}
+          onNavigate={(tab) => handleTabClick(tab)}
+        />
       </div>
       {viewingNotification && <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={handleCloseNotificationModal}><div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}><div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center"><h3 className="font-semibold text-gray-800 dark:text-white">جزئیات اطلاعیه</h3><button onClick={handleCloseNotificationModal} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"><XMarkIcon className="h-5 w-5 text-gray-600 dark:text-gray-300" /></button></div><div className="p-6"><p className="text-sm text-gray-500 dark:text-gray-400 mb-4 text-right">{new Date(viewingNotification.timestamp).toLocaleString('fa-IR')}</p><p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap text-right">{viewingNotification.message}</p>{viewingNotification.attachment && <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 text-right"><p className="text-sm font-semibold mb-2">پیوست:</p><a href={viewingNotification.attachment.data} download={viewingNotification.attachment.name} className="flex items-center gap-2 p-3 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-cyan-600 dark:text-cyan-400 flex-row-reverse"><PaperclipIcon className="h-5 w-5" /><span className="text-sm underline">{viewingNotification.attachment.name}</span></a></div>}</div></div></div>}
       </>
