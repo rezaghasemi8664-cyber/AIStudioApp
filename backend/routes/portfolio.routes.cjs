@@ -38,16 +38,34 @@ async function enrichWithRealQuotes(items) {
           brsService.getSymbolData(item.symbol),
           new Promise((_, reject) => setTimeout(() => reject(new Error('BRS quote timeout')), 9000))
         ]);
-      const data = envelope && envelope.data ? envelope.data : {};
-      const meta = envelope && envelope._meta ? envelope._meta : {};
-      const currentPrice = Number(data.lastPrice ?? data.pl ?? data.pDrCotVal ?? data.closingPrice ?? data.pc);
-      const sourceRaw = String(meta.source || '').toLowerCase();
-      const dataStatus = sourceRaw === 'live' ? 'LIVE' : (sourceRaw ? 'CACHED' : 'UNAVAILABLE');
-      return { ...item, currentPrice: Number.isFinite(currentPrice) && currentPrice > 0 ? currentPrice : null, dataStatus, source: meta.source || null, fetchedAt: meta.fetchedAt || null, stale: dataStatus !== 'LIVE' };
-    } catch (error) {
-      return { ...item, currentPrice: null, dataStatus: 'UNAVAILABLE', source: null, fetchedAt: null, stale: true };
+        const data = envelope && envelope.data ? envelope.data : {};
+        const meta = envelope && envelope._meta ? envelope._meta : {};
+        const currentPrice = Number(data.lastPrice ?? data.pl ?? data.pDrCotVal ?? data.closingPrice ?? data.pc);
+        const sourceRaw = String(meta.source || '').toLowerCase();
+        const dataStatus = sourceRaw === 'live' ? 'LIVE' : (sourceRaw ? 'CACHED' : 'UNAVAILABLE');
+        results[index] = {
+          ...item,
+          currentPrice: Number.isFinite(currentPrice) && currentPrice > 0 ? currentPrice : null,
+          dataStatus,
+          source: meta.source || null,
+          fetchedAt: meta.fetchedAt || null,
+          stale: dataStatus !== 'LIVE'
+        };
+      } catch (error) {
+        results[index] = {
+          ...item,
+          currentPrice: null,
+          dataStatus: 'UNAVAILABLE',
+          source: null,
+          fetchedAt: null,
+          stale: true
+        };
+      }
     }
-  }));
+  }
+
+  const workerCount = Math.min(3, items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
   return results;
 }
 
