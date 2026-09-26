@@ -33,10 +33,10 @@ function unwrap(response) {
 }
 function scoreSymbol(item) {
   const last = num(item.lastPrice, 0);
-  const close = num(item.closingPrice, last);
+  const close = num(item.closePrice, last);
   const yesterday = num(item.yesterday, close);
-  const pct = yesterday > 0 ? ((last - yesterday) / yesterday) * 100 : num(item.lastChangePercent, 0);
-  const volume = num(item.tradeVolume, 0);
+  const pct = yesterday > 0 ? ((last - yesterday) / yesterday) * 100 : num(item.changePercent, 0);
+  const volume = num(item.volume, 0);
   const realNet = num(item.realBuyVolume, 0) - num(item.realSellVolume, 0);
   const activity = Math.min(25, Math.log10(Math.max(volume, 1)) * 2.5);
   const momentum = Math.max(0, Math.min(35, 15 + pct * 4));
@@ -112,10 +112,11 @@ async function updateSymbolsAndMovers() {
   })).filter(x => x.symbol);
 
   for (const item of symbols) {
+    const { open, high, low, yesterday, ...dbItem } = item;
     await prisma.marketSymbolCurrent.upsert({
       where: { symbol: item.symbol },
-      create: { ...item, source: 'brs-central-worker', isStale: false, dataJson: JSON.stringify(item) },
-      update: { ...item, updatedAt: new Date(), source: 'brs-central-worker', isStale: false, dataJson: JSON.stringify(item) }
+      create: { ...dbItem, source: 'brs-central-worker', isStale: false, dataJson: JSON.stringify(item) },
+      update: { ...dbItem, updatedAt: new Date(), source: 'brs-central-worker', isStale: false, dataJson: JSON.stringify(item) }
     });
   }
 
@@ -152,7 +153,7 @@ async function updateMarketDaily(symbols) {
     const open = num(item.open);
     const high = num(item.high);
     const low = num(item.low);
-    const close = num(item.closingPrice ?? item.closePrice ?? item.lastPrice);
+    const close = num(item.closePrice ?? item.lastPrice);
     if (![open, high, low, close].every(Number.isFinite)) continue;
     await prisma.marketDaily.upsert({
       where: { symbol_date: { symbol: item.symbol, date: marketDate } },
@@ -163,8 +164,8 @@ async function updateMarketDaily(symbols) {
         high,
         low,
         close,
-        volume: BigInt(Math.max(0, int(item.tradeVolume, 0))),
-        value: BigInt(Math.max(0, Math.trunc(num(item.tradeValue, 0)))),
+        volume: BigInt(Math.max(0, int(item.volume, 0))),
+        value: BigInt(Math.max(0, Math.trunc(num(item.value, 0)))),
         trades: Math.max(0, int(item.tradeCount, 0))
       },
       update: {
@@ -172,8 +173,8 @@ async function updateMarketDaily(symbols) {
         high,
         low,
         close,
-        volume: BigInt(Math.max(0, int(item.tradeVolume, 0))),
-        value: BigInt(Math.max(0, Math.trunc(num(item.tradeValue, 0)))),
+        volume: BigInt(Math.max(0, int(item.volume, 0))),
+        value: BigInt(Math.max(0, Math.trunc(num(item.value, 0)))),
         trades: Math.max(0, int(item.tradeCount, 0))
       }
     });
@@ -189,8 +190,8 @@ async function updateIndustries(symbols) {
     if (!name) continue;
     const current = groups.get(name) || { industryName: name, symbolCount: 0, value: 0, changeSum: 0, changeCount: 0 };
     current.symbolCount += 1;
-    current.value += num(item.tradeValue, 0);
-    const change = num(item.lastChangePercent);
+    current.value += num(item.value, 0);
+    const change = num(item.changePercent);
     if (change !== null) { current.changeSum += change; current.changeCount += 1; }
     groups.set(name, current);
   }
