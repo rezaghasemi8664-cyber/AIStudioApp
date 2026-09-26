@@ -2,8 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarDaysIcon } from './Icons';
 
 const SERVER_SYNC_INTERVAL_MS = 60 * 1000;
-const TEHRAN_UTC_OFFSET_MS = (3 * 60 + 30) * 60 * 1000;
-
 type ServerClockState = { serverNowMs: number; syncedAtMs: number; };
 
 const getInitialClockState = (): ServerClockState => ({ serverNowMs: Date.now(), syncedAtMs: Date.now() });
@@ -44,16 +42,35 @@ const Clock: React.FC = () => {
     }, []);
 
     const now = useMemo(() => clockState.serverNowMs + (tick - clockState.syncedAtMs), [clockState, tick]);
-    const tehranDate = useMemo(() => new Date(now + TEHRAN_UTC_OFFSET_MS), [now]);
-    const shamsiDate = useMemo(() => new Intl.DateTimeFormat('fa-IR-u-nu-latn', {
-        calendar: 'persian', year: 'numeric', month: 'long', day: 'numeric', weekday: 'long', timeZone: 'UTC',
-    }).format(tehranDate), [tehranDate]);
+
+    // Always format the clock in Tehran time directly. Using Intl's named timezone
+    // avoids browser/server timezone differences and keeps DST rules handled by the
+    // runtime instead of manually adding a fixed offset.
+    const tehranTimeZone = 'Asia/Tehran';
+
+    const shamsiDate = useMemo(() => new Intl.DateTimeFormat('fa-IR-u-ca-persian-u-nu-latn', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long',
+        timeZone: tehranTimeZone,
+    }).format(new Date(now)), [now]);
+
     const gregorianDate = useMemo(() => new Intl.DateTimeFormat('en-US', {
-        calendar: 'gregory', year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC',
-    }).format(tehranDate), [tehranDate]);
+        calendar: 'gregory',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        timeZone: tehranTimeZone,
+    }).format(new Date(now)), [now]);
+
     const currentTime = useMemo(() => new Intl.DateTimeFormat('en-US', {
-        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'UTC',
-    }).format(tehranDate), [tehranDate]);
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+        timeZone: tehranTimeZone,
+    }).format(new Date(now)), [now]);
 
     return (
         <div className="roniya-clock flex min-w-0 items-center gap-2 text-sm text-gray-600 dark:text-gray-400 sm:gap-3">
