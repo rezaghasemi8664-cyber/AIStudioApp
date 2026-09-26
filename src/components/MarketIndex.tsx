@@ -11,6 +11,7 @@ const CACHE_KEY_LIVE = 'ronia_market_index_cache_v2';
 const CACHE_KEY_FINAL = 'ronia_market_index_final_daily_v2';
 const CACHE_TTL_LIVE = 2 * 60 * 1000;
 const CACHE_TTL_FINAL = 10 * 60 * 1000;
+const MARKET_INDEX_REQUEST_TIMEOUT_MS = 3000;
 
 const toFiniteNumber = (value: unknown, fallback: number | null = null): number | null => {
     if (value === null || value === undefined || value === '') return fallback;
@@ -57,7 +58,10 @@ function setCachedData(data: MarketIndexData, key: string, meta?: CacheEntry['me
 async function fetchMarketIndexFromAPI(): Promise<{ data: MarketIndexData; meta?: CacheEntry['meta'] } | null> {
     try {
         const url = `${API_BASE_URL}/market/index`;
-        const response = await fetch(url, { method: 'GET', headers: { Accept: 'application/json' }, credentials: 'include', cache: 'no-store' });
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), MARKET_INDEX_REQUEST_TIMEOUT_MS);
+        const response = await fetch(url, { method: 'GET', headers: { Accept: 'application/json' }, credentials: 'include', cache: 'no-store', signal: controller.signal });
+        window.clearTimeout(timeoutId);
         if (!response.ok) return null;
         const result = await response.json();
         const normalized = normalizeLegacyOrModernMarketData(result);
