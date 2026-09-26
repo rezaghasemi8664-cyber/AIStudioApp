@@ -1,9 +1,5 @@
 'use strict';
 
-const brsService = require('../services/brs.service.cjs');
-const breadthService = require('../services/marketBreadth.service.cjs');
-const marketHistoryService = require('../services/marketHistory.service.cjs');
-
 function n(v) {
   if (v === null || v === undefined || v === '') return null;
   const x = Number(String(v).replace(/,/g, '').replace(/٪/g, '').trim());
