@@ -716,10 +716,11 @@ async function getSymbolData(req, res) {
 
 // GET /api/market/history/:name
 async function getSymbolHistory(req, res) {
-  if (!brsService || typeof brsService.getSymbolHistory !== 'function') {
+  if (!sharedMarketService || typeof sharedMarketService.getSymbolHistory !== 'function') {
     return res.status(503).json({
       success: false,
-      message: 'سرویس BRS برای دریافت تاریخچه نماد در دسترس نیست'
+      message: 'سرویس تاریخچه مشترک بازار در دسترس نیست',
+      code: 'SHARED_HISTORY_SERVICE_UNAVAILABLE'
     });
   }
 
@@ -728,30 +729,30 @@ async function getSymbolHistory(req, res) {
     return res.status(400).json({
       success: false,
       message: 'نام نماد الزامی است',
-      example: '/api/market/history/فولاد?limit=30'
+      example: '/api/market/history/فولاد?limit=60'
     });
   }
 
-  const limit = parseLimit(req.query.limit);
+  const limit = parseLimit(req.query.limit || req.query.days) || 60;
 
   try {
-    const result = await brsService.getSymbolHistory(symbol, limit);
+    const data = await sharedMarketService.getSymbolHistory(symbol, limit);
 
     return res.json({
       success: true,
-      data: hasOwn(result, 'data') ? result.data : result,
-      total: result && typeof result.total !== 'undefined' ? result.total : undefined,
-      limited: result && typeof result.limited !== 'undefined' ? result.limited : undefined,
-      symbol: symbol,
-      cached: !!(result && result._cached),
+      data,
+      total: data.length,
+      limited: data.length >= limit,
+      symbol,
+      source: 'shared-db',
       timestamp: new Date().toISOString()
     });
   } catch (err) {
-    console.error('[MARKET CTRL v6.1] History error (' + symbol + '):', getErrorMessage(err));
-
-    return res.status(502).json({
+    console.error('[MARKET CTRL v8.1] Shared history error (' + symbol + '):', getErrorMessage(err));
+    return res.status(500).json({
       success: false,
-      message: 'خطا در دریافت تاریخچه: ' + symbol,
+      message: 'خطا در دریافت تاریخچه نماد',
+      code: 'SHARED_HISTORY_READ_ERROR',
       error: isDev() ? getErrorMessage(err) : undefined
     });
   }
@@ -761,70 +762,18 @@ async function getSymbolHistory(req, res) {
 async function getMarketHistory(req, res) {
   const symbol = req.query.symbol || req.query.l18;
 
-  if (symbol) {
-    if (!brsService || typeof brsService.getSymbolHistory !== 'function') {
-      return res.status(503).json({
-        success: false,
-        message: 'سرویس BRS برای دریافت تاریخچه نماد در دسترس نیست'
-      });
-    }
-
-    const limit = parseLimit(req.query.limit || req.query.days);
-
-    try {
-      const result = await brsService.getSymbolHistory(symbol, limit);
-
-      return res.json({
-        success: true,
-        data: hasOwn(result, 'data') ? result.data : result,
-        total: result && typeof result.total !== 'undefined' ? result.total : undefined,
-        limited: result && typeof result.limited !== 'undefined' ? result.limited : undefined,
-        source: 'brs-api',
-        cached: !!(result && result._cached),
-        symbol: symbol,
-        timestamp: new Date().toISOString()
-      });
-    } catch (err) {
-      return res.status(502).json({
-        success: false,
-        message: 'خطا در دریافت تاریخچه',
-        error: isDev() ? getErrorMessage(err) : undefined
-      });
-    }
-  }
-
-  const dbMethod = getDbHistoryMethod();
-  if (!dbMethod) {
+  if (!symbol) {
     return res.status(400).json({
       success: false,
       message: 'نام نماد الزامی است',
-      example: '/api/market/history?symbol=فولاد&limit=30',
-      alternativeExample: '/api/market/history/فولاد?limit=30'
+      example: '/api/market/history?symbol=فولاد&limit=60'
     });
   }
 
-  try {
-    let data;
-
-    if (dbMethod.name === 'getLatestMarketHistory') {
-      data = await dbMethod.fn();
-    } else {
-      data = await dbMethod.fn(req.query);
-    }
-
-    return res.json({
-      success: true,
-      data: data,
-      source: 'database',
-      timestamp: new Date().toISOString()
-    });
-  } catch (err) {
-    return res.status(500).json({
-      success: false,
-      message: 'خطا در دریافت تاریخچه از دیتابیس',
-      error: isDev() ? getErrorMessage(err) : undefined
-    });
-  }
+  return getSymbolHistory({
+    ...req,
+    params: { ...(req.params || {}), name: symbol }
+  }, res);
 }
 
 // GET /api/market/symbols
