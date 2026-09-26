@@ -251,6 +251,11 @@ const TabButton: React.FC<TabButtonProps> = React.memo(
 TabButton.displayName = 'TabButton';
 
 interface ValidityBadgeProps {
+  validityInfo: {
+    daysRemaining: number | null;
+    isExpired: boolean;
+    expiryDate: string | null;
+  } | null;
 }
 
 const ValidityBadge: React.FC<ValidityBadgeProps> = ({ validityInfo }) => {
