@@ -93,7 +93,7 @@ app.use(function securityHeaders(req, res, next) {
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob: https:",
         "font-src 'self' data:",
-        "connect-src 'self' https://brsapi.ir https://roniya-analyzer.ir wss://roniya-analyzer.ir",
+        "connect-src 'self' https://roniya-analyzer.ir wss://roniya-analyzer.ir",
       ].join('; ')
     );
   }
@@ -481,7 +481,6 @@ app.get('/api/version', function (_req, res) {
 // inventing values. Missing/failed source metadata is UNAVAILABLE.
 const REAL_DATA_API_PREFIXES = [
   '/api/market', '/api/v1/market',
-  '/api/brs', '/api/v1/brs',
   '/api/market-history', '/api/v1/market-history',
   '/api/market-summary', '/api/v1/market-summary',
   '/api/analysis-data', '/api/v1/analysis-data',
@@ -665,8 +664,6 @@ mountRoute('/api/users',       './routes/user.routes.cjs',             'User Man
 mountRoute('/api/v1/users',    './routes/user.routes.cjs',             'User Management v1 alias');
 
 mountRoute('/api/market',      './routes/market.routes.cjs',           'Market Data');
-mountRoute('/api/brs',         './routes/brs.routes.cjs',              'BRS Direct API');
-mountRoute('/api/v1/brs',      './routes/brs.routes.cjs',              'BRS Direct v1 alias');
 
 mountRoute('/api/market-history',      './routes/marketHistory.routes.cjs',   'Market History');
 mountRoute('/api/v1/market-history',   './routes/marketHistory.routes.cjs',   'Market History v1 alias');
