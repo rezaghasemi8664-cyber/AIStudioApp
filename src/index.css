@@ -2008,22 +2008,36 @@ body {
 
   .app-header-center {
     order: 3 !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    flex: 0 0 100% !important;
-    display: grid !important;
-    grid-template-columns: minmax(140px, 0.72fr) minmax(0, 1.28fr) !important;
-    align-items: center !important;
-    justify-items: stretch !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
     gap: 8px !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    flex: 0 0 100% !important;
+    box-sizing: border-box !important;
   }
 
   .app-header-center > .roniya-clock,
   .app-header-center > .market-index-widget {
-    width: 100% !important;
     min-width: 0 !important;
     max-width: none !important;
     box-sizing: border-box !important;
+    flex: 0 0 auto !important;
+  }
+
+  /* Keep the two widgets beside each other on mobile without CSS grid
+     track calculation. This prevents the market widget from collapsing. */
+  .app-header-center > .roniya-clock {
+    width: 36% !important;
+    max-width: 36% !important;
+  }
+
+  .app-header-center > .market-index-widget {
+    width: calc(64% - 8px) !important;
+    max-width: calc(64% - 8px) !important;
   }
 
   .app-header-center > .roniya-clock {
