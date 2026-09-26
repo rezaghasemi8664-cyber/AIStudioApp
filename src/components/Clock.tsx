@@ -43,9 +43,6 @@ const Clock: React.FC = () => {
 
     const now = useMemo(() => clockState.serverNowMs + (tick - clockState.syncedAtMs), [clockState, tick]);
 
-    // Always format the clock in Tehran time directly. Using Intl's named timezone
-    // avoids browser/server timezone differences and keeps DST rules handled by the
-    // runtime instead of manually adding a fixed offset.
     const tehranTimeZone = 'Asia/Tehran';
 
     const shamsiDate = useMemo(() => new Intl.DateTimeFormat('fa-IR-u-ca-persian-nu-latn', {
@@ -76,8 +73,8 @@ const Clock: React.FC = () => {
         <div className="roniya-clock flex min-w-0 items-center gap-2 text-sm text-gray-600 dark:text-gray-400 sm:gap-3">
             <CalendarDaysIcon className="h-5 w-5 flex-shrink-0 text-cyan-600 dark:text-cyan-500 sm:h-6 sm:w-6" />
             <div className="min-w-0 flex-1 text-right">
-                <div className="flex min-w-0 items-center justify-end gap-1 whitespace-nowrap sm:gap-2">
-                    <p className="min-w-0 truncate font-semibold text-gray-800 dark:text-gray-300 font-mono">{shamsiDate}</p>
+                <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-1 gap-y-0.5 sm:flex-nowrap sm:gap-x-2">
+                    <p className="min-w-0 max-w-full truncate font-semibold text-gray-800 dark:text-gray-300 font-mono">{shamsiDate}</p>
                     <span className="flex-shrink-0 text-gray-400 dark:text-gray-600">|</span>
                     <p className="flex-shrink-0 font-mono text-[10px] sm:text-xs">{gregorianDate}</p>
                     <span className="flex-shrink-0 text-gray-400 dark:text-gray-600">|</span>
