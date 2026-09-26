@@ -45,18 +45,6 @@ export interface ScalpingHistoryResult {
   [key: string]: unknown;
 }
 
-export interface StartScalpingResult {
-  signals: ScalpingOpportunity[];
-  status: string;
-  count: number;
-  marketStatus: {
-    isOpen: boolean;
-    available: boolean;
-    [key: string]: unknown;
-  };
-  [key: string]: unknown;
-}
-
 const isObject = (value: unknown): value is UnknownRecord =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
@@ -384,36 +372,6 @@ export const scalpingService = {
     }
   },
 
-  async startScalping(): Promise<StartScalpingResult> {
-    try {
-      const response = await apiClient.post('/scalping/start');
-      const raw = unwrapData<unknown>(response, []);
-      const signals = Array.isArray(raw) ? raw : [];
-      return {
-        ...defaultStartResult(),
-        signals: signals as ScalpingOpportunity[],
-        count: signals.length,
-        status: 'ready'
-      };
-    } catch (error) {
-      console.error('Start Scalping API Error:', error);
-      return defaultStartResult();
-    }
-  },
-
-  async stopScalping(): Promise<{ success: boolean; [key: string]: unknown }> {
-    try {
-      const response = await apiClient.post('/scalping/stop');
-      const raw = unwrapData<UnknownRecord>(response, { success: false });
-      return {
-        success: typeof raw.success === 'boolean' ? raw.success : false,
-        ...raw
-      };
-    } catch (error) {
-      console.error('Stop Scalping API Error:', error);
-      return { success: false };
-    }
-  },
 
   async getScalpingBest(): Promise<unknown> {
     try {
