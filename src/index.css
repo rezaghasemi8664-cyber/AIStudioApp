@@ -2012,49 +2012,46 @@ body {
     min-width: 0 !important;
     flex: 0 0 100% !important;
     display: grid !important;
-    grid-template-columns: minmax(132px, 38%) minmax(0, 62%) !important;
+    grid-template-columns: minmax(140px, 0.72fr) minmax(0, 1.28fr) !important;
     align-items: center !important;
     justify-items: stretch !important;
-    gap: 4px !important;
+    gap: 8px !important;
   }
 
-  .app-header-center .roniya-clock,
-  .app-header-center .market-index-widget {
+  .app-header-center > .roniya-clock,
+  .app-header-center > .market-index-widget {
     width: 100% !important;
     min-width: 0 !important;
-    max-width: 100% !important;
+    max-width: none !important;
     box-sizing: border-box !important;
   }
 
-  .app-header-center .roniya-clock {
+  .app-header-center > .roniya-clock {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    padding: 0 !important;
-    overflow: hidden !important;
+    overflow: visible !important;
   }
 
-  .app-header-center .roniya-clock > svg {
+  .app-header-center > .roniya-clock > svg {
     display: none !important;
   }
 
-  .app-header-center .roniya-clock > div {
+  .app-header-center > .roniya-clock > div {
     width: 100% !important;
     min-width: 0 !important;
-    max-width: 100% !important;
     flex: 1 1 auto !important;
   }
 
   .app-header-center .roniya-clock-date-row {
     width: 100% !important;
     min-width: 0 !important;
-    max-width: 100% !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: center !important;
     justify-content: center !important;
     gap: 0 !important;
-    overflow: hidden !important;
+    overflow: visible !important;
   }
 
   .app-header-center .roniya-clock-date-row p,
@@ -2062,16 +2059,11 @@ body {
     min-width: 0 !important;
     max-width: 100% !important;
     white-space: nowrap !important;
-    overflow: visible !important;
-    text-overflow: clip !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
-  .app-header-center .roniya-clock-date-row > div {
-    width: max-content !important;
-    max-width: 100% !important;
-  }
-
-  .app-header-center .market-index-widget {
+  .app-header-center > .market-index-widget {
     display: block !important;
     overflow: hidden !important;
   }
