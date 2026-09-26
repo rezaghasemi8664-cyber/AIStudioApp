@@ -93,6 +93,9 @@ async function updateSymbolsAndMovers() {
     symbol: String(item.symbol || '').trim(),
     name: item.name || null,
     insCode: String(item.isin || item.id || '').trim() || null,
+    open: num(item.open ?? item.openPrice),
+    high: num(item.high ?? item.highPrice),
+    low: num(item.low ?? item.lowPrice),
     lastPrice: num(item.lastPrice),
     closePrice: num(item.closingPrice),
     change: num(item.lastChange),
@@ -100,6 +103,7 @@ async function updateSymbolsAndMovers() {
     volume: int(item.tradeVolume),
     value: num(item.tradeValue),
     tradeCount: int(item.tradeCount),
+    yesterday: num(item.yesterday ?? item.previousPrice ?? item.yesterdayPrice),
     sector: item.sector || null,
     realBuyVolume: int(item.realBuyVolume, 0),
     realSellVolume: int(item.realSellVolume, 0),
@@ -140,8 +144,6 @@ async function updateSymbolsAndMovers() {
 
   return symbols;
 }
-
-
 
 async function updateMarketDaily(symbols) {
   const marketDate = sqlDate(tehranDateKey());
