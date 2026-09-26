@@ -2402,3 +2402,81 @@ body {
     padding-inline: 7px !important;
   }
 }
+
+/* ---------- Mobile header: restore compact horizontal center row ---------- */
+@media (max-width: 640px) {
+  .app-header > div:nth-child(2) {
+    order: 3 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: 0 0 100% !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 4px !important;
+  }
+
+  .app-header > div:nth-child(2) .roniya-clock {
+    flex: 0 0 42% !important;
+    width: 42% !important;
+    max-width: 42% !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 2px !important;
+    padding: 0 !important;
+  }
+
+  .app-header > div:nth-child(2) .roniya-clock > svg {
+    display: none !important;
+  }
+
+  .app-header > div:nth-child(2) .roniya-clock > div {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .app-header > div:nth-child(2) .roniya-clock-date-row {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    white-space: nowrap !important;
+  }
+
+  .app-header > div:nth-child(2) .roniya-clock-date-row p,
+  .app-header > div:nth-child(2) .roniya-clock-date-row > div {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .app-header > div:nth-child(2) .market-index-widget {
+    flex: 0 0 58% !important;
+    width: 58% !important;
+    max-width: 58% !important;
+    min-width: 0 !important;
+    display: block !important;
+    overflow: hidden !important;
+  }
+
+  .app-header > div:nth-child(2) .market-index-widget .market-index-values {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-auto-flow: column !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
