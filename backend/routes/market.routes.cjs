@@ -47,6 +47,10 @@ async function getBreadthWithStoredFallback() {
     const topGainers = Array.isArray(stored.topGainers) ? stored.topGainers : (Array.isArray(rawData?.topGainers) ? rawData.topGainers : []);
     const topLosers = Array.isArray(stored.topLosers) ? stored.topLosers : (Array.isArray(rawData?.topLosers) ? rawData.topLosers : []);
     const topVolumes = Array.isArray(stored.topVolumes) ? stored.topVolumes : (Array.isArray(rawData?.topVolumes) ? rawData.topVolumes : []);
+    const rawSectors = rawData?.sectors || rawData?.sectorSummary || rawData?.sectorSummaries;
+    const sectors = Array.isArray(rawSectors)
+      ? { available: true, rows: rawSectors, leaders: rawSectors.slice(0, 5), laggards: rawSectors.slice(-5).reverse(), source: 'db-daily-summary' }
+      : (rawSectors && typeof rawSectors === 'object' ? { ...rawSectors, source: 'db-daily-summary' } : undefined);
     const positive = Number(stored.positiveStocks);
     const negative = Number(stored.negativeStocks);
     const neutral = Number(stored.neutralStocks);
@@ -59,6 +63,7 @@ async function getBreadthWithStoredFallback() {
       topGainers,
       topLosers,
       topVolumes,
+      ...(sectors ? { sectors } : {}),
       positive: Number.isFinite(positive) ? positive : (live?.positive ?? 0),
       negative: Number.isFinite(negative) ? negative : (live?.negative ?? 0),
       neutral: Number.isFinite(neutral) ? neutral : (live?.neutral ?? 0),
