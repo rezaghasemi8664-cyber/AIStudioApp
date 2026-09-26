@@ -1998,7 +1998,7 @@ body {
   }
 }
 
-/* ---------- Dashboard header: mobile-only stacked layout ---------- */
+/* ---------- Dashboard header: mobile-only full-width rows ---------- */
 @media (max-width: 640px) {
   .app-header {
     flex-wrap: wrap !important;
@@ -2006,31 +2006,34 @@ body {
     overflow: visible !important;
   }
 
+  /* موبایل: مرکز هدر یک ستون کامل و بدون محدودیت عرض */
   .app-header-center {
     order: 3 !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
     gap: 8px !important;
-    width: 100% !important;
-    min-width: 100% !important;
-    max-width: 100% !important;
-    flex: 0 0 100% !important;
+    width: calc(100% + 20px) !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    flex: 0 0 calc(100% + 20px) !important;
+    margin-inline: -10px !important;
     box-sizing: border-box !important;
   }
 
-  /* ردیف اول: تاریخ و زمان با عرض کامل */
+  /* ردیف اول: تاریخ و زمان کامل */
   .app-header-center > .roniya-clock {
     order: 1 !important;
     width: 100% !important;
-    min-width: 100% !important;
-    max-width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
     flex: 0 0 auto !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     box-sizing: border-box !important;
     overflow: visible !important;
+    padding-inline: 8px !important;
   }
 
   .app-header-center > .roniya-clock > svg {
@@ -2043,32 +2046,38 @@ body {
     flex: 1 1 auto !important;
   }
 
+  /* تاریخ شمسی در یک خط و تاریخ میلادی + ساعت در خط دوم؛ هیچ بخشی بریده نشود */
   .app-header-center .roniya-clock-date-row {
     width: 100% !important;
     min-width: 0 !important;
     display: flex !important;
-    flex-direction: row !important;
+    flex-direction: column !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 8px !important;
+    gap: 1px !important;
     overflow: visible !important;
   }
 
   .app-header-center .roniya-clock-date-row p,
   .app-header-center .roniya-clock-date-row > div {
-    min-width: max-content !important;
-    max-width: none !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
     white-space: nowrap !important;
     overflow: visible !important;
     text-overflow: clip !important;
   }
 
-  /* ردیف دوم: کادر شاخص‌های بازار با کل عرض موبایل */
+  .app-header-center .roniya-clock-date-row > div {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* ردیف دوم: کادر شاخص‌های بازار با کل عرض داخلی هدر */
   .app-header-center > .market-index-widget {
     order: 2 !important;
     width: 100% !important;
-    min-width: 100% !important;
-    max-width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
     flex: 0 0 auto !important;
     display: block !important;
     box-sizing: border-box !important;
@@ -2088,23 +2097,23 @@ body {
     grid-auto-flow: column !important;
     width: 100% !important;
     min-width: 0 !important;
-    max-width: 100% !important;
+    max-width: none !important;
     align-items: stretch !important;
-    padding: 10px 4px !important;
+    padding: 10px 6px !important;
     box-sizing: border-box !important;
   }
 
   .app-header-center .market-index-widget .market-index-column {
     width: 100% !important;
     min-width: 0 !important;
-    max-width: 100% !important;
+    max-width: none !important;
     box-sizing: border-box !important;
   }
 
   .app-header-center .market-index-widget .market-index-column > div {
     width: 100% !important;
     min-width: 0 !important;
-    max-width: 100% !important;
+    max-width: none !important;
     box-sizing: border-box !important;
     padding-inline: 4px !important;
   }
