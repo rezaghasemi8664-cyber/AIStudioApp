@@ -47,28 +47,6 @@ const AdminScalpingPanel: React.FC<{ onComplete?: () => void }> = ({ onComplete 
     finally { setBusy(false); }
   }, [load, onComplete]);
 
-  const runNow = useCallback(async () => {
-    setBusy(true); setError(null); setMessage(null);
-    try {
-      const result = await scalpingService.startScalping();
-      if (!result.marketStatus.available) throw new Error('وضعیت بازار قابل تشخیص نیست.');
-      if (!result.marketStatus.isOpen) throw new Error('بازار بسته است و اجرای موتور نوسان‌گیری مجاز نیست.');
-      setMessage(`اجرای موتور انجام شد؛ ${fmt(result.count)} فرصت/نتیجه ثبت شد.`);
-      await load(); await onComplete();
-    } catch (e) { setError(e instanceof Error ? e.message : 'اجرای موتور ناموفق بود.'); }
-    finally { setBusy(false); }
-  }, [load, onComplete]);
-
-  const stop = useCallback(async () => {
-    setBusy(true); setError(null); setMessage(null);
-    try {
-      const result = await scalpingService.stopScalping();
-      if (!result.success) throw new Error('توقف موتور توسط سرور تأیید نشد.');
-      setMessage('موتور نوسان‌گیری متوقف شد.'); await load(); await onComplete();
-    } catch (e) { setError(e instanceof Error ? e.message : 'توقف موتور ناموفق بود.'); }
-    finally { setBusy(false); }
-  }, [load, onComplete]);
-
   useEffect(() => { void load(); }, [load]);
 
   const healthServices = useMemo(() => Array.isArray(health?.services) ? health.services : [], [health]);
@@ -79,7 +57,7 @@ const AdminScalpingPanel: React.FC<{ onComplete?: () => void }> = ({ onComplete 
 
   return <div dir="rtl" className="space-y-6">
     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-      <div><h2 className="text-2xl font-extrabold">مرکز مدیریت نوسان‌گیری و موتور فرصت‌ها</h2><p className="mt-1 text-sm text-gray-500">وضعیت موتور، بازار، فرصت‌های جاری و اجرای آخرین اسکن</p></div>
+      <div><h2 className="text-2xl font-extrabold">مرکز مدیریت نوسان‌گیری و موتور فرصت‌ها</h2><p className="mt-1 text-sm text-gray-500">وضعیت موتور، بازار، فرصت‌های جاری و سلامت سرویس مرکزی</p></div>
       <div className="flex flex-wrap gap-2">
         <button onClick={() => void healthCheck()} disabled={busy} className="rounded-xl border border-cyan-500/40 px-4 py-2 text-sm font-semibold disabled:opacity-50">بررسی سلامت</button>
         <button onClick={() => void load()} disabled={busy || loading} className="rounded-xl border border-[var(--card-border-color)] px-4 py-2 text-sm font-semibold disabled:opacity-50">به‌روزرسانی</button>
@@ -99,9 +77,8 @@ const AdminScalpingPanel: React.FC<{ onComplete?: () => void }> = ({ onComplete 
 
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
       <section className="rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5">
-        <div className="flex items-center justify-between gap-3"><div><h3 className="font-bold">کنترل موتور</h3><p className="mt-1 text-xs text-gray-500">اجرای دستی فقط با وضعیت معتبر بازار انجام می‌شود.</p></div><span className="text-xs text-gray-500">Run: {status?.lastRunId ?? '—'}</span></div>
-        <div className="mt-5 grid grid-cols-2 gap-3"><button onClick={() => void runNow()} disabled={busy || !marketOpen} className="rounded-xl bg-cyan-600 px-4 py-3 font-bold text-white disabled:opacity-40">اجرای اسکن</button><button onClick={() => void stop()} disabled={busy || !status?.isRunning} className="rounded-xl border border-rose-400/50 px-4 py-3 font-bold disabled:opacity-40">توقف موتور</button></div>
-        <div className="mt-4 space-y-2 text-sm"><div className="flex justify-between"><span>آخرین وضعیت</span><b>{status?.lastStatus || '—'}</b></div><div className="flex justify-between"><span>آخرین اجرا</span><b>{dateFa(status?.lastUpdate || status?.lastUpdated)}</b></div><div className="flex justify-between"><span>موقعیت‌های فعال</span><b>{fmt(status?.activePositions)}</b></div></div>
+        <div className="flex items-center justify-between gap-3"><div><h3 className="font-bold">وضعیت موتور مرکزی</h3><p className="mt-1 text-xs text-gray-500">تولید فرصت‌ها توسط موتور مرکزی انجام می‌شود و این پنل فقط وضعیت و داده‌های مشترک را نمایش می‌دهد.</p></div><span className="text-xs text-gray-500">Run: {status?.lastRunId ?? '—'}</span></div>
+        <div className="mt-5 rounded-xl bg-gray-50 p-4 text-sm dark:bg-gray-800/50"><div className="flex justify-between"><span>آخرین وضعیت</span><b>{status?.lastStatus || '—'}</b></div><div className="mt-3 flex justify-between"><span>آخرین اجرا</span><b>{dateFa(status?.lastUpdate || status?.lastUpdated)}</b></div><div className="mt-3 flex justify-between"><span>موقعیت‌های فعال</span><b>{fmt(status?.activePositions)}</b></div></div>
       </section>
 
       <section className="rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5"><h3 className="font-bold">سلامت موتور و وابستگی‌ها</h3>{health ? <div className="mt-4 space-y-2">{healthServices.map((s, i) => <div key={`${s.name}-${i}`} className="flex items-center justify-between rounded-xl bg-gray-50 p-3 dark:bg-gray-800/50"><div><b>{s.name || 'سرویس'}</b>{s.error && <div className="text-xs text-rose-500">{s.error}</div>}</div><div className="text-left text-xs"><span className={`rounded-full px-2 py-1 ${badge(s.status === 'healthy')}`}>{s.status || 'unknown'}</span>{typeof s.latencyMs === 'number' && <span className="mr-2 text-gray-500">{s.latencyMs}ms</span>}</div></div>)}</div> : <div className="mt-4 rounded-xl bg-gray-50 p-4 text-sm text-gray-500 dark:bg-gray-800/50">هنوز بررسی سلامت اجرا نشده است.</div>}</section>
