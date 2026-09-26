@@ -1,7 +1,7 @@
 ﻿'use strict';
 
 const scalpingService = require('../services/scalping.service.cjs');
-const brsService = require('../services/brs.service.cjs');
+const sharedMarketService = require('../services/sharedMarket.service.cjs');
 
 function getUserId(req) {
   if (!req || !req.user) return null;
@@ -43,51 +43,23 @@ async function callFirstAvailable(methodNames, args) {
 
 async function resolveMarketStatus() {
   try {
-    if (typeof scalpingService.getMarketStatus === 'function') {
-      const status = await scalpingService.getMarketStatus();
-      if (status && typeof status === 'object') {
-        return Object.assign(
-          { isOpen: false, source: 'scalpingService.getMarketStatus', reason: 'unknown' },
-          status
-        );
-      }
+    const market = await sharedMarketService.getMarketCurrent();
+    if (!market) {
+      return { isOpen: false, available: false, source: 'shared-db', reason: 'NO_SHARED_MARKET_DATA' };
     }
-
-    if (typeof brsService.getMarketStatus === 'function') {
-      const status = await brsService.getMarketStatus();
-      if (status && typeof status === 'object') {
-        return Object.assign(
-          { isOpen: false, source: 'brsService.getMarketStatus', reason: 'unknown' },
-          status
-        );
-      }
-    }
-
-    if (typeof brsService.isMarketOpen === 'function') {
-      const isOpen = await Promise.resolve(brsService.isMarketOpen());
-      return {
-        isOpen: !!isOpen,
-        available: true,
-        source: 'brsService.isMarketOpen',
-        reason: isOpen ? 'market-open' : 'market-closed'
-      };
-    }
-  } catch (error) {
-    console.warn('[SCALPING CTRL] Failed to resolve market status:', error && error.message ? error.message : error);
     return {
-      isOpen: false,
-      available: false,
-      source: 'market-status-error',
-      reason: error && error.message ? error.message : 'market-status-failed'
+      isOpen: market.marketStatus === 'OPEN',
+      available: true,
+      source: 'shared-db',
+      stale: !!market.isStale,
+      updatedAt: market.updatedAt || null,
+      marketDate: market.marketDate || null,
+      reason: market.marketStatus === 'OPEN' ? 'OPEN' : 'CLOSED'
     };
+  } catch (error) {
+    console.warn('[SCALPING CTRL] Failed to resolve shared market status:', error.message);
+    return { isOpen: false, available: false, source: 'shared-db', reason: 'SHARED_MARKET_DATA_UNAVAILABLE' };
   }
-
-  return {
-    isOpen: false,
-    available: false,
-    source: 'market-status-missing',
-    reason: 'market-status-unavailable'
-  };
 }
 
 function ensureMarketOpenResponse(res, marketStatus) {
@@ -208,8 +180,8 @@ async function start(req, res) {
     const marketStatus = await resolveMarketStatus();
     const blockedResponse = ensureMarketOpenResponse(res, marketStatus);
     if (blockedResponse) return blockedResponse;
-    const result = await callFirstAvailable(['startEngine', 'runEngine', 'runScalping'], [userId]);
-    return sendSuccess(res, result, 'اسکالپینگ با موفقیت اجرا شد');
+    const result = await callFirstAvailable(['getOpportunities', 'getSignals'], [userId]);
+    return sendSuccess(res, result, 'سیگنال‌های مرکزی اسکالپینگ آماده هستند');
   } catch (error) {
     console.error('[SCALPING CTRL] start failed:', error && error.stack ? error.stack : error);
     return sendError(res, error, /Methods not available/.test(error.message) ? 501 : 500);
