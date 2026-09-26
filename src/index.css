@@ -2007,6 +2007,7 @@ body {
     grid-template-columns: minmax(0, 1fr) auto !important;
     grid-auto-rows: auto !important;
     align-items: center !important;
+    min-width: 0 !important;
     column-gap: 8px !important;
     row-gap: 8px !important;
     width: 100% !important;
@@ -2015,7 +2016,7 @@ body {
   }
 
   /* مرکز هدر یک ردیف مستقل و واقعاً full-width است */
-  .app-header-center {
+  .app-header > .app-header-center {
     grid-column: 1 / -1 !important;
     grid-row: 2 !important;
     order: initial !important;
