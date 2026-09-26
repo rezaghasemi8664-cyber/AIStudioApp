@@ -345,40 +345,69 @@ const BackgroundTabLoader: React.FC<{
   onPasswordChange: (oldPassword: string, newPassword: string) => Promise<void>;
   onAlertChange: (type: PortfolioAlertType) => void;
   onNavigate: (tab: Tab) => void;
-}> = ({ currentUser, isOnline, activeTab, isExpired, initialSettingsTab, onProfileUpdate, onPasswordChange, onAlertChange, onNavigate }) => {
-  const [preloadIndex, setPreloadIndex] = useState(0);
+}> = ({
+  currentUser,
+  isOnline,
+  activeTab,
+  isExpired,
+  initialSettingsTab,
+  onProfileUpdate,
+  onPasswordChange,
+  onAlertChange,
+  onNavigate,
+}) => {
+  const [preloadedKeys, setPreloadedKeys] = useState<Set<Tab>>(() => new Set());
 
-  const preloadItems: Array<{ key: Tab; node: React.ReactNode }> = [
-    { key: 'analysis', node: <StockAnalysis /> },
-    { key: 'scalping', node: <Scalping isOnline={isOnline} /> },
-    { key: 'portfolio', node: <Portfolio onAlertChange={onAlertChange} currentUser={currentUser} isOnline={isOnline} /> },
-    { key: 'traderJournal', node: <TraderJournal /> },
-    { key: 'codalIntelligence', node: <CodalIntelligence isOnline={isOnline} /> },
-    { key: 'comparison', node: <StockComparison currentUser={currentUser} isOnline={isOnline} /> },
-    { key: 'marketRadar', node: <MarketRadar /> },
-    { key: 'strategyLab', node: <StrategyLab isOnline={isOnline} /> },
-    { key: 'paperTrading', node: <PaperTrading isOnline={isOnline} /> },
-    { key: 'traderPerformance', node: <TraderPerformance /> },
-    { key: 'roniaAssistant', node: <RoniaAssistant isOnline={isOnline} onNavigate={onNavigate} /> },
-    { key: 'dailyFilters', node: <DailyFilters /> },
-    { key: 'profile', node: <UserProfile currentUser={currentUser} onProfileUpdate={onProfileUpdate} onPasswordChange={onPasswordChange} /> },
-    { key: 'settings', node: <Settings currentUser={currentUser} initialTab={initialSettingsTab} /> },
-    ...(currentUser.isAdmin ? [
-      { key: 'users' as Tab, node: <UserManagement isOnline={isOnline} onMessageUpdate={() => undefined} onlineCount={0} /> },
-      { key: 'notifications' as Tab, node: <NotificationsManagement isOnline={isOnline} /> },
-    ] : []),
-  ];
+  const preloadItems = useMemo<Array<{ key: Tab; node: React.ReactNode }>>(
+    () => [
+      { key: 'analysis', node: <StockAnalysis /> },
+      { key: 'scalping', node: <Scalping isOnline={isOnline} /> },
+      { key: 'portfolio', node: <Portfolio onAlertChange={onAlertChange} currentUser={currentUser} isOnline={isOnline} /> },
+      { key: 'traderJournal', node: <TraderJournal /> },
+      { key: 'codalIntelligence', node: <CodalIntelligence isOnline={isOnline} /> },
+      { key: 'comparison', node: <StockComparison currentUser={currentUser} isOnline={isOnline} /> },
+      { key: 'marketRadar', node: <MarketRadar /> },
+      { key: 'strategyLab', node: <StrategyLab isOnline={isOnline} /> },
+      { key: 'paperTrading', node: <PaperTrading isOnline={isOnline} /> },
+      { key: 'traderPerformance', node: <TraderPerformance /> },
+      { key: 'roniaAssistant', node: <RoniaAssistant isOnline={isOnline} onNavigate={onNavigate} /> },
+      { key: 'dailyFilters', node: <DailyFilters /> },
+      { key: 'profile', node: <UserProfile currentUser={currentUser} onProfileUpdate={onProfileUpdate} onPasswordChange={onPasswordChange} /> },
+      { key: 'settings', node: <Settings currentUser={currentUser} initialTab={initialSettingsTab} /> },
+      ...(currentUser.isAdmin ? [
+        { key: 'users' as Tab, node: <UserManagement isOnline={isOnline} onMessageUpdate={() => undefined} onlineCount={0} /> },
+        { key: 'notifications' as Tab, node: <NotificationsManagement isOnline={isOnline} /> },
+      ] : []),
+    ],
+    [currentUser, initialSettingsTab, isOnline, onAlertChange, onNavigate, onPasswordChange, onProfileUpdate],
+  );
 
   useEffect(() => {
-    if (isExpired || preloadIndex >= preloadItems.length) return;
-    const timer = window.setTimeout(() => setPreloadIndex(index => index + 1), 2500);
-    return () => window.clearTimeout(timer);
-  }, [isExpired, preloadIndex, preloadItems.length]);
+    if (isExpired || preloadedKeys.size >= preloadItems.length) return;
 
-  if (isExpired || preloadIndex >= preloadItems.length) return null;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      setPreloadedKeys(previous => {
+        const next = new Set(previous);
+        const nextItem = preloadItems.find(item => !next.has(item.key));
+        if (!nextItem) return previous;
+        next.add(nextItem.key);
+        return next;
+      });
+    }, 900);
 
-  const current = preloadItems[preloadIndex];
-  if (current.key === activeTab) return null;
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [isExpired, preloadItems, preloadedKeys.size]);
+
+  useEffect(() => {
+    if (isExpired) setPreloadedKeys(new Set());
+  }, [isExpired]);
+
+  if (isExpired || preloadedKeys.size === 0) return null;
 
   const hiddenStyle: React.CSSProperties = {
     position: 'fixed',
@@ -394,9 +423,15 @@ const BackgroundTabLoader: React.FC<{
 
   return (
     <div aria-hidden="true" style={hiddenStyle} data-background-tab-loader="true">
-      <LazyErrorBoundary fallback={null}>
-        <Suspense fallback={null}>{current.node}</Suspense>
-      </LazyErrorBoundary>
+      {preloadItems
+        .filter(item => preloadedKeys.has(item.key) && item.key !== activeTab)
+        .map(item => (
+          <div key={item.key} data-preloaded-tab={item.key}>
+            <LazyErrorBoundary fallback={null}>
+              <Suspense fallback={null}>{item.node}</Suspense>
+            </LazyErrorBoundary>
+          </div>
+        ))}
     </div>
   );
 };
