@@ -144,6 +144,32 @@ async function searchSymbols(query, limit = 50) {
   return rows.map(normalizeSymbol);
 }
 
+async function getSymbolHistory(symbol, limit = 60) {
+  const name = String(symbol || '').trim();
+  if (!name) return [];
+
+  const take = Math.max(1, Math.min(Number(limit) || 60, 365));
+  const rows = await prisma.marketDaily.findMany({
+    where: { symbol: name },
+    orderBy: { date: 'desc' },
+    take,
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    symbol: row.symbol,
+    date: row.date,
+    open: Number(row.open),
+    high: Number(row.high),
+    low: Number(row.low),
+    close: Number(row.close),
+    volume: row.volume == null ? 0 : Number(row.volume),
+    value: row.value == null ? 0 : Number(row.value),
+    trades: row.trades == null ? null : Number(row.trades),
+    source: 'shared-db',
+  }));
+}
+
 async function getBreadth() {
   const [market, gainers, losers, highVolume] = await Promise.all([
     getMarketCurrent(),
@@ -213,6 +239,7 @@ module.exports = {
   searchSymbols,
   getMovers,
   getBreadth,
+  getSymbolHistory,
   getIndustries,
   getScalpingOpportunities,
   normalizeMarketCurrent,
