@@ -12,9 +12,21 @@ const env = require('../config/env.cjs');
 const brs = require('./brs.service.cjs');
 
 const CDN = 'https://cdn.tsetmc.com/api';
-const timeoutMs = Number(env.BRS_TIMEOUT_MS) || 15000;
+const timeoutMs = Math.min(Number(env.BRS_TIMEOUT_MS) || 15000, 8000);
+const fallbackTimeoutMs = 10000;
 const TTL = 2 * 60 * 1000;
 let cache = { value: null, timestamp: 0 };
+let refreshInFlight = null;
+
+function withTimeout(promise, ms, message) {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise((_, reject) => {
+      const timer = setTimeout(() => reject(new Error(message)), ms);
+      promise.finally(() => clearTimeout(timer)).catch(() => {});
+    })
+  ]);
+}
 
 function num(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -305,31 +317,63 @@ async function fetchTsetmcMarketWatch() {
 
 async function getMarketBreadth() {
   if (cache.value && Date.now() - cache.timestamp < TTL) return cache.value;
+  if (refreshInFlight) return refreshInFlight;
 
-  let rows;
-  let source;
-  let tsetmcError = null;
+  refreshInFlight = (async () => {
+    let rows;
+    let source;
+    let tsetmcError = null;
+
+    try {
+      rows = await fetchTsetmcMarketWatch();
+      source = 'tsetmc-marketwatch-equities';
+    } catch (error) {
+      tsetmcError = error.message;
+      console.warn('[MARKET][Breadth] TSETMC MarketWatch unavailable, falling back to BRS AllSymbols:', error.message);
+      try {
+        // Do not let BRS's internal retries exceed the HTTP request lifetime.
+        rows = await withTimeout(
+          fetchBRSAllSymbols(),
+          fallbackTimeoutMs,
+          'BRS breadth fallback timeout'
+        );
+        source = 'brs-all-symbols-equities-fallback';
+      } catch (brsError) {
+        console.error('[MARKET][Breadth] BRS fallback failed:', brsError.message);
+        if (cache.value) {
+          return {
+            ...cache.value,
+            stale: true,
+            staleReason: brsError.message,
+            diagnostics: {
+              ...(cache.value.diagnostics || {}),
+              tsetmcError,
+              refreshError: brsError.message,
+              servedFromCache: true
+            }
+          };
+        }
+        return {
+          available: false,
+          reason: 'BREADTH_FETCH_FAILED',
+          error: brsError.message,
+          diagnostics: { tsetmcError }
+        };
+      }
+    }
+
+    const result = build(rows, source);
+    result.diagnostics.tsetmcError = tsetmcError;
+    result.diagnostics.generatedAt = new Date().toISOString();
+    cache = { value: result, timestamp: Date.now() };
+    return result;
+  })();
 
   try {
-    rows = await fetchTsetmcMarketWatch();
-    source = 'tsetmc-marketwatch-equities';
-  } catch (error) {
-    tsetmcError = error.message;
-    console.warn('[MARKET][Breadth] TSETMC MarketWatch unavailable, falling back to BRS AllSymbols:', error.message);
-    try {
-      rows = await fetchBRSAllSymbols();
-      source = 'brs-all-symbols-equities-fallback';
-    } catch (brsError) {
-      console.error('[MARKET][Breadth] BRS fallback failed:', brsError.message);
-      return { available: false, reason: 'BREADTH_FETCH_FAILED', error: brsError.message, diagnostics: { tsetmcError } };
-    }
+    return await refreshInFlight;
+  } finally {
+    refreshInFlight = null;
   }
-
-  const result = build(rows, source);
-  result.diagnostics.tsetmcError = tsetmcError;
-  result.diagnostics.generatedAt = new Date().toISOString();
-  cache = { value: result, timestamp: Date.now() };
-  return result;
 }
 
 function normalizeRows(payload) {
