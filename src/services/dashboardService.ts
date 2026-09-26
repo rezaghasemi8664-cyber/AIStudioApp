@@ -100,10 +100,31 @@ export async function getDashboardPersonalSummary(unreadAlertCount: number, subs
   return { watchlistCount: watchlists.length, watchlistSymbolCount, portfolioCount: portfolio.length, portfolioInvestedValue, unreadAlertCount: Math.max(0, Number(unreadAlertCount) || 0), subscriptionDaysRemaining, subscriptionExpired };
 }
 
+const DASHBOARD_REQUEST_TIMEOUT_MS = 2500;
+
+async function withDashboardTimeout<T>(promise: Promise<T>, fallback: T, timeoutMs = DASHBOARD_REQUEST_TIMEOUT_MS): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => { timer = setTimeout(() => resolve(fallback), timeoutMs); }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export async function getDashboardData(unreadAlertCount = 0, subscriptionDaysRemaining: number | null = null, subscriptionExpired = false): Promise<DashboardData> {
   const results = await Promise.allSettled([
-    getDashboardMarket(), getDashboardMovers(), getDashboardIndustries(), getDashboardAlerts(), getDashboardCodalEvents(),
-    getDashboardPersonalSummary(unreadAlertCount, subscriptionDaysRemaining, subscriptionExpired),
+    withDashboardTimeout(getDashboardMarket(), null),
+    withDashboardTimeout(getDashboardMovers(), { gainers: [], losers: [], highVolume: [] }),
+    withDashboardTimeout(getDashboardIndustries(), []),
+    withDashboardTimeout(getDashboardAlerts(), []),
+    withDashboardTimeout(getDashboardCodalEvents(), []),
+    withDashboardTimeout(getDashboardPersonalSummary(unreadAlertCount, subscriptionDaysRemaining, subscriptionExpired), {
+      watchlistCount: 0, watchlistSymbolCount: 0, portfolioCount: 0, portfolioInvestedValue: 0,
+      unreadAlertCount: Math.max(0, Number(unreadAlertCount) || 0), subscriptionDaysRemaining, subscriptionExpired,
+    }),
   ]);
   const [marketResult, moversResult, industriesResult, alertsResult, codalResult, personalResult] = results;
   const movers = moversResult.status === 'fulfilled' ? moversResult.value : { gainers: [], losers: [], highVolume: [] };
