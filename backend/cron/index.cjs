@@ -1,23 +1,33 @@
 'use strict';
 
-const { registerScalpingCron } = require('./scalping.cron.cjs');
-const { registerMarketCron } = require('./market.cron.cjs');
+const { startMarketWorker } = require('../workers/market.worker.cjs');
 const { registerUsageCron } = require('./usage.cron.cjs');
 
 let cronStarted = false;
 
-function safeRegister(name, registerFn) {
+function safeStart(name, fn) {
   try {
-    if (typeof registerFn !== 'function') {
-      console.warn(`[CRON] Skipped ${name}: register function is not available`);
+    if (typeof fn !== 'function') {
+      console.warn('[CRON] Skipped ' + name + ': start function unavailable');
       return false;
     }
-
-    registerFn();
-    console.log(`[CRON] ${name} registered`);
+    fn();
+    console.log('[CRON] ' + name + ' started');
     return true;
   } catch (error) {
-    console.error(`[CRON] Failed to register ${name}:`, error.message);
+    console.error('[CRON] Failed to start ' + name + ':', error.message);
+    return false;
+  }
+}
+
+function safeRegister(name, fn) {
+  try {
+    if (typeof fn !== 'function') return false;
+    fn();
+    console.log('[CRON] ' + name + ' registered');
+    return true;
+  } catch (error) {
+    console.error('[CRON] Failed to register ' + name + ':', error.message);
     return false;
   }
 }
@@ -28,18 +38,15 @@ function startCronJobs() {
     return;
   }
 
-  console.log('[CRON] Starting cron jobs...');
+  console.log('[CRON] Starting centralized cron jobs...');
 
   const results = [
-    safeRegister('scalping', registerScalpingCron),
-    safeRegister('market', registerMarketCron),
+    safeStart('market-worker', startMarketWorker),
     safeRegister('usage', registerUsageCron)
   ];
 
   cronStarted = true;
-
-  const successCount = results.filter(Boolean).length;
-  console.log(`[CRON] Cron registration completed: ${successCount}/${results.length} successful`);
+  console.log('[CRON] Cron registration completed: ' + results.filter(Boolean).length + '/' + results.length + ' successful');
 }
 
 module.exports = { startCronJobs };
