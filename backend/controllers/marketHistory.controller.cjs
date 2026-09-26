@@ -18,6 +18,14 @@ try {
   console.error('[MARKET CTRL v6.1] brs.service load failed:', e.message);
 }
 
+let sharedMarketService = null;
+try {
+  sharedMarketService = require('../services/sharedMarket.service.cjs');
+  console.log('[MARKET CTRL v7.0] shared market service loaded');
+} catch (e) {
+  console.error('[MARKET CTRL v7.0] shared market service load failed:', e.message);
+}
+
 let marketHistoryService = null;
 try {
   marketHistoryService = require('../services/marketHistory.service.cjs');
@@ -589,56 +597,71 @@ function ensurePrivilegedAccess(req, res) {
 
 // GET /api/market/index
 async function getMarketIndex(req, res) {
-  // DB-first: never make the user wait for a slow upstream provider.
-  // A live refresh is started after the response and updates the durable snapshot.
-  try {
-    const fallbackData = await getLatestMarketSnapshotFallback();
-    if (hasUsableMarketIndexData(fallbackData)) {
-      const snapshotTime = Date.parse(String(fallbackData.lastUpdate || fallbackData.updatedAt || ''));
-      const snapshotAgeMs = Number.isFinite(snapshotTime) ? Date.now() - snapshotTime : Number.POSITIVE_INFINITY;
-      // Refresh only when the stored snapshot is stale. This keeps login fast
-      // without turning every dashboard request into an upstream BRS request.
-      if (snapshotAgeMs > 60 * 1000 && brsService && typeof brsService.refreshMarketIndexInBackground === 'function') {
-        void brsService.refreshMarketIndexInBackground();
-      }
-      return res.json({
-        success: true,
-        data: fallbackData,
-        cached: true,
-        source: 'db-fallback',
-        message: 'آخرین داده معتبر بازار نمایش داده شد و بروزرسانی در پس‌زمینه انجام می‌شود',
-        timestamp: new Date().toISOString()
-      });
-    }
-  } catch (dbErr) {
-    console.warn('[MARKET CTRL] DB-first snapshot unavailable:', getErrorMessage(dbErr));
+  // Shared DB is the only user-facing source for the market index.
+  // BRS/TSETMC refreshes are performed by the central market worker,
+  // not by individual dashboard requests.
+  if (!sharedMarketService || typeof sharedMarketService.getMarketCurrent !== 'function') {
+    return res.status(503).json({
+      success: false,
+      message: 'سرویس داده مشترک بازار در دسترس نیست',
+      code: 'SHARED_MARKET_SERVICE_UNAVAILABLE'
+    });
   }
 
-  // No durable snapshot exists (for example, first deployment). In this case
-  // perform one live request, but keep the existing safe fallback/error handling.
   try {
-    const result = await callMarketIndex();
-    const envelope = normalizeServiceEnvelope(result);
-    const stableData = normalizeMarketIndexPayload(envelope.data);
-    if (hasUsableMarketIndexData(stableData)) {
-      return res.json({
-        success: true,
-        data: stableData,
-        cached: envelope.cached,
-        source: envelope.usedFallback ? 'db-fallback' : 'brs-api',
-        message: envelope.usedFallback ? 'داده‌ها از آخرین ذخیره‌سازی نمایش داده می‌شوند' : 'موفق',
-        timestamp: new Date().toISOString()
+    const snapshot = await sharedMarketService.getMarketCurrent();
+
+    if (!snapshot) {
+      return res.status(503).json({
+        success: false,
+        message: 'هنوز داده‌ای از بازار در دیتابیس مشترک ثبت نشده است',
+        code: 'NO_SHARED_MARKET_DATA'
       });
     }
+
+    const stableData = normalizeMarketIndexPayload({
+      date: snapshot.marketDate,
+      time: snapshot.updatedAt,
+      state: snapshot.marketStatus,
+      index: snapshot.overallIndex,
+      indexChange: snapshot.overallChange,
+      indexEqualWeight: snapshot.equalIndex,
+      indexEqualWeightChange: snapshot.equalChange,
+      tradeCount: snapshot.totalTrades,
+      tradeVolume: snapshot.totalVolume,
+      tradeValue: snapshot.totalValue,
+      volume: snapshot.totalVolume,
+      isMarketOpen: String(snapshot.marketStatus || '').toLowerCase().includes('open'),
+      lastUpdate: snapshot.updatedAt,
+      source: snapshot.source || 'shared-db',
+      isStale: snapshot.isStale
+    }, snapshot.updatedAt);
+
+    if (!hasUsableMarketIndexData(stableData)) {
+      return res.status(503).json({
+        success: false,
+        message: 'داده شاخص بازار در دیتابیس مشترک کامل نیست',
+        code: 'INVALID_SHARED_MARKET_DATA'
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: stableData,
+      cached: true,
+      stale: !!snapshot.isStale,
+      source: 'shared-db',
+      timestamp: new Date().toISOString()
+    });
   } catch (err) {
-    console.error('[MARKET CTRL v6.1] Index upstream error:', getErrorMessage(err));
+    console.error('[MARKET CTRL v7.0] Shared market index error:', getErrorMessage(err));
+    return res.status(500).json({
+      success: false,
+      message: 'خطا در دریافت شاخص بازار از دیتابیس مشترک',
+      code: 'SHARED_MARKET_READ_ERROR',
+      error: isDev() ? getErrorMessage(err) : undefined
+    });
   }
-
-  return res.status(502).json({
-    success: false,
-    message: 'در حال حاضر داده‌ای برای نمایش موجود نیست. لطفا دقایقی دیگر تلاش کنید.',
-    code: 'NO_MARKET_DATA'
-  });
 }
 
 // GET /api/market/symbol/:name
