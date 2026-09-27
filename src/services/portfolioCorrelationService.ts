@@ -6,7 +6,7 @@ export interface CorrelationPair { left: string; right: string; correlation: num
 export interface PortfolioCorrelationResult { symbols: string[]; pairs: CorrelationPair[]; averageAbsoluteCorrelation: number | null; highCorrelationPairs: CorrelationPair[]; }
 
 const num = (value: unknown): number | null => { const n = Number(value); return Number.isFinite(n) ? n : null; };
-const date = (value: unknown): string | null => { const raw = String(value ?? '').trim(); if (!raw) return null; const parsed = Date.parse(raw); return Number.isFinite(parsed) ? new Date(parsed).toISOString().slice(0, 10) : raw.slice(0, 10); };
+const date = normalizePortfolioDate;
 
 async function quotes(symbol: string) {
   const response = await api.get(`/brs/symbol/${encodeURIComponent(symbol)}/history`, { params: { limit: 365 } });
