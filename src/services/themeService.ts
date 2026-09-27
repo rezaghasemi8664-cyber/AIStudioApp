@@ -72,8 +72,6 @@ const THEMEABLE_ELEMENTS_METADATA: Record<string, { name: string; group: string 
   'user-profile-info-card': { name: 'کارت اطلاعات کاربری', group: 'پروفایل کاربر' },
   'user-profile-validity-card': { name: 'کارت اعتبار اکانت', group: 'پروفایل کاربر' },
   'user-profile-message-card': { name: 'کارت پیغام به ادمین', group: 'پروفایل کاربر' },
-  'user-profile-guest-settings-card': { name: 'کارت تنظیمات میهمان', group: 'پروفایل کاربر' },
-  'user-profile-guest-management-card': { name: 'کارت مدیریت میهمان', group: 'پروفایل کاربر' },
   'password-form-card': { name: 'فرم تغییر رمز', group: 'پروفایل کاربر' },
   // --- User Management Page ---
   'user-management-add-form': { name: 'فرم افزودن کاربر', group: 'مدیریت کاربران' },
