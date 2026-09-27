@@ -647,6 +647,8 @@ mountRoute('/api/v1/settings', './routes/settings.routes.cjs', 'User Settings v1
 mountRoute('/api/v1/global-settings', './routes/globalSettings.routes.cjs', 'Global Settings v1 alias (priority)');
 mountRoute('/api/v1/codal-intelligence', './routes/codalIntelligence.routes.cjs', 'Codal Intelligence v1 alias (priority)');
 mountRoute('/api/v1/codal', './routes/codalIntelligence.routes.cjs', 'Codal Compatibility v1 alias (priority)');
+mountRoute('/api/v1/subscriptions', './routes/subscriptions.routes.cjs', 'Subscriptions v1 alias (priority)');
+mountRoute('/api/v1/site-analytics', './routes/siteAnalytics.routes.cjs', 'Site Analytics v1 alias (priority)');
 
 mountRoute('/api/v1', './routes/v1/index.cjs', 'API v1 Root');
 // Compatibility aliases for reverse proxies that strip the /api prefix.
