@@ -342,7 +342,10 @@ function buildDeterministicSummary(data) {
           ? `خروج خالص پول حقیقی ${fa(Math.abs(flow.net))} است.`
           : 'جریان خالص پول حقیقی متعادل است.';
   const breadthRatio = breadth.negative ? breadth.positive / breadth.negative : null;
-  const risk = bias === 'صعودی' && breadth.positive >= breadth.negative ? 'متوسط' : 'متوسط رو به زیاد';
+  // Do not infer a risk level from market direction alone. A risk label is
+  // only valid when an independent, validated volatility/risk metric exists.
+  const volatility = pickValue(data, ['volatility', 'volatilityPercent', 'marketVolatility', 'riskScore']);
+  const risk = volatility === null ? 'قابل محاسبه نیست' : volatility;
 
   return [
     `۱) وضعیت کلی بازار: بازار ${state} است؛ برآیند شاخص کل ${direction(overallChange)}، شاخص هم‌وزن ${direction(equalChange)} و پهنای بازار ${breadth.positive > breadth.negative ? 'مثبت' : breadth.negative > breadth.positive ? 'منفی' : 'متعادل'} است؛ سوگیری ترکیبی داده‌ها «${bias}» است.`,
@@ -352,7 +355,7 @@ function buildDeterministicSummary(data) {
     `۵) جریان پول حقیقی: ${flowText}${flow.buy !== null || flow.sell !== null ? (flow.unit === 'volume' ? ` حجم خرید حقیقی ${fa(flow.buy, 0)} و حجم فروش حقیقی ${fa(flow.sell, 0)} است.` : ` ارزش خرید حقیقی ${fa(flow.buy)} و ارزش فروش حقیقی ${fa(flow.sell)} است.`) : ''}`,
     `۶) چرخش صنایع: گروه‌های با تغییر مثبت‌تر: ${leaders}؛ گروه‌های با تغییر منفی‌تر: ${laggards}.`,
     `۷) مومنتوم و روند: وضعیت جلسه بر اساس دو شاخص «${bias}» است؛ شاخص کل ${direction(overallChange)} و هم‌وزن ${direction(equalChange)} هستند. مومنتوم چندجلسه‌ای فقط با داده معتبر از جلسات قبلی قابل محاسبه است و در نبود آن گزارش نمی‌شود.`,
-    `۸) ریسک و نوسان: سطح ریسک محاسباتی «${risk}» است؛ این مقدار از هم‌جهتی شاخص‌ها و پهنای بازار محاسبه شده و شاخص نوسان مستقل فقط در صورت وجود داده معتبر گزارش می‌شود.`,
+    `۸) ریسک و نوسان: ${risk === 'قابل محاسبه نیست' ? 'سطح ریسک مستقل قابل محاسبه نیست؛ داده معتبر نوسان یا ریسک در دسترس نیست.' : `شاخص ریسک/نوسان ثبت‌شده «${fa(risk)}» است و صرفاً بر اساس داده معتبر نوسان گزارش می‌شود.`}`,
     `۹) واگرایی‌ها و هشدارها: شاخص کل ${direction(overallChange)}، شاخص هم‌وزن ${direction(equalChange)} و پهنای بازار ${breadth.positive > breadth.negative ? 'مثبت' : breadth.negative > breadth.positive ? 'منفی' : 'متعادل'} است. ${(direction(overallChange) !== direction(equalChange) || direction(overallChange) !== (breadth.positive > breadth.negative ? 'مثبت' : breadth.negative > breadth.positive ? 'منفی' : 'متعادل')) ? 'اختلاف جهت بین مؤلفه‌ها مشاهده می‌شود و به‌عنوان واگرایی فعلی گزارش می‌شود.' : 'اختلاف جهت معناداری بین این سه مؤلفه مشاهده نمی‌شود.'}`,
     `۱۰) نمادهای شاخص حرکت: برترین رشدهای محاسبه‌شده: ${gainers}؛ برترین افت‌ها: ${losers}؛ نمادهای پرتراکنش از نظر حجم: ${volumes}.`,
     `۱۱) شرایط تغییر وضعیت: ادامه وضعیت فعلی با حفظ جهت شاخص‌ها و پهنای بازار سنجیده می‌شود؛ تغییر به وضعیت منفی با افت شاخص‌ها و افزایش سهم نمادهای منفی قابل مشاهده خواهد بود. این بخش صرفاً شروط داده‌ای را توصیف می‌کند و پیش‌بینی بازار نیست.`,
