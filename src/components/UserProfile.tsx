@@ -277,8 +277,8 @@ const UserProfile: React.FC<UserProfileProps> = ({
   // =====================
   // Message Tab State
   // =====================
-  const defaultMessage = `کاربر گرامی ${currentUser.firstName} ${currentUser.lastName} با نام کاربری ${currentUser.username} درخواست تمدید اعتبار اکانت به مدت ...... روز را دارم.`;
-  const [message, setMessage] = useState(defaultMessage);
+  const [message, setMessage] = useState('');
+  const [receivedMessages, setReceivedMessages] = useState<DirectMessage[]>([]);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [messageLoading, setMessageLoading] = useState(false);
 
@@ -325,6 +325,22 @@ const UserProfile: React.FC<UserProfileProps> = ({
     fetchSubscription();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser.isAdmin]);
+
+  useEffect(() => {
+    if (currentUser.isAdmin) return;
+    let cancelled = false;
+    const loadMessages = async () => {
+      try {
+        const messages = await messageService.getAllMessages();
+        if (!cancelled) setReceivedMessages(messages);
+      } catch (error) {
+        console.warn('[UserProfile] دریافت پیام‌ها ناموفق بود:', error);
+      }
+    };
+    void loadMessages();
+    const timer = window.setInterval(loadMessages, 15000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [currentUser.id, currentUser.isAdmin]);
 
   useEffect(() => {
     setEditData({
@@ -393,9 +409,11 @@ const UserProfile: React.FC<UserProfileProps> = ({
           data: base64,
         };
       }
-      messageService.sendMessageToAdmin(currentUser, message, attachmentData);
+      await messageService.sendMessageToAdmin(currentUser, message, attachmentData);
       addNotification('پیام شما با موفقیت برای ادمین ارسال شد.', 'success');
-      setMessage(defaultMessage);
+      setMessage('');
+      const messages = await messageService.getAllMessages();
+      setReceivedMessages(messages);
       setAttachment(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
@@ -648,6 +666,21 @@ const UserProfile: React.FC<UserProfileProps> = ({
             <EnvelopeIcon className="h-5 w-5" />
             ارسال پیام به مدیر سیستم
           </h3>
+
+          {receivedMessages.length > 0 && (
+            <div className="mb-6 rounded-xl border border-[var(--card-border-color)] p-4">
+              <h4 className="font-semibold mb-3">پیام‌ها و پاسخ‌های مدیر</h4>
+              <div className="space-y-3 max-h-80 overflow-y-auto">
+                {receivedMessages.slice().reverse().map((item) => (
+                  <div key={item.id} className="rounded-lg border border-[var(--card-border-color)] p-3">
+                    <div className="text-xs text-gray-500 mb-1">{item.senderId === String(currentUser.id) ? 'پیام شما' : 'پیام مدیر'}</div>
+                    <div className="text-sm whitespace-pre-wrap">{item.message}</div>
+                    <div className="text-[11px] text-gray-400 mt-2">{new Date(item.timestamp).toLocaleString('fa-IR')}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleSendMessage} className="space-y-4">
             <div>
