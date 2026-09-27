@@ -452,6 +452,9 @@ async function findLatestUsableMarketHistoryRow() {
     positiveStocks: breadth.positive ?? null,
     negativeStocks: breadth.negative ?? null,
     neutralStocks: breadth.neutral ?? null,
+    breadthCoveragePercent: breadth.coveragePercent ?? null,
+    breadthSnapshotRows: Array.isArray(breadth.snapshotRows) ? breadth.snapshotRows.length : null,
+    breadthEligibleRows: breadth.total ?? null,
     industries: industryRows.map(x => ({
       name: x.industryName,
       changePercent: x.changePercent,
