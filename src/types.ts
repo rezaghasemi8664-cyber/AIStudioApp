@@ -50,7 +50,7 @@ export type PortfolioAlertType = 'none' | 'buy' | 'sell';
 // =============================================================================
 export interface User {
   id: string; username: string; firstName: string; lastName: string; mobile: string; isAdmin: boolean; isActive: boolean; registrationDate: string;
-  activationDate: string; validityDays: number; email?: string; isGuest?: boolean; analysisIntervalMinutes: number; analysisLimit24h: number; isDeleted?: boolean;
+  activationDate: string; validityDays: number; email?: string; analysisIntervalMinutes: number; analysisLimit24h: number; isDeleted?: boolean;
   name?: string; phone?: string; role?: string; subscriptionStart?: string | null; subscriptionEnd?: string | null; subscriptionDays?: number;
   subscriptionMonths?: number; analysisLimit?: number; isSubscriptionActive?: boolean; remainingDays?: number; createdAt?: string; validityDate?: string | null; expiresAt?: string | null; analysisUsed?: number;
 }
