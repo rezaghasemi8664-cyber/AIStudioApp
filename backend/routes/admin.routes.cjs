@@ -105,6 +105,15 @@ router.post('/users/:id/subscription/gift',authMiddleware,requireAdmin,async fun
       }else{
         await tx.subscription.create({data:{userId:id,planId:null,type:'FREE_TRIAL',status:'ACTIVE',startsAt:ex.subscriptionStart&&new Date(ex.subscriptionStart)<now?new Date(ex.subscriptionStart):now,expiresAt:newEnd}});
       }
+      await tx.notification.create({
+        data:{
+          userId:id,
+          title:'اشتراک هدیه',
+          message:'کاربر گرامی مدت زمان '+days+' روز اشتراک هدیه به شما تعلق گرفت و به اعتبار شما اضافه گردید.',
+          type:'SUBSCRIPTION_GIFT',
+          isRead:false,
+        },
+      });
     });
     return res.json({success:true,message:'اشتراک هدیه فقط برای همین کاربر اعمال شد.',data:{userId:id,days,previousEnd:end,newEnd}});
   }catch(e){
