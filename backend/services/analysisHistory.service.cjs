@@ -2,7 +2,7 @@
 
 const prisma = require('../config/prisma.cjs');
 
-const MAX_HISTORY_ITEMS = 3;
+const MAX_HISTORY_ITEMS = 10;
 
 function toInt(value) {
   const n = Number.parseInt(String(value), 10);
@@ -90,7 +90,7 @@ function normalizeRow(row) {
 
 /**
  * Save AI analysis history (Single Source of Truth)
- * - Enforces max 3 latest records per user
+ * - Enforces max 10 latest records per user
  */
 async function saveAnalysis({ userId, symbol, stock, outputPayload, summary, recommendation, riskLevel }) {
   const uid = toInt(userId);
