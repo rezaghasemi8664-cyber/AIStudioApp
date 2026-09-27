@@ -18,6 +18,37 @@ var HTTP_TIMEOUT_MS = parseInt(process.env.BRS_TIMEOUT_MS, 10) || 15000;
 var HTTP_RETRY_COUNT = parseInt(process.env.BRS_RETRY_COUNT, 10) || 2;
 var HTTP_RETRY_DELAY_MS = parseInt(process.env.BRS_RETRY_DELAY_MS, 10) || 1200;
 
+// BRS API rate/concurrency guard.
+// All upstream BRS requests (user requests, worker jobs and retries) pass
+// through this single in-process queue so that only one request is in flight
+// and request start times are separated by at least 50ms.
+var BRS_MIN_INTERVAL_MS = Math.max(
+  50,
+  parseInt(process.env.BRS_MIN_INTERVAL_MS, 10) || 50
+);
+var brsQueueTail = Promise.resolve();
+var lastBRSRequestStartedAt = 0;
+
+function enqueueBRSRequest(task) {
+  var run = async function () {
+    var elapsedSinceLastStart = Date.now() - lastBRSRequestStartedAt;
+    var waitMs = Math.max(0, BRS_MIN_INTERVAL_MS - elapsedSinceLastStart);
+
+    if (waitMs > 0) {
+      await sleep(waitMs);
+    }
+
+    lastBRSRequestStartedAt = Date.now();
+
+    return task();
+  };
+
+  // Keep the queue alive even when an earlier request fails.
+  var queued = brsQueueTail.then(run, run);
+  brsQueueTail = queued.catch(function () {});
+  return queued;
+}
+
 var TEHRAN_TIME_ZONE = 'Asia/Tehran';
 var MARKET_OPEN_MINUTE = 9 * 60;
 var MARKET_CLOSE_MINUTE = 12 * 60 + 30;
@@ -481,7 +512,9 @@ async function fetchBRS(url, label, requestOptions) {
 
   for (var attempt = 0; attempt <= HTTP_RETRY_COUNT; attempt += 1) {
     try {
-      return await fetchBRSOnce(url, label, requestOptions);
+      return await enqueueBRSRequest(function () {
+        return fetchBRSOnce(url, label, requestOptions);
+      });
     } catch (error) {
       lastError = error;
       var retryable = isRetryableError(error);
