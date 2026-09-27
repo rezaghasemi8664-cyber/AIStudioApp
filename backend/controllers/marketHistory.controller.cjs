@@ -553,8 +553,9 @@ function ensurePrivilegedAccess(req, res) {
 
 // GET /api/market/index
 async function getMarketIndex(req, res) {
-  // Prefer the shared snapshot, but never allow an empty/invalid row to hide
-  // a valid live BRS index. The dashboard must receive numeric index data.
+  // Dashboard is DB-first by design. The central market worker is solely
+  // responsible for refreshing BRS data into MarketCurrent. This endpoint
+  // must never wait on BRS/network calls.
   if (!sharedMarketService || typeof sharedMarketService.getMarketCurrent !== 'function') {
     return res.status(503).json({
       success: false,
@@ -564,153 +565,71 @@ async function getMarketIndex(req, res) {
   }
 
   try {
-    let snapshot = await sharedMarketService.getMarketCurrent();
+    const snapshot = await sharedMarketService.getMarketCurrent();
 
-    const normalizeSharedSnapshot = (row) => {
-      if (!row) return null;
-      const normalized = normalizeMarketIndexPayload({
-        date: row.marketDate,
-        time: row.updatedAt,
-        state: row.marketStatus,
-        index: row.overallIndex,
-        indexChange: row.overallChange,
-        indexEqualWeight: row.equalIndex,
-        indexEqualWeightChange: row.equalChange,
-        tradeCount: row.totalTrades,
-        tradeVolume: row.totalVolume,
-        tradeValue: row.totalValue,
-        volume: row.totalVolume,
-        isMarketOpen: String(row.marketStatus || '').toLowerCase().includes('open'),
-        lastUpdate: row.updatedAt
-      }, row.updatedAt);
-      return hasUsableMarketIndexData(normalized) && normalized.index !== null
-        ? { row, data: normalized }
-        : null;
-    };
-
-    let sharedResult = normalizeSharedSnapshot(snapshot);
-
-    // A row can exist in MarketCurrent but still be unusable (for example,
-    // only marketStatus was written). In that case force a live BRS recovery.
-    if (!sharedResult && brsService && typeof brsService.getMarketIndex === 'function') {
-      try {
-        const liveResponse = await brsService.getMarketIndex();
-        const liveEnvelope = normalizeServiceEnvelope(liveResponse);
-        const liveData = liveEnvelope.data;
-        const stableLiveData = normalizeMarketIndexPayload(liveData, liveData && (liveData._timestamp || liveData.updatedAt));
-        
-        if (hasUsableMarketIndexData(stableLiveData) && stableLiveData.index !== null) {
-          const source = liveEnvelope.cached
-            ? 'brs-live-cache'
-            : (liveEnvelope.usedFallback ? 'brs-live-fallback' : 'brs-live');
-
-          const marketDate = liveData && liveData.date
-            ? liveData.date
-            : null;
-          const updatedAt = liveData && liveData._timestamp
-            ? liveData._timestamp
-            : new Date().toISOString();
-
-          const recoveredRow = {
-            marketDate,
-            updatedAt,
-            marketStatus: stableLiveData.isMarketOpen ? 'OPEN' : 'CLOSED',
-            overallIndex: stableLiveData.index,
-            overallChange: stableLiveData.indexChange,
-            equalIndex: stableLiveData.indexEqualWeight,
-            equalChange: stableLiveData.indexEqualWeightChange,
-            totalTrades: stableLiveData.tradeCount,
-            totalVolume: stableLiveData.tradeVolume,
-            totalValue: stableLiveData.tradeValue,
-            source,
-            isStale: !!liveEnvelope.usedFallback
-          };
-
-          // Best-effort persistence. A DB write failure must not prevent the
-          // already valid live result from reaching the dashboard.
-          try {
-            const prisma = require('../config/prisma.cjs');
-            const tehranDate = new Intl.DateTimeFormat('en-CA', {
-              timeZone: 'Asia/Tehran',
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit'
-            }).format(new Date());
-            const dbDate = new Date(tehranDate + 'T00:00:00.000Z');
-
-            await prisma.marketCurrent.upsert({
-              where: { marketDate: dbDate },
-              create: {
-                marketDate: dbDate,
-                marketStatus: recoveredRow.marketStatus,
-                overallIndex: recoveredRow.overallIndex,
-                overallChange: recoveredRow.overallChange,
-                equalIndex: recoveredRow.equalIndex,
-                equalChange: recoveredRow.equalChange,
-                totalTrades: recoveredRow.totalTrades,
-                totalVolume: recoveredRow.totalVolume,
-                totalValue: recoveredRow.totalValue,
-                updatedAt: new Date(),
-                source: recoveredRow.source,
-                isStale: recoveredRow.isStale,
-                dataJson: JSON.stringify(liveData)
-              },
-              update: {
-                marketStatus: recoveredRow.marketStatus,
-                overallIndex: recoveredRow.overallIndex,
-                overallChange: recoveredRow.overallChange,
-                equalIndex: recoveredRow.equalIndex,
-                equalChange: recoveredRow.equalChange,
-                totalTrades: recoveredRow.totalTrades,
-                totalVolume: recoveredRow.totalVolume,
-                totalValue: recoveredRow.totalValue,
-                updatedAt: new Date(),
-                source: recoveredRow.source,
-                isStale: recoveredRow.isStale,
-                dataJson: JSON.stringify(liveData)
-              }
-            });
-          } catch (persistError) {
-            console.warn('[MARKET CTRL v9.0] Live market persistence skipped:', getErrorMessage(persistError));
-          }
-
-          sharedResult = { row: recoveredRow, data: stableLiveData };
-        }
-      } catch (recoveryError) {
-        console.warn('[MARKET CTRL v9.0] Live market recovery failed:', getErrorMessage(recoveryError));
-      }
-    }
-
-    if (!sharedResult) {
+    if (!snapshot) {
       return res.status(503).json({
         success: false,
-        message: 'داده معتبر شاخص بازار در دسترس نیست',
-        code: 'MARKET_INDEX_UNAVAILABLE'
+        message: 'هنوز داده‌ای از بازار در دیتابیس مشترک ثبت نشده است',
+        code: 'NO_SHARED_MARKET_DATA',
+        meta: {
+          status: 'UNAVAILABLE',
+          stale: false,
+          requestId: req.id || null
+        }
       });
     }
 
-    const snapshotData = sharedResult.data;
-    const row = sharedResult.row;
+    const normalized = normalizeMarketIndexPayload({
+      date: snapshot.marketDate,
+      time: snapshot.updatedAt,
+      state: snapshot.marketStatus,
+      index: snapshot.overallIndex,
+      indexChange: snapshot.overallChange,
+      indexEqualWeight: snapshot.equalIndex,
+      indexEqualWeightChange: snapshot.equalChange,
+      tradeCount: snapshot.totalTrades,
+      tradeVolume: snapshot.totalVolume,
+      tradeValue: snapshot.totalValue,
+      volume: snapshot.totalVolume,
+      isMarketOpen: String(snapshot.marketStatus || '').toLowerCase().includes('open'),
+      lastUpdate: snapshot.updatedAt
+    }, snapshot.updatedAt);
+
+    // Never turn a partial/invalid MarketCurrent row into a fake successful
+    // response. Return a controlled error immediately; do not call BRS here.
+    if (!hasUsableMarketIndexData(normalized) || normalized.index === null) {
+      return res.status(503).json({
+        success: false,
+        message: 'داده معتبر شاخص بازار در دیتابیس مشترک موجود نیست',
+        code: 'INVALID_SHARED_MARKET_DATA',
+        meta: {
+          status: 'UNAVAILABLE',
+          stale: !!snapshot.isStale,
+          source: snapshot.source || 'shared-db',
+          requestId: req.id || null
+        }
+      });
+    }
 
     return res.json({
       success: true,
-      data: snapshotData,
-      cached: row.source ? String(row.source).indexOf('brs-live') !== -1 : true,
-      stale: !!row.isStale,
-      source: row.source || 'shared-db',
+      data: normalized,
+      cached: true,
+      stale: !!snapshot.isStale,
+      source: snapshot.source || 'shared-db',
       timestamp: new Date().toISOString()
     });
   } catch (err) {
-    console.error('[MARKET CTRL v9.0] Market index error:', getErrorMessage(err));
+    console.error('[MARKET CTRL DB-FIRST] Market index read error:', getErrorMessage(err));
     return res.status(500).json({
       success: false,
-      message: 'خطا در دریافت شاخص بازار',
-      code: 'MARKET_INDEX_READ_ERROR',
+      message: 'خطا در خواندن شاخص بازار از دیتابیس مشترک',
+      code: 'SHARED_MARKET_READ_ERROR',
       error: isDev() ? getErrorMessage(err) : undefined
     });
   }
 }
-
 // GET /api/market/symbol/:name
 async function getSymbolData(req, res) {
   if (!sharedMarketService || typeof sharedMarketService.getSymbols !== 'function') {
