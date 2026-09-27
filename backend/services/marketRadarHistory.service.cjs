@@ -32,7 +32,10 @@ function normalizeRange(value) {
 
 function startDateFor(range, latestDate) {
   const start = new Date(latestDate);
-  start.setUTCDate(start.getUTCDate() - (RANGE_DAYS[range] - 1));
+  // For the 1-day view we need the previous trading session as the baseline
+  // so the UI can calculate the day-over-day percentage change.
+  const days = range === '1d' ? 2 : RANGE_DAYS[range];
+  start.setUTCDate(start.getUTCDate() - (days - 1));
   return start;
 }
 
