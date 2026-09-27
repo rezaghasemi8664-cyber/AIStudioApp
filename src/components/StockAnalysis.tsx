@@ -1366,9 +1366,17 @@ const fetchMarketSummary = async () => {
     try {
       const response = await analyzeStock(trimmedSymbol);
 
-      const analysisData = response.data;
-      if (!analysisData || !hasSufficientMarketData(analysisData)) {
+      const rawAnalysisData = response.data;
+      if (!rawAnalysisData || !hasSufficientMarketData(rawAnalysisData)) {
         throw new Error('خطای تحلیل داده بازار برای این نماد کافی و قابل اتکا نیست؛ تحلیل متوقف شد');
+      }
+
+      // API responses can contain legacy nested objects in renderable text fields
+      // (notably summary/explanations). Always pass the same normalized shape to
+      // React state and history so no arbitrary object can reach JSX.
+      const analysisData = normalizeAnalysisShape(rawAnalysisData);
+      if (!analysisData) {
+        throw new Error('ساختار پاسخ تحلیل قابل پردازش نیست.');
       }
 
       setAnalysisResult(response.rawText);
