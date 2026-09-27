@@ -12,11 +12,6 @@ router.get('/', authMiddleware, uiConfigController.getConfig);
 router.post('/', authMiddleware, uiConfigController.saveConfig);
 router.put('/', authMiddleware, uiConfigController.saveConfig);
 
-// TSE Links
-router.get('/tse-links', authMiddleware, uiConfigController.getTseLinks);
-router.post('/tse-links', authMiddleware, uiConfigController.saveTseLinks);
-router.put('/tse-links', authMiddleware, uiConfigController.saveTseLinks);
-
 // Features
 router.get('/features', authMiddleware, uiConfigController.getFeatures);
 router.post('/features', authMiddleware, uiConfigController.saveFeatures);
