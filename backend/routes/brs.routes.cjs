@@ -39,8 +39,11 @@ router.get('/symbol/:symbol/history', userAuth, async function (req, res) {
     const symbol = String(req.params.symbol || '').trim();
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 60, 10), 365);
     if (!symbol) return res.status(400).json({ success: false, message: 'نام نماد الزامی است.' });
+    // Portfolio analytics needs real per-symbol daily history. Do not depend on MarketDaily;
+    // the shared DB is not guaranteed to contain history for every portfolio symbol.
     const result = await sharedBrsService.getSymbolHistory(symbol, limit);
-    return res.json({ success: true, data: Array.isArray(result && result.data) ? result.data : [], meta: result && result._meta ? result._meta : null, cached: !!(result && result._cached), source: 'brs-history' });
+    const data = Array.isArray(result && result.data) ? result.data : [];
+    return res.json({ success: true, data, total: data.length, meta: result && result._meta ? result._meta : null, cached: !!(result && result._cached), source: result && result._meta && result._meta.source ? result._meta.source : 'brs-history' });
   } catch (error) {
     console.error('[BRS] GET /symbol/:symbol/history error:', error.message);
     return res.status(502).json({ success: false, message: `خطا در دریافت تاریخچه نماد «${req.params.symbol || ''}».` });
