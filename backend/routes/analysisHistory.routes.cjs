@@ -40,6 +40,8 @@ if (
  * تا /clear یا /usage اشتباهاً به عنوان :id تفسیر نشوند.
  */
 router.get('/usage', authenticate, getHistoryStats);
+// Backward-compatible alias used by the frontend history loader.
+router.get('/stats', authenticate, getHistoryStats);
 router.delete('/clear', authenticate, clearHistory);
 
 router.get('/', authenticate, getAnalysisHistory);
