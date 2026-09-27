@@ -284,17 +284,44 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
     return 0;
   }
 
-  const candidates = symbols
-    .map(item => ({ item, scored: scoreSymbol(item) }))
-    .filter(({ item, scored }) =>
-      scored.last > 0 &&
-      scored.value >= SCALPING_MIN_VALUE &&
-      Math.abs(scored.pct) >= SCALPING_MIN_CHANGE_PCT &&
-      scored.score >= SCALPING_THRESHOLD &&
-      scored.signal !== 'WATCH'
-    )
+  const scoredSymbols = symbols.map(item => ({ item, scored: scoreSymbol(item) }));
+  const validPrice = scoredSymbols.filter(({ scored }) => scored.last > 0);
+  const liquid = validPrice.filter(({ scored }) => scored.value >= SCALPING_MIN_VALUE);
+  const moving = liquid.filter(({ scored }) => Math.abs(scored.pct) >= SCALPING_MIN_CHANGE_PCT);
+  const threshold = moving.filter(({ scored }) => scored.score >= SCALPING_THRESHOLD);
+  const directional = threshold.filter(({ scored }) => scored.signal !== 'WATCH');
+
+  const candidates = directional
     .sort((a, b) => b.scored.score - a.scored.score)
     .slice(0, SCALPING_LIMIT);
+
+  const diagnosticTop = scoredSymbols
+    .filter(({ scored }) => scored.last > 0 && scored.value >= SCALPING_MIN_VALUE)
+    .sort((a, b) => b.scored.score - a.scored.score)
+    .slice(0, 10)
+    .map(({ item, scored }) => ({
+      symbol: item.symbol,
+      score: scored.score,
+      signal: scored.signal,
+      pct: Number(scored.pct.toFixed(2)),
+      value: Math.trunc(scored.value),
+      position: Number(scored.position.toFixed(2)),
+      realNetRatio: Number(scored.realNetRatio.toFixed(3))
+    }));
+
+  console.log('[SCALPING DIAGNOSTIC]', JSON.stringify({
+    total: symbols.length,
+    validPrice: validPrice.length,
+    liquid: liquid.length,
+    moving: moving.length,
+    threshold: threshold.length,
+    directional: directional.length,
+    candidates: candidates.length,
+    thresholdValue: SCALPING_THRESHOLD,
+    minChangePct: SCALPING_MIN_CHANGE_PCT,
+    minValue: SCALPING_MIN_VALUE,
+    top: diagnosticTop
+  }));
 
   await prisma.marketScalpingOpportunity.updateMany({
     where: { marketDate, status: 'ACTIVE' },
