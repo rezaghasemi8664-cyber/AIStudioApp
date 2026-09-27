@@ -101,9 +101,9 @@ export async function getDashboardPersonalSummary(unreadAlertCount: number, subs
 }
 
 const DASHBOARD_REQUEST_TIMEOUT_MS = 2500;
-const DASHBOARD_MOVERS_TIMEOUT_MS = 4500;
-const DASHBOARD_INDUSTRIES_TIMEOUT_MS = 4500;
-const DASHBOARD_CODAL_TIMEOUT_MS = 5000;
+const DASHBOARD_MOVERS_TIMEOUT_MS = 2500;
+const DASHBOARD_INDUSTRIES_TIMEOUT_MS = 2500;
+const DASHBOARD_CODAL_TIMEOUT_MS = 2500;
 
 async function withDashboardTimeout<T>(promise: Promise<T>, fallback: T, timeoutMs = DASHBOARD_REQUEST_TIMEOUT_MS): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -119,7 +119,7 @@ async function withDashboardTimeout<T>(promise: Promise<T>, fallback: T, timeout
 
 export async function getDashboardData(unreadAlertCount = 0, subscriptionDaysRemaining: number | null = null, subscriptionExpired = false): Promise<DashboardData> {
   const results = await Promise.allSettled([
-    withDashboardTimeout(getDashboardMarket(), null, 3000),
+    withDashboardTimeout(getDashboardMarket(), null, DASHBOARD_REQUEST_TIMEOUT_MS),
     withDashboardTimeout(getDashboardMovers(), { gainers: [], losers: [], highVolume: [] }, DASHBOARD_MOVERS_TIMEOUT_MS),
     withDashboardTimeout(getDashboardIndustries(), [], DASHBOARD_INDUSTRIES_TIMEOUT_MS),
     withDashboardTimeout(getDashboardAlerts(), []),
