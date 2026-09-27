@@ -281,10 +281,17 @@ function extractSectorData(data) {
     change: pickValue(x, ['changePercent', 'change', 'percentChange']),
     value: pickValue(x, ['value', 'tradeValue', 'tval'])
   })).filter(x => x.name);
-  return {
-    leaders: [...normalized].sort((a,b) => (b.change ?? -Infinity) - (a.change ?? -Infinity)).slice(0,3),
-    laggards: [...normalized].sort((a,b) => (a.change ?? Infinity) - (b.change ?? Infinity)).slice(0,3)
-  };
+  const leaders = normalized
+    .filter(x => x.change !== null && x.change > 0)
+    .sort((a,b) => b.change - a.change)
+    .slice(0,3);
+
+  const laggards = normalized
+    .filter(x => x.change !== null && x.change < 0)
+    .sort((a,b) => a.change - b.change)
+    .slice(0,3);
+
+  return { leaders, laggards };
 }
 function extractMoneyFlow(data) {
   const flow = data?.realFlow || data?.moneyFlow || data?.realMoneyFlow || {};
