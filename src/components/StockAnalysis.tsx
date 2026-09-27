@@ -772,11 +772,11 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
   const normalized: UnifiedAnalysisResult = {
     symbol: renderableText(source.symbol, 'نامشخص'),
     summary: historySummaryText(source.summary) || historySummaryText(source.explanations) || '',
-    recommendation: renderableText(source.recommendation, 'hold'),
-    riskLevel: renderableText(source.riskLevel ?? source.risk_level, 'medium'),
-    shortTermTrend: renderableText(source.shortTermTrend ?? source.short_term_trend, 'neutral'),
-    mediumTermTrend: renderableText(source.mediumTermTrend ?? source.medium_term_trend, 'neutral'),
-    sentiment: renderableText(source.sentiment, 'neutral'),
+    recommendation: normalizeEnum(source.recommendation, recommendationValues, 'hold'),
+    riskLevel: normalizeEnum(source.riskLevel ?? source.risk_level, riskValues, 'medium'),
+    shortTermTrend: normalizeEnum(source.shortTermTrend ?? source.short_term_trend, trendValues, 'neutral'),
+    mediumTermTrend: normalizeEnum(source.mediumTermTrend ?? source.medium_term_trend, trendValues, 'neutral'),
+    sentiment: normalizeEnum(source.sentiment, sentimentValues, 'neutral'),
     confidence: normalizeConfidence(source.confidence),
     analysisDate: source.analysisDate ?? source.analysis_date ?? source.createdAt ?? new Date().toISOString(),
     meta: source.meta ?? {},
@@ -963,6 +963,20 @@ function renderableText(value: unknown, fallback = '—'): string {
   const text = historySummaryText(value);
   return text.trim() ? text : fallback;
 }
+
+function normalizeEnum<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  const text = historySummaryText(value).trim() as T;
+  return allowed.includes(text) ? text : fallback;
+}
+
+const recommendationValues = ['buy', 'hold', 'sell'] as const;
+const riskValues = ['low', 'medium', 'high'] as const;
+const trendValues = ['bullish', 'neutral', 'bearish'] as const;
+const sentimentValues = ['positive', 'neutral', 'negative'] as const;
 
 function MetricCard({
   label,
