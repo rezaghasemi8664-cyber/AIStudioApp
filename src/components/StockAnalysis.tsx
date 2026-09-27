@@ -173,6 +173,25 @@ function formatPercent(value: number | string | undefined | null) {
   if (!Number.isFinite(n)) return faNumber(String(value));
   return `${faNumber(n.toLocaleString('en-US', { maximumFractionDigits: 2 }))}%`;
 }
+function historySummaryText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') {
+    const item = value as Record<string, unknown>;
+    const preferred = [
+      item.text,
+      item.summary,
+      item.market,
+      item.history,
+      item.fundamental,
+      item.fundamentalRequest,
+    ].filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
+    if (preferred.length > 0) return preferred.join(' | ');
+    try { return JSON.stringify(value); } catch { return ''; }
+  }
+  return String(value);
+}
+
 
 function toNum(v: unknown): number | undefined {
   if (v === undefined || v === null || v === '') return undefined;
@@ -2479,7 +2498,7 @@ const clearCurrentAnalysis = () => {
                     </div>
 
                     <div className="mt-2 line-clamp-2 text-[13px] font-medium leading-7 text-slate-800">
-                      {item.result?.summary ?? 'تحلیل ذخیره شده'}
+                      {historySummaryText(item.result?.summary) || 'تحلیل ذخیره شده'}
                     </div>
                   </div>
 
