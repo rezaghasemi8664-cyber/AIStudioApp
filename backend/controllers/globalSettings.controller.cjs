@@ -130,6 +130,14 @@ exports.getGlobalSetting = async (req, res) => {
 exports.upsertGlobalSetting = async (req, res) => {
   try {
     const { category, key } = req.params;
+
+    if (category === 'ui' && key === 'welcome-banner-config') {
+      const user = req.user || {};
+      const isAdmin = user.isAdmin === true || String(user.role || '').toLowerCase() === 'admin';
+      if (!isAdmin) {
+        return res.status(403).json({ success: false, message: 'فقط مدیر سیستم می‌تواند تنظیمات بنر خوش‌آمدگویی را تغییر دهد' });
+      }
+    }
     const { value } = req.body;
     const adminId = req.user?.id || null;
 
