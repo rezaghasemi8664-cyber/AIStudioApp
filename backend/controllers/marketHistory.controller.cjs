@@ -567,65 +567,46 @@ async function getMarketIndex(req, res) {
   try {
     let snapshot = await sharedMarketService.getMarketCurrent();
 
-    // Recovery path for a fresh/empty shared database. The user-facing
-    // market-index endpoint must not remain unavailable just because the
-    // background worker has not completed its first refresh yet.
+    // Recovery path for a fresh/empty shared database. Serve a valid live BRS snapshot immediately;
+    // persistence is best-effort so a database write problem cannot blank the dashboard.
     if (!snapshot && brsService && typeof brsService.getMarketIndex === 'function') {
       try {
         const liveResponse = await brsService.getMarketIndex();
         const liveEnvelope = normalizeServiceEnvelope(liveResponse);
         const liveData = liveEnvelope.data;
-
         if (hasUsableMarketIndexData(liveData)) {
-          const prisma = require('../config/prisma.cjs');
-          const tehranDate = new Intl.DateTimeFormat('en-CA', {
-            timeZone: 'Asia/Tehran',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-          }).format(new Date());
-
-          const marketDate = new Date(tehranDate + 'T00:00:00.000Z');
-          const numeric = (value) => toNumber(value, false);
-          const integer = (value) => toNumber(value, true);
-
-          await prisma.marketCurrent.upsert({
-            where: { marketDate },
-            create: {
-              marketDate,
+          const stableLiveData = normalizeMarketIndexPayload(liveData, liveData.updatedAt || liveData._timestamp || new Date());
+          if (hasUsableMarketIndexData(stableLiveData)) {
+            snapshot = {
+              marketDate: liveData.date || null,
+              updatedAt: liveData.updatedAt || liveData._timestamp || new Date(),
               marketStatus: liveData.isMarketOpen === true ? 'OPEN' : 'CLOSED',
-              overallIndex: numeric(liveData.index),
-              overallChange: numeric(liveData.indexChange ?? liveData.index_change),
-              equalIndex: numeric(liveData.indexEqualWeight ?? liveData.index_equalWeight),
-              equalChange: numeric(liveData.indexEqualWeightChange ?? liveData.index_equalWeight_change),
-              totalTrades: integer(liveData.tradeCount),
-              totalVolume: integer(liveData.tradeVolume),
-              totalValue: numeric(liveData.tradeValue),
-              updatedAt: new Date(),
-              source: 'brs-live-recovery',
-              isStale: false,
-              dataJson: JSON.stringify(liveData)
-            },
-            update: {
-              marketStatus: liveData.isMarketOpen === true ? 'OPEN' : 'CLOSED',
-              overallIndex: numeric(liveData.index),
-              overallChange: numeric(liveData.indexChange ?? liveData.index_change),
-              equalIndex: numeric(liveData.indexEqualWeight ?? liveData.index_equalWeight),
-              equalChange: numeric(liveData.indexEqualWeightChange ?? liveData.index_equalWeight_change),
-              totalTrades: integer(liveData.tradeCount),
-              totalVolume: integer(liveData.tradeVolume),
-              totalValue: numeric(liveData.tradeValue),
-              updatedAt: new Date(),
-              source: 'brs-live-recovery',
-              isStale: false,
-              dataJson: JSON.stringify(liveData)
+              overallIndex: stableLiveData.index,
+              overallChange: stableLiveData.indexChange,
+              equalIndex: stableLiveData.indexEqualWeight,
+              equalChange: stableLiveData.indexEqualWeightChange,
+              totalTrades: stableLiveData.tradeCount,
+              totalVolume: stableLiveData.tradeVolume,
+              totalValue: stableLiveData.tradeValue,
+              source: liveEnvelope.cached ? 'brs-live-cache' : 'brs-live-recovery',
+              isStale: !!liveEnvelope.usedFallback
+            };
+            try {
+              const prisma = require('../config/prisma.cjs');
+              const tehranDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+              const marketDate = new Date(tehranDate + 'T00:00:00.000Z');
+              await prisma.marketCurrent.upsert({
+                where: { marketDate },
+                create: { marketDate, marketStatus: snapshot.marketStatus, overallIndex: snapshot.overallIndex, overallChange: snapshot.overallChange, equalIndex: snapshot.equalIndex, equalChange: snapshot.equalChange, totalTrades: snapshot.totalTrades, totalVolume: snapshot.totalVolume, totalValue: snapshot.totalValue, updatedAt: new Date(), source: snapshot.source, isStale: snapshot.isStale, dataJson: JSON.stringify(liveData) },
+                update: { marketStatus: snapshot.marketStatus, overallIndex: snapshot.overallIndex, overallChange: snapshot.overallChange, equalIndex: snapshot.equalIndex, equalChange: snapshot.equalChange, totalTrades: snapshot.totalTrades, totalVolume: snapshot.totalVolume, totalValue: snapshot.totalValue, updatedAt: new Date(), source: snapshot.source, isStale: snapshot.isStale, dataJson: JSON.stringify(liveData) }
+              });
+            } catch (persistError) {
+              console.warn('[MARKET CTRL v8.0] Live market persistence skipped:', getErrorMessage(persistError));
             }
-          });
-
-          snapshot = await sharedMarketService.getMarketCurrent();
+          }
         }
       } catch (recoveryError) {
-        console.warn('[MARKET CTRL v7.1] Empty shared-data recovery failed:', getErrorMessage(recoveryError));
+        console.warn('[MARKET CTRL v8.0] Live market recovery failed:', getErrorMessage(recoveryError));
       }
     }
 
