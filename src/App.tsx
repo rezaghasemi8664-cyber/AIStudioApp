@@ -82,7 +82,6 @@ const DailyFilters = lazy(() => import('./components/DailyFilters'));
 const UserProfile = lazy(() => import('./components/UserProfile'));
 const UserManagement = lazy(() => import('./components/UserManagement'));
 const NotificationsManagement = lazy(() => import('./components/NotificationsManagement'));
-const Settings = lazy(() => import('./components/Settings'));
 const MarketRadar = lazy(() => import('./components/MarketRadar/MarketRadar'));
 const StrategyLab = lazy(() => import('./components/StrategyLab'));
 const PaperTrading = lazy(() => import('./components/PaperTrading'));
@@ -806,7 +805,6 @@ const App: React.FC = () => {
         if (!mounted) return;
         if (typeof themeService.initializeTheme === 'function') await themeService.initializeTheme();
         if (!mounted) return;
-        await loadTseLinks();
       } catch (error) {
         console.error('[App] Failed to refresh global settings from socket event:', error);
       }
@@ -986,7 +984,6 @@ const App: React.FC = () => {
     setShowWelcomeBanner(true);
     setIsNotificationsOpen(false);
     setViewingNotification(null);
-    setIsTseMenuOpen(false);
     if (typeof notificationService.checkAndSendExpiryNotification === 'function') {
       try { notificationService.checkAndSendExpiryNotification(safeUser); } catch (error) { console.error('[handleLogin] checkAndSendExpiryNotification failed:', error); }
     }
