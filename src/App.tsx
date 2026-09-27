@@ -110,6 +110,9 @@ type Tab =
   | 'traderPerformance'
   | 'roniaAssistant';
 
+const SUBSCRIPTION_RESTRICTED_TABS: Tab[] = ['analysis', 'scalping', 'comparison', 'dailyFilters'];
+const isSubscriptionRestrictedTab = (tab: Tab): boolean => SUBSCRIPTION_RESTRICTED_TABS.includes(tab);
+
 const TIMING = {
   PRESENCE_INTERVAL: 15_000,
   SCAN_CHECK_INTERVAL: 60_000,
@@ -1024,8 +1027,8 @@ const App: React.FC = () => {
   }, [buildSafeUser, persistUser, refreshUnreadCount]);
 
   const handleTabClick = useCallback((tab: Tab) => {
-    if (isExpired && !currentUser?.isAdmin && !['profile', 'settings', 'notifications'].includes(tab)) {
-      addNotification('مدت زمان اشتراک شما به پایان رسیده است لطفا جهت دسترسی به تمام امکانات نرم افزار نسبت به تمدید اشتراک خود اقدام نمایید', 'info');
+    if (isExpired && !currentUser?.isAdmin && isSubscriptionRestrictedTab(tab)) {
+      addNotification('کاربر گرامی مدت اشتراک شما به پایان رسیده است لطفا جهت استفاده از تمامی امکانات نرم افزار نسبت به تهیه اشتراک اقدام فرمایید', 'info');
       return;
     }
     if (activeTab === 'settings' && tab !== 'settings') setInitialSettingsTab(undefined);
@@ -1075,7 +1078,7 @@ const App: React.FC = () => {
 
   const renderContent = useCallback(() => {
     if (!currentUser) return null;
-    if (isExpired && !['profile', 'settings'].includes(activeTab)) return <AccessDenied />;
+    if (isExpired && isSubscriptionRestrictedTab(activeTab)) return <AccessDenied />;
     switch (activeTab) {
       case 'dashboard':
         return (
@@ -1147,16 +1150,16 @@ const App: React.FC = () => {
         </header>}
         <nav className="app-nav min-w-0 -mx-3 sm:-mx-4 lg:-mx-6 mb-4 sm:mb-6" aria-label="ناوبری اصلی"><div className="app-nav-scroll w-full max-w-full min-w-0 flex flex-nowrap items-center overflow-x-auto overflow-y-hidden overscroll-x-contain whitespace-nowrap border-b border-gray-200 dark:border-gray-700 [scrollbar-width:thin] [-webkit-overflow-scrolling:touch]">
           <TabButton tab="dashboard" label="داشبورد" icon={<PresentationChartLineIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
-          <TabButton tab="analysis" label="تحلیل سهام" icon={<MagnifyingGlassIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
-          <TabButton tab="marketRadar" label="رادار بازار" icon={<ChartBarIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
-          <TabButton tab="roniaAssistant" label="دستیار رونیا" icon={<PresentationChartLineIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
-          <TabButton tab="scalping" label="نوسان‌گیری" icon={<ChartBarIcon />} alertType={scalpingAlert ? 'cyan' : 'none'} locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
-          <TabButton tab="portfolio" label="سبد سهام" icon={<BriefcaseIcon />} alertType={portfolioAlert === 'buy' ? 'green' : portfolioAlert === 'sell' ? 'red' : 'none'} locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
-          <TabButton tab="traderJournal" label="دفترچه معاملات" icon={<ClipboardDocumentIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
-          <TabButton tab="codalIntelligence" label="مرکز رویداد کدال" icon={<DocumentTextIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
-          <TabButton tab="comparison" label="مقایسه" icon={<ClipboardDocumentIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
-          <TabButton tab="strategyLab" label="آزمایشگاه استراتژی" icon={<PresentationChartLineIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
-          <TabButton tab="dailyFilters" label="فیلترهای روزانه" icon={<PresentationChartLineIcon />} alertType="none" locked={isExpired} activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="analysis" label="تحلیل سهام" icon={<MagnifyingGlassIcon />} alertType="none" locked={isExpired && isSubscriptionRestrictedTab('analysis')} activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="marketRadar" label="رادار بازار" icon={<ChartBarIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="roniaAssistant" label="دستیار رونیا" icon={<PresentationChartLineIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="scalping" label="نوسان‌گیری" icon={<ChartBarIcon />} alertType={scalpingAlert ? 'cyan' : 'none'} locked={isExpired && isSubscriptionRestrictedTab('scalping')} activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="portfolio" label="سبد سهام" icon={<BriefcaseIcon />} alertType={portfolioAlert === 'buy' ? 'green' : portfolioAlert === 'sell' ? 'red' : 'none'} activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="traderJournal" label="دفترچه معاملات" icon={<ClipboardDocumentIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="codalIntelligence" label="مرکز رویداد کدال" icon={<DocumentTextIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="comparison" label="مقایسه" icon={<ClipboardDocumentIcon />} alertType="none" locked={isExpired && isSubscriptionRestrictedTab('comparison')} activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="strategyLab" label="آزمایشگاه استراتژی" icon={<PresentationChartLineIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
+          <TabButton tab="dailyFilters" label="فیلترهای روزانه" icon={<PresentationChartLineIcon />} alertType="none" locked={isExpired && isSubscriptionRestrictedTab('dailyFilters')} activeTab={activeTab} onTabClick={handleTabClick} />
           {currentUser.isAdmin && <><TabButton tab="users" label="کاربران" icon={<UserGroupIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /><TabButton tab="notifications" label="اطلاعیه‌ها" icon={<MegaphoneIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /></>}
           <div className="relative shrink-0" ref={tseMenuRef}><button onClick={handleToggleTseMenu} className="flex items-center gap-2 px-4 py-3 text-sm font-semibold transition-colors hover:bg-[var(--tab-inactive-hover-bg)]" style={{ color: 'var(--tab-inactive-color)', fontFamily: 'var(--tab-inactive-font-family)', fontSize: 'var(--tab-inactive-font-size)' }}><GlobeAltIcon /><span>تالار بورس</span><ChevronDownIcon className={`w-4 h-4 transition-transform ${isTseMenuOpen ? 'rotate-180' : ''}`} /></button>{isTseMenuOpen && tseLinks.length > 0 && <div className="absolute top-full right-0 w-48 bg-white dark:bg-gray-800 rounded-b-lg shadow-xl border border-gray-200 dark:border-gray-700 z-10 py-2">{tseLinks.filter(link => link.href).map(link => <a key={link.id} href={link.href} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors text-right">{staticTseIcons[link.label] || <GlobeAltIcon className="w-4 h-4" />}{link.label}</a>)}</div>}</div>
           <TabButton tab="profile" label="پروفایل" icon={<UserCircleIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /><TabButton tab="settings" label="تنظیمات" icon={<Cog6ToothIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
