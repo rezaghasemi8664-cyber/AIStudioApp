@@ -72,6 +72,30 @@ export async function deletePlan(id: number): Promise<void> {
 }
 
 
+export interface AdminTrialConfig {
+  durationDays: number;
+}
+
+export async function getTrialConfig(): Promise<AdminTrialConfig> {
+  const response = await apiClient.get<AdminTrialConfig>('/admin-subscriptions/trial-config');
+  if (!response?.success || !response.data) {
+    throw new Error(response?.message || 'دریافت مدت اعتبار هدیه ناموفق بود.');
+  }
+  return { durationDays: Number(response.data.durationDays) || 2 };
+}
+
+export async function updateTrialConfig(durationDays: number): Promise<AdminTrialConfig> {
+  const value = Number(durationDays);
+  if (!Number.isInteger(value) || value < 1 || value > 3650) {
+    throw new Error('مدت اعتبار هدیه باید بین ۱ تا ۳۶۵۰ روز باشد.');
+  }
+  const response = await apiClient.put<AdminTrialConfig>('/admin-subscriptions/trial-config', { durationDays: value });
+  if (!response?.success || !response.data) {
+    throw new Error(response?.message || 'ذخیره مدت اعتبار هدیه ناموفق بود.');
+  }
+  return { durationDays: Number(response.data.durationDays) || value };
+}
+
 export async function applyGiftSubscription(days: number): Promise<{ days: number; affectedUsers: number }> {
   const value = Number(days);
   if (!Number.isInteger(value) || value <= 0) {
@@ -96,5 +120,5 @@ export async function applyGiftSubscriptionToUser(userId: number, days: number):
   return response.data;
 }
 
-export default { getSummary, getPlans, createPlan, updatePlan, deletePlan, applyGiftSubscription, applyGiftSubscriptionToUser };
+export default { getSummary, getPlans, createPlan, updatePlan, deletePlan, getTrialConfig, updateTrialConfig, applyGiftSubscription, applyGiftSubscriptionToUser };
 
