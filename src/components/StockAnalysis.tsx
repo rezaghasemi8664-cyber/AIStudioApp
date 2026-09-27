@@ -849,9 +849,29 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     },
 
     explanations: {
-      fundamental: explanations.fundamental ?? source.fundamentalAnalysis ?? source.detailedFundamentalExplanation ?? '',
-      technical: explanations.technical ?? source.technicalAnalysis ?? source.detailedTechnicalExplanation ?? '',
-      additional: explanations.additional ?? source.additionalExplanation ?? source.details ?? '',
+      // Historical analysis payloads may contain nested objects instead of renderable text.
+      // Normalize every explanation field before it reaches JSX.
+      fundamental:
+        historySummaryText(
+          explanations.fundamental ??
+            source.fundamentalAnalysis ??
+            source.detailedFundamentalExplanation ??
+            ''
+        ) || '—',
+      technical:
+        historySummaryText(
+          explanations.technical ??
+            source.technicalAnalysis ??
+            source.detailedTechnicalExplanation ??
+            ''
+        ) || '—',
+      additional:
+        historySummaryText(
+          explanations.additional ??
+            source.additionalExplanation ??
+            source.details ??
+            ''
+        ) || '',
     },
 
     targets:
