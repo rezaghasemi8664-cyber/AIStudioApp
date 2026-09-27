@@ -11,10 +11,10 @@ const requireAdmin=auth.requireAdmin;
 function getAuthenticatedUserId(req){const raw=req.user?.id??req.user?.userId;if(raw===undefined||raw===null)return null;const id=Number(raw);return Number.isNaN(id)?null:id;}
 async function getAdminUserId(){const admin=await prisma.user.findFirst({where:{isActive:true,isDeleted:false,Role:{name:{in:['ADMIN','SUPERADMIN']}}},select:{id:true}});return admin?.id??null;}
 const messageInclude=()=>({sender:{select:{id:true,username:true,name:true,avatar:true}},receiver:{select:{id:true,username:true,name:true,avatar:true}}});
-async function createUserNotification(userId, message) {
+async function createUserNotification(userId, message, fromAdmin) {
   try {
     if (!prisma.notification) return;
-    await prisma.notification.create({ data:{ userId:Number(userId), title:'پیام جدید از مدیر سیستم', message:String(message), type:'INFO' } });
+    await prisma.notification.create({ data:{ userId:Number(userId), title:fromAdmin ? 'پیام جدید از مدیر سیستم' : 'پیام جدید از کاربر', message:String(message), type:'INFO', isRead:false } });
   } catch (error) {
     console.error('Error creating message notification:', error);
   }
@@ -41,7 +41,7 @@ router.post('/',verifyToken,async(req,res)=>{
   if(receiverId===userId)return res.status(400).json({success:false,message:'ارسال پیام به خود کاربر مجاز نیست'});
   const receiver=await prisma.user.findFirst({where:{id:receiverId,isActive:true,isDeleted:false},select:{id:true}});if(!receiver)return res.status(404).json({success:false,message:'کاربر دریافت‌کننده یافت نشد'});
   const created=await prisma.message.create({data:{senderId:userId,receiverId,content},include:messageInclude()});
-  if (req.user?.isAdmin) await createUserNotification(receiverId, content);
+  await createUserNotification(receiverId, content, Boolean(req.user?.isAdmin));
   return res.status(201).json({success:true,message:'پیام با موفقیت ارسال شد',data:created});
  }catch(error){console.error('Error sending message:',error);return res.status(500).json({success:false,message:'خطا در ارسال پیام',error:error.message});}
 });
@@ -55,7 +55,7 @@ router.post('/:id/reply',verifyToken,requireAdmin,async(req,res)=>{
   if(Number(original.senderId)===adminId)return res.status(400).json({success:false,message:'این پیام ورودی کاربر نیست'});
   const receiverId=Number(original.senderId);
   const created=await prisma.message.create({data:{senderId:adminId,receiverId,content:text},include:messageInclude()});
-  await createUserNotification(receiverId, text);
+  await createUserNotification(receiverId, text, true);
   return res.status(201).json({success:true,message:'پاسخ با موفقیت ارسال شد',data:created});
  }catch(error){console.error('Error replying to message:',error);return res.status(500).json({success:false,message:'خطا در ارسال پاسخ',error:error.message});}
 });
