@@ -222,20 +222,28 @@ async function getBreadth() {
   let neutral = Number(market.neutralStocks || 0);
   let total = positive + negative + neutral;
 
-  // If the central worker did not persist breadth counters, derive them
-  // from the current real symbol snapshot instead of reporting 0/0/0.
-  if (total === 0) {
-    const symbols = await getSymbols({ limit: 10000 });
-    const valid = symbols.filter((row) =>
-      isMarketAnalyticsEligible(row) &&
-      !/شاخص|index/i.test(`${row.symbol} ${row.name || ""}`)
-    );
+  // Use the current symbol snapshot both as a breadth fallback and as the
+  // source for real buy/sell volume. Raw rows remain stored, but invalid
+  // placeholder-price records are excluded from derived analytics.
+  const symbols = await getSymbols({ limit: 10000 });
+  const valid = symbols.filter((row) =>
+    isMarketAnalyticsEligible(row) &&
+    !/شاخص|index/i.test(`${row.symbol} ${row.name || ""}`)
+  );
 
+  if (total === 0) {
     positive = valid.filter((row) => Number(row.changePercent) > 0).length;
     negative = valid.filter((row) => Number(row.changePercent) < 0).length;
     neutral = valid.filter((row) => Number(row.changePercent) === 0).length;
     total = positive + negative + neutral;
   }
+
+  const realFlowRows = valid.filter((row) =>
+    Number(row.realBuyVolume || 0) > 0 || Number(row.realSellVolume || 0) > 0
+  );
+  const totalRealBuyVolume = realFlowRows.reduce((sum, row) => sum + Math.max(0, Number(row.realBuyVolume || 0)), 0);
+  const totalRealSellVolume = realFlowRows.reduce((sum, row) => sum + Math.max(0, Number(row.realSellVolume || 0)), 0);
+  const netRealBuyVolume = totalRealBuyVolume - totalRealSellVolume;
 
   const sectors = industries.map((row) => ({
     name: row.industryName,
@@ -270,6 +278,14 @@ async function getBreadth() {
     topGainers: gainers,
     topLosers: losers,
     topVolumes: highVolume,
+    realFlow: {
+      available: realFlowRows.length > 0,
+      rowsWithRealFlow: realFlowRows.length,
+      totalRealBuyVolume,
+      totalRealSellVolume,
+      netRealBuyVolume,
+      unit: 'volume'
+    },
     sectors: {
       available: sectors.length > 0,
       leaders,
