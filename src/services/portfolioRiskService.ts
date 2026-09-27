@@ -1,5 +1,6 @@
 import api from '../api/apiClient';
 import * as portfolioService from './portfolioService';
+import { normalizePortfolioDate } from '../utils/portfolioDate';
 
 export interface PortfolioRiskPoint {
   date: string;
