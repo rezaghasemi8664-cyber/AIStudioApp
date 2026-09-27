@@ -24,7 +24,6 @@ import * as notificationServiceModule from './services/notificationService';
 import * as messageServiceModule from './services/messageService';
 import * as themeServiceModule from './services/themeService';
 import * as apiConfigServiceModule from './services/apiConfigService';
-import * as uiConfigServiceModule from './services/uiConfigService';
 import * as storageServiceModule from './services/storageService';
 import * as apiEndpointServiceModule from './services/apiEndpointService';
 import * as gapgptServiceModule from './services/gapgptService';
@@ -57,7 +56,7 @@ import {
   PaperclipIcon,
 } from './components/Icons';
 
-import type { PortfolioAlertType, AppNotification, TseLink } from './types';
+import type { PortfolioAlertType, AppNotification } from './types';
 
 function logAsyncError(scope: string, error: unknown): void {
   console.error(`[${scope}]`, error);
@@ -68,7 +67,6 @@ const notificationService = (notificationServiceModule || {}) as typeof notifica
 const messageService = (messageServiceModule || {}) as typeof messageServiceModule;
 const themeService = (themeServiceModule || {}) as typeof themeServiceModule;
 const apiConfigService = (apiConfigServiceModule || {}) as typeof apiConfigServiceModule;
-const uiConfigService = (uiConfigServiceModule || {}) as typeof uiConfigServiceModule;
 const storageService = (storageServiceModule || {}) as typeof storageServiceModule;
 const apiEndpointService = (apiEndpointServiceModule || {}) as typeof apiEndpointServiceModule;
 const gapgptService = (gapgptServiceModule || {}) as typeof gapgptServiceModule;
@@ -332,18 +330,11 @@ const playNotificationSound = (): void => {
   }
 };
 
-const staticTseIcons: Record<string, React.ReactElement> = {
-  'شاخص‌ها': <GlobeAltIcon className="w-4 h-4" />,
-  'در یک نگاه': <PresentationChartLineIcon className="w-4 h-4" />,
-  'شبکه کدال': <ClipboardDocumentIcon className="w-4 h-4" />,
-};
-
 const BackgroundTabLoader: React.FC<{
   currentUser: StoredUser;
   isOnline: boolean;
   activeTab: Tab;
   isExpired: boolean;
-  initialSettingsTab?: string;
   onProfileUpdate: (user: StoredUser) => void;
   onPasswordChange: (oldPassword: string, newPassword: string) => Promise<void>;
   onAlertChange: (type: PortfolioAlertType) => void;
@@ -353,7 +344,6 @@ const BackgroundTabLoader: React.FC<{
   isOnline,
   activeTab,
   isExpired,
-  initialSettingsTab,
   onProfileUpdate,
   onPasswordChange,
   onAlertChange,
@@ -376,13 +366,12 @@ const BackgroundTabLoader: React.FC<{
       { key: 'roniaAssistant', node: <RoniaAssistant isOnline={isOnline} onNavigate={(tab) => onNavigate(tab as Tab)} /> },
       { key: 'dailyFilters', node: <DailyFilters /> },
       { key: 'profile', node: <UserProfile currentUser={currentUser} onProfileUpdate={onProfileUpdate} onPasswordChange={onPasswordChange} /> },
-      { key: 'settings', node: <Settings currentUser={currentUser} initialTab={initialSettingsTab} /> },
       ...(currentUser.isAdmin ? [
         { key: 'users' as Tab, node: <UserManagement isOnline={isOnline} onMessageUpdate={() => undefined} onlineCount={0} /> },
         { key: 'notifications' as Tab, node: <NotificationsManagement isOnline={isOnline} /> },
       ] : []),
     ],
-    [currentUser, initialSettingsTab, isOnline, onAlertChange, onNavigate, onPasswordChange, onProfileUpdate],
+    [currentUser, isOnline, onAlertChange, onNavigate, onPasswordChange, onProfileUpdate],
   );
 
   useEffect(() => {
@@ -439,12 +428,8 @@ const App: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [viewingNotification, setViewingNotification] = useState<AppNotification | null>(null);
-  const [isTseMenuOpen, setIsTseMenuOpen] = useState(false);
-  const [tseLinks, setTseLinks] = useState<TseLink[]>([]);
-  const [initialSettingsTab, setInitialSettingsTab] = useState<string | undefined>(undefined);
 
   const notificationPanelRef = useRef<HTMLDivElement>(null);
-  const tseMenuRef = useRef<HTMLDivElement>(null);
   const scalpingCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const marketIndexCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const notificationRefreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -463,16 +448,6 @@ const App: React.FC = () => {
       return null;
     }
   }, [currentUser]);
-
-  const loadTseLinks = useCallback(async () => {
-    if (typeof uiConfigService.initializeTseLinks === 'function') {
-      await uiConfigService.initializeTseLinks();
-    }
-
-    if (typeof uiConfigService.getLinksForDisplay === 'function') {
-      setTseLinks((uiConfigService.getLinksForDisplay() as unknown as import('./types').TseLink[]));
-    }
-  }, []);
 
   const refreshUnreadCount = useCallback((user: StoredUser | null) => {
     if (!user) {
@@ -529,8 +504,6 @@ const App: React.FC = () => {
     setShowWelcomeBanner(false);
     setIsNotificationsOpen(false);
     setViewingNotification(null);
-    setIsTseMenuOpen(false);
-    setInitialSettingsTab(undefined);
     setActiveTab('dashboard');
     setPortfolioAlert('none');
     setScalpingAlert(false);
@@ -726,7 +699,6 @@ const App: React.FC = () => {
 
       try {
         if (!mounted) return;
-        await loadTseLinks();
       } catch (error) {
         logAsyncError('initializeTseLinks failed', error);
       }
@@ -742,7 +714,6 @@ const App: React.FC = () => {
         // This is especially important after a payment-gateway full-page redirect.
         await restoreSessionUserQuickly();
         if (!mounted) return;
-        await loadTseLinks();
 
         if (typeof storageService.getItem === 'function' && storageService.getItem('ronia_new_scalping_alert') === 'true') {
           setScalpingAlert(true);
@@ -767,7 +738,6 @@ const App: React.FC = () => {
 
     const handleClickOutside = (event: MouseEvent) => {
       if (notificationPanelRef.current && !notificationPanelRef.current.contains(event.target as Node)) setIsNotificationsOpen(false);
-      if (tseMenuRef.current && !tseMenuRef.current.contains(event.target as Node)) setIsTseMenuOpen(false);
     };
 
     const handleStorageChange = (event: StorageEvent) => {
@@ -775,9 +745,6 @@ const App: React.FC = () => {
       if (event.key === 'ronia_new_scalping_alert' && event.newValue === 'true') {
         setScalpingAlert(true);
         playNotificationSound();
-      }
-      if (event.key === 'global_app_tse_links' && typeof uiConfigService.getLinksForDisplay === 'function') {
-        setTseLinks(uiConfigService.getLinksForDisplay().map((link) => ({ id: link.id, label: link.label ?? link.title, href: link.href ?? link.url })));
       }
     };
 
@@ -820,7 +787,7 @@ const App: React.FC = () => {
       if (marketIndexCheckIntervalRef.current) clearInterval(marketIndexCheckIntervalRef.current);
       if (notificationRefreshIntervalRef.current) clearInterval(notificationRefreshIntervalRef.current);
     };
-  }, [loadTseLinks, refreshUnreadCount, handleLogout]);
+  }, [refreshUnreadCount, handleLogout]);
 
   useEffect(() => {
     let mounted = true;
@@ -861,7 +828,7 @@ const App: React.FC = () => {
       console.error('[App] Failed to initialize socket or subscribe to settings events:', error);
     }
     return () => { mounted = false; cleanupSubscription(); disconnectSocket(); };
-  }, [currentUser, loadTseLinks]);
+  }, [currentUser]);
 
   useEffect(() => {
     if (notificationRefreshIntervalRef.current) {
@@ -1031,7 +998,6 @@ const App: React.FC = () => {
       addNotification('کاربر گرامی مدت اشتراک شما به پایان رسیده است لطفا جهت استفاده از تمامی امکانات نرم افزار نسبت به تهیه اشتراک اقدام فرمایید', 'info');
       return;
     }
-    if (activeTab === 'settings' && tab !== 'settings') setInitialSettingsTab(undefined);
     setActiveTab(tab);
     if (tab === 'scalping') {
       setScalpingAlert(false);
@@ -1063,7 +1029,6 @@ const App: React.FC = () => {
   }, [buildSafeUser, currentUser, persistUser]);
 
   const handleToggleNotifications = useCallback(() => setIsNotificationsOpen(prev => !prev), []);
-  const handleToggleTseMenu = useCallback(() => setIsTseMenuOpen(prev => !prev), []);
 
   const handleViewNotification = useCallback((notification: AppNotification) => {
     setViewingNotification(notification);
@@ -1108,10 +1073,9 @@ const App: React.FC = () => {
       case 'profile': return <UserProfile currentUser={currentUser} onProfileUpdate={handleProfileUpdate} onPasswordChange={handlePasswordChange} />;
       case 'users': return currentUser.isAdmin ? <UserManagement isOnline={isOnline} onMessageUpdate={() => refreshUnreadCount(currentUser)} onlineCount={onlineUserCount} /> : <div className="text-center py-8 text-gray-500"><LockClosedIcon className="h-8 w-8 mx-auto mb-2" /><p>شما دسترسی ندارید.</p></div>;
       case 'notifications': return currentUser.isAdmin ? <NotificationsManagement isOnline={isOnline} /> : <div className="text-center py-8 text-gray-500"><LockClosedIcon className="h-8 w-8 mx-auto mb-2" /><p>شما دسترسی ندارید.</p></div>;
-      case 'settings': return <Settings currentUser={currentUser} initialTab={initialSettingsTab} />;
       default: return isExpired ? <AccessDenied /> : <StockAnalysis />;
     }
-  }, [activeTab, currentUser, handlePasswordChange, handleProfileUpdate, handleTabClick, initialSettingsTab, isExpired, isOnline, onlineUserCount, refreshUnreadCount, unreadCount, validityInfo]);
+  }, [activeTab, currentUser, handlePasswordChange, handleProfileUpdate, handleTabClick, isExpired, isOnline, onlineUserCount, refreshUnreadCount, unreadCount, validityInfo]);
 
   if (isInitializing) return <SplashScreen />;
   if (initError) return <div className="min-h-screen flex items-center justify-center p-4"><div className="text-center"><ExclamationTriangleIcon className="h-16 w-16 text-yellow-500 mx-auto mb-4" /><p className="text-red-600 dark:text-red-400 mt-4">{initError}</p><button onClick={() => window.location.reload()} className="mt-4 px-6 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors">بارگذاری مجدد</button></div></div>;
@@ -1161,7 +1125,6 @@ const App: React.FC = () => {
           <TabButton tab="strategyLab" label="آزمایشگاه استراتژی" icon={<PresentationChartLineIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="dailyFilters" label="فیلترهای روزانه" icon={<PresentationChartLineIcon />} alertType="none" locked={isExpired && isSubscriptionRestrictedTab('dailyFilters')} activeTab={activeTab} onTabClick={handleTabClick} />
           {currentUser.isAdmin && <><TabButton tab="users" label="کاربران" icon={<UserGroupIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /><TabButton tab="notifications" label="اطلاعیه‌ها" icon={<MegaphoneIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /></>}
-          <div className="relative shrink-0" ref={tseMenuRef}><button onClick={handleToggleTseMenu} className="flex items-center gap-2 px-4 py-3 text-sm font-semibold transition-colors hover:bg-[var(--tab-inactive-hover-bg)]" style={{ color: 'var(--tab-inactive-color)', fontFamily: 'var(--tab-inactive-font-family)', fontSize: 'var(--tab-inactive-font-size)' }}><GlobeAltIcon /><span>تالار بورس</span><ChevronDownIcon className={`w-4 h-4 transition-transform ${isTseMenuOpen ? 'rotate-180' : ''}`} /></button>{isTseMenuOpen && tseLinks.length > 0 && <div className="absolute top-full right-0 w-48 bg-white dark:bg-gray-800 rounded-b-lg shadow-xl border border-gray-200 dark:border-gray-700 z-10 py-2">{tseLinks.filter(link => link.href).map(link => <a key={link.id} href={link.href} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 transition-colors text-right">{staticTseIcons[link.label] || <GlobeAltIcon className="w-4 h-4" />}{link.label}</a>)}</div>}</div>
           <TabButton tab="profile" label="پروفایل" icon={<UserCircleIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /><TabButton tab="settings" label="تنظیمات" icon={<Cog6ToothIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
         </div></nav>
         <main className="app-main flex-grow" data-page={activeTab}><LazyErrorBoundary><Suspense fallback={<LoadingSpinner />}>{renderContent()}</Suspense></LazyErrorBoundary></main>
