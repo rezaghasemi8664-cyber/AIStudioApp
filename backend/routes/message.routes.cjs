@@ -1,265 +1,51 @@
 ﻿'use strict';
 
-const express = require('express');
-const router = express.Router();
-const prismaModule = require('../config/prisma.cjs');
-const prisma = prismaModule.prisma || prismaModule;
+const express=require('express');
+const router=express.Router();
+const prismaModule=require('../config/prisma.cjs');
+const prisma=prismaModule.prisma||prismaModule;
+const auth=require('../middlewares/auth.middleware.cjs');
+const verifyToken=auth.verifyToken||auth;
+const requireAdmin=auth.requireAdmin;
 
-const { verifyToken } = require('../middlewares/auth.middleware.cjs');
+function getAuthenticatedUserId(req){const raw=req.user?.id??req.user?.userId;if(raw===undefined||raw===null)return null;const id=Number(raw);return Number.isNaN(id)?null:id;}
+async function getAdminUserId(){const admin=await prisma.user.findFirst({where:{isActive:true,isDeleted:false,Role:{name:{in:['ADMIN','SUPERADMIN']}}},select:{id:true}});return admin?.id??null;}
+const messageInclude=()=>({sender:{select:{id:true,username:true,name:true,avatar:true}},receiver:{select:{id:true,username:true,name:true,avatar:true}}});
 
-function getAuthenticatedUserId(req) {
-  const rawUserId = req.user?.id ?? req.user?.userId;
+router.get('/unread-count',verifyToken,async(req,res)=>{try{const userId=getAuthenticatedUserId(req);if(!userId)return res.status(401).json({success:false,message:'کاربر احراز هویت نشد'});return res.json({success:true,data:{count:0}});}catch(error){return res.status(500).json({success:false,message:'خطا در دریافت تعداد پیام‌های خوانده‌نشده'});}});
 
-  if (rawUserId === undefined || rawUserId === null) {
-    return null;
-  }
-
-  const userId = Number(rawUserId);
-  return Number.isNaN(userId) ? null : userId;
-}
-
-/**
- * @route   GET /api/v1/messages/unread-count
- * @desc    دریافت تعداد پیام‌های خوانده‌نشده
- * @access  Private
- */
-router.get('/unread-count', verifyToken, async (req, res) => {
-  try {
-    const userId = getAuthenticatedUserId(req);
-
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: 'کاربر احراز هویت نشد'
-      });
-    }
-
-    // اگر فیلد read / isRead در مدل وجود دارد، این بخش را مطابق schema تنظیم کن
-    let count = 0;
-
-    try {
-      count = await prisma.message.count({
-        where: {
-          receiverId: userId,
-          OR: [
-            { isRead: false },
-            { read: false }
-          ]
-        }
-      });
-    } catch (_error) {
-      // fallback برای زمانی که یکی از فیلدهای بالا در schema وجود نداشته باشد
-      count = 0;
-    }
-
-    return res.json({
-      success: true,
-      data: {
-        count
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching unread messages count:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'خطا در دریافت تعداد پیام‌های خوانده‌نشده',
-      error: error.message
-    });
-  }
+router.get('/',verifyToken,async(req,res)=>{
+ try{
+  const userId=getAuthenticatedUserId(req);if(!userId)return res.status(401).json({success:false,message:'کاربر احراز هویت نشد'});
+  const {page=1,limit=50,otherUserId}=req.query;const pn=Number(page),ln=Number(limit);const pageNumber=Number.isNaN(pn)||pn<1?1:pn;const take=Number.isNaN(ln)||ln<1?50:Math.min(ln,100);const skip=(pageNumber-1)*take;
+  let where;if(otherUserId!==undefined&&otherUserId!==''){const oid=Number(otherUserId);if(Number.isNaN(oid))return res.status(400).json({success:false,message:'پارامتر otherUserId نامعتبر است'});where={OR:[{senderId:userId,receiverId:oid},{senderId:oid,receiverId:userId}]};}else where={OR:[{senderId:userId},{receiverId:userId}]};
+  const [total,messages]=await Promise.all([prisma.message.count({where}),prisma.message.findMany({where,orderBy:{createdAt:'desc'},skip,take,include:messageInclude()})]);
+  return res.json({success:true,data:messages,pagination:{page:pageNumber,limit:take,total,totalPages:Math.ceil(total/take)}});
+ }catch(error){console.error('Error fetching messages:',error);return res.status(500).json({success:false,message:'خطا در دریافت پیام‌ها',error:error.message});}
 });
 
-/**
- * @route   GET /api/v1/messages
- * @desc    دریافت لیست پیام‌ها
- * @access  Private
- */
-router.get('/', verifyToken, async (req, res) => {
-  try {
-    const userId = getAuthenticatedUserId(req);
-
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: 'کاربر احراز هویت نشد'
-      });
-    }
-
-    const { page = 1, limit = 50, otherUserId } = req.query;
-    const pageNumber = Number(page);
-    const limitNumber = Number(limit);
-
-    const safePage = Number.isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber;
-    const safeLimit = Number.isNaN(limitNumber) || limitNumber < 1 ? 50 : Math.min(limitNumber, 100);
-
-    const skip = (safePage - 1) * safeLimit;
-    const take = safeLimit;
-
-    let whereCondition = {};
-
-    if (otherUserId !== undefined && otherUserId !== null && otherUserId !== '') {
-      const otherId = Number(otherUserId);
-
-      if (Number.isNaN(otherId)) {
-        return res.status(400).json({
-          success: false,
-          message: 'پارامتر otherUserId نامعتبر است'
-        });
-      }
-
-      whereCondition = {
-        OR: [
-          { senderId: userId, receiverId: otherId },
-          { senderId: otherId, receiverId: userId }
-        ]
-      };
-    } else {
-      whereCondition = {
-        OR: [
-          { senderId: userId },
-          { receiverId: userId }
-        ]
-      };
-    }
-
-    const [total, messages] = await Promise.all([
-      prisma.message.count({ where: whereCondition }),
-      prisma.message.findMany({
-        where: whereCondition,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take,
-        include: {
-          sender: {
-            select: {
-              id: true,
-              username: true,
-              name: true,
-              avatar: true
-            }
-          },
-          receiver: {
-            select: {
-              id: true,
-              username: true,
-              name: true,
-              avatar: true
-            }
-          }
-        }
-      })
-    ]);
-
-    return res.json({
-      success: true,
-      data: messages,
-      pagination: {
-        page: safePage,
-        limit: take,
-        total,
-        totalPages: Math.ceil(total / take)
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching messages:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'خطا در دریافت پیام‌ها',
-      error: error.message
-    });
-  }
+router.post('/',verifyToken,async(req,res)=>{
+ try{
+  const userId=getAuthenticatedUserId(req);if(!userId)return res.status(401).json({success:false,message:'کاربر احراز هویت نشد'});
+  const content=String(req.body?.content??req.body?.message??'').trim();if(!content)return res.status(400).json({success:false,message:'متن پیام الزامی است'});
+  let receiverId=req.body?.receiverId!=null?Number(req.body.receiverId):null;if(receiverId!==null&&Number.isNaN(receiverId))return res.status(400).json({success:false,message:'receiverId نامعتبر است'});
+  if(receiverId===null){if(req.user?.isAdmin)return res.status(400).json({success:false,message:'برای ارسال پیام از طرف ادمین، receiverId الزامی است'});receiverId=await getAdminUserId();if(!receiverId)return res.status(503).json({success:false,message:'مدیر فعال سیستم یافت نشد'});}
+  if(receiverId===userId)return res.status(400).json({success:false,message:'ارسال پیام به خود کاربر مجاز نیست'});
+  const receiver=await prisma.user.findFirst({where:{id:receiverId,isActive:true,isDeleted:false},select:{id:true}});if(!receiver)return res.status(404).json({success:false,message:'کاربر دریافت‌کننده یافت نشد'});
+  const created=await prisma.message.create({data:{senderId:userId,receiverId,content},include:messageInclude()});
+  return res.status(201).json({success:true,message:'پیام با موفقیت ارسال شد',data:created});
+ }catch(error){console.error('Error sending message:',error);return res.status(500).json({success:false,message:'خطا در ارسال پیام',error:error.message});}
 });
 
-/**
- * @route   POST /api/v1/messages
- * @desc    ارسال پیام جدید
- * @access  Private
- */
-router.post('/', verifyToken, async (req, res) => {
-  try {
-    const userId = getAuthenticatedUserId(req);
-
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: 'کاربر احراز هویت نشد'
-      });
-    }
-
-    const { receiverId, content } = req.body;
-
-    if (!receiverId || !content || !String(content).trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'فیلدهای receiverId و content الزامی هستند'
-      });
-    }
-
-    const rId = Number(receiverId);
-
-    if (Number.isNaN(rId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'receiverId نامعتبر است'
-      });
-    }
-
-    if (rId === userId) {
-      return res.status(400).json({
-        success: false,
-        message: 'ارسال پیام به خود کاربر مجاز نیست'
-      });
-    }
-
-    const receiver = await prisma.user.findUnique({
-      where: { id: rId }
-    });
-
-    if (!receiver) {
-      return res.status(404).json({
-        success: false,
-        message: 'کاربر دریافت‌کننده یافت نشد'
-      });
-    }
-
-    const message = await prisma.message.create({
-      data: {
-        senderId: userId,
-        receiverId: rId,
-        content: String(content).trim()
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            username: true,
-            name: true,
-            avatar: true
-          }
-        },
-        receiver: {
-          select: {
-            id: true,
-            username: true,
-            name: true,
-            avatar: true
-          }
-        }
-      }
-    });
-
-    return res.status(201).json({
-      success: true,
-      message: 'پیام با موفقیت ارسال شد',
-      data: message
-    });
-  } catch (error) {
-    console.error('Error sending message:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'خطا در ارسال پیام',
-      error: error.message
-    });
-  }
+router.post('/:id/reply',verifyToken,requireAdmin,async(req,res)=>{
+ try{
+  const adminId=getAuthenticatedUserId(req),messageId=Number(req.params.id),text=String(req.body?.text??'').trim();
+  if(!adminId||Number.isNaN(messageId)||!text)return res.status(400).json({success:false,message:'پارامترهای پاسخ نامعتبر است'});
+  const original=await prisma.message.findUnique({where:{id:messageId}});
+  if(!original?.senderId)return res.status(404).json({success:false,message:'پیام اصلی یافت نشد'});
+  if(Number(original.senderId)===adminId)return res.status(400).json({success:false,message:'این پیام ورودی کاربر نیست'});
+  const created=await prisma.message.create({data:{senderId:adminId,receiverId:Number(original.senderId),content:text},include:messageInclude()});
+  return res.status(201).json({success:true,message:'پاسخ با موفقیت ارسال شد',data:created});
+ }catch(error){console.error('Error replying to message:',error);return res.status(500).json({success:false,message:'خطا در ارسال پاسخ',error:error.message});}
 });
-
-module.exports = router;
+module.exports=router;
