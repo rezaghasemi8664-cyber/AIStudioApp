@@ -8,6 +8,42 @@ function decimalToNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function isMarketAnalyticsEligible(row) {
+  if (!row || !row.symbol) return false;
+  const last = decimalToNumber(row.lastPrice);
+  const close = decimalToNumber(row.closePrice);
+  const volume = row.volume == null ? 0 : Number(row.volume);
+  const value = decimalToNumber(row.value);
+  const realBuy = row.realBuyVolume == null ? 0 : Number(row.realBuyVolume);
+  const realSell = row.realSellVolume == null ? 0 : Number(row.realSellVolume);
+  if (!(last > 0) || !(close > 0) || !(volume > 0) || !(value > 0)) return false;
+
+  let raw = null;
+  if (row.dataJson) {
+    try { raw = JSON.parse(row.dataJson); } catch (_) { raw = null; }
+  }
+  const yesterday = decimalToNumber(raw?.yesterday ?? raw?.previousPrice ?? raw?.yesterdayPrice);
+  const open = decimalToNumber(raw?.open ?? raw?.openPrice);
+  const high = decimalToNumber(raw?.high ?? raw?.highPrice);
+  const low = decimalToNumber(raw?.low ?? raw?.lowPrice);
+  const pct = yesterday > 0 ? ((last - yesterday) / yesterday) * 100 : decimalToNumber(row.changePercent);
+
+  if (yesterday !== null && yesterday > 0) {
+    if (open !== null && open <= 0) return false;
+    if (high !== null && low !== null && (high < low || last < low || last > high || close < low || close > high)) return false;
+  }
+
+  const legalBuy = row.legalBuyVolume == null ? null : Number(row.legalBuyVolume);
+  const legalSell = row.legalSellVolume == null ? null : Number(row.legalSellVolume);
+  const placeholderPrice =
+    last === 1 && close === 1 && pct !== null && pct <= -99.99 &&
+    value === volume && realBuy === 0 && realSell === 0 &&
+    legalBuy !== null && legalSell !== null &&
+    legalBuy === volume && legalSell === volume;
+
+  return !placeholderPrice;
+}
+
 function normalizeMarketCurrent(row) {
   if (!row) return null;
   return {
@@ -191,10 +227,8 @@ async function getBreadth() {
   if (total === 0) {
     const symbols = await getSymbols({ limit: 10000 });
     const valid = symbols.filter((row) =>
-      row &&
-      row.symbol &&
-      !/شاخص|index/i.test(`${row.symbol} ${row.name || ''}`) &&
-      Number(row.volume || 0) > 0
+      isMarketAnalyticsEligible(row) &&
+      !/شاخص|index/i.test(`${row.symbol} ${row.name || ""}`)
     );
 
     positive = valid.filter((row) => Number(row.changePercent) > 0).length;
@@ -283,6 +317,7 @@ module.exports = {
   getSymbolHistory,
   getIndustries,
   getScalpingOpportunities,
+  isMarketAnalyticsEligible,
   normalizeMarketCurrent,
   normalizeSymbol,
   normalizeMover,
