@@ -342,7 +342,7 @@ function buildDeterministicSummary(data) {
     `۲) شاخص‌ها: شاخص کل ${fa(overall)} واحد با تغییر ${signedPct(overallPct)} و تغییر عددی ${fa(overallChange)} واحد؛ شاخص هم‌وزن ${fa(equal)} واحد با تغییر ${signedPct(equalPct)} و تغییر عددی ${fa(equalChange)} واحد.`,
     `۳) پهنای بازار: ${fa(breadth.positive,0)} نماد مثبت، ${fa(breadth.negative,0)} نماد منفی و ${fa(breadth.neutral,0)} نماد خنثی از ${fa(breadth.total,0)} نماد معامله‌شده؛ نسبت مثبت به منفی ${fa(breadthRatio)} و پوشش محاسبه ${breadth.coverage === null ? 'نامشخص' : signedPct(breadth.coverage)} است.`,
     `۴) نقدشوندگی و معاملات: تعداد معاملات ${fa(trades,0)}، حجم معاملات ${fa(volume,0)} و ارزش معاملات ${fa(value,0)} ثبت شده است؛ در صورت وجود فهرست نمادها، بیشترین حجم مربوط به ${volumes} است.`,
-    `۵) جریان پول حقیقی: ${flowText}${flow.buy !== null || flow.sell !== null ? ` ارزش خرید حقیقی ${fa(flow.buy)} و فروش حقیقی ${fa(flow.sell)} است.` : ''}`,
+    `۵) جریان پول حقیقی: ${flowText}${flow.buy !== null || flow.sell !== null ? (flow.unit === 'volume' ? ` حجم خرید حقیقی ${fa(flow.buy, 0)} و حجم فروش حقیقی ${fa(flow.sell, 0)} است.` : ` ارزش خرید حقیقی ${fa(flow.buy)} و ارزش فروش حقیقی ${fa(flow.sell)} است.`) : ''}`,
     `۶) چرخش صنایع: گروه‌های با تغییر مثبت‌تر: ${leaders}؛ گروه‌های با تغییر منفی‌تر: ${laggards}.`,
     `۷) مومنتوم و روند: جهت جلسه بر اساس دو شاخص «${bias}» است؛ شاخص کل ${direction(overallChange)} و هم‌وزن ${direction(equalChange)} هستند. برای تأیید مومنتوم چندجلسه‌ای، داده تاریخی همان روز باید در دسترس باشد و در نبود آن نتیجه‌ای حدس زده نمی‌شود.`,
     `۸) ریسک و نوسان: سطح ریسک محاسباتی «${risk}» است؛ این سطح از هم‌جهتی شاخص‌ها و پهنای بازار به‌دست آمده و شاخص نوسان مستقل فقط در صورت وجود داده معتبر گزارش می‌شود.`,
