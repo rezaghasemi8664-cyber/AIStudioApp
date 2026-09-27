@@ -253,9 +253,25 @@ async function fetchWelcomeBannerConfigFromServer(): Promise<ApiResult<WelcomeBa
   const res = await safeApi<unknown>('/settings/global/ui/welcome-banner-config', { method: 'GET' });
   if (!res.ok) return { ...res, data: DEFAULT_WELCOME_BANNER_CONFIG };
 
-  const raw = res.data as Partial<WelcomeBannerConfig> | undefined;
-  const text = typeof raw?.text === 'string' && raw.text.trim() ? raw.text : DEFAULT_WELCOME_BANNER_CONFIG.text;
-  const durationRaw = Number(raw?.durationSeconds);
+  const responseData = res.data as
+    | (Partial<WelcomeBannerConfig> & { parsedValue?: unknown })
+    | undefined;
+
+  // The global-settings API returns the stored setting together with
+  // parsedValue. Read parsedValue when present; otherwise keep compatibility
+  // with a direct WelcomeBannerConfig response.
+  const rawValue =
+    responseData?.parsedValue &&
+    typeof responseData.parsedValue === 'object' &&
+    !Array.isArray(responseData.parsedValue)
+      ? (responseData.parsedValue as Partial<WelcomeBannerConfig>)
+      : responseData;
+
+  const text =
+    typeof rawValue?.text === 'string' && rawValue.text.trim()
+      ? rawValue.text
+      : DEFAULT_WELCOME_BANNER_CONFIG.text;
+  const durationRaw = Number(rawValue?.durationSeconds);
   const durationSeconds = Number.isFinite(durationRaw)
     ? Math.max(1, Math.min(120, Math.trunc(durationRaw)))
     : DEFAULT_WELCOME_BANNER_CONFIG.durationSeconds;
