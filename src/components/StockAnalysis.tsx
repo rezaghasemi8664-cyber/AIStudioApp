@@ -771,7 +771,7 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
 
   const normalized: UnifiedAnalysisResult = {
     symbol: source.symbol ?? 'نامشخص',
-    summary: source.summary ?? '',
+    summary: historySummaryText(source.summary) || historySummaryText(source.explanations) || '',
     recommendation: source.recommendation ?? 'hold',
     riskLevel: source.riskLevel ?? source.risk_level ?? 'medium',
     shortTermTrend: source.shortTermTrend ?? source.short_term_trend ?? 'neutral',
