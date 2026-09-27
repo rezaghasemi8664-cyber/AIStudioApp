@@ -40,6 +40,34 @@ function unwrap(response) {
   if (response.result !== undefined) return unwrap(response.result);
   return response;
 }
+function isMarketAnalyticsEligible(item) {
+  if (!item || !item.symbol) return false;
+  const last = num(item.lastPrice);
+  const close = num(item.closePrice);
+  const yesterday = num(item.yesterday);
+  const open = num(item.open);
+  const high = num(item.high);
+  const low = num(item.low);
+  const volume = Math.max(0, num(item.volume, 0));
+  const value = Math.max(0, num(item.value, 0));
+  const realBuy = Math.max(0, num(item.realBuyVolume, 0));
+  const realSell = Math.max(0, num(item.realSellVolume, 0));
+  if (!(last > 0) || !(close > 0) || !(yesterday > 0) || !(volume > 0) || !(value > 0)) return false;
+  if (open !== null && open <= 0) return false;
+  if (high !== null && low !== null && (high < low || last < low || last > high || close < low || close > high)) return false;
+
+  const pct = ((last - yesterday) / yesterday) * 100;
+  const legalBuy = item.legalBuyVolume == null ? null : num(item.legalBuyVolume);
+  const legalSell = item.legalSellVolume == null ? null : num(item.legalSellVolume);
+  const placeholderPrice =
+    last === 1 && close === 1 && pct <= -99.99 &&
+    value === volume && realBuy === 0 && realSell === 0 &&
+    legalBuy !== null && legalSell !== null &&
+    legalBuy === volume && legalSell === volume;
+
+  return !placeholderPrice;
+}
+
 function scoreSymbol(item) {
   const last = num(item.lastPrice, 0);
   const close = num(item.closePrice, last);
@@ -194,9 +222,12 @@ async function updateSymbolsAndMovers() {
     });
   }
 
-  const gainers = symbols.filter(x => num(x.changePercent, 0) > 0).sort((a, b) => num(b.changePercent, 0) - num(a.changePercent, 0)).slice(0, 10);
-  const losers = symbols.filter(x => num(x.changePercent, 0) < 0).sort((a, b) => num(a.changePercent, 0) - num(b.changePercent, 0)).slice(0, 10);
-  const volumes = symbols.slice().sort((a, b) => num(b.volume, 0) - num(a.volume, 0)).slice(0, 10);
+  // Keep raw rows in MarketSymbolCurrent, but exclude structurally malformed
+  // price records from movers and other derived market analytics.
+  const analyticsSymbols = symbols.filter(isMarketAnalyticsEligible);
+  const gainers = analyticsSymbols.filter(x => num(x.changePercent, 0) > 0).sort((a, b) => num(b.changePercent, 0) - num(a.changePercent, 0)).slice(0, 10);
+  const losers = analyticsSymbols.filter(x => num(x.changePercent, 0) < 0).sort((a, b) => num(a.changePercent, 0) - num(b.changePercent, 0)).slice(0, 10);
+  const volumes = analyticsSymbols.slice().sort((a, b) => num(b.volume, 0) - num(a.volume, 0)).slice(0, 10);
 
   for (const [category, rowsForCategory] of [['GAINERS', gainers], ['LOSERS', losers], ['VOLUME', volumes]]) {
     await prisma.marketMoverCurrent.deleteMany({ where: { category } });
@@ -216,6 +247,12 @@ async function updateSymbolsAndMovers() {
       });
     }
   }
+
+  console.log('[MARKET ANALYTICS FILTER]', JSON.stringify({
+    rawSymbols: symbols.length,
+    eligibleSymbols: analyticsSymbols.length,
+    excludedSymbols: symbols.length - analyticsSymbols.length
+  }));
 
   return symbols;
 }
@@ -307,7 +344,8 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
     return 0;
   }
 
-  const scoredSymbols = symbols.map(item => ({ item, scored: scoreSymbol(item) }));
+  const eligibleSymbols = symbols.filter(isMarketAnalyticsEligible);
+  const scoredSymbols = eligibleSymbols.map(item => ({ item, scored: scoreSymbol(item) }));
   const validPrice = scoredSymbols.filter(({ scored }) => scored.last > 0);
   const liquid = validPrice.filter(({ scored }) => scored.value >= SCALPING_MIN_VALUE);
   const moving = liquid.filter(({ scored }) =>
@@ -346,6 +384,8 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
 
   console.log('[SCALPING DIAGNOSTIC]', JSON.stringify({
     total: symbols.length,
+    eligible: eligibleSymbols.length,
+    excluded: symbols.length - eligibleSymbols.length,
     validPrice: validPrice.length,
     liquid: liquid.length,
     moving: moving.length,
