@@ -3,13 +3,20 @@ import type { ApiResult, AppNotification } from '../types';
 import { get, post, patch, del } from './apiClient';
 
 export interface NotificationAttachment { name: string; url: string; type?: string; }
-export interface Notification { id: string; message: string; createdAt: string; read: boolean; attachment?: NotificationAttachment | null; }
+export interface Notification { id: string; message: string; createdAt: string; read: boolean; isRead?: boolean; title?: string | null; type?: string; attachment?: NotificationAttachment | null; }
 export interface CreateNotificationInput { message: string; attachment?: NotificationAttachment | null; userIds?: string[]; }
 
 let userNotificationsCache: AppNotification[] = [];
 let unreadCountCache = 0;
 
-export async function getNotifications(): Promise<ApiResult<Notification[]>> { return get<Notification[]>('/notifications'); }
+export async function getNotifications(): Promise<ApiResult<Notification[]>> {
+  const res = await get<Notification[]>('/notifications');
+  if (!res.success || !Array.isArray(res.data)) return res;
+  return { ...res, data: res.data.map(item => ({
+    ...item,
+    read: Boolean((item as Notification & { read?: boolean }).read ?? item.isRead ?? false),
+  })) };
+}
 export async function addNotification(input: CreateNotificationInput): Promise<ApiResult<Notification>> { return post<Notification>('/notifications', input); }
 export async function markAsRead(notificationId: string): Promise<ApiResult<void>> { return (await import('./apiClient')).put<void>(`/notifications/${encodeURIComponent(notificationId)}/read`); }
 export async function markAllAsRead(): Promise<ApiResult<void>> { return patch<void>('/notifications/read-all'); }
