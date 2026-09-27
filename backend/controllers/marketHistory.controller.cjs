@@ -10,6 +10,14 @@
  */
 'use strict';
 
+let brsService = null;
+try {
+  brsService = require('../services/brs.service.cjs');
+  console.log('[MARKET CTRL v7.1] BRS service loaded for empty-shared-data recovery');
+} catch (e) {
+  console.warn('[MARKET CTRL v7.1] BRS service unavailable:', e.message);
+}
+
 let sharedMarketService = null;
 try {
   sharedMarketService = require('../services/sharedMarket.service.cjs');
@@ -557,7 +565,69 @@ async function getMarketIndex(req, res) {
   }
 
   try {
-    const snapshot = await sharedMarketService.getMarketCurrent();
+    let snapshot = await sharedMarketService.getMarketCurrent();
+
+    // Recovery path for a fresh/empty shared database. The user-facing
+    // market-index endpoint must not remain unavailable just because the
+    // background worker has not completed its first refresh yet.
+    if (!snapshot && brsService && typeof brsService.getMarketIndex === 'function') {
+      try {
+        const liveResponse = await brsService.getMarketIndex();
+        const liveEnvelope = normalizeServiceEnvelope(liveResponse);
+        const liveData = liveEnvelope.data;
+
+        if (hasUsableMarketIndexData(liveData)) {
+          const prisma = require('../config/prisma.cjs');
+          const tehranDate = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Tehran',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          }).format(new Date());
+
+          const marketDate = new Date(tehranDate + 'T00:00:00.000Z');
+          const numeric = (value) => toNumber(value, false);
+          const integer = (value) => toNumber(value, true);
+
+          await prisma.marketCurrent.upsert({
+            where: { marketDate },
+            create: {
+              marketDate,
+              marketStatus: liveData.isMarketOpen === true ? 'OPEN' : 'CLOSED',
+              overallIndex: numeric(liveData.index),
+              overallChange: numeric(liveData.indexChange ?? liveData.index_change),
+              equalIndex: numeric(liveData.indexEqualWeight ?? liveData.index_equalWeight),
+              equalChange: numeric(liveData.indexEqualWeightChange ?? liveData.index_equalWeight_change),
+              totalTrades: integer(liveData.tradeCount),
+              totalVolume: integer(liveData.tradeVolume),
+              totalValue: numeric(liveData.tradeValue),
+              updatedAt: new Date(),
+              source: 'brs-live-recovery',
+              isStale: false,
+              dataJson: JSON.stringify(liveData)
+            },
+            update: {
+              marketStatus: liveData.isMarketOpen === true ? 'OPEN' : 'CLOSED',
+              overallIndex: numeric(liveData.index),
+              overallChange: numeric(liveData.indexChange ?? liveData.index_change),
+              equalIndex: numeric(liveData.indexEqualWeight ?? liveData.index_equalWeight),
+              equalChange: numeric(liveData.indexEqualWeightChange ?? liveData.index_equalWeight_change),
+              totalTrades: integer(liveData.tradeCount),
+              totalVolume: integer(liveData.tradeVolume),
+              totalValue: numeric(liveData.tradeValue),
+              updatedAt: new Date(),
+              source: 'brs-live-recovery',
+              isStale: false,
+              dataJson: JSON.stringify(liveData)
+            }
+          });
+
+          snapshot = await sharedMarketService.getMarketCurrent();
+        }
+      } catch (recoveryError) {
+        console.warn('[MARKET CTRL v7.1] Empty shared-data recovery failed:', getErrorMessage(recoveryError));
+      }
+    }
 
     if (!snapshot) {
       return res.status(503).json({
