@@ -36,6 +36,7 @@ export const sendReplyToUser=async(messageId:string,replyMessage:string):Promise
   if(!r?.data)throw new Error('پاسخ در سرور ثبت نشد.');
   return mapMessage(r.data);
 };
+export const deleteMessagesByAdmin=async(ids:string[]):Promise<number>=>{const normalized=[...new Set(ids.map(id=>Number(id)).filter(id=>Number.isInteger(id)&&id>0))];if(!normalized.length)return 0;const r=await appApiFetch<{success:boolean;deletedCount?:number;message?:string}>('/messages/admin/bulk',{method:'DELETE',body:JSON.stringify({ids:normalized})});if(!r?.success)throw new Error(r?.message||'حذف پیام‌ها ناموفق بود.');return Number(r.deletedCount||0);};
 export const getUnreadMessageCountForAdmin=async():Promise<number>=>{
   const r=await appApiFetch<{success:boolean;data:{count:number}}>('/messages/unread-count',{method:'GET'});
   return Number(r?.data?.count||0);
