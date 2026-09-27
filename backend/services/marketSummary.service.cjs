@@ -476,13 +476,66 @@ async function generateMarketSummary({ marketData, fallbackDate = new Date() }) 
   return { data: normalizeSummaryRecord(record), sourceType: 'deterministic_upsert', generated: true, reason: existing ? 'UPDATED_EXISTING_DAY' : 'CREATED_DETERMINISTIC_SUMMARY' };
 }
 
+async function ensureRecentTradingDaySummaries(daysBack = 7) {
+  const model = getMarketSummaryModel();
+  const ensured = [];
+  const now = new Date();
+
+  for (let offset = 0; offset <= daysBack; offset += 1) {
+    const reference = new Date(now.getTime() - offset * 86400000);
+    if (!isTradingDay(reference)) continue;
+
+    const targetDay = getTehranDayStart(reference);
+    const existing = await findBySummaryDateSafe(targetDay);
+    if (existing) {
+      ensured.push({ date: toDateOnlyISO(targetDay), status: 'existing', id: existing.id });
+      continue;
+    }
+
+    let marketData = null;
+    let fallbackDate = reference;
+
+    if (offset === 0) {
+      const current = await findLatestUsableMarketHistoryRow();
+      marketData = current?.marketData || null;
+      fallbackDate = current?.row?.createdAt || reference;
+    } else {
+      const merged = await buildMergedMarketDataForDay(reference);
+      marketData = merged?.merged || null;
+      fallbackDate = reference;
+    }
+
+    if (!isUsableMarketData(marketData) || isLikelySyntheticMarketData(marketData)) {
+      continue;
+    }
+
+    const result = await generateMarketSummary({ marketData, fallbackDate });
+    if (result?.data) {
+      ensured.push({ date: toDateOnlyISO(targetDay), status: result.generated ? 'created' : 'updated', id: result.data.id });
+    }
+  }
+
+  return ensured;
+}
+
 exports.findOrGenerateLatest = async () => {
+  const ensured = await ensureRecentTradingDaySummaries(7);
   const model = getMarketSummaryModel();
   const latest = await model.findFirst({ orderBy: [{ summaryDate: 'desc' }, { id: 'desc' }] });
-  if (!latest) return { data: null, sourceType: 'none', generated: false, cached: false, reason: 'NO_DAILY_SUMMARY_AVAILABLE' };
-  return { data: normalizeSummaryRecord(latest), sourceType: 'db_daily_summary', generated: false, cached: true, reason: 'DAILY_SUMMARY_FROM_DATABASE' };
+  if (!latest) {
+    return { data: null, sourceType: 'none', generated: false, cached: false, reason: 'NO_DAILY_SUMMARY_AVAILABLE', ensured };
+  }
+  return {
+    data: normalizeSummaryRecord(latest),
+    sourceType: 'db_daily_summary',
+    generated: ensured.some(x => x.status === 'created'),
+    cached: true,
+    reason: ensured.length ? 'RECENT_TRADING_DAY_SUMMARIES_ENSURED' : 'DAILY_SUMMARY_FROM_DATABASE',
+    ensured
+  };
 };
 exports.findHistory = async ({ page = 1, limit = 10 }) => {
+  await ensureRecentTradingDaySummaries(7);
   const model = getMarketSummaryModel();
   const p = Math.max(1, parseInt(page, 10) || 1);
   const l = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
