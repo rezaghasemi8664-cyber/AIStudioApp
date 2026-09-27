@@ -1043,6 +1043,21 @@ const App: React.FC = () => {
     }
   }, [currentUser, refreshUnreadCount]);
 
+  const handleDeleteNotification = useCallback(async (notificationId: string) => {
+    if (!currentUser) return;
+    const result = await notificationService.clearNotifications; // keep service module hot-safe
+    void result;
+    try {
+      const response = await notificationService.deleteNotification(notificationId);
+      if (!response?.success) throw new Error(response?.message || 'حذف اطلاعیه ناموفق بود');
+      setViewingNotification(null);
+      await refreshUnreadCount(currentUser);
+    } catch (error) {
+      console.error('[Notification] delete failed:', error);
+      addNotification('حذف اطلاعیه ناموفق بود.', 'error');
+    }
+  }, [currentUser, refreshUnreadCount, addNotification]);
+
   const handleCloseNotificationModal = useCallback(() => setViewingNotification(null), []);
   const handleCloseWelcomeBanner = useCallback(() => setShowWelcomeBanner(false), []);
 
@@ -1136,7 +1151,7 @@ const App: React.FC = () => {
         </div></nav>
         <main className="app-main flex-grow" data-page={activeTab}><LazyErrorBoundary><Suspense fallback={<LoadingSpinner />}>{renderContent()}</Suspense></LazyErrorBoundary></main>
       </div>
-      {viewingNotification && <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={handleCloseNotificationModal}><div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}><div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center"><h3 className="font-semibold text-gray-800 dark:text-white">جزئیات اطلاعیه</h3><button onClick={handleCloseNotificationModal} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"><XMarkIcon className="h-5 w-5 text-gray-600 dark:text-gray-300" /></button></div><div className="p-6"><p className="text-sm text-gray-500 dark:text-gray-400 mb-4 text-right">{new Date(viewingNotification.timestamp).toLocaleString('fa-IR')}</p><p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap text-right">{viewingNotification.message}</p>{viewingNotification.attachment && <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 text-right"><p className="text-sm font-semibold mb-2">پیوست:</p><a href={viewingNotification.attachment.data} download={viewingNotification.attachment.name} className="flex items-center gap-2 p-3 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-cyan-600 dark:text-cyan-400 flex-row-reverse"><PaperclipIcon className="h-5 w-5" /><span className="text-sm underline">{viewingNotification.attachment.name}</span></a></div>}</div></div></div>}
+      {viewingNotification && <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={handleCloseNotificationModal}><div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}><div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center"><h3 className="font-semibold text-gray-800 dark:text-white">جزئیات اطلاعیه</h3><button onClick={handleCloseNotificationModal} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"><XMarkIcon className="h-5 w-5 text-gray-600 dark:text-gray-300" /></button></div><div className="p-6"><p className="text-sm text-gray-500 dark:text-gray-400 mb-4 text-right">{new Date(viewingNotification.timestamp).toLocaleString('fa-IR')}</p><p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap text-right">{viewingNotification.message}</p>{viewingNotification.read && <div className="mt-6 flex justify-end"><button type="button" onClick={() => void handleDeleteNotification(viewingNotification.id)} className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors">حذف اطلاعیه</button></div>}{viewingNotification.attachment && <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 text-right"><p className="text-sm font-semibold mb-2">پیوست:</p><a href={viewingNotification.attachment.data} download={viewingNotification.attachment.name} className="flex items-center gap-2 p-3 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-cyan-600 dark:text-cyan-400 flex-row-reverse"><PaperclipIcon className="h-5 w-5" /><span className="text-sm underline">{viewingNotification.attachment.name}</span></a></div>}</div></div></div>}
       </>
     </LazyErrorBoundary>
   );
