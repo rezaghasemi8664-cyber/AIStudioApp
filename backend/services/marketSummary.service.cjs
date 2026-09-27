@@ -214,7 +214,7 @@ function buildBreadth(data) {
       negative: explicitNegative,
       neutral: explicitNeutral,
       total: explicitTotal,
-      coverage: data?.breadthCoveragePercent ?? 100,
+      coverage: data?.breadthCoveragePercent ?? null,
       gainers: explicitGainers,
       losers: explicitLosers,
       volumes: explicitVolumes
@@ -350,7 +350,7 @@ function buildDeterministicSummary(data) {
   return [
     `۱) وضعیت کلی بازار: بازار ${state} است؛ برآیند شاخص کل ${direction(overallChange)}، شاخص هم‌وزن ${direction(equalChange)} و پهنای بازار ${breadth.positive > breadth.negative ? 'مثبت' : breadth.negative > breadth.positive ? 'منفی' : 'متعادل'} است؛ سوگیری ترکیبی داده‌ها «${bias}» است.`,
     `۲) شاخص‌ها: شاخص کل ${fa(overall)} واحد با تغییر ${signedPct(overallPct)} و تغییر عددی ${fa(overallChange)} واحد؛ شاخص هم‌وزن ${fa(equal)} واحد با تغییر ${signedPct(equalPct)} و تغییر عددی ${fa(equalChange)} واحد.`,
-    `۳) پهنای بازار: ${fa(breadth.positive,0)} نماد مثبت، ${fa(breadth.negative,0)} نماد منفی و ${fa(breadth.neutral,0)} نماد خنثی از ${fa(breadth.total,0)} نماد معامله‌شده؛ نسبت مثبت به منفی ${fa(breadthRatio)} و پوشش محاسبه ${breadth.coverage === null ? 'نامشخص' : signedPct(breadth.coverage)} است.`,
+    `۳) پهنای بازار: ${fa(breadth.positive,0)} نماد مثبت، ${fa(breadth.negative,0)} نماد منفی و ${fa(breadth.neutral,0)} نماد خنثی از ${fa(breadth.total,0)} نماد واجد شرایط تحلیل از snapshot؛ نسبت مثبت به منفی ${fa(breadthRatio)} و پوشش محاسبه ${breadth.coverage === null ? 'نامشخص' : signedPct(breadth.coverage)} است.`,
     `۴) نقدشوندگی و معاملات: تعداد معاملات ${fa(trades,0)}، حجم معاملات ${fa(volume,0)} و ارزش معاملات ${fa(value,0)} ثبت شده است؛ در صورت وجود فهرست نمادها، بیشترین حجم مربوط به ${volumes} است.`,
     `۵) جریان پول حقیقی: ${flowText}${flow.buy !== null || flow.sell !== null ? (flow.unit === 'volume' ? ` حجم خرید حقیقی ${fa(flow.buy, 0)} و حجم فروش حقیقی ${fa(flow.sell, 0)} است.` : ` ارزش خرید حقیقی ${fa(flow.buy)} و ارزش فروش حقیقی ${fa(flow.sell)} است.`) : ''}`,
     `۶) چرخش صنایع: گروه‌های با تغییر مثبت‌تر: ${leaders}؛ گروه‌های با تغییر منفی‌تر: ${laggards}.`,
