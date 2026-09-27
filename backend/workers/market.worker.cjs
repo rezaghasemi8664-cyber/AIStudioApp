@@ -296,7 +296,8 @@ async function updateMarketDaily(symbols) {
 
 async function updateIndustries(symbols) {
   const groups = new Map();
-  for (const item of symbols) {
+  const analyticsSymbols = symbols.filter(isMarketAnalyticsEligible);
+  for (const item of analyticsSymbols) {
     const name = String(item.sector || '').trim();
     if (!name) continue;
     const current = groups.get(name) || { industryName: name, symbolCount: 0, value: 0, changeSum: 0, changeCount: 0 };
