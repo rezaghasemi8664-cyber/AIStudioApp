@@ -25,10 +25,10 @@ export async function getDashboardMarket(): Promise<DashboardData['market']> {
     const changeValue = numberFrom(data, ['changeValue', 'change', 'overallChangeValue', 'indexChange'], 0) ?? 0;
     const explicitPercent = numberFrom(data, ['changePercent', 'overallChangePercent', 'indexChangePercent', 'percentChange']);
     const changePercent = explicitPercent ?? (value && value - changeValue !== 0 ? (changeValue / (value - changeValue)) * 100 : 0);
-    const equalValue = numberFrom(data, ['equalWeightedValue', 'equalWeightValue', 'equalWeightedIndex']);
-    const equalChange = numberFrom(data, ['equalWeightedChangeValue', 'equalWeightChangeValue', 'equalWeightedChange'], 0) ?? 0;
+    const equalValue = numberFrom(data, ['equalWeightedValue', 'equalWeightValue', 'equalWeightedIndex', 'indexEqualWeight']);
+    const equalChange = numberFrom(data, ['equalWeightedChangeValue', 'equalWeightChangeValue', 'equalWeightedChange', 'indexEqualWeightChange'], 0) ?? 0;
     const equalPercent = numberFrom(data, ['equalWeightedChangePercent', 'equalWeightChangePercent', 'equalChangePercent'], 0) ?? 0;
-    const isMarketOpen = typeof data.isMarketOpen === 'boolean' ? data.isMarketOpen : true;
+    const isMarketOpen = typeof data.isMarketOpen === 'boolean' ? data.isMarketOpen : (() => { const status = String(data.marketStatus ?? data.state ?? '').trim().toLowerCase(); if (!status) return true; return ['open', 'opened', 'باز', 'باز است', 'بازار باز'].some(token => status.includes(token)); })();
     const indices: DashboardMarketIndex[] = [{ name: 'شاخص کل', value, changeValue, changePercent, isMarketOpen }];
     if (equalValue !== null) indices.push({ name: 'شاخص هم‌وزن', value: equalValue, changeValue: equalChange, changePercent: equalPercent, isMarketOpen });
     return { updatedAt: new Date().toISOString(), indices, totalValue: numberFrom(data, ['totalValue', 'marketValue', 'tradeValue', 'valueTraded']), totalVolume: numberFrom(data, ['totalVolume', 'volume', 'tradeVolume']), totalTrades: numberFrom(data, ['totalTrades', 'trades', 'tradeCount']) };
@@ -101,9 +101,9 @@ export async function getDashboardPersonalSummary(unreadAlertCount: number, subs
 }
 
 const DASHBOARD_REQUEST_TIMEOUT_MS = 2500;
-const DASHBOARD_MOVERS_TIMEOUT_MS = 12000;
-const DASHBOARD_INDUSTRIES_TIMEOUT_MS = 12000;
-const DASHBOARD_CODAL_TIMEOUT_MS = 18000;
+const DASHBOARD_MOVERS_TIMEOUT_MS = 4500;
+const DASHBOARD_INDUSTRIES_TIMEOUT_MS = 4500;
+const DASHBOARD_CODAL_TIMEOUT_MS = 5000;
 
 async function withDashboardTimeout<T>(promise: Promise<T>, fallback: T, timeoutMs = DASHBOARD_REQUEST_TIMEOUT_MS): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -119,7 +119,7 @@ async function withDashboardTimeout<T>(promise: Promise<T>, fallback: T, timeout
 
 export async function getDashboardData(unreadAlertCount = 0, subscriptionDaysRemaining: number | null = null, subscriptionExpired = false): Promise<DashboardData> {
   const results = await Promise.allSettled([
-    withDashboardTimeout(getDashboardMarket(), null),
+    withDashboardTimeout(getDashboardMarket(), null, 3000),
     withDashboardTimeout(getDashboardMovers(), { gainers: [], losers: [], highVolume: [] }, DASHBOARD_MOVERS_TIMEOUT_MS),
     withDashboardTimeout(getDashboardIndustries(), [], DASHBOARD_INDUSTRIES_TIMEOUT_MS),
     withDashboardTimeout(getDashboardAlerts(), []),
