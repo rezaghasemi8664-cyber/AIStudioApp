@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { StoredUser } from '../types';
 import * as authService from '../services/authService';
-import { LockClosedIcon, EyeIcon, EyeSlashIcon, XMarkIcon, UserPlusIcon } from './Icons';
+import { LockClosedIcon, EyeIcon, EyeSlashIcon, XMarkIcon, UserPlusIcon, CheckCircleIcon, ArrowUturnLeftIcon } from './Icons';
 import { useNotification } from './NotificationSystem';
 
 interface LoginProps { onLogin: (user: StoredUser) => void; }
