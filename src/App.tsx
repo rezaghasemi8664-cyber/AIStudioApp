@@ -1038,15 +1038,18 @@ const App: React.FC = () => {
   const handleViewNotification = useCallback((notification: AppNotification) => {
     setViewingNotification(notification);
     if (!notification.read && currentUser) {
-      if (typeof notificationService.markSingleNotificationAsRead === 'function') void notificationService.markSingleNotificationAsRead(notification.id);
-      void refreshUnreadCount(currentUser);
+      if (typeof notificationService.markSingleNotificationAsRead === 'function') {
+        void notificationService.markSingleNotificationAsRead(notification.id).then(() => {
+          setNotifications(items => items.map(item => item.id === notification.id ? { ...item, read: true } : item));
+          setViewingNotification(item => item?.id === notification.id ? { ...item, read: true } : item);
+          void refreshUnreadCount(currentUser);
+        });
+      }
     }
   }, [currentUser, refreshUnreadCount]);
 
   const handleDeleteNotification = useCallback(async (notificationId: string) => {
     if (!currentUser) return;
-    const result = await notificationService.clearNotifications; // keep service module hot-safe
-    void result;
     try {
       const response = await notificationService.deleteNotification(notificationId);
       if (!response?.success) throw new Error(response?.message || 'حذف اطلاعیه ناموفق بود');
