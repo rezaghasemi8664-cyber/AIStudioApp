@@ -207,20 +207,11 @@ async function getSymbolHistory(symbol, limit = 60) {
 }
 
 async function getBreadth() {
-  const [market, gainers, losers, highVolume, industries] = await Promise.all([
-    getMarketCurrent(),
-    getMovers('GAINERS', 10),
-    getMovers('LOSERS', 10),
-    getMovers('VOLUME', 10),
-    getIndustries(100),
-  ]);
+  const [market, industries] = await Promise.all([getMarketCurrent(), getIndustries(100)]);
 
   if (!market) return null;
 
-  let positive = Number(market.positiveStocks || 0);
-  let negative = Number(market.negativeStocks || 0);
-  let neutral = Number(market.neutralStocks || 0);
-  let total = positive + negative + neutral;
+
 
   // Use the current symbol snapshot both as a breadth fallback and as the
   // source for real buy/sell volume. Raw rows remain stored, but invalid
@@ -231,12 +222,20 @@ async function getBreadth() {
     !/شاخص|index/i.test(`${row.symbol} ${row.name || ""}`)
   );
 
-  if (total === 0) {
-    positive = valid.filter((row) => Number(row.changePercent) > 0).length;
-    negative = valid.filter((row) => Number(row.changePercent) < 0).length;
-    neutral = valid.filter((row) => Number(row.changePercent) === 0).length;
-    total = positive + negative + neutral;
-  }
+  const positive = valid.filter((row) => Number(row.changePercent) > 0).length;
+  const negative = valid.filter((row) => Number(row.changePercent) < 0).length;
+  const neutral = valid.filter((row) => Number(row.changePercent) === 0).length;
+  const total = positive + negative + neutral;
+
+  const gainers = valid.filter((row) => Number(row.changePercent) > 0)
+    .sort((a, b) => Number(b.changePercent) - Number(a.changePercent))
+    .slice(0, 10).map(normalizeSymbol);
+  const losers = valid.filter((row) => Number(row.changePercent) < 0)
+    .sort((a, b) => Number(a.changePercent) - Number(b.changePercent))
+    .slice(0, 10).map(normalizeSymbol);
+  const highVolume = [...valid]
+    .sort((a, b) => (Number(b.volume || 0) - Number(a.volume || 0)) || (Number(b.value || 0) - Number(a.value || 0)))
+    .slice(0, 10).map(normalizeSymbol);
 
   const realFlowRows = valid.filter((row) =>
     Number(row.realBuyVolume || 0) > 0 || Number(row.realSellVolume || 0) > 0
@@ -274,7 +273,7 @@ async function getBreadth() {
     negativePercent: total ? (negative / total) * 100 : 0,
     neutralPercent: total ? (neutral / total) * 100 : 0,
     advanceDeclineRatio: negative ? positive / negative : null,
-    coveragePercent: total ? 100 : 0,
+    coveragePercent: symbols.length ? (total / symbols.length) * 100 : 0,
     topGainers: gainers,
     topLosers: losers,
     topVolumes: highVolume,
