@@ -23,15 +23,7 @@ function isMarketAnalyticsEligible(row) {
     try { raw = JSON.parse(row.dataJson); } catch (_) { raw = null; }
   }
   const yesterday = decimalToNumber(raw?.yesterday ?? raw?.previousPrice ?? raw?.yesterdayPrice);
-  const open = decimalToNumber(raw?.open ?? raw?.openPrice);
-  const high = decimalToNumber(raw?.high ?? raw?.highPrice);
-  const low = decimalToNumber(raw?.low ?? raw?.lowPrice);
   const pct = yesterday > 0 ? ((last - yesterday) / yesterday) * 100 : decimalToNumber(row.changePercent);
-
-  if (yesterday !== null && yesterday > 0) {
-    if (open !== null && open <= 0) return false;
-    if (high !== null && low !== null && (high < low || last < low || last > high || close < low || close > high)) return false;
-  }
 
   const legalBuy = row.legalBuyVolume == null ? null : Number(row.legalBuyVolume);
   const legalSell = row.legalSellVolume == null ? null : Number(row.legalSellVolume);
@@ -210,8 +202,6 @@ async function getBreadth() {
   const [market, industries] = await Promise.all([getMarketCurrent(), getIndustries(100)]);
 
   if (!market) return null;
-
-
 
   // Use the current symbol snapshot both as a breadth fallback and as the
   // source for real buy/sell volume. Raw rows remain stored, but invalid
