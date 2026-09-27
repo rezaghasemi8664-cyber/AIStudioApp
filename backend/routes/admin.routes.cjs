@@ -56,6 +56,7 @@ router.post('/subscriptions/gift',authMiddleware,requireAdmin,async function(req
     for(var i=0;i<activeSubs.length;i++){var sub=activeSubs[i];if(!byUser[sub.userId])byUser[sub.userId]=sub;}
     var affected=0;
     await prisma.$transaction(async function(tx){
+      var notificationRows=[];
       for(var j=0;j<users.length;j++){
         var u=users[j], current=byUser[u.id], start=current?new Date(current.startsAt):(u.subscriptionStart&&new Date(u.subscriptionStart)>now?new Date(u.subscriptionStart):now);
         var currentEnd=current?new Date(current.expiresAt):(u.subscriptionEnd?new Date(u.subscriptionEnd):null);
@@ -67,8 +68,16 @@ router.post('/subscriptions/gift',authMiddleware,requireAdmin,async function(req
         }else{
           await tx.subscription.create({data:{userId:u.id,planId:null,type:'FREE_TRIAL',status:'ACTIVE',startsAt:start,expiresAt:end}});
         }
+        notificationRows.push({
+          userId:u.id,
+          title:'اشتراک هدیه',
+          message:'کاربر گرامی مدت زمان '+days+' روز اشتراک هدیه به شما تعلق گرفت و به اعتبار شما اضافه گردید.',
+          type:'SUBSCRIPTION_GIFT',
+          isRead:false,
+        });
         affected++;
       }
+      if(notificationRows.length) await tx.notification.createMany({data:notificationRows});
     });
     return res.json({success:true,message:'اشتراک هدیه برای کاربران با موفقیت اعمال شد.',data:{days,affectedUsers:affected}});
   } catch(e) {
