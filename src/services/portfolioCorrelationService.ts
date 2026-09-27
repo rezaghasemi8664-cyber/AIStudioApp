@@ -1,5 +1,6 @@
 import api from '../api/apiClient';
 import * as portfolioService from './portfolioService';
+import { normalizePortfolioDate } from '../utils/portfolioDate';
 
 export interface CorrelationPair { left: string; right: string; correlation: number; observations: number; }
 export interface PortfolioCorrelationResult { symbols: string[]; pairs: CorrelationPair[]; averageAbsoluteCorrelation: number | null; highCorrelationPairs: CorrelationPair[]; }
