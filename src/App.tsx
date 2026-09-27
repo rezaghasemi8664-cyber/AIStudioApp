@@ -82,6 +82,7 @@ const DailyFilters = lazy(() => import('./components/DailyFilters'));
 const UserProfile = lazy(() => import('./components/UserProfile'));
 const UserManagement = lazy(() => import('./components/UserManagement'));
 const NotificationsManagement = lazy(() => import('./components/NotificationsManagement'));
+const Settings = lazy(() => import('./components/Settings'));
 const MarketRadar = lazy(() => import('./components/MarketRadar/MarketRadar'));
 const StrategyLab = lazy(() => import('./components/StrategyLab'));
 const PaperTrading = lazy(() => import('./components/PaperTrading'));
@@ -1067,6 +1068,8 @@ const App: React.FC = () => {
         return <TraderPerformance />;
       case 'roniaAssistant': return <RoniaAssistant isOnline={isOnline} onNavigate={(tab) => handleTabClick(tab as Tab)} />;
       case 'dailyFilters': return <DailyFilters />;
+      case 'settings':
+        return <Settings currentUser={currentUser} />;
       case 'profile': return <UserProfile currentUser={currentUser} onProfileUpdate={handleProfileUpdate} onPasswordChange={handlePasswordChange} />;
       case 'users': return currentUser.isAdmin ? <UserManagement isOnline={isOnline} onMessageUpdate={() => refreshUnreadCount(currentUser)} onlineCount={onlineUserCount} /> : <div className="text-center py-8 text-gray-500"><LockClosedIcon className="h-8 w-8 mx-auto mb-2" /><p>شما دسترسی ندارید.</p></div>;
       case 'notifications': return currentUser.isAdmin ? <NotificationsManagement isOnline={isOnline} /> : <div className="text-center py-8 text-gray-500"><LockClosedIcon className="h-8 w-8 mx-auto mb-2" /><p>شما دسترسی ندارید.</p></div>;
