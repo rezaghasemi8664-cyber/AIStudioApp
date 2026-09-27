@@ -1327,20 +1327,21 @@ const fetchMarketSummary = async () => {
     try {
       const response = await analyzeStock(trimmedSymbol);
 
-      if (response.data && !hasSufficientMarketData(response.data)) {
+      const analysisData = response.data;
+      if (!analysisData || !hasSufficientMarketData(analysisData)) {
         throw new Error('خطای تحلیل داده بازار برای این نماد کافی و قابل اتکا نیست؛ تحلیل متوقف شد');
       }
 
       setAnalysisResult(response.rawText);
-      setAnalysisData(response.data);
+      setAnalysisData(analysisData);
 
       try {
         await analysisHistoryService.addAnalysisToHistory('', {
           symbol: trimmedSymbol,
-          recommendation: response.data?.recommendation,
-          riskLevel: response.data?.riskLevel,
-          summary: response.data?.summary,
-          result: response.data,
+          recommendation: analysisData.recommendation,
+          riskLevel: analysisData.riskLevel,
+          summary: analysisData.summary,
+          result: analysisData,
         });
       } catch (historySaveError) {
         console.error('[StockAnalysis] failed to save analysis history:', historySaveError);
