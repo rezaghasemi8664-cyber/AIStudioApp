@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import * as apiConfigService from '../services/apiConfigService';
-import { API_BASE_URL } from '../api/config';
 import type { MarketIndexData } from '../types';
 import { ArrowTrendingUpIcon, ArrowTrendingDownIcon } from './Icons';
 
@@ -58,13 +57,14 @@ function setCachedData(data: MarketIndexData, key: string, meta?: CacheEntry['me
 
 async function fetchMarketIndexFromAPI(): Promise<{ data: MarketIndexData; meta?: CacheEntry['meta'] } | null> {
     try {
-        const url = `${API_BASE_URL}/market/index`;
         const controller = new AbortController();
         const timeoutId = window.setTimeout(() => controller.abort(), MARKET_INDEX_REQUEST_TIMEOUT_MS);
-        const response = await fetch(url, { method: 'GET', headers: { Accept: 'application/json' }, credentials: 'include', cache: 'no-store', signal: controller.signal });
-        window.clearTimeout(timeoutId);
-        if (!response.ok) return null;
-        const result = await response.json();
+        let result: any;
+        try {
+            result = await apiConfigService.apiFetch('/market/index', { method: 'GET', cache: 'no-store', signal: controller.signal });
+        } finally {
+            window.clearTimeout(timeoutId);
+        }
         const normalized = normalizeLegacyOrModernMarketData(result);
         const meta = result?.meta;
         return normalized && meta?.status !== 'UNAVAILABLE' ? { data: normalized, meta } : null;
