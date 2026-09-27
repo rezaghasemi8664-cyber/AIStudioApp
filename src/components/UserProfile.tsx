@@ -2,7 +2,6 @@
 import type { StoredUser, DirectMessage, SubscriptionInfo } from '../types';
 import * as authService from '../services/authService';
 import * as messageService from '../services/messageService';
-import * as guestSettingsService from '../services/guestSettingsService';
 import * as profileService from '../services/profileService';
 import { useNotification } from './NotificationSystem';
 import PasswordChangeForm from './PasswordChangeForm';
@@ -15,8 +14,6 @@ import {
   PaperAirplaneIcon,
   EnvelopeIcon,
   UserCircleIcon,
-  UserPlusIcon,
-  TrashIcon,
   XCircleIcon,
   PaperclipIcon,
 } from './Icons';
@@ -254,7 +251,7 @@ const UserProfile: React.FC<UserProfileProps> = ({
   // =====================
   // Tab type
   // =====================
-  type ProfileTab = 'info' | 'subscription' | 'message' | 'guest-management';
+  type ProfileTab = 'info' | 'subscription' | 'message';
 
   const [activeTab, setActiveTab] = useState<ProfileTab>('info');
   const { addNotification } = useNotification();
@@ -278,86 +275,12 @@ const UserProfile: React.FC<UserProfileProps> = ({
   });
 
   // =====================
-  // Guest Settings State (Admin only)
-  // =====================
-  const [guestValidityDays, setGuestValidityDays] = useState(7);
-  const [guestUsers, setGuestUsers] = useState<StoredUser[]>([]);
-
-  // =====================
-  // Guest creation form state (Admin only)
-  // =====================
-  const [newGuestUsername, setNewGuestUsername] = useState('');
-  const [newGuestPassword, setNewGuestPassword] = useState('');
-  const [newGuestFirstName, setNewGuestFirstName] = useState('');
-  const [newGuestLastName, setNewGuestLastName] = useState('');
-  const [guestCreating, setGuestCreating] = useState(false);
-
-  // =====================
   // Message Tab State
   // =====================
   const defaultMessage = `کاربر گرامی ${currentUser.firstName} ${currentUser.lastName} با نام کاربری ${currentUser.username} درخواست تمدید اعتبار اکانت به مدت ...... روز را دارم.`;
   const [message, setMessage] = useState(defaultMessage);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [messageLoading, setMessageLoading] = useState(false);
-
-  // =====================
-  // 🔧 v10.1: Refresh guest users — ایمن‌سازی فراخوانی getGuestUsers
-  // =====================
-  const refreshGuestUsers = async () => {
-    try {
-      let activeGuests: StoredUser[] = [];
-
-      // 🔧 v10.1: بررسی وجود تابع قبل از فراخوانی
-      if (typeof authService.getGuestUsers === 'function') {
-        activeGuests = await authService.getGuestUsers();
-      } else {
-        // فال‌بک: از getUsers و فیلتر استفاده کن
-        console.warn('[UserProfile] getGuestUsers not available, using getUsers fallback');
-        const allUsers = await authService.getUsers();
-        activeGuests = allUsers.filter(
-          (u) => u.isGuest === true || u.role === 'guest',
-        );
-      }
-
-      let wasCleaned = false;
-      const guestsToRemove = activeGuests.filter(
-        (guest) => !guest.isActive || authService.isAccountExpired(guest),
-      );
-
-      if (guestsToRemove.length > 0) {
-        wasCleaned = true;
-        await Promise.all(
-          guestsToRemove.map((guest) => {
-            if (typeof authService.deleteUser === 'function') {
-              return authService.deleteUser(guest.id);
-            }
-            return Promise.resolve();
-          }),
-        );
-
-        // دوباره بگیر
-        if (typeof authService.getGuestUsers === 'function') {
-          activeGuests = await authService.getGuestUsers();
-        } else {
-          const allUsers = await authService.getUsers();
-          activeGuests = allUsers.filter(
-            (u) => u.isGuest === true || u.role === 'guest',
-          );
-        }
-      }
-
-      setGuestUsers(activeGuests);
-      if (wasCleaned) {
-        addNotification(
-          'کاربران میهمان منقضی شده به صورت خودکار حذف شدند.',
-          'info',
-        );
-      }
-    } catch (err) {
-      console.error('[UserProfile] Error refreshing guest users:', err);
-      setGuestUsers([]);
-    }
-  };
 
   // =====================
   // 🔧 v10.1: Fetch subscription — مدیریت خطای 404
@@ -399,10 +322,6 @@ const UserProfile: React.FC<UserProfileProps> = ({
   // Effects
   // =====================
   useEffect(() => {
-    if (currentUser.isAdmin) {
-      void guestSettingsService.getGuestValidityDays().then(setGuestValidityDays);
-      refreshGuestUsers();
-    }
     fetchSubscription();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser.isAdmin]);
@@ -459,62 +378,6 @@ const UserProfile: React.FC<UserProfileProps> = ({
       lastName: currentUser.lastName,
       mobile: currentUser.mobile,
     });
-  };
-
-  const handleGuestValidityChange = () => {
-    guestSettingsService.setGuestValidityDays(guestValidityDays);
-    addNotification(
-      `مدت اعتبار پیش‌فرض برای کاربران میهمان به ${guestValidityDays} روز تغییر یافت.`,
-      'success',
-    );
-  };
-
-  const handleCreateGuest = async () => {
-    if (!newGuestUsername.trim()) {
-      addNotification('لطفاً نام کاربری میهمان را وارد کنید.', 'error');
-      return;
-    }
-    if (!newGuestPassword.trim()) {
-      addNotification('لطفاً رمز عبور میهمان را وارد کنید.', 'error');
-      return;
-    }
-
-    setGuestCreating(true);
-    try {
-      if (typeof authService.createGuestUser === 'function') {
-        await authService.createGuestUser({
-          validityDays: guestValidityDays,
-          firstName: newGuestFirstName.trim() || 'کاربر',
-          lastName: newGuestLastName.trim() || 'میهمان',
-        });
-      } else {
-        addNotification('امکان ایجاد کاربر میهمان فراهم نیست.', 'error');
-        return;
-      }
-
-      addNotification('کاربر میهمان با موفقیت ایجاد شد.', 'success');
-      setNewGuestUsername('');
-      setNewGuestPassword('');
-      setNewGuestFirstName('');
-      setNewGuestLastName('');
-      await refreshGuestUsers();
-    } catch (err: any) {
-      addNotification(err.message || 'خطا در ایجاد کاربر میهمان', 'error');
-    } finally {
-      setGuestCreating(false);
-    }
-  };
-
-  const handleDeleteGuest = async (guest: StoredUser) => {
-    if (
-      window.confirm(`آیا از حذف کاربر میهمان ${guest.username} مطمئن هستید؟`)
-    ) {
-      if (typeof authService.deleteUser === 'function') {
-        await authService.deleteUser(guest.id);
-      }
-      await refreshGuestUsers();
-      addNotification('کاربر میهمان با موفقیت حذف شد.', 'info');
-    }
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -617,13 +480,6 @@ const UserProfile: React.FC<UserProfileProps> = ({
               icon={<EnvelopeIcon className="h-5 w-5" />}
             />
           )}
-          {currentUser.isAdmin && (
-            <TabButton
-              tabId="guest-management"
-              label="مدیریت میهمان‌ها"
-              icon={<UserPlusIcon className="h-5 w-5" />}
-            />
-          )}
         </nav>
       </div>
 
@@ -704,8 +560,6 @@ const UserProfile: React.FC<UserProfileProps> = ({
                 value={
                   currentUser.isAdmin
                     ? '🛡️ مدیر سیستم'
-                    : currentUser.isGuest
-                    ? '👤 میهمان'
                     : '👤 کاربر عادی'
                 }
               />
@@ -861,217 +715,6 @@ const UserProfile: React.FC<UserProfileProps> = ({
       )}
 
       {/* ─── تب مدیریت میهمان‌ها (فقط ادمین) ─── */}
-      {activeTab === 'guest-management' && currentUser.isAdmin && (
-        <div className="space-y-6">
-          {/* تنظیمات اعتبار پیش‌فرض */}
-          <div
-            className="p-6 rounded-lg shadow-md"
-            style={{
-              backgroundColor: 'var(--card-bg)',
-              color: 'var(--card-color)',
-              border: '1px solid var(--card-border-color)',
-            }}
-          >
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <CalendarDaysIcon className="h-5 w-5" />
-              تنظیمات اعتبار پیش‌فرض
-            </h3>
-            <div className="flex items-center gap-3">
-              <label className="text-sm">مدت اعتبار (روز):</label>
-              <input
-                type="number"
-                min={1}
-                max={365}
-                value={guestValidityDays}
-                onChange={(e) => setGuestValidityDays(Number(e.target.value))}
-                className="w-20 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2"
-                style={{
-                  backgroundColor: 'var(--input-bg)',
-                  color: 'var(--input-color)',
-                  borderColor: 'var(--input-border)',
-                }}
-              />
-              <button
-                onClick={handleGuestValidityChange}
-                className="px-4 py-1 bg-cyan-600 text-white rounded text-sm hover:bg-cyan-700 transition-colors"
-              >
-                اعمال
-              </button>
-            </div>
-          </div>
-
-          {/* فرم ایجاد کاربر میهمان */}
-          <div
-            className="p-6 rounded-lg shadow-md"
-            style={{
-              backgroundColor: 'var(--card-bg)',
-              color: 'var(--card-color)',
-              border: '1px solid var(--card-border-color)',
-            }}
-          >
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <UserPlusIcon className="h-5 w-5" />
-              ایجاد کاربر میهمان جدید
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">نام کاربری *</label>
-                <input
-                  type="text"
-                  value={newGuestUsername}
-                  onChange={(e) => setNewGuestUsername(e.target.value)}
-                  placeholder="username"
-                  className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                  style={{
-                    backgroundColor: 'var(--input-bg)',
-                    color: 'var(--input-color)',
-                    borderColor: 'var(--input-border)',
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">رمز عبور *</label>
-                <input
-                  type="text"
-                  value={newGuestPassword}
-                  onChange={(e) => setNewGuestPassword(e.target.value)}
-                  placeholder="password"
-                  className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                  style={{
-                    backgroundColor: 'var(--input-bg)',
-                    color: 'var(--input-color)',
-                    borderColor: 'var(--input-border)',
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">نام</label>
-                <input
-                  type="text"
-                  value={newGuestFirstName}
-                  onChange={(e) => setNewGuestFirstName(e.target.value)}
-                  placeholder="نام"
-                  className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                  style={{
-                    backgroundColor: 'var(--input-bg)',
-                    color: 'var(--input-color)',
-                    borderColor: 'var(--input-border)',
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">نام خانوادگی</label>
-                <input
-                  type="text"
-                  value={newGuestLastName}
-                  onChange={(e) => setNewGuestLastName(e.target.value)}
-                  placeholder="نام خانوادگی"
-                  className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                  style={{
-                    backgroundColor: 'var(--input-bg)',
-                    color: 'var(--input-color)',
-                    borderColor: 'var(--input-border)',
-                  }}
-                />
-              </div>
-            </div>
-            <button
-              onClick={handleCreateGuest}
-              disabled={guestCreating}
-              className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
-            >
-              {guestCreating ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-              ) : (
-                <UserPlusIcon className="h-4 w-4" />
-              )}
-              ایجاد کاربر میهمان
-            </button>
-          </div>
-
-          {/* لیست کاربران میهمان */}
-          <div
-            className="p-6 rounded-lg shadow-md"
-            style={{
-              backgroundColor: 'var(--card-bg)',
-              color: 'var(--card-color)',
-              border: '1px solid var(--card-border-color)',
-            }}
-          >
-            <h3 className="text-lg font-semibold mb-4">
-              کاربران میهمان ({guestUsers.length})
-            </h3>
-            {guestUsers.length === 0 ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                هیچ کاربر میهمان فعالی وجود ندارد.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-right border-b border-[var(--card-border-color)]">
-                      <th className="py-2 pr-2">نام کاربری</th>
-                      <th className="py-2">نام</th>
-                      <th className="py-2">وضعیت</th>
-                      <th className="py-2">روزهای باقی‌مانده</th>
-                      <th className="py-2">عملیات</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {guestUsers.map((guest) => {
-                      const guestValidity = authService.getUserValidityInfo(guest);
-                      return (
-                        <tr
-                          key={guest.id}
-                          className="border-b border-[var(--card-border-color)] hover:bg-gray-50 dark:hover:bg-gray-700/30"
-                        >
-                          <td className="py-2 pr-2">{guest.username}</td>
-                          <td className="py-2">
-                            {guest.firstName} {guest.lastName}
-                          </td>
-                          <td className="py-2">
-                            <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                guest.isActive
-                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400'
-                                  : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400'
-                              }`}
-                            >
-                              {guest.isActive ? 'فعال' : 'غیرفعال'}
-                            </span>
-                          </td>
-                          <td className="py-2">
-                            <span
-                              className={`text-xs font-bold ${
-                                guestValidity.statusColor === 'red'
-                                  ? 'text-red-600'
-                                  : guestValidity.statusColor === 'orange'
-                                  ? 'text-orange-600'
-                                  : 'text-green-600'
-                              }`}
-                            >
-                              {guestValidity.statusText}
-                            </span>
-                          </td>
-                          <td className="py-2">
-                            <button
-                              onClick={() => handleDeleteGuest(guest)}
-                              className="text-red-500 hover:text-red-700 transition-colors"
-                              title="حذف"
-                            >
-                              <TrashIcon className="h-4 w-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
