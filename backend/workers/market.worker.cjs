@@ -5,10 +5,15 @@ const prisma = require('../config/prisma.cjs');
 const brsService = require('../services/brs.service.cjs');
 
 const MARKET_TZ = 'Asia/Tehran';
-const SCALPING_THRESHOLD = 48;
-const SCALPING_LIMIT = 30;
-const SCALPING_MIN_CHANGE_PCT = 0.5;
-const SCALPING_MIN_VALUE = 100000000;
+// Stricter real-market filters: prefer fewer, higher-conviction opportunities.
+const SCALPING_THRESHOLD = 55;
+const SCALPING_LIMIT = 20;
+const SCALPING_MIN_CHANGE_PCT = 0.7;
+const SCALPING_MIN_VALUE = 200000000;
+const SCALPING_MIN_TRADES = 50;
+const SCALPING_MIN_REAL_FLOW_RATIO = 0.10;
+const SCALPING_MIN_POSITION = 0.60;
+const SCALPING_MAX_POSITION = 0.40;
 
 function tehranDateKey(date = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: MARKET_TZ, calendar: 'gregory' }).format(date);
@@ -69,12 +74,12 @@ function scoreSymbol(item) {
 
   const bullish =
     pct >= SCALPING_MIN_CHANGE_PCT &&
-    realNetRatio >= 0 &&
-    position >= 0.55;
+    realNetRatio >= SCALPING_MIN_REAL_FLOW_RATIO &&
+    position >= SCALPING_MIN_POSITION;
   const bearish =
     pct <= -SCALPING_MIN_CHANGE_PCT &&
-    realNetRatio <= 0 &&
-    position <= 0.45;
+    realNetRatio <= -SCALPING_MIN_REAL_FLOW_RATIO &&
+    position <= SCALPING_MAX_POSITION;
 
   const signal = bullish ? 'BUY' : bearish ? 'SELL' : 'WATCH';
 
@@ -287,9 +292,16 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
   const scoredSymbols = symbols.map(item => ({ item, scored: scoreSymbol(item) }));
   const validPrice = scoredSymbols.filter(({ scored }) => scored.last > 0);
   const liquid = validPrice.filter(({ scored }) => scored.value >= SCALPING_MIN_VALUE);
-  const moving = liquid.filter(({ scored }) => Math.abs(scored.pct) >= SCALPING_MIN_CHANGE_PCT);
+  const moving = liquid.filter(({ scored }) =>
+    Math.abs(scored.pct) >= SCALPING_MIN_CHANGE_PCT &&
+    scored.trades >= SCALPING_MIN_TRADES &&
+    Math.abs(scored.realNetRatio) >= SCALPING_MIN_REAL_FLOW_RATIO
+  );
   const threshold = moving.filter(({ scored }) => scored.score >= SCALPING_THRESHOLD);
-  const directional = threshold.filter(({ scored }) => scored.signal !== 'WATCH');
+  const directional = threshold.filter(({ scored }) =>
+    (scored.signal === 'BUY' && scored.realNetRatio >= SCALPING_MIN_REAL_FLOW_RATIO && scored.position >= SCALPING_MIN_POSITION) ||
+    (scored.signal === 'SELL' && scored.realNetRatio <= -SCALPING_MIN_REAL_FLOW_RATIO && scored.position <= SCALPING_MAX_POSITION)
+  );
 
   const candidates = directional
     .sort((a, b) => b.scored.score - a.scored.score)
@@ -320,6 +332,10 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
     thresholdValue: SCALPING_THRESHOLD,
     minChangePct: SCALPING_MIN_CHANGE_PCT,
     minValue: SCALPING_MIN_VALUE,
+    minTrades: SCALPING_MIN_TRADES,
+    minRealFlowRatio: SCALPING_MIN_REAL_FLOW_RATIO,
+    minPosition: SCALPING_MIN_POSITION,
+    maxPosition: SCALPING_MAX_POSITION,
     top: diagnosticTop
   }));
 
