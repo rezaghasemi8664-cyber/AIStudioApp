@@ -139,7 +139,7 @@ exports.upsertGlobalSetting = async (req, res) => {
       }
     }
     const { value } = req.body;
-    const adminId = req.user?.id || null;
+    const adminId = req.user?.id != null ? String(req.user.id) : null;
 
     if (value === undefined || value === null) {
       return res.status(400).json({
