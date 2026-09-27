@@ -243,7 +243,11 @@ async function getBreadth() {
       if (!Number.isFinite(change)) return false;
       if (Math.abs(change) >= 20) return false;
       const name = String(row.industryName || '').trim();
-      if (/صندوق سرمایه.?گذاری قابل معامله/.test(name) && Math.abs(change) > 10) return false;
+      // ETF industry names may arrive with corrupted Unicode characters.
+      // Large negative moves are invalid for this industry snapshot and
+      // should not contaminate the market-rotation summary.
+      if (/صندوق/.test(name) && Math.abs(change) > 10) return false;
+      if (/سرمایه/.test(name) && Math.abs(change) > 10) return false;
       return true;
     })
     .map((row) => ({
