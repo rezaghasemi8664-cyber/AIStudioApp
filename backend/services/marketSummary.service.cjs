@@ -176,7 +176,7 @@ function normalizeSymbolsList(data) {
 }
 function symbolName(row) { return firstString(row?.symbol, row?.l18, row?.l30, row?.name, row?.namad, row?.insCode) || 'نامشخص'; }
 function symbolPercent(row) {
-  const close = pickValue(row, FIELD_KEYS.pctClose);
+  const close = pickValue(row, [...FIELD_KEYS.pctClose, 'changePercent', 'change']);
   if (close !== null) return close;
   const last = pickValue(row, FIELD_KEYS.pctLast);
   if (last !== null) return last;
@@ -184,8 +184,43 @@ function symbolPercent(row) {
   const previous = pickValue(row, ['yesterday', 'py', 'previousClose']);
   return current !== null && previous !== null && previous !== 0 ? ((current - previous) / previous) * 100 : null;
 }
+function normalizeMoverList(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map(x => ({
+    symbol: firstString(x?.symbol, x?.name, x?.l18, x?.l30) || 'نامشخص',
+    pct: pickValue(x, ['changePercent', 'percentChange', 'pct', 'pcp', 'plp']),
+    volume: pickValue(x, ['volume', 'totalVolume', 'tvol']) ?? 0,
+    value: pickValue(x, ['value', 'totalValue', 'tradeValue', 'tval']) ?? 0
+  }));
+}
 function buildBreadth(data) {
+  const explicitPositive = toNumber(data?.positiveStocks);
+  const explicitNegative = toNumber(data?.negativeStocks);
+  const explicitNeutral = toNumber(data?.neutralStocks);
+  const explicitTotal = [explicitPositive, explicitNegative, explicitNeutral].every(v => v !== null)
+    ? explicitPositive + explicitNegative + explicitNeutral : null;
+
+  const explicitGainers = normalizeMoverList(data?.topGainers);
+  const explicitLosers = normalizeMoverList(data?.topLosers);
+  const explicitVolumes = normalizeMoverList(data?.topVolumes);
+
+  // Central worker/shared market service may already have calculated breadth
+  // from the real MarketSymbolCurrent snapshot. Prefer those values when no
+  // raw symbol array is embedded in marketData.
   const rows = normalizeSymbolsList(data);
+  if (!rows.length && explicitTotal !== null) {
+    return {
+      positive: explicitPositive,
+      negative: explicitNegative,
+      neutral: explicitNeutral,
+      total: explicitTotal,
+      coverage: data?.breadthCoveragePercent ?? 100,
+      gainers: explicitGainers,
+      losers: explicitLosers,
+      volumes: explicitVolumes
+    };
+  }
+
   const map = new Map();
   for (const row of rows) {
     const symbol = symbolName(row);
@@ -203,7 +238,7 @@ function buildBreadth(data) {
   const neutral = items.length - positive - negative;
   const gainers = items.filter(x => x.pct !== null && x.pct > 0).sort((a,b) => b.pct-a.pct).slice(0,10);
   const losers = items.filter(x => x.pct !== null && x.pct < 0).sort((a,b) => a.pct-b.pct).slice(0,10);
-  const volumes = [...items].sort((a,b) => (b.volume-b.volume) || (b.value-a.value)).slice(0,10);
+  const volumes = [...items].sort((a,b) => (b.volume-a.volume) || (b.value-a.value)).slice(0,10);
   return { positive, negative, neutral, total: items.length, coverage: rows.length ? (items.length / rows.length) * 100 : null, gainers, losers, volumes };
 }
 function isIndexLike(row) {
