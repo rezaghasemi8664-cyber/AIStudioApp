@@ -553,9 +553,8 @@ function ensurePrivilegedAccess(req, res) {
 
 // GET /api/market/index
 async function getMarketIndex(req, res) {
-  // Shared DB is the only user-facing source for the market index.
-  // BRS/TSETMC refreshes are performed by the central market worker,
-  // not by individual dashboard requests.
+  // Prefer the shared snapshot, but never allow an empty/invalid row to hide
+  // a valid live BRS index. The dashboard must receive numeric index data.
   if (!sharedMarketService || typeof sharedMarketService.getMarketCurrent !== 'function') {
     return res.status(503).json({
       success: false,
@@ -567,97 +566,146 @@ async function getMarketIndex(req, res) {
   try {
     let snapshot = await sharedMarketService.getMarketCurrent();
 
-    // Recovery path for a fresh/empty shared database. Serve a valid live BRS snapshot immediately;
-    // persistence is best-effort so a database write problem cannot blank the dashboard.
-    if (!snapshot && brsService && typeof brsService.getMarketIndex === 'function') {
+    const normalizeSharedSnapshot = (row) => {
+      if (!row) return null;
+      const normalized = normalizeMarketIndexPayload({
+        date: row.marketDate,
+        time: row.updatedAt,
+        state: row.marketStatus,
+        index: row.overallIndex,
+        indexChange: row.overallChange,
+        indexEqualWeight: row.equalIndex,
+        indexEqualWeightChange: row.equalChange,
+        tradeCount: row.totalTrades,
+        tradeVolume: row.totalVolume,
+        tradeValue: row.totalValue,
+        volume: row.totalVolume,
+        isMarketOpen: String(row.marketStatus || '').toLowerCase().includes('open'),
+        lastUpdate: row.updatedAt
+      }, row.updatedAt);
+      return hasUsableMarketIndexData(normalized) && normalized.index !== null
+        ? { row, data: normalized }
+        : null;
+    };
+
+    let sharedResult = normalizeSharedSnapshot(snapshot);
+
+    // A row can exist in MarketCurrent but still be unusable (for example,
+    // only marketStatus was written). In that case force a live BRS recovery.
+    if (!sharedResult && brsService && typeof brsService.getMarketIndex === 'function') {
       try {
         const liveResponse = await brsService.getMarketIndex();
         const liveEnvelope = normalizeServiceEnvelope(liveResponse);
         const liveData = liveEnvelope.data;
-        if (hasUsableMarketIndexData(liveData)) {
-          const stableLiveData = normalizeMarketIndexPayload(liveData, liveData.updatedAt || liveData._timestamp || new Date());
-          if (hasUsableMarketIndexData(stableLiveData)) {
-            snapshot = {
-              marketDate: liveData.date || null,
-              updatedAt: liveData.updatedAt || liveData._timestamp || new Date(),
-              marketStatus: liveData.isMarketOpen === true ? 'OPEN' : 'CLOSED',
-              overallIndex: stableLiveData.index,
-              overallChange: stableLiveData.indexChange,
-              equalIndex: stableLiveData.indexEqualWeight,
-              equalChange: stableLiveData.indexEqualWeightChange,
-              totalTrades: stableLiveData.tradeCount,
-              totalVolume: stableLiveData.tradeVolume,
-              totalValue: stableLiveData.tradeValue,
-              source: liveEnvelope.cached ? 'brs-live-cache' : 'brs-live-recovery',
-              isStale: !!liveEnvelope.usedFallback
-            };
-            try {
-              const prisma = require('../config/prisma.cjs');
-              const tehranDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-              const marketDate = new Date(tehranDate + 'T00:00:00.000Z');
-              await prisma.marketCurrent.upsert({
-                where: { marketDate },
-                create: { marketDate, marketStatus: snapshot.marketStatus, overallIndex: snapshot.overallIndex, overallChange: snapshot.overallChange, equalIndex: snapshot.equalIndex, equalChange: snapshot.equalChange, totalTrades: snapshot.totalTrades, totalVolume: snapshot.totalVolume, totalValue: snapshot.totalValue, updatedAt: new Date(), source: snapshot.source, isStale: snapshot.isStale, dataJson: JSON.stringify(liveData) },
-                update: { marketStatus: snapshot.marketStatus, overallIndex: snapshot.overallIndex, overallChange: snapshot.overallChange, equalIndex: snapshot.equalIndex, equalChange: snapshot.equalChange, totalTrades: snapshot.totalTrades, totalVolume: snapshot.totalVolume, totalValue: snapshot.totalValue, updatedAt: new Date(), source: snapshot.source, isStale: snapshot.isStale, dataJson: JSON.stringify(liveData) }
-              });
-            } catch (persistError) {
-              console.warn('[MARKET CTRL v8.0] Live market persistence skipped:', getErrorMessage(persistError));
-            }
+        const stableLiveData = normalizeMarketIndexPayload(liveData, liveData && (liveData._timestamp || liveData.updatedAt));
+        
+        if (hasUsableMarketIndexData(stableLiveData) && stableLiveData.index !== null) {
+          const source = liveEnvelope.cached
+            ? 'brs-live-cache'
+            : (liveEnvelope.usedFallback ? 'brs-live-fallback' : 'brs-live');
+
+          const marketDate = liveData && liveData.date
+            ? liveData.date
+            : null;
+          const updatedAt = liveData && liveData._timestamp
+            ? liveData._timestamp
+            : new Date().toISOString();
+
+          const recoveredRow = {
+            marketDate,
+            updatedAt,
+            marketStatus: stableLiveData.isMarketOpen ? 'OPEN' : 'CLOSED',
+            overallIndex: stableLiveData.index,
+            overallChange: stableLiveData.indexChange,
+            equalIndex: stableLiveData.indexEqualWeight,
+            equalChange: stableLiveData.indexEqualWeightChange,
+            totalTrades: stableLiveData.tradeCount,
+            totalVolume: stableLiveData.tradeVolume,
+            totalValue: stableLiveData.tradeValue,
+            source,
+            isStale: !!liveEnvelope.usedFallback
+          };
+
+          // Best-effort persistence. A DB write failure must not prevent the
+          // already valid live result from reaching the dashboard.
+          try {
+            const prisma = require('../config/prisma.cjs');
+            const tehranDate = new Intl.DateTimeFormat('en-CA', {
+              timeZone: 'Asia/Tehran',
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit'
+            }).format(new Date());
+            const dbDate = new Date(tehranDate + 'T00:00:00.000Z');
+
+            await prisma.marketCurrent.upsert({
+              where: { marketDate: dbDate },
+              create: {
+                marketDate: dbDate,
+                marketStatus: recoveredRow.marketStatus,
+                overallIndex: recoveredRow.overallIndex,
+                overallChange: recoveredRow.overallChange,
+                equalIndex: recoveredRow.equalIndex,
+                equalChange: recoveredRow.equalChange,
+                totalTrades: recoveredRow.totalTrades,
+                totalVolume: recoveredRow.totalVolume,
+                totalValue: recoveredRow.totalValue,
+                updatedAt: new Date(),
+                source: recoveredRow.source,
+                isStale: recoveredRow.isStale,
+                dataJson: JSON.stringify(liveData)
+              },
+              update: {
+                marketStatus: recoveredRow.marketStatus,
+                overallIndex: recoveredRow.overallIndex,
+                overallChange: recoveredRow.overallChange,
+                equalIndex: recoveredRow.equalIndex,
+                equalChange: recoveredRow.equalChange,
+                totalTrades: recoveredRow.totalTrades,
+                totalVolume: recoveredRow.totalVolume,
+                totalValue: recoveredRow.totalValue,
+                updatedAt: new Date(),
+                source: recoveredRow.source,
+                isStale: recoveredRow.isStale,
+                dataJson: JSON.stringify(liveData)
+              }
+            });
+          } catch (persistError) {
+            console.warn('[MARKET CTRL v9.0] Live market persistence skipped:', getErrorMessage(persistError));
           }
+
+          sharedResult = { row: recoveredRow, data: stableLiveData };
         }
       } catch (recoveryError) {
-        console.warn('[MARKET CTRL v8.0] Live market recovery failed:', getErrorMessage(recoveryError));
+        console.warn('[MARKET CTRL v9.0] Live market recovery failed:', getErrorMessage(recoveryError));
       }
     }
 
-    if (!snapshot) {
+    if (!sharedResult) {
       return res.status(503).json({
         success: false,
-        message: 'هنوز داده‌ای از بازار در دیتابیس مشترک ثبت نشده است',
-        code: 'NO_SHARED_MARKET_DATA'
+        message: 'داده معتبر شاخص بازار در دسترس نیست',
+        code: 'MARKET_INDEX_UNAVAILABLE'
       });
     }
 
-    const stableData = normalizeMarketIndexPayload({
-      date: snapshot.marketDate,
-      time: snapshot.updatedAt,
-      state: snapshot.marketStatus,
-      index: snapshot.overallIndex,
-      indexChange: snapshot.overallChange,
-      indexEqualWeight: snapshot.equalIndex,
-      indexEqualWeightChange: snapshot.equalChange,
-      tradeCount: snapshot.totalTrades,
-      tradeVolume: snapshot.totalVolume,
-      tradeValue: snapshot.totalValue,
-      volume: snapshot.totalVolume,
-      isMarketOpen: String(snapshot.marketStatus || '').toLowerCase().includes('open'),
-      lastUpdate: snapshot.updatedAt,
-      source: snapshot.source || 'shared-db',
-      isStale: snapshot.isStale
-    }, snapshot.updatedAt);
-
-    if (!hasUsableMarketIndexData(stableData)) {
-      return res.status(503).json({
-        success: false,
-        message: 'داده شاخص بازار در دیتابیس مشترک کامل نیست',
-        code: 'INVALID_SHARED_MARKET_DATA'
-      });
-    }
+    const snapshotData = sharedResult.data;
+    const row = sharedResult.row;
 
     return res.json({
       success: true,
-      data: stableData,
-      cached: true,
-      stale: !!snapshot.isStale,
-      source: 'shared-db',
+      data: snapshotData,
+      cached: row.source ? String(row.source).indexOf('brs-live') !== -1 : true,
+      stale: !!row.isStale,
+      source: row.source || 'shared-db',
       timestamp: new Date().toISOString()
     });
   } catch (err) {
-    console.error('[MARKET CTRL v7.0] Shared market index error:', getErrorMessage(err));
+    console.error('[MARKET CTRL v9.0] Market index error:', getErrorMessage(err));
     return res.status(500).json({
       success: false,
-      message: 'خطا در دریافت شاخص بازار از دیتابیس مشترک',
-      code: 'SHARED_MARKET_READ_ERROR',
+      message: 'خطا در دریافت شاخص بازار',
+      code: 'MARKET_INDEX_READ_ERROR',
       error: isDev() ? getErrorMessage(err) : undefined
     });
   }
