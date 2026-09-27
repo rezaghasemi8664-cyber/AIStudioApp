@@ -412,6 +412,8 @@ const UserProfile: React.FC<UserProfileProps> = ({
       await messageService.sendMessageToAdmin(currentUser, message, attachmentData);
       addNotification('پیام شما با موفقیت برای ادمین ارسال شد.', 'success');
       setMessage('');
+      setAttachment(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       const messages = await messageService.getAllMessages();
       setReceivedMessages(messages);
       setAttachment(null);
