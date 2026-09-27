@@ -13,6 +13,7 @@ export async function getNotifications(): Promise<ApiResult<Notification[]>> { r
 export async function addNotification(input: CreateNotificationInput): Promise<ApiResult<Notification>> { return post<Notification>('/notifications', input); }
 export async function markAsRead(notificationId: string): Promise<ApiResult<void>> { return (await import('./apiClient')).put<void>(`/notifications/${encodeURIComponent(notificationId)}/read`); }
 export async function markAllAsRead(): Promise<ApiResult<void>> { return patch<void>('/notifications/read-all'); }
+export async function deleteNotification(notificationId: string): Promise<ApiResult<void>> { return del<void>(`/notifications/${encodeURIComponent(notificationId)}`); }
 export async function clearNotifications(): Promise<ApiResult<void>> { return del<void>('/notifications'); }
 export async function getUnreadCount(): Promise<ApiResult<number>> {
   const res = await get<{ count?: number }>('/notifications/unread-count');
