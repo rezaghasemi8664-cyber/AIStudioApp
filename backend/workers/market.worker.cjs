@@ -12,8 +12,10 @@ const SCALPING_MIN_CHANGE_PCT = 0.7;
 const SCALPING_MIN_VALUE = 200000000;
 const SCALPING_MIN_TRADES = 50;
 const SCALPING_MIN_REAL_FLOW_RATIO = 0.10;
-const SCALPING_MIN_POSITION = 0.60;
-const SCALPING_MAX_POSITION = 0.40;
+const SCALPING_MIN_POSITION = 0.65;
+const SCALPING_MAX_POSITION = 0.35;
+const SCALPING_MIN_RANGE_PCT = 0.8;
+const SCALPING_MIN_REAL_PARTICIPATION = 0.15;
 
 function tehranDateKey(date = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: MARKET_TZ, calendar: 'gregory' }).format(date);
@@ -53,8 +55,13 @@ function scoreSymbol(item) {
   const realSell = Math.max(0, num(item.realSellVolume, 0));
   const realTotal = realBuy + realSell;
   const realNetRatio = realTotal > 0 ? (realBuy - realSell) / realTotal : 0;
+  const realParticipation = volume > 0 ? realTotal / volume : 0;
   const range = Math.max(0, high - low);
+  const rangePct = yesterday > 0 ? (range / yesterday) * 100 : 0;
   const position = range > 0 ? Math.max(0, Math.min(1, (last - low) / range)) : 0.5;
+  const dataQuality =
+    last > 0 && close > 0 && yesterday > 0 && open > 0 && high >= low &&
+    last >= low && last <= high && close >= low && close <= high;
 
   // All components are derived from the current BRS market snapshot.
   // No synthetic/history-free prices are introduced.
@@ -73,13 +80,21 @@ function scoreSymbol(item) {
   )));
 
   const bullish =
+    dataQuality &&
     pct >= SCALPING_MIN_CHANGE_PCT &&
     realNetRatio >= SCALPING_MIN_REAL_FLOW_RATIO &&
-    position >= SCALPING_MIN_POSITION;
+    realParticipation >= SCALPING_MIN_REAL_PARTICIPATION &&
+    position >= SCALPING_MIN_POSITION &&
+    last >= open &&
+    last >= close;
   const bearish =
+    dataQuality &&
     pct <= -SCALPING_MIN_CHANGE_PCT &&
     realNetRatio <= -SCALPING_MIN_REAL_FLOW_RATIO &&
-    position <= SCALPING_MAX_POSITION;
+    realParticipation >= SCALPING_MIN_REAL_PARTICIPATION &&
+    position <= SCALPING_MAX_POSITION &&
+    last <= open &&
+    last <= close;
 
   const signal = bullish ? 'BUY' : bearish ? 'SELL' : 'WATCH';
 
@@ -96,7 +111,10 @@ function scoreSymbol(item) {
     realNetRatio,
     value,
     volume,
-    trades
+    trades,
+    realParticipation,
+    rangePct,
+    dataQuality
   };
 }
 
@@ -293,9 +311,12 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
   const validPrice = scoredSymbols.filter(({ scored }) => scored.last > 0);
   const liquid = validPrice.filter(({ scored }) => scored.value >= SCALPING_MIN_VALUE);
   const moving = liquid.filter(({ scored }) =>
+    scored.dataQuality &&
     Math.abs(scored.pct) >= SCALPING_MIN_CHANGE_PCT &&
     scored.trades >= SCALPING_MIN_TRADES &&
-    Math.abs(scored.realNetRatio) >= SCALPING_MIN_REAL_FLOW_RATIO
+    Math.abs(scored.realNetRatio) >= SCALPING_MIN_REAL_FLOW_RATIO &&
+    scored.realParticipation >= SCALPING_MIN_REAL_PARTICIPATION &&
+    scored.rangePct >= SCALPING_MIN_RANGE_PCT
   );
   const threshold = moving.filter(({ scored }) => scored.score >= SCALPING_THRESHOLD);
   const directional = threshold.filter(({ scored }) =>
@@ -318,7 +339,9 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
       pct: Number(scored.pct.toFixed(2)),
       value: Math.trunc(scored.value),
       position: Number(scored.position.toFixed(2)),
-      realNetRatio: Number(scored.realNetRatio.toFixed(3))
+      realNetRatio: Number(scored.realNetRatio.toFixed(3)),
+      realParticipation: Number(scored.realParticipation.toFixed(3)),
+      rangePct: Number(scored.rangePct.toFixed(2))
     }));
 
   console.log('[SCALPING DIAGNOSTIC]', JSON.stringify({
@@ -336,6 +359,8 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
     minRealFlowRatio: SCALPING_MIN_REAL_FLOW_RATIO,
     minPosition: SCALPING_MIN_POSITION,
     maxPosition: SCALPING_MAX_POSITION,
+    minRangePct: SCALPING_MIN_RANGE_PCT,
+    minRealParticipation: SCALPING_MIN_REAL_PARTICIPATION,
     top: diagnosticTop
   }));
 
