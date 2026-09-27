@@ -298,11 +298,29 @@ async function runMarketWorker() {
 }
 
 function startMarketWorker() {
-  if (process.env.MARKET_WORKER_ENABLED === 'false') return;
+  if (process.env.MARKET_WORKER_ENABLED === 'false') {
+    console.log('[MARKET WORKER] Disabled by MARKET_WORKER_ENABLED=false');
+    return;
+  }
   const instance = process.env.NODE_APP_INSTANCE;
-  if (instance !== undefined && instance !== '0') return;
-  cron.schedule('*/1 * * * *', () => runMarketWorker());
-  console.log('[MARKET WORKER] Central market worker started');
+  if (instance !== undefined && instance !== '0') {
+    console.log('[MARKET WORKER] Skipped on PM2 instance ' + String(instance));
+    return;
+  }
+
+  // Run immediately after backend startup so a fresh/empty shared database
+  // is populated without waiting for the first one-minute cron tick.
+  runMarketWorker().catch((error) => {
+    console.error('[MARKET WORKER] Initial refresh failed:', error?.message || error);
+  });
+
+  cron.schedule('*/1 * * * *', () => {
+    runMarketWorker().catch((error) => {
+      console.error('[MARKET WORKER] Scheduled refresh failed:', error?.message || error);
+    });
+  });
+
+  console.log('[MARKET WORKER] Central market worker started (immediate bootstrap + every minute)');
 }
 
 module.exports = { runMarketWorker, startMarketWorker, updateMarketCurrent, updateSymbolsAndMovers, updateIndustries, updateMarketDaily, updateScalpingOpportunities };
