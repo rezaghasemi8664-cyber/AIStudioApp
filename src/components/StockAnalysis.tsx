@@ -2540,7 +2540,7 @@ const clearCurrentAnalysis = () => {
                       </span>
                       {item.source ? (
                         <span className="text-[10px] font-semibold text-slate-500">
-                          منبع: {item.source}
+                          منبع: {historySummaryText(item.source)}
                         </span>
                       ) : null}
                       {item.stale ? (
