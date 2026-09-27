@@ -275,7 +275,19 @@ async function runJob(name, fn) {
 
 async function runMarketWorker() {
   const status = await brsService.getMarketStatus().catch(() => ({ isOpen: false }));
-  if (!status || status.isOpen !== true) return { status: 'skipped', reason: 'market-closed' };
+  const existingMarketCurrent = await prisma.marketCurrent.findFirst({
+    orderBy: { updatedAt: 'desc' },
+    select: { id: true, updatedAt: true }
+  }).catch(() => null);
+
+  // The shared database must be bootstrapped even when the market is closed.
+  // Otherwise a fresh deployment can remain empty forever until the next
+  // trading session, causing /api/v1/market/index to return NO_SHARED_MARKET_DATA.
+  const needsBootstrap = !existingMarketCurrent;
+  if (!status || status.isOpen !== true) {
+    if (!needsBootstrap) return { status: 'skipped', reason: 'market-closed' };
+    console.log('[MARKET WORKER] Market is closed, but shared market data is empty; running bootstrap refresh.');
+  }
 
   await runJob('market-current', updateMarketCurrent);
   const symbols = await updateSymbolsAndMovers();
