@@ -3,6 +3,7 @@
 const express = require('express');
 const prismaModule = require('../config/prisma.cjs');
 const authMiddleware = require('../middlewares/auth.middleware.cjs');
+const subscriptionService = require('../services/subscription.service.cjs');
 
 const router = express.Router();
 const prisma = prismaModule.prisma || prismaModule;
@@ -44,6 +45,39 @@ async function requireAdmin(req, res, next) {
     res.status(500).json({ success: false, message: 'Error checking admin access' });
   }
 }
+
+router.get('/trial-config', authMiddleware, requireAdmin, async (_req, res) => {
+  try {
+    const config = await subscriptionService.getTrialConfig();
+    return res.json({ success: true, data: { durationDays: config.durationDays } });
+  } catch (error) {
+    console.error('[AdminSubscriptions] trial config get failed:', error.message);
+    return res.status(500).json({ success: false, message: 'دریافت مدت اعتبار هدیه ناموفق بود.' });
+  }
+});
+
+router.put('/trial-config', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const durationDays = Number(req.body?.durationDays);
+    if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 3650) {
+      return res.status(400).json({ success: false, message: 'مدت اعتبار هدیه باید عدد صحیح بین ۱ تا ۳۶۵۰ روز باشد.' });
+    }
+    await prisma.appConfig.upsert({
+      where: { key: subscriptionService.TRIAL_CONFIG_KEYS.DURATION_DAYS },
+      update: { value: String(durationDays), updatedAt: new Date() },
+      create: { key: subscriptionService.TRIAL_CONFIG_KEYS.DURATION_DAYS, value: String(durationDays) },
+    });
+    await prisma.appConfig.upsert({
+      where: { key: subscriptionService.TRIAL_CONFIG_KEYS.ENABLED },
+      update: { value: 'true', updatedAt: new Date() },
+      create: { key: subscriptionService.TRIAL_CONFIG_KEYS.ENABLED, value: 'true' },
+    });
+    return res.json({ success: true, message: 'مدت اعتبار هدیه رایگان ذخیره شد.', data: { durationDays } });
+  } catch (error) {
+    console.error('[AdminSubscriptions] trial config save failed:', error.message);
+    return res.status(500).json({ success: false, message: 'ذخیره مدت اعتبار هدیه ناموفق بود.' });
+  }
+});
 
 router.get('/summary', authMiddleware, requireAdmin, async (_req, res) => {
   try {
