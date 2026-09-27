@@ -474,12 +474,45 @@ function fetchBRSOnce(url, label, requestOptions) {
   });
 }
 
+function applyBRSRelay(url, requestOptions) {
+  var relayBase = String(process.env.BRS_RELAY_URL || '').trim();
+  if (!relayBase) return { url: url, requestOptions: requestOptions || {} };
+
+  var upstream;
+  try {
+    upstream = new URL(url);
+  } catch (error) {
+    throw new Error('Invalid BRS upstream URL: ' + url);
+  }
+
+  var apiKey = upstream.searchParams.get('key') || '';
+  upstream.searchParams.delete('key');
+
+  var relay;
+  try {
+    relay = new URL(relayBase);
+  } catch (error) {
+    throw new Error('Invalid BRS_RELAY_URL');
+  }
+
+  relay.searchParams.set('url', upstream.toString());
+
+  var nextOptions = Object.assign({}, requestOptions || {});
+  nextOptions.headers = Object.assign({}, (requestOptions && requestOptions.headers) || {});
+  if (apiKey) nextOptions.headers['X-BRS-API-Key'] = apiKey;
+
+  return { url: relay.toString(), requestOptions: nextOptions };
+}
+
 async function fetchBRS(url, label, requestOptions) {
+  var relayed = applyBRSRelay(url, requestOptions);
+  var requestUrl = relayed.url;
+  var requestOpts = relayed.requestOptions;
   var lastError = null;
 
   for (var attempt = 0; attempt <= HTTP_RETRY_COUNT; attempt += 1) {
     try {
-      return await fetchBRSOnce(url, label, requestOptions);
+      return await fetchBRSOnce(requestUrl, label, requestOpts);
     } catch (error) {
       lastError = error;
       var retryable = isRetryableError(error);
