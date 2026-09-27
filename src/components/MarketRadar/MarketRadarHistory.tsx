@@ -71,13 +71,15 @@ const MarketRadarHistory: React.FC = () => {
   const validEqualValues = equalValues.filter(valueIsValid);
   const last = data?.points[data.points.length - 1];
   const firstValid = validValues[0];
-  const lastValue = last?.[selectedMetric.key] as number | null | undefined;
+  const lastValid = [...values].reverse().find(valueIsValid) ?? null;
+  const lastEqualValid = [...equalValues].reverse().find(valueIsValid) ?? null;
+  const lastValue = lastValid;
   const hoveredPoint = hovered && data?.points[hovered.index];
   const hoveredValue = hoveredPoint ? hoveredPoint[selectedMetric.key] as number | null : null;
   const hoveredEqual = hoveredPoint?.equalWeightedIndex ?? null;
   const valueLabel = (value: number | null | undefined) => selectedMetric.format === 'compact' ? compactFa(value) : fa(value, 2);
   const rangeChange = percentChange(firstValid, lastValue);
-  const equalRangeChange = percentChange(validEqualValues[0], last?.equalWeightedIndex);
+  const equalRangeChange = percentChange(validEqualValues[0], lastEqualValid);
   const rangeChangeLabel = rangeChange === null ? '—' : `${rangeChange >= 0 ? '+' : ''}${fa(rangeChange, 2)}٪`;
   const equalRangeChangeLabel = equalRangeChange === null ? '—' : `${equalRangeChange >= 0 ? '+' : ''}${fa(equalRangeChange, 2)}٪`;
   const high = validValues.length ? Math.max(...validValues) : null;
