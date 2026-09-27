@@ -20,13 +20,7 @@ const num = (value: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-function normalizeDate(value: unknown): string | null {
-  const raw = String(value ?? '').trim();
-  if (!raw) return null;
-  const parsed = Date.parse(raw);
-  if (Number.isFinite(parsed)) return new Date(parsed).toISOString().slice(0, 10);
-  return raw.slice(0, 10);
-}
+const normalizeDate = normalizePortfolioDate;
 
 async function getHistory(symbol: string): Promise<QuotePoint[]> {
   const response = await api.get(`/brs/symbol/${encodeURIComponent(symbol)}/history`, { params: { limit: 365 } });
