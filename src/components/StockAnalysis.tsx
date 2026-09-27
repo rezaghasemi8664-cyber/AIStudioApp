@@ -770,17 +770,17 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
   );
 
   const normalized: UnifiedAnalysisResult = {
-    symbol: source.symbol ?? 'نامشخص',
+    symbol: renderableText(source.symbol, 'نامشخص'),
     summary: historySummaryText(source.summary) || historySummaryText(source.explanations) || '',
-    recommendation: source.recommendation ?? 'hold',
-    riskLevel: source.riskLevel ?? source.risk_level ?? 'medium',
-    shortTermTrend: source.shortTermTrend ?? source.short_term_trend ?? 'neutral',
-    mediumTermTrend: source.mediumTermTrend ?? source.medium_term_trend ?? 'neutral',
-    sentiment: source.sentiment ?? 'neutral',
+    recommendation: renderableText(source.recommendation, 'hold'),
+    riskLevel: renderableText(source.riskLevel ?? source.risk_level, 'medium'),
+    shortTermTrend: renderableText(source.shortTermTrend ?? source.short_term_trend, 'neutral'),
+    mediumTermTrend: renderableText(source.mediumTermTrend ?? source.medium_term_trend, 'neutral'),
+    sentiment: renderableText(source.sentiment, 'neutral'),
     confidence: normalizeConfidence(source.confidence),
     analysisDate: source.analysisDate ?? source.analysis_date ?? source.createdAt ?? new Date().toISOString(),
     meta: source.meta ?? {},
-    model: source.model,
+    model: historySummaryText(source.model) || undefined,
     usage: normalizeUsage(source.usage) ?? null,
     rawData: source.rawData,
     ontology_version: source.ontology_version,
@@ -845,7 +845,7 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
           : source.targets && typeof source.targets === 'object'
           ? source.targets
           : {},
-      timeframe: signals.timeframe ?? source.timeframe ?? 'روزانه',
+      timeframe: historySummaryText(signals.timeframe ?? source.timeframe) || 'روزانه',
     },
 
     explanations: {
@@ -2336,7 +2336,7 @@ const clearCurrentAnalysis = () => {
                               قیمت: {formatNumber(p?.price)}
                             </div>
                             <div className="mt-1 whitespace-pre-wrap text-[13px] font-medium leading-7 text-slate-700">
-                              {p?.reason || '—'}
+                              {renderableText(p?.reason)}
                             </div>
                           </div>
                         ))}
@@ -2419,7 +2419,7 @@ const clearCurrentAnalysis = () => {
                             : '—'
                         }
                       />
-                      <DetailRow label="مدل" value={analysisData.model ? analysisData.model : '—'} />
+                      <DetailRow label="مدل" value={renderableText(analysisData.model)} />
                     </div>
                   </div>
 
