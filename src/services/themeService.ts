@@ -253,19 +253,32 @@ async function fetchWelcomeBannerConfigFromServer(): Promise<ApiResult<WelcomeBa
   const res = await safeApi<unknown>('/settings/global/ui/welcome-banner-config', { method: 'GET' });
   if (!res.ok) return { ...res, data: DEFAULT_WELCOME_BANNER_CONFIG };
 
+  // safeApi returns the complete HTTP JSON response in res.data.
+  // The backend response shape is:
+  // { success: true, data: { ..., parsedValue: { text, durationSeconds } } }
+  // Read both the wrapped and direct forms for compatibility.
   const responseData = res.data as
-    | (Partial<WelcomeBannerConfig> & { parsedValue?: unknown })
+    | {
+        data?: {
+          parsedValue?: unknown;
+          text?: unknown;
+          durationSeconds?: unknown;
+        };
+        parsedValue?: unknown;
+        text?: unknown;
+        durationSeconds?: unknown;
+      }
     | undefined;
 
-  // The global-settings API returns the stored setting together with
-  // parsedValue. Read parsedValue when present; otherwise keep compatibility
-  // with a direct WelcomeBannerConfig response.
-  const rawValue =
-    responseData?.parsedValue &&
-    typeof responseData.parsedValue === 'object' &&
-    !Array.isArray(responseData.parsedValue)
-      ? (responseData.parsedValue as Partial<WelcomeBannerConfig>)
-      : responseData;
+  const settingData = responseData?.data ?? responseData;
+  const parsedValue =
+    settingData?.parsedValue &&
+    typeof settingData.parsedValue === 'object' &&
+    !Array.isArray(settingData.parsedValue)
+      ? (settingData.parsedValue as Partial<WelcomeBannerConfig>)
+      : null;
+
+  const rawValue = parsedValue ?? settingData;
 
   const text =
     typeof rawValue?.text === 'string' && rawValue.text.trim()
