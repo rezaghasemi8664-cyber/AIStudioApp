@@ -1333,8 +1333,21 @@ const fetchMarketSummary = async () => {
 
       setAnalysisResult(response.rawText);
       setAnalysisData(response.data);
+
+      try {
+        await analysisHistoryService.addAnalysisToHistory('', {
+          symbol: trimmedSymbol,
+          recommendation: response.data?.recommendation,
+          riskLevel: response.data?.riskLevel,
+          summary: response.data?.summary,
+          result: response.data,
+        });
+      } catch (historySaveError) {
+        console.error('[StockAnalysis] failed to save analysis history:', historySaveError);
+      }
+
 try {
-  const latestHistory = await getAnalysisHistory('', 3, 0);
+  const latestHistory = await getAnalysisHistory('', 10, 0);
 
   setAnalysisHistory(
     latestHistory
