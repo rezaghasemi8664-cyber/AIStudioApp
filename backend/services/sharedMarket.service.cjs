@@ -181,10 +181,27 @@ async function getBreadth() {
 
   if (!market) return null;
 
-  const positive = Number(market.positiveStocks || 0);
-  const negative = Number(market.negativeStocks || 0);
-  const neutral = Number(market.neutralStocks || 0);
-  const total = positive + negative + neutral;
+  let positive = Number(market.positiveStocks || 0);
+  let negative = Number(market.negativeStocks || 0);
+  let neutral = Number(market.neutralStocks || 0);
+  let total = positive + negative + neutral;
+
+  // If the central worker did not persist breadth counters, derive them
+  // from the current real symbol snapshot instead of reporting 0/0/0.
+  if (total === 0) {
+    const symbols = await getSymbols({ limit: 10000 });
+    const valid = symbols.filter((row) =>
+      row &&
+      row.symbol &&
+      !/شاخص|index/i.test(`${row.symbol} ${row.name || ''}`) &&
+      Number(row.volume || 0) > 0
+    );
+
+    positive = valid.filter((row) => Number(row.changePercent) > 0).length;
+    negative = valid.filter((row) => Number(row.changePercent) < 0).length;
+    neutral = valid.filter((row) => Number(row.changePercent) === 0).length;
+    total = positive + negative + neutral;
+  }
 
   const sectors = industries.map((row) => ({
     name: row.industryName,
