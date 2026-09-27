@@ -5,8 +5,10 @@ const prisma = require('../config/prisma.cjs');
 const brsService = require('../services/brs.service.cjs');
 
 const MARKET_TZ = 'Asia/Tehran';
-const SCALPING_THRESHOLD = 55;
+const SCALPING_THRESHOLD = 48;
 const SCALPING_LIMIT = 30;
+const SCALPING_MIN_CHANGE_PCT = 0.5;
+const SCALPING_MIN_VALUE = 100000000;
 
 function tehranDateKey(date = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: MARKET_TZ, calendar: 'gregory' }).format(date);
@@ -35,13 +37,62 @@ function scoreSymbol(item) {
   const last = num(item.lastPrice, 0);
   const close = num(item.closePrice, last);
   const yesterday = num(item.yesterday, close);
+  const open = num(item.open, last);
+  const high = num(item.high, Math.max(last, open));
+  const low = num(item.low, Math.min(last, open));
   const pct = yesterday > 0 ? ((last - yesterday) / yesterday) * 100 : num(item.changePercent, 0);
-  const volume = num(item.volume, 0);
-  const realNet = num(item.realBuyVolume, 0) - num(item.realSellVolume, 0);
-  const activity = Math.min(25, Math.log10(Math.max(volume, 1)) * 2.5);
-  const momentum = Math.max(0, Math.min(35, 15 + pct * 4));
-  const flow = Math.max(0, Math.min(40, 20 + (realNet / Math.max(volume, 1)) * 40));
-  return { score: Math.round(Math.max(0, Math.min(100, activity + momentum + flow))), pct, last, close };
+  const volume = Math.max(0, num(item.volume, 0));
+  const value = Math.max(0, num(item.value, 0));
+  const trades = Math.max(0, num(item.tradeCount, 0));
+  const realBuy = Math.max(0, num(item.realBuyVolume, 0));
+  const realSell = Math.max(0, num(item.realSellVolume, 0));
+  const realTotal = realBuy + realSell;
+  const realNetRatio = realTotal > 0 ? (realBuy - realSell) / realTotal : 0;
+  const range = Math.max(0, high - low);
+  const position = range > 0 ? Math.max(0, Math.min(1, (last - low) / range)) : 0.5;
+
+  // All components are derived from the current BRS market snapshot.
+  // No synthetic/history-free prices are introduced.
+  const liquidity = Math.min(20, Math.max(0, (Math.log10(Math.max(value, 1)) - 7) * 5));
+  const activity = Math.min(15, Math.max(0, Math.log10(trades + 1) * 3));
+  const momentum = Math.min(30, Math.max(0, Math.abs(pct) * 5));
+  const flow = Math.min(20, Math.max(0, Math.abs(realNetRatio) * 20));
+  const rangePosition = Math.min(15, Math.abs(position - 0.5) * 30);
+
+  const directionalAgreement =
+    ((pct > 0 && realNetRatio > 0 && position >= 0.55) ||
+     (pct < 0 && realNetRatio < 0 && position <= 0.45)) ? 10 : 0;
+
+  const score = Math.round(Math.max(0, Math.min(100,
+    liquidity + activity + momentum + flow + rangePosition + directionalAgreement
+  )));
+
+  const bullish =
+    pct >= SCALPING_MIN_CHANGE_PCT &&
+    realNetRatio >= 0 &&
+    position >= 0.55;
+  const bearish =
+    pct <= -SCALPING_MIN_CHANGE_PCT &&
+    realNetRatio <= 0 &&
+    position <= 0.45;
+
+  const signal = bullish ? 'BUY' : bearish ? 'SELL' : 'WATCH';
+
+  return {
+    score,
+    signal,
+    pct,
+    last,
+    close,
+    open,
+    high,
+    low,
+    position,
+    realNetRatio,
+    value,
+    volume,
+    trades
+  };
 }
 
 async function updateMarketCurrent() {
@@ -220,10 +271,28 @@ async function updateIndustries(symbols) {
   return rows.length;
 }
 
-async function updateScalpingOpportunities(symbols) {
+async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
   const marketDate = sqlDate(tehranDateKey());
-  const candidates = symbols.map(item => ({ item, scored: scoreSymbol(item) }))
-    .filter(x => x.scored.last > 0 && x.scored.score >= SCALPING_THRESHOLD)
+
+  // Never create fresh intraday signals while the exchange is closed.
+  // Existing signals are expired so the UI cannot present stale opportunities.
+  if (!marketIsOpen) {
+    await prisma.marketScalpingOpportunity.updateMany({
+      where: { marketDate, status: 'ACTIVE' },
+      data: { status: 'EXPIRED', updatedAt: new Date() }
+    });
+    return 0;
+  }
+
+  const candidates = symbols
+    .map(item => ({ item, scored: scoreSymbol(item) }))
+    .filter(({ item, scored }) =>
+      scored.last > 0 &&
+      scored.value >= SCALPING_MIN_VALUE &&
+      Math.abs(scored.pct) >= SCALPING_MIN_CHANGE_PCT &&
+      scored.score >= SCALPING_THRESHOLD &&
+      scored.signal !== 'WATCH'
+    )
     .sort((a, b) => b.scored.score - a.scored.score)
     .slice(0, SCALPING_LIMIT);
 
@@ -233,39 +302,67 @@ async function updateScalpingOpportunities(symbols) {
   });
 
   for (const { item, scored } of candidates) {
-    const entry = scored.last || scored.close;
-    const strategyName = 'momentum-flow';
+    const entry = scored.last;
+    const isBuy = scored.signal === 'BUY';
+    const strategyName = 'momentum-flow-v2';
+    const stopLoss = isBuy ? entry * 0.99 : entry * 1.01;
+    const takeProfit = isBuy ? entry * 1.02 : entry * 0.98;
+    const recommendationText = isBuy
+      ? 'مومنتوم مثبت، موقعیت قیمت و جریان خرید حقیقی هم‌جهت هستند.'
+      : 'مومنتوم منفی، موقعیت قیمت و جریان فروش حقیقی هم‌جهت هستند.';
+
+    const meta = {
+      pct: scored.pct,
+      position: scored.position,
+      realNetRatio: scored.realNetRatio,
+      liquidity: scored.value,
+      volume: scored.volume,
+      trades: scored.trades,
+      source: 'brs-central-worker'
+    };
+
     await prisma.marketScalpingOpportunity.upsert({
-      where: { symbol_marketDate_strategyName: { symbol: item.symbol, marketDate, strategyName } },
+      where: {
+        symbol_marketDate_strategyName: {
+          symbol: item.symbol,
+          marketDate,
+          strategyName
+        }
+      },
       create: {
         symbol: item.symbol,
         score: scored.score,
-        signal: scored.score >= 70 ? 'BUY' : 'WATCH',
+        signal: scored.signal,
         entryPrice: entry,
-        stopLoss: entry * 0.99,
-        takeProfit: entry * 1.02,
+        stopLoss,
+        takeProfit,
         currentPrice: entry,
         confidence: scored.score,
         strategyName,
-        recommendationText: scored.score >= 70 ? 'سیگنال بر پایه مومنتوم و جریان نقدینگی مشترک بازار.' : 'نماد در محدوده پایش اسکالپینگ قرار دارد.',
+        recommendationText,
         marketDate,
         status: 'ACTIVE',
-        meta: JSON.stringify({ pct: scored.pct, source: 'brs-central-worker' }),
+        meta: JSON.stringify(meta),
         source: 'brs-central-worker'
       },
       update: {
         score: scored.score,
-        signal: scored.score >= 70 ? 'BUY' : 'WATCH',
+        signal: scored.signal,
+        entryPrice: entry,
+        stopLoss,
+        takeProfit,
         currentPrice: entry,
         confidence: scored.score,
         status: 'ACTIVE',
-        recommendationText: scored.score >= 70 ? 'سیگنال بر پایه مومنتوم و جریان نقدینگی مشترک بازار.' : 'نماد در محدوده پایش اسکالپینگ قرار دارد.',
-        meta: JSON.stringify({ pct: scored.pct, source: 'brs-central-worker' }),
+        recommendationText,
+        meta: JSON.stringify(meta),
         source: 'brs-central-worker',
         updatedAt: new Date()
       }
     });
   }
+
+  return candidates.length;
 }
 
 async function runJob(name, fn) {
@@ -293,7 +390,7 @@ async function runMarketWorker() {
   const symbols = await updateSymbolsAndMovers();
   await runJob('market-daily', () => updateMarketDaily(symbols));
   await runJob('industries', () => updateIndustries(symbols));
-  await runJob('scalping-opportunities', () => updateScalpingOpportunities(symbols));
+  await runJob('scalping-opportunities', () => updateScalpingOpportunities(symbols, status?.isOpen === true));
   return { status: 'success', symbols: symbols.length };
 }
 
