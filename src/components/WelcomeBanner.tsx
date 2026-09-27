@@ -85,7 +85,6 @@ const WelcomeBanner: React.FC<WelcomeBannerProps> = ({ onClose }) => {
                         className="text-gray-600 dark:text-gray-300 leading-relaxed mb-8 text-justify"
                         style={{
                             fontSize: 'var(--welcome-banner-text-font-size, 16px)',
-                            color: 'var(--welcome-banner-text-color, inherit)',
                         }}
                     >
                         {config.text}
