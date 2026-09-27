@@ -53,6 +53,8 @@ router.post('/',verifyToken,async(req,res)=>{
  }catch(error){console.error('Error sending message:',error);return res.status(500).json({success:false,message:'خطا در ارسال پیام',error:error.message});}
 });
 
+router.delete('/admin/bulk',verifyToken,requireAdmin,async(req,res)=>{try{const raw=Array.isArray(req.body?.ids)?req.body.ids:[];const ids=[...new Set(raw.map(v=>Number(v)).filter(v=>Number.isInteger(v)&&v>0))];if(!ids.length)return res.status(400).json({success:false,message:'حداقل یک پیام برای حذف انتخاب کنید'});const result=await prisma.message.deleteMany({where:{id:{in:ids}}});return res.json({success:true,message:'پیام‌های انتخاب‌شده حذف شدند',deletedCount:result.count});}catch(error){console.error('Error deleting admin messages:',error);return res.status(500).json({success:false,message:'خطا در حذف پیام‌ها',error:error.message});}});
+
 router.post('/:id/reply',verifyToken,requireAdmin,async(req,res)=>{
  try{
   const adminId=getAuthenticatedUserId(req),messageId=Number(req.params.id),text=String(req.body?.text??'').trim();
