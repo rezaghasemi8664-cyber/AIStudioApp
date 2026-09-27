@@ -71,44 +71,97 @@ async function createNotification(req, res) {
     if (!prisma || !prisma.notification) {
       return res.status(503).json({
         success: false,
-        message: '\u0633\u0631\u0648\u06CC\u0633 \u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627 \u062F\u0631 \u062F\u0633\u062A\u0631\u0633 \u0646\u06CC\u0633\u062A',
+        message: '\u0633\u0631\u0648\u06cc\u0633 \u0627\u0639\u0644\u0627\u0646\u200c\u0647\u0627 \u062f\u0631 \u062f\u0633\u062a\u0631\u0633 \u0646\u06cc\u0633\u062a',
       });
     }
 
     var body = req.body || {};
-    var targetUserId = parseInt(body.userId, 10);
-    var title = body.title || '';
-    var message = body.message || '';
-    var type = body.type || 'info';
+    var title = String(body.title || '\u0627\u0637\u0644\u0627\u0639\u06cc\u0647 \u0633\u0627\u0645\u0627\u0646\u0647').trim();
+    var message = String(body.message || '').trim();
+    var type = String(body.type || 'info').trim().slice(0, 50) || 'info';
 
-    if (!targetUserId || !message) {
+    if (!message) {
       return res.status(400).json({
         success: false,
-        message: '\u0634\u0646\u0627\u0633\u0647 \u06A9\u0627\u0631\u0628\u0631 \u0648 \u0645\u062A\u0646 \u067E\u06CC\u0627\u0645 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A',
+        message: '\u0645\u062a\u0646 \u067e\u06cc\u0627\u0645 \u0627\u0644\u0632\u0627\u0645\u06cc \u0627\u0633\u062a',
       });
     }
 
-    var notification = await prisma.notification.create({
-      data: {
-        userId: targetUserId,
+    var rawIds = Array.isArray(body.userIds)
+      ? body.userIds
+      : (body.userId != null ? [body.userId] : []);
+
+    var isAdmin = Boolean(req.user?.isAdmin)
+      || ['admin', 'superadmin'].includes(String(req.user?.role || '').toLowerCase());
+
+    if (!isAdmin && Array.isArray(body.userIds)) {
+      return res.status(403).json({
+        success: false,
+        message: '\u0627\u0631\u0633\u0627\u0644 \u0627\u0639\u0644\u0627\u0646 \u0628\u0647 \u06a9\u0627\u0631\u0628\u0631\u0627\u0646 \u062f\u06cc\u06af\u0631 \u0645\u062c\u0627\u0632 \u0646\u06cc\u0633\u062a',
+      });
+    }
+
+    var targetUsers;
+    if (rawIds.length > 0) {
+      var ids = [...new Set(rawIds.map(function(value) {
+        var id = Number(value);
+        return Number.isInteger(id) && id > 0 ? id : null;
+      }).filter(Boolean))];
+
+      if (!ids.length) {
+        return res.status(400).json({
+          success: false,
+          message: '\u0634\u0646\u0627\u0633\u0647 \u06a9\u0627\u0631\u0628\u0631 \u0646\u0627\u0645\u0639\u062a\u0628\u0631 \u0627\u0633\u062a',
+        });
+      }
+
+      targetUsers = await prisma.user.findMany({
+        where: { id: { in: ids }, isDeleted: false, isActive: true },
+        select: { id: true },
+      });
+    } else {
+      if (!isAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: '\u0641\u0642\u0637 \u0627\u062f\u0645\u06cc\u0646 \u0645\u06cc\u062a\u0648\u0627\u0646\u062f \u0627\u0639\u0644\u0627\u0646 \u0631\u0627 \u0628\u0631\u0627\u06cc \u06a9\u0627\u0631\u0628\u0631\u0627\u0646 \u0627\u0631\u0633\u0627\u0644 \u06a9\u0646\u0646\u062f',
+        });
+      }
+      targetUsers = await prisma.user.findMany({
+        where: { isDeleted: false, isActive: true },
+        select: { id: true },
+      });
+    }
+
+    if (!targetUsers.length) {
+      return res.status(404).json({
+        success: false,
+        message: '\u06a9\u0627\u0631\u0628\u0631 \u0641\u0639\u0627\u0644\u06cc \u0628\u0631\u0627\u06cc \u062f\u0631\u06cc\u0627\u0641\u062a \u0627\u0639\u0644\u0627\u0646 \u06cc\u0627\u0641\u062a \u0646\u0634\u062f',
+      });
+    }
+
+    var rows = targetUsers.map(function(user) {
+      return {
+        userId: user.id,
         title: title,
         message: message,
         type: type,
         isRead: false,
-      },
+      };
     });
 
-    res.status(201).json({
+    await prisma.notification.createMany({ data: rows });
+
+    return res.status(201).json({
       success: true,
-      message: '\u0627\u0639\u0644\u0627\u0646 \u0627\u06CC\u062C\u0627\u062F \u0634\u062F',
-      data: notification,
+      message: '\u0627\u0639\u0644\u0627\u0646 \u0628\u0627 \u0645\u0648\u0641\u0642\u06cc\u062a \u0627\u0631\u0633\u0627\u0644 \u0634\u062f',
+      data: rows[0],
+      recipients: rows.length,
     });
   } catch (err) {
     console.error('[NOTIFICATIONS] Create error:', err);
-    res.status(500).json({ success: false, message: '\u062E\u0637\u0627\u06CC \u0633\u0631\u0648\u0631' });
+    res.status(500).json({ success: false, message: '\u062e\u0637\u0627\u06cc \u0633\u0631\u0648\u0631', error: err.message });
   }
 }
-
 // ═══════════════════════════════════════════════════════════════
 // PATCH /api/notifications/:id/read
 // ═══════════════════════════════════════════════════════════════
