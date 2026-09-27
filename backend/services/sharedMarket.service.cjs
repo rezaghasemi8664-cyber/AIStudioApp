@@ -316,7 +316,19 @@ async function getIndustries(limit = 100) {
     orderBy: [{ rank: 'asc' }, { industryName: 'asc' }],
     take,
   });
-  return rows.map(normalizeIndustry);
+  return rows
+    .filter((row) => {
+      const change = Number(row.changePercent);
+      if (!Number.isFinite(change)) return false;
+      if (Math.abs(change) >= 20) return false;
+      const name = String(row.industryName || '').trim();
+      // Some ETF industry names are stored with corrupted Unicode. Use
+      // semantic name fragments plus an extreme-move guard rather than
+      // relying on an exact string match.
+      if ((/صندوق/.test(name) || /سرمایه/.test(name)) && Math.abs(change) > 10) return false;
+      return true;
+    })
+    .map(normalizeIndustry);
 }
 
 async function getScalpingOpportunities({ status = 'ACTIVE', limit = 50 } = {}) {
