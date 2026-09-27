@@ -620,7 +620,7 @@ export const getLatestSummaryEnvelope = async (): Promise<LatestSummaryEnvelope>
         method: 'GET',
         headers: {
           'Cache-Control': 'no-cache',
-          Pragma: 'no-cache'
+
         }
       });
 
@@ -685,7 +685,7 @@ export const getSummaryHistory = async (
         method: 'GET',
         headers: {
           'Cache-Control': 'no-cache',
-          Pragma: 'no-cache'
+
         }
       });
       const obj = asObject(result);
@@ -754,7 +754,7 @@ export const getAvailableDates = async (): Promise<MarketSummaryDatesResponse | 
         method: 'GET',
         headers: {
           'Cache-Control': 'no-cache',
-          Pragma: 'no-cache'
+
         }
       });
 
@@ -808,7 +808,7 @@ export const getMarketSummaryByDate = async (date: string): Promise<MarketSummar
         method: 'GET',
         headers: {
           'Cache-Control': 'no-cache',
-          Pragma: 'no-cache'
+
         }
       });
 
@@ -848,7 +848,7 @@ export const generateSummary = async (
         headers: {
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache',
-          Pragma: 'no-cache'
+
         }
       });
 
