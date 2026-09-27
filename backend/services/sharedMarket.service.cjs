@@ -16,7 +16,10 @@ function isMarketAnalyticsEligible(row) {
   const value = decimalToNumber(row.value);
   const realBuy = row.realBuyVolume == null ? 0 : Number(row.realBuyVolume);
   const realSell = row.realSellVolume == null ? 0 : Number(row.realSellVolume);
-  if (!(last > 0) || !(close > 0) || !(volume > 0) || !(value > 0)) return false;
+  // Volume is the traded-row gate for breadth. Do not require trade value:
+  // some valid symbols can have a missing/zero value while still having a
+  // valid price change and traded volume.
+  if (!(last > 0) || !(close > 0) || !(volume > 0)) return false;
 
   let raw = null;
   if (row.dataJson) {
