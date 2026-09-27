@@ -67,26 +67,6 @@ function normalizeSelectedFonts(record) {
   return defaults;
 }
 
-function normalizeTseLinks(record) {
-  const defaults = {};
-
-  if (!record) return defaults;
-
-  if (record.valueJson) {
-    const parsed = typeof record.valueJson === 'string'
-      ? safeJsonParse(record.valueJson, defaults)
-      : record.valueJson;
-
-    return parsed && typeof parsed === 'object' ? parsed : defaults;
-  }
-
-  if (record.value && typeof record.value === 'object') {
-    return record.value;
-  }
-
-  return defaults;
-}
-
 function normalizeFeatures(record) {
   const defaults = {};
 
@@ -160,50 +140,6 @@ async function saveConfig(req, res) {
     });
   } catch (err) {
     console.error('Error saving user UI config:', err);
-    return res.status(500).json({
-      success: false,
-      message: err.message
-    });
-  }
-}
-
-/**
- * GET /ui-config/tse-links
- */
-async function getTseLinks(req, res) {
-  try {
-    const tseLinksConfig = await uiConfigService.getConfig('tseLinks');
-    const tseLinks = normalizeTseLinks(tseLinksConfig);
-
-    return res.json({
-      success: true,
-      data: tseLinks
-    });
-  } catch (err) {
-    console.error('Error fetching TSE links:', err);
-    return res.status(500).json({
-      success: false,
-      message: err.message
-    });
-  }
-}
-
-/**
- * POST|PUT /ui-config/tse-links
- */
-async function saveTseLinks(req, res) {
-  try {
-    const payload = req.body && typeof req.body === 'object' ? req.body : {};
-
-    await uiConfigService.setConfig('tseLinks', payload);
-
-    return res.json({
-      success: true,
-      message: 'لینک‌های TSE با موفقیت ذخیره شد',
-      data: payload
-    });
-  } catch (err) {
-    console.error('Error saving TSE links:', err);
     return res.status(500).json({
       success: false,
       message: err.message
@@ -427,8 +363,6 @@ async function setSelectedFont(req, res) {
 module.exports = {
   getConfig,
   saveConfig,
-  getTseLinks,
-  saveTseLinks,
   getFeatures,
   saveFeatures,
   getAppFonts,
