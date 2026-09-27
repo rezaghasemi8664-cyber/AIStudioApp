@@ -287,9 +287,19 @@ function extractSectorData(data) {
   };
 }
 function extractMoneyFlow(data) {
-  const flow = data?.moneyFlow || data?.realMoneyFlow || {};
-  const net = pickValue(flow, ['netValue', 'net', 'realNet', 'netMoneyFlow']);
-  return { net, buy: pickValue(flow, ['buyValue', 'realBuyValue']), sell: pickValue(flow, ['sellValue', 'realSellValue']) };
+  const flow = data?.realFlow || data?.moneyFlow || data?.realMoneyFlow || {};
+  const netVolume = pickValue(flow, ['netRealBuyVolume', 'netVolume', 'net', 'realNet']);
+  const buyVolume = pickValue(flow, ['totalRealBuyVolume', 'buyVolume']);
+  const sellVolume = pickValue(flow, ['totalRealSellVolume', 'sellVolume']);
+  const netValue = pickValue(flow, ['netValue', 'netMoneyFlow']);
+  const buyValue = pickValue(flow, ['buyValue', 'realBuyValue']);
+  const sellValue = pickValue(flow, ['sellValue', 'realSellValue']);
+  return {
+    net: netValue !== null ? netValue : netVolume,
+    buy: buyValue !== null ? buyValue : buyVolume,
+    sell: sellValue !== null ? sellValue : sellVolume,
+    unit: netValue !== null || buyValue !== null || sellValue !== null ? 'value' : 'volume'
+  };
 }
 function buildDeterministicSummary(data) {
   const overall = pickValue(data, FIELD_KEYS.index);
@@ -311,7 +321,19 @@ function buildDeterministicSummary(data) {
   const volumes = breadth.volumes.slice(0,5).map(x => `${x.symbol} (${fa(x.volume,0)})`).join('، ') || 'داده در دسترس نیست';
   const leaders = sectors.leaders.map(x => `${x.name}${x.change === null ? '' : ` (${signedPct(x.change)})`}`).join('، ') || 'داده صنعت در دسترس نیست';
   const laggards = sectors.laggards.map(x => `${x.name}${x.change === null ? '' : ` (${signedPct(x.change)})`}`).join('، ') || 'داده صنعت در دسترس نیست';
-  const flowText = flow.net === null ? 'داده جریان پول حقیقی در دسترس نیست.' : flow.net > 0 ? `ورود خالص پول حقیقی ${fa(flow.net)} است.` : flow.net < 0 ? `خروج خالص پول حقیقی ${fa(Math.abs(flow.net))} است.` : 'جریان خالص پول حقیقی متعادل است.';
+  const flowText = flow.net === null
+    ? 'داده جریان خرید و فروش حقیقی در دسترس نیست.'
+    : flow.unit === 'volume'
+      ? flow.net > 0
+        ? `خالص حجم خرید حقیقی ${fa(flow.net, 0)} واحد است.`
+        : flow.net < 0
+          ? `خالص حجم فروش حقیقی ${fa(Math.abs(flow.net), 0)} واحد است.`
+          : 'خالص حجم خرید و فروش حقیقی متعادل است.'
+      : flow.net > 0
+        ? `ورود خالص پول حقیقی ${fa(flow.net)} است.`
+        : flow.net < 0
+          ? `خروج خالص پول حقیقی ${fa(Math.abs(flow.net))} است.`
+          : 'جریان خالص پول حقیقی متعادل است.';
   const breadthRatio = breadth.negative ? breadth.positive / breadth.negative : null;
   const risk = bias === 'صعودی' && breadth.positive >= breadth.negative ? 'متوسط' : 'متوسط رو به زیاد';
 
@@ -431,7 +453,8 @@ async function findLatestUsableMarketHistoryRow() {
       changePercent: x.changePercent,
       value: x.value,
       symbolCount: x.symbolCount
-    }))
+    })),
+    realFlow: breadth.realFlow || null
   };
 
   return {
