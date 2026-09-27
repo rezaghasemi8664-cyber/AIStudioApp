@@ -234,13 +234,25 @@ async function getBreadth() {
   const totalRealSellVolume = realFlowRows.reduce((sum, row) => sum + Math.max(0, Number(row.realSellVolume || 0)), 0);
   const netRealBuyVolume = totalRealBuyVolume - totalRealSellVolume;
 
-  const sectors = industries.map((row) => ({
-    name: row.industryName,
-    symbols: Number(row.symbolCount || 0),
-    changePercent: row.changePercent,
-    value: row.value,
-    rank: row.rank,
-  }));
+  // Industry snapshots can contain stale placeholder rows (especially ETF
+  // records with impossible daily moves). Exclude only clear anomalies so
+  // legitimate industry movements remain visible.
+  const sectors = industries
+    .filter((row) => {
+      const change = Number(row.changePercent);
+      if (!Number.isFinite(change)) return false;
+      if (Math.abs(change) >= 20) return false;
+      const name = String(row.industryName || '').trim();
+      if (/صندوق سرمایه.?گذاری قابل معامله/.test(name) && Math.abs(change) > 10) return false;
+      return true;
+    })
+    .map((row) => ({
+      name: row.industryName,
+      symbols: Number(row.symbolCount || 0),
+      changePercent: row.changePercent,
+      value: row.value,
+      rank: row.rank,
+    }));
 
   const leaders = [...sectors]
     .sort((a, b) => (b.changePercent || 0) - (a.changePercent || 0))
