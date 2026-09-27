@@ -70,7 +70,12 @@ const IndustryHeatmap: React.FC<{ rows: MarketRadarSector[] }> = ({ rows }) => {
           return (
             <div
               key={row.name}
-              style={{ flexGrow: ratio, flexBasis: `${Math.max(150, Math.round(ratio * 120))}px` }}
+              style={{
+                flexGrow: ratio,
+                flexBasis: `${Math.max(150, Math.round(ratio * 120))}px`,
+                backgroundColor: change >= 4 ? 'rgba(5, 150, 105, 0.88)' : change >= 2 ? 'rgba(16, 185, 129, 0.82)' : change > 0 ? 'rgba(52, 211, 153, 0.72)' : change <= -4 ? 'rgba(190, 24, 93, 0.88)' : change <= -2 ? 'rgba(225, 29, 72, 0.82)' : change < 0 ? 'rgba(244, 63, 94, 0.72)' : 'rgba(100, 116, 139, 0.78)',
+                borderColor: change > 0 ? 'rgba(16, 185, 129, 0.95)' : change < 0 ? 'rgba(244, 63, 94, 0.95)' : 'rgba(100, 116, 139, 0.95)',
+              }}
               className={`group min-h-[112px] rounded-2xl border p-3 transition hover:-translate-y-0.5 hover:shadow-lg ${heatClass(change)}`}
             >
               <div className="flex h-full flex-col justify-between gap-3">
