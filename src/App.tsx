@@ -449,7 +449,7 @@ const App: React.FC = () => {
     }
   }, [currentUser]);
 
-  const refreshUnreadCount = useCallback((user: StoredUser | null) => {
+  const refreshUnreadCount = useCallback(async (user: StoredUser | null) => {
     if (!user) {
       setUnreadCount(0);
       setNotifications([]);
@@ -457,20 +457,27 @@ const App: React.FC = () => {
     }
 
     try {
-      let totalUnread = 0;
+      const [countResult, notificationsResult] = await Promise.all([
+        notificationService.getUnreadCount(),
+        notificationService.getNotifications(),
+      ]);
 
-      if (typeof notificationService.getUnreadCountForUser === 'function') {
-        totalUnread = notificationService.getUnreadCountForUser(user.id);
+      if (countResult?.success) {
+        setUnreadCount(Number(countResult.data ?? 0));
       }
 
-      if (user.isAdmin && typeof messageService.getUnreadMessageCountForAdmin === 'function') {
-        totalUnread += 0; void messageService.getUnreadMessageCountForAdmin().then(count => setUnreadCount(current => current + count));
-      }
-
-      setUnreadCount(totalUnread);
-
-      if (typeof notificationService.getNotificationsForUser === 'function') {
-        setNotifications(notificationService.getNotificationsForUser(user.id));
+      if (notificationsResult?.success && Array.isArray(notificationsResult.data)) {
+        const mapped = notificationsResult.data.map(item => ({
+          id: String(item.id),
+          message: item.message,
+          timestamp: Date.parse(item.createdAt) || Date.now(),
+          recipientUserId: user.id,
+          read: item.read,
+          attachment: item.attachment
+            ? { name: item.attachment.name, type: item.attachment.type || 'file', data: item.attachment.url }
+            : undefined,
+        }));
+        setNotifications(mapped);
       }
     } catch (error) {
       console.error('[refreshUnreadCount] Error:', error);
@@ -601,7 +608,7 @@ const App: React.FC = () => {
         setIsExpired(false);
       }
 
-      refreshUnreadCount(user);
+      void refreshUnreadCount(user);
 
       if (typeof notificationService.checkAndSendExpiryNotification === 'function') {
         try {
@@ -839,7 +846,7 @@ const App: React.FC = () => {
       setNotifications([]);
       return;
     }
-    const refreshNotifications = () => refreshUnreadCount(currentUser);
+    const refreshNotifications = () => { void refreshUnreadCount(currentUser); };
     refreshNotifications();
     notificationRefreshIntervalRef.current = setInterval(refreshNotifications, TIMING.NOTIFICATION_REFRESH_INTERVAL);
     return () => {
@@ -988,7 +995,7 @@ const App: React.FC = () => {
     if (typeof notificationService.checkAndSendExpiryNotification === 'function') {
       try { notificationService.checkAndSendExpiryNotification(safeUser); } catch (error) { console.error('[handleLogin] checkAndSendExpiryNotification failed:', error); }
     }
-    refreshUnreadCount(safeUser);
+    void refreshUnreadCount(safeUser);
   }, [buildSafeUser, persistUser, refreshUnreadCount]);
 
   const handleTabClick = useCallback((tab: Tab) => {
@@ -1031,8 +1038,8 @@ const App: React.FC = () => {
   const handleViewNotification = useCallback((notification: AppNotification) => {
     setViewingNotification(notification);
     if (!notification.read && currentUser) {
-      if (typeof notificationService.markSingleNotificationAsRead === 'function') notificationService.markSingleNotificationAsRead(notification.id);
-      refreshUnreadCount(currentUser);
+      if (typeof notificationService.markSingleNotificationAsRead === 'function') void notificationService.markSingleNotificationAsRead(notification.id);
+      void refreshUnreadCount(currentUser);
     }
   }, [currentUser, refreshUnreadCount]);
 
