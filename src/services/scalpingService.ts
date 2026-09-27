@@ -316,8 +316,7 @@ export const scalpingService = {
     try {
       const response = await apiClient.get(`/scalping/signals?${getCacheBuster()}`, {
         headers: {
-          'Cache-Control': 'no-cache',
-          Pragma: 'no-cache'
+          'Cache-Control': 'no-cache'
         }
       });
 
