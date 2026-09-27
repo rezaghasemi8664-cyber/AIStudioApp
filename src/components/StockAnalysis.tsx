@@ -959,6 +959,11 @@ function SectionHeader({
   );
 }
 
+function renderableText(value: unknown, fallback = '—'): string {
+  const text = historySummaryText(value);
+  return text.trim() ? text : fallback;
+}
+
 function MetricCard({
   label,
   value,
@@ -966,7 +971,7 @@ function MetricCard({
   valueClassName,
 }: {
   label: string;
-  value: string;
+  value: unknown;
   tone?: 'slate' | 'blue' | 'emerald' | 'rose' | 'amber' | 'indigo' | 'violet';
   valueClassName?: string;
 }) {
@@ -983,7 +988,9 @@ function MetricCard({
   return (
     <div className={`rounded-xl border p-3 ${toneClasses[tone]}`}>
       <div className="text-[11px] font-semibold leading-5 text-slate-500">{label}</div>
-      <div className={`mt-1 text-[17px] font-extrabold leading-7 ${valueClassName ?? ''}`}>{value}</div>
+      <div className={`mt-1 text-[17px] font-extrabold leading-7 ${valueClassName ?? ''}`}>
+        {renderableText(value)}
+      </div>
     </div>
   );
 }
@@ -994,13 +1001,15 @@ function DetailRow({
   valueClassName = 'text-slate-900',
 }: {
   label: string;
-  value: string;
+  value: unknown;
   valueClassName?: string;
 }) {
   return (
     <div className="flex items-start justify-between gap-4 py-2">
       <span className="text-[13px] font-medium leading-6 text-slate-500">{label}</span>
-      <span className={`text-left text-[14px] font-semibold leading-6 ${valueClassName}`}>{value}</span>
+      <span className={`text-left text-[14px] font-semibold leading-6 ${valueClassName}`}>
+        {renderableText(value)}
+      </span>
     </div>
   );
 }
