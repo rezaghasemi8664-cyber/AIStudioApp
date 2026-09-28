@@ -165,7 +165,49 @@ async function getFundamentalData(symbolClean) {
   }
 
   try {
-    var result = await codal.getCompanyReports({ symbol: symbolClean });
+    // Query the dedicated financial-statement category in addition to
+    // the general first page. The general feed is dominated by recent
+    // disclosures and may not contain the latest annual/interim statement
+    // needed for deterministic fundamental scoring.
+    const [generalResult, financialResult] = await Promise.all([
+      codal.getCompanyReports({ symbol: symbolClean, page: 1 }),
+      codal.getCompanyReports({ symbol: symbolClean, category: '1', page: 1 })
+    ]);
+
+    const mergedAnnouncements = [];
+    const seen = new Set();
+
+    for (const item of [
+      ...asArray(generalResult && generalResult.announcements),
+      ...asArray(financialResult && financialResult.announcements)
+    ]) {
+      const key = [
+        item && item.code,
+        item && item.linkExcel,
+        item && item.link,
+        item && item.dateSend,
+        item && item.title
+      ].map(value => String(value || '').trim()).join('|');
+
+      if (seen.has(key)) continue;
+      seen.add(key);
+      mergedAnnouncements.push(item);
+    }
+
+    const result = {
+      success: true,
+      provider: 'CODAL',
+      symbol: symbolClean,
+      announcements: mergedAnnouncements,
+      countAnnouncement: mergedAnnouncements.length,
+      countPage: Math.max(
+        Number(generalResult && generalResult.countPage) || 0,
+        Number(financialResult && financialResult.countPage) || 0
+      ),
+      page: 1,
+      fetchedAt: new Date().toISOString()
+    };
+
     return {
       data: result,
       analysis: await fundamental.analyzeAnnouncements(result),
