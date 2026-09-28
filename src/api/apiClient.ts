@@ -132,9 +132,18 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-\nfunction configIsStockAnalysis(url: string | undefined): boolean {\n  if (!url) return false;\n  return /\\/analyze\\/stock(?:\\?|$)/i.test(url);\n}\n\napi.interceptors.response.use(
+
+function configIsStockAnalysis(url: string | undefined): boolean {
+  if (!url) return false;
+  return /\\/analyze\\/stock(?:\\?|$)/i.test(url);
+}
+
+api.interceptors.response.use(
   (response) => {
-    response.data = normalizeMoneyFlowPayload(response.data);\n    if (configIsStockAnalysis(response.config?.url)) {\n      response.data = normalizeFundamentalAnalysisPayload(response.data);\n    }
+    response.data = normalizeMoneyFlowPayload(response.data);
+    if (configIsStockAnalysis(response.config?.url)) {
+      response.data = normalizeFundamentalAnalysisPayload(response.data);
+    }
     return response;
   },
   (error: AxiosError) => {
