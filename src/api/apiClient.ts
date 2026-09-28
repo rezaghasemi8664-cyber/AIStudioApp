@@ -135,7 +135,7 @@ api.interceptors.request.use(
 
 function configIsStockAnalysis(url: string | undefined): boolean {
   if (!url) return false;
-  return /\\/analyze\\/stock(?:\\?|$)/i.test(url);
+  return /\/analyze\/stock(?:\?|$)/i.test(url);
 }
 
 api.interceptors.response.use(
