@@ -73,15 +73,10 @@ async function extractFinancialDocuments(financialAnnouncements) {
       reason: result.reason || null,
     });
 
-    // Most financial statements contain all core metrics. Avoid downloading
-    // several Excel files sequentially when the first useful document already
-    // provides enough data for a reliable fundamental score.
-    const currentMetrics = aggregateNumericMetrics(documents.filter((doc) => doc.available));
-    const currentQuality = numericDataQuality(currentMetrics);
-    const currentScore = fundamentalScoreService.calculateFundamentalScore(currentMetrics);
-    if (currentQuality.sufficientForScoring && currentScore.score !== null) {
-      break;
-    }
+    // Do not stop after the first score-ready workbook. Codal announcements
+    // often split current-period, comparative-period, balance-sheet and EPS
+    // data across separate attachments. Download all selected financial
+    // documents so complementary real Codal metrics can be merged.
   }
 
   return documents;
