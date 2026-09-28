@@ -804,7 +804,13 @@ function normalizeStockAnalysis(parsed, symbol, inputData, model, usage, analysi
 
     scores: {
       fundamentalScore: clamp(
-        firstDefined(scores.fundamentalScore, scores.fundamental, p.fundamentalScore, 0),
+        firstDefined(
+          inputData && inputData.fundamentalAnalysis && inputData.fundamentalAnalysis.score,
+          scores.fundamentalScore,
+          scores.fundamental,
+          p.fundamentalScore,
+          0
+        ),
         0,
         100
       ),
@@ -829,6 +835,7 @@ function normalizeStockAnalysis(parsed, symbol, inputData, model, usage, analysi
     explanations: {
       fundamental: safeText(
         firstDefined(
+          inputData && inputData.fundamentalAnalysis && inputData.fundamentalAnalysis.reason,
           explanations.fundamental,
           p.detailedFundamentalExplanation,
           p.fundamentalAnalysis,
@@ -1253,6 +1260,9 @@ function buildAnalysisContextPayload(data, dailyCount, weeklyCount) {
     weeklyCandles: weekly,
     daily: daily,
     weekly: weekly,
+    fundamentalAnalysis: source.fundamentalAnalysis && typeof source.fundamentalAnalysis === 'object'
+      ? source.fundamentalAnalysis
+      : null,
   };
 }
 
