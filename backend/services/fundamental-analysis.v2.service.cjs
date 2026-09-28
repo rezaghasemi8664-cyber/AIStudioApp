@@ -13,6 +13,8 @@ const IMPORTANT_CATEGORIES = [
 
 function normalizeText(value) {
   return String(value || '')
+    .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
     .replace(/[\u200c\u200f\u200e]/g, ' ')
     .replace(/[يى]/g, 'ی')
     .replace(/ك/g, 'ک')
@@ -45,12 +47,25 @@ function chronologyKey(announcement) {
 
 function classifyAnnouncement(announcement) {
   const title = normalizeText(announcement && announcement.title);
-  const matched = IMPORTANT_CATEGORIES.filter((category) => category.patterns.some((pattern) => title.includes(pattern)));
+  const category = normalizeText(announcement && (announcement.category ?? announcement.categoryId ?? announcement.category_id));
+  const categoryName = normalizeText(announcement && (announcement.categoryName ?? announcement.category_name));
+  const searchable = [title, categoryName].filter(Boolean).join(' | ');
+  const matched = IMPORTANT_CATEGORIES.filter((item) => item.patterns.some((pattern) => searchable.includes(normalizeText(pattern))));
+
+  // BRS/CODAL uses category=1 for financial statements. The provider now
+  // preserves this field so a valid filing is not lost when its title uses
+  // a generic wording without the phrase "صورت مالی".
+  if (category === '1' && !matched.some((item) => item.key === 'financial_statements')) {
+    matched.unshift(IMPORTANT_CATEGORIES.find((item) => item.key === 'financial_statements'));
+  }
+
   return {
     title,
-    categories: matched.map((item) => item.key),
-    importance: matched.reduce((sum, item) => sum + item.weight, 0),
-    financial: matched.some((item) => ['financial_statements', 'profit_loss', 'monthly_activity', 'earnings_forecast'].includes(item.key)),
+    category,
+    categoryName,
+    categories: matched.filter(Boolean).map((item) => item.key),
+    importance: matched.filter(Boolean).reduce((sum, item) => sum + item.weight, 0),
+    financial: category === '1' || matched.some((item) => ['financial_statements', 'profit_loss', 'monthly_activity', 'earnings_forecast'].includes(item.key)),
   };
 }
 
