@@ -247,10 +247,21 @@ async function getMarketData(symbol, options) {
     ? Math.max(1, Math.min(500, Number(opts.historyCount)))
     : 120;
 
+  // The controller may already have fetched and calculated Fundamental data.
+  // Reuse that immutable result instead of calling CODAL a second time.
+  const suppliedFundamental = opts.fundamentalAnalysis && typeof opts.fundamentalAnalysis === 'object'
+    ? {
+        data: opts.fundamentalData || null,
+        analysis: opts.fundamentalAnalysis,
+        status: codal.getStatus(),
+        error: null
+      }
+    : null;
+
   var results = await Promise.all([
     brs.getSymbolData(symbolClean),
     brs.getAdjustedDailyCandlestick(symbolClean, historyCount),
-    getFundamentalData(symbolClean)
+    suppliedFundamental || getFundamentalData(symbolClean)
   ]);
 
   var marketResult = results[0];
