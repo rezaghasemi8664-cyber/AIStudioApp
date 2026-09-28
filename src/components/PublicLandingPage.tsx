@@ -10,9 +10,9 @@ const features = [
 ];
 
 const steps = [
-  ['۰۱', 'ثبت‌نام سریع', 'با شماره موبایل خود حساب کاربری ایجاد کنید.'],
-  ['۰۲', 'دریافت رمز عبور', 'رمز ورود حساب از طریق پیامک برای شما ارسال می‌شود.'],
-  ['۰۳', 'ورود به سامانه', 'با شماره موبایل و رمز عبور وارد محیط تحلیل شوید.'],
+  ['۰۱', 'ثبت‌نام سریع', 'با ایمیل خود حساب کاربری ایجاد کنید.'],
+  ['۰۲', 'دریافت رمز عبور', 'رمز عبور حساب خود را دریافت و برای ورود آماده کنید.'],
+  ['۰۳', 'ورود به سامانه', 'با ایمیل به‌عنوان نام کاربری و رمز عبور وارد محیط تحلیل شوید.'],
 ];
 
 const PublicLandingPage: React.FC = () => {
@@ -182,7 +182,7 @@ const PublicLandingPage: React.FC = () => {
 
         <section className="public-wrap public-cta" aria-labelledby="cta-title">
           <h2 id="cta-title">تحلیل بازار بورس را با ابزارهای یکپارچه رونیا دنبال کنید</h2>
-          <p>همین حالا وارد سامانه شوید یا با شماره موبایل خود ثبت‌نام کنید و امکانات تحلیلگر هوشمند بورس رونیا را تجربه کنید.</p>
+          <p>همین حالا وارد سامانه شوید یا با ایمیل خود ثبت‌نام کنید و امکانات تحلیلگر هوشمند بورس رونیا را تجربه کنید.</p>
           <button className="public-btn public-btn-primary" onClick={goToLogin}>ورود / ثبت‌نام</button>
           <div className="public-enamad" aria-label="نماد اعتماد الکترونیکی">
             <a referrerPolicy="origin" target="_blank" rel="noopener noreferrer" href="https://trustseal.enamad.ir/?id=7523297&Code=o6Q8ZIOyrOl0YWyiXpn8ILYoZ2KnhLOR">
