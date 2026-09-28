@@ -29,16 +29,27 @@ function normalizeFundamentalAnalysisPayload(payload: any): any {
   const fundamental = root.fundamentalAnalysis;
   const meta = root.fundamentalMeta;
 
-  const candidates = [
-    root.fundamentalScore,
-    root.fundamental_score,
-    scores.fundamentalScore,
-    scores.fundamental_score,
-    meta?.score,
-    meta?.fundamentalScore,
-    fundamental && typeof fundamental === 'object' ? fundamental.score : undefined,
-    fundamental && typeof fundamental === 'object' ? fundamental.fundamentalScore : undefined,
-  ];
+  const candidates = root.deterministic === true
+    ? [
+        scores.fundamentalScore,
+        scores.fundamental_score,
+        root.fundamentalScore,
+        root.fundamental_score,
+        meta?.score,
+        meta?.fundamentalScore,
+        fundamental && typeof fundamental === 'object' ? fundamental.score : undefined,
+        fundamental && typeof fundamental === 'object' ? fundamental.fundamentalScore : undefined,
+      ]
+    : [
+        root.fundamentalScore,
+        root.fundamental_score,
+        scores.fundamentalScore,
+        scores.fundamental_score,
+        meta?.score,
+        meta?.fundamentalScore,
+        fundamental && typeof fundamental === 'object' ? fundamental.score : undefined,
+        fundamental && typeof fundamental === 'object' ? fundamental.fundamentalScore : undefined,
+      ];
 
   const numericScore = candidates
     .map((value) => Number(value))
@@ -50,13 +61,22 @@ function normalizeFundamentalAnalysisPayload(payload: any): any {
     root.scores = { ...scores, fundamentalScore: numericScore };
   }
 
-  const reasonCandidates = [
-    root.fundamentalReason,
-    root.fundamental_reason,
-    meta?.reason,
-    fundamental && typeof fundamental === 'object' ? fundamental.reason : undefined,
-    fundamental && typeof fundamental === 'object' ? fundamental.explanation : undefined,
-  ];
+  const reasonCandidates = root.deterministic === true
+    ? [
+        typeof fundamental === 'string' ? fundamental : undefined,
+        root.fundamentalReason,
+        root.fundamental_reason,
+        meta?.reason,
+        fundamental && typeof fundamental === 'object' ? fundamental.reason : undefined,
+        fundamental && typeof fundamental === 'object' ? fundamental.explanation : undefined,
+      ]
+    : [
+        root.fundamentalReason,
+        root.fundamental_reason,
+        meta?.reason,
+        fundamental && typeof fundamental === 'object' ? fundamental.reason : undefined,
+        fundamental && typeof fundamental === 'object' ? fundamental.explanation : undefined,
+      ];
 
   const reason = reasonCandidates.find(
     (value) => typeof value === 'string' && value.trim().length > 0
