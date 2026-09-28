@@ -8,11 +8,14 @@ function normalizeText(v){return normalizeDigits(v).replace(/[\u200c\u200f\u200e
 function normalizeMetricLabel(v){return normalizeText(v).toLowerCase().replace(/[()\[\]{}،,؛:٫٬–—-]/g,' ').replace(/\s+/g,' ').trim();}
 function parseNumber(v){
   if(typeof v==='number'&&Number.isFinite(v))return v;
-  const t=normalizeDigits(v).replace(/\s+/g,'').replace(/[٪%]/g,'').trim();
+  const t=normalizeDigits(v).replace(/\s+/g,'').replace(/[٪%]/g,'').replace(/[−–—]/g,'-').trim();
   if(!t||t==='-'||t==='—')return null;
   if(/^[-+]?\(?\d{1,4}[\\/.-]\d{1,2}[\\/.-]\d{1,4}\)?$/.test(t))return null;
   if(/^[-+]?\(?\d{1,4}:\d{1,2}(?::\d{1,2})?\)?$/.test(t))return null;
-  const compact=t.replace(/[٬،,]/g,'');
+  // CODAL may use the Arabic decimal separator (٫). Preserve it instead
+  // of stripping it as punctuation; thousands separators are still removed.
+  const decimalNormalized=t.replace(/٫/g,'.');
+  const compact=decimalNormalized.replace(/[٬،,]/g,'');
   const neg=/^\(.*\)$/.test(compact)||compact.startsWith('-');
   const c=compact.replace(/[()]/g,'').replace(/[^0-9.+-]/g,'');
   if(!c||c==='-'||c==='.')return null;
