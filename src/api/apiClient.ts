@@ -29,16 +29,26 @@ function normalizeFundamentalAnalysisPayload(payload: any): any {
   const fundamental = root.fundamentalAnalysis;
   const meta = root.fundamentalMeta;
 
+  // For deterministic CODAL analysis, a completed nested Fundamental result
+  // is canonical. Legacy top-level/scores fields may still contain 0 from the
+  // old insufficient-data path, so they must not win over a calculated score.
+  const canonicalFundamentalScore =
+    fundamental && typeof fundamental === 'object' &&
+    fundamental.scoreStatus === 'calculated'
+      ? fundamental.score ?? fundamental.fundamentalScore
+      : undefined;
+
   const candidates = root.deterministic === true
     ? [
+        canonicalFundamentalScore,
+        fundamental && typeof fundamental === 'object' ? fundamental.score : undefined,
+        fundamental && typeof fundamental === 'object' ? fundamental.fundamentalScore : undefined,
+        meta?.score,
+        meta?.fundamentalScore,
         scores.fundamentalScore,
         scores.fundamental_score,
         root.fundamentalScore,
         root.fundamental_score,
-        meta?.score,
-        meta?.fundamentalScore,
-        fundamental && typeof fundamental === 'object' ? fundamental.score : undefined,
-        fundamental && typeof fundamental === 'object' ? fundamental.fundamentalScore : undefined,
       ]
     : [
         root.fundamentalScore,
@@ -63,12 +73,12 @@ function normalizeFundamentalAnalysisPayload(payload: any): any {
 
   const reasonCandidates = root.deterministic === true
     ? [
+        fundamental && typeof fundamental === 'object' ? fundamental.reason : undefined,
+        fundamental && typeof fundamental === 'object' ? fundamental.explanation : undefined,
         typeof fundamental === 'string' ? fundamental : undefined,
         root.fundamentalReason,
         root.fundamental_reason,
         meta?.reason,
-        fundamental && typeof fundamental === 'object' ? fundamental.reason : undefined,
-        fundamental && typeof fundamental === 'object' ? fundamental.explanation : undefined,
       ]
     : [
         root.fundamentalReason,
