@@ -212,13 +212,30 @@ async function analyzeStock(params = {}) {
   if (!symbol) throw Object.assign(new Error('نماد سهم برای تحلیل مشخص نیست.'), { statusCode: 400, code: 'SYMBOL_REQUIRED' });
 
   const historyCount = Math.max(50, Math.min(500, Number(params.historyCount ?? params.dailyCount ?? 120)));
+
+  // /api/analyze/stock calls this service directly, without the controller
+  // context. Therefore Fundamental data must be resolved here when the caller
+  // has not already supplied it. This keeps every deterministic entry point
+  // independent of AI and guarantees the CODAL score is carried into the
+  // final response instead of falling back to zero.
+  let fundamentalAnalysis = params.fundamentalAnalysis;
+  let fundamentalData = params.fundamentalData;
+  if (!fundamentalAnalysis || typeof fundamentalAnalysis !== 'object') {
+    const fundamentalResult = await provider.getFundamentalData(symbol);
+    fundamentalAnalysis = fundamentalResult && fundamentalResult.analysis
+      ? fundamentalResult.analysis
+      : null;
+    fundamentalData = fundamentalResult && fundamentalResult.data
+      ? fundamentalResult.data
+      : null;
+  }
+
   const data = await provider.getMarketData(symbol, {
     historyCount,
-    // Reuse the Fundamental result already fetched by the controller.
-    // This prevents a second CODAL fetch from producing a different/stale
-    // result and guarantees the API returns the same deterministic score.
-    fundamentalAnalysis: params.fundamentalAnalysis,
-    fundamentalData: params.fundamentalData,
+    // Reuse the Fundamental result already resolved above. This prevents a
+    // second CODAL fetch from producing a different/stale result.
+    fundamentalAnalysis,
+    fundamentalData,
   });
   if (!data.dataQuality?.deterministicReady) {
     throw Object.assign(new Error('تاریخچه معتبر برای تحلیل تکنیکال کافی نیست.'), { statusCode: 422, code: 'INSUFFICIENT_VALID_HISTORY', dataQuality: data.dataQuality, source: data.sources });
