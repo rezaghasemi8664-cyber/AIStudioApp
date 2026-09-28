@@ -85,6 +85,8 @@ function normalizeAnnouncement(item) {
   return {
     l18: pick(source, ['l18', 'symbol', 'Symbol']),
     l30: pick(source, ['l30', 'companyName', 'company', 'name']),
+    category: pick(source, ['category', 'Category', 'category_id', 'categoryId']),
+    categoryName: pick(source, ['category_name', 'categoryName', 'CategoryName']),
     title: pick(source, ['title', 'Title']),
     code: pick(source, ['code', 'Code']),
     dateTitle: pick(source, ['date_title', 'dateTitle']),
@@ -96,6 +98,8 @@ function normalizeAnnouncement(item) {
     linkPdf: pick(source, ['link_pdf', 'linkPdf']),
     linkExcel: pick(source, ['link_excel', 'linkExcel']),
     linkAttachment: pick(source, ['link_attachment', 'linkAttachment']),
+    url: pick(source, ['url', 'Url']),
+    linkReport: pick(source, ['link_report', 'linkReport']),
     raw: source
   };
 }
