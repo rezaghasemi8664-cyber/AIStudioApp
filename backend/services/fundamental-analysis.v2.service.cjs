@@ -71,12 +71,27 @@ function classifyAnnouncement(announcement) {
 
 function aggregateNumericMetrics(documents) {
   const metrics = {};
-  for (const document of documents) {
+  documents.forEach((document, documentIndex) => {
     for (const [key, value] of Object.entries(document.metrics || {})) {
-      if (metrics[key] !== undefined) continue;
-      metrics[key] = { ...value, sourceUrl: document.url };
+      if (!value || !Number.isFinite(Number(value.value))) continue;
+      // Prefer a value that the document extractor itself considers reliable.
+      // When confidence is equal, prefer the newer document because the
+      // caller sorts Codal filings newest-first.
+      const confidence = Number(value.confidence);
+      const normalizedConfidence = Number.isFinite(confidence) ? confidence : 0;
+      const recencyBonus = Math.max(0, 12 - documentIndex);
+      const candidateRank = normalizedConfidence + recencyBonus;
+      const currentRank = Number(metrics[key]?.selectionRank);
+      if (metrics[key] && Number.isFinite(currentRank) && currentRank >= candidateRank) continue;
+      metrics[key] = {
+        ...value,
+        sourceUrl: document.url,
+        sourceType: document.sourceType,
+        sourceDocumentIndex: documentIndex,
+        selectionRank: candidateRank,
+      };
     }
-  }
+  });
   return metrics;
 }
 
