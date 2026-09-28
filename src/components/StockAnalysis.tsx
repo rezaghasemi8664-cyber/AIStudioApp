@@ -200,20 +200,25 @@ function extractFundamentalScore(source: Record<string, any>, scores: Record<str
       ? fundamentalAnalysis.score ?? fundamentalAnalysis.fundamentalScore
       : null;
 
-  // The deterministic backend exposes the authoritative Codal score as
-  // fundamentalScore / scores.fundamentalScore. Prefer those scalar fields
-  // over legacy/nested fundamentalAnalysis payloads, which may be stale.
-  // For deterministic Codal responses, scores.fundamentalScore is the
-  // authoritative value. A legacy top-level fundamentalScore can be 0 even
-  // when the deterministic Codal score is populated (for example 44).
+  // The completed deterministic Fundamental result is canonical. Older
+  // payload fields can contain 0 from the previous insufficient-data path,
+  // so they must not override a calculated CODAL score such as 44.
+  const canonicalCalculatedScore =
+    fundamentalAnalysis &&
+    typeof fundamentalAnalysis === 'object' &&
+    fundamentalAnalysis.scoreStatus === 'calculated'
+      ? analysisScore
+      : null;
+
   const candidates = source?.deterministic === true
     ? [
-        source?.scores?.fundamentalScore,
-        scores?.fundamentalScore,
-        source?.fundamentalScore,
+        canonicalCalculatedScore,
         analysisScore,
         source?.fundamentalMeta?.score,
         source?.fundamentalMeta?.fundamentalScore,
+        source?.scores?.fundamentalScore,
+        scores?.fundamentalScore,
+        source?.fundamentalScore,
         scores?.fundamental,
         source?.fundamental,
       ]
@@ -246,6 +251,12 @@ function extractFundamentalExplanation(source: Record<string, any>, explanations
   // analysis text so a stale legacy explanation cannot mask it.
   const reasonCandidates = source?.deterministic === true
     ? [
+        fundamentalAnalysis && typeof fundamentalAnalysis === 'object'
+          ? fundamentalAnalysis.reason
+          : undefined,
+        fundamentalAnalysis && typeof fundamentalAnalysis === 'object'
+          ? fundamentalAnalysis.explanation
+          : undefined,
         typeof fundamentalAnalysis === 'string' ? fundamentalAnalysis : undefined,
         source?.fundamentalReason,
         source?.fundamentalMeta?.reason,
