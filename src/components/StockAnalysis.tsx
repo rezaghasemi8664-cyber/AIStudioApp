@@ -193,6 +193,54 @@ function historySummaryText(value: unknown): string {
 }
 
 
+function extractFundamentalScore(source: Record<string, any>, scores: Record<string, any>): number | null {
+  const fundamentalAnalysis = source?.fundamentalAnalysis;
+  const analysisScore =
+    fundamentalAnalysis && typeof fundamentalAnalysis === 'object'
+      ? fundamentalAnalysis.score ?? fundamentalAnalysis.fundamentalScore
+      : null;
+
+  const candidates = [
+    analysisScore,
+    source?.fundamentalScore,
+    scores?.fundamentalScore,
+    scores?.fundamental,
+    source?.fundamental,
+  ];
+
+  for (const value of candidates) {
+    const n = toNum(value);
+    if (n !== undefined && n >= 0 && n <= 100) return n;
+  }
+
+  return null;
+}
+
+function extractFundamentalExplanation(source: Record<string, any>, explanations: Record<string, any>): string {
+  const fundamentalAnalysis = source?.fundamentalAnalysis;
+
+  if (typeof fundamentalAnalysis === 'string' && fundamentalAnalysis.trim()) {
+    return fundamentalAnalysis.trim();
+  }
+
+  if (fundamentalAnalysis && typeof fundamentalAnalysis === 'object') {
+    const reason = [
+      fundamentalAnalysis.reason,
+      fundamentalAnalysis.explanation,
+      fundamentalAnalysis.summary,
+      fundamentalAnalysis.text,
+    ].find((value) => typeof value === 'string' && value.trim());
+
+    if (typeof reason === 'string') return reason.trim();
+  }
+
+  return historySummaryText(
+    explanations?.fundamental ??
+      source?.detailedFundamentalExplanation ??
+      ''
+  );
+}
+
 function toNum(v: unknown): number | undefined {
   if (v === undefined || v === null || v === '') return undefined;
   const n = Number(v);
@@ -829,10 +877,7 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     },
 
     scores: {
-      fundamentalScore: (() => {
-        const value = scores.fundamentalScore ?? source.fundamentalScore ?? scores.fundamental ?? source.fundamental;
-        return value === null || value === undefined || value === '' ? null : clamp(value, 0, 100, 0);
-      })(),
+      fundamentalScore: extractFundamentalScore(source, scores),
       technicalScore: (() => {
         const value = scores.technicalScore ?? source.technicalScore ?? scores.technical ?? source.technical;
         return value === null || value === undefined || value === '' ? null : clamp(value, 0, 100, 0);
@@ -856,12 +901,7 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
       // Historical analysis payloads may contain nested objects instead of renderable text.
       // Normalize every explanation field before it reaches JSX.
       fundamental:
-        historySummaryText(
-          explanations.fundamental ??
-            source.fundamentalAnalysis ??
-            source.detailedFundamentalExplanation ??
-            ''
-        ) || '—',
+        extractFundamentalExplanation(source, explanations) || '—',
       technical:
         historySummaryText(
           explanations.technical ??
