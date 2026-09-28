@@ -81,8 +81,21 @@ async function enrichStockAnalysis(payload: any, symbol: string, headers: Record
     if (!supplementalData) return payload;
 
     const currentData = payload.data && typeof payload.data === 'object' ? payload.data : {};
-    const fundamentalAnalysis = supplementalData.fundamentalAnalysis ?? null;
-    const fundamentalScore = toFinite(fundamentalAnalysis?.score);
+    const primaryFundamentalAnalysis = currentData.fundamentalAnalysis ?? payload.fundamentalAnalysis ?? null;
+    const primaryFundamentalScore = toFinite(
+      currentData.fundamentalScore
+      ?? currentData.scores?.fundamentalScore
+      ?? primaryFundamentalAnalysis?.score
+    );
+    const supplementalFundamentalAnalysis = supplementalData.fundamentalAnalysis ?? null;
+    const supplementalFundamentalScore = toFinite(supplementalFundamentalAnalysis?.score);
+    const primaryFundamentalIsValid = primaryFundamentalScore !== null && primaryFundamentalScore > 0;
+    const fundamentalAnalysis = primaryFundamentalIsValid
+      ? primaryFundamentalAnalysis
+      : supplementalFundamentalAnalysis;
+    const fundamentalScore = primaryFundamentalIsValid
+      ? primaryFundamentalScore
+      : supplementalFundamentalScore;
     const fundamentalUnavailable = fundamentalAnalysis?.scoreStatus === 'insufficient-data' || fundamentalAnalysis?.available === false;
     const supplementalMarket = supplementalData.market ?? {};
     const realMoneyFlow = toFinite(supplementalMarket.realMoneyFlow);
@@ -92,7 +105,9 @@ async function enrichStockAnalysis(payload: any, symbol: string, headers: Record
 
     const mergedData: any = {
       ...currentData,
-      fundamental: supplementalData.fundamental ?? currentData.fundamental,
+      fundamental: primaryFundamentalIsValid
+        ? (currentData.fundamental ?? supplementalData.fundamental)
+        : (supplementalData.fundamental ?? currentData.fundamental),
       fundamentalAnalysis: fundamentalAnalysis ?? currentData.fundamentalAnalysis,
       dataQuality: supplementalData.dataQuality ?? currentData.dataQuality,
       marketData: {
