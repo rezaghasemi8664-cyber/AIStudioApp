@@ -251,8 +251,27 @@ async function analyzeStock(params = {}) {
   const marketData = buildMarketData(data);
   const signals = buildSignals(result);
   const warning = qualityWarning(data.dataQuality);
-  const fundamental = data.fundamentalAnalysis || {};
+  // Keep the canonical CODAL Fundamental object intact all the way to the API.
+  // Scalar aliases below are derived from this same object for legacy consumers.
+  const fundamental = (
+    data.fundamentalAnalysis &&
+    typeof data.fundamentalAnalysis === 'object'
+  ) ? data.fundamentalAnalysis : {
+    available: false,
+    score: null,
+    scoreStatus: 'unavailable',
+    scoreCoverage: 0,
+    reason: 'برای محاسبه امتیاز بنیادی، داده عددی معتبر از صورت‌های مالی CODAL در دسترس نیست.'
+  };
   const fundamentalScore = num(fundamental.score);
+  const fundamentalReason = String(
+    fundamental.reason ||
+    'برای محاسبه امتیاز بنیادی، داده عددی معتبر از صورت‌های مالی CODAL در دسترس نیست.'
+  );
+  const fundamentalAvailable =
+    fundamental.available === true &&
+    fundamental.scoreStatus === 'calculated' &&
+    fundamentalScore !== null;
   const technicalScore = num(result.score) ?? 0;
   const recommendationFa = result.recommendation || 'نگهداری';
   const recommendation = recommendationFa === 'خرید' ? 'BUY' : recommendationFa === 'فروش' ? 'SELL' : 'HOLD';
@@ -274,12 +293,13 @@ async function analyzeStock(params = {}) {
     riskLevel: Array.isArray(result.riskWarnings) && result.riskWarnings.length > 1 ? 'زیاد' : 'متوسط',
     summary: summary.join(' '),
     technicalAnalysis: summary.join(' '),
-    fundamentalAnalysis: String(fundamental.reason || 'برای محاسبه امتیاز بنیادی، داده عددی معتبر از صورت‌های مالی CODAL در دسترس نیست.'),
-    fundamentalAvailable: fundamental.available === true && fundamentalScore !== null,
-    // Keep dedicated scalar fields alongside the human-readable explanation so
-    // every frontend/history consumer can render the same Codal-derived score.
-    fundamentalScore: fundamentalScore,
-    fundamentalReason: String(fundamental.reason || ''),
+    // Canonical Fundamental payload. Do not flatten this object to a string:
+    // the frontend and history layer use score/status/reason from this exact result.
+    fundamentalAnalysis: fundamental,
+    fundamentalAvailable,
+    // Backward-compatible scalar aliases derived from the canonical object above.
+    fundamentalScore,
+    fundamentalReason,
     scores: { fundamentalScore, technicalScore },
     signals,
     entryPoints: signals.entryPoints,
