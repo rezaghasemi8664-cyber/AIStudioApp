@@ -48,7 +48,7 @@ function numericDataQuality(metrics) {
 }
 
 async function extractFinancialDocuments(financialAnnouncements) {
-  const maxDocuments = Math.max(1, Math.min(8, Number(process.env.CODAL_MAX_FINANCIAL_DOCUMENTS) || 5));
+  const maxDocuments = Math.max(1, Math.min(12, Number(process.env.CODAL_MAX_FINANCIAL_DOCUMENTS) || 8));
   const selected = financialAnnouncements
     .filter((item) => {
       const announcement = item && item.announcement;
@@ -111,7 +111,7 @@ async function analyzeAnnouncements(input) {
     scoreCoverage: calculatedScore.coverage,
     scoreComponents: calculatedScore.components,
     reason: scoreReady
-      ? `تحلیل بنیادی بر اساس داده‌های Codal: از ${announcements.length} اطلاعیه Codal، ${documents.filter((item) => item.available).length} فایل مالی قابل استخراج استفاده شد و ${quality.extractedMetricCount} شاخص عددی استخراج شد. ${calculatedScore.reason}`
+      ? `تحلیل بنیادی بر اساس اطلاعات واقعی Codal: از ${announcements.length} اطلاعیه Codal، ${documents.filter((item) => item.available).length} فایل مالی قابل استخراج استفاده شد و ${quality.extractedMetricCount} شاخص عددی استخراج شد. ${calculatedScore.reason}`
       : quality.sufficientForScoring
         ? 'داده‌های عددی کافی شناسایی شدند، اما اجزای لازم برای محاسبه امتیاز بنیادی کامل نیستند.'
         : financial.length > 0
