@@ -9,6 +9,30 @@ const features = [
   { title: 'سبد سهام', description: 'مدیریت و بررسی وضعیت سبد سهام در یک محیط یکپارچه و کاربردی برای معامله‌گران.', icon: '▤' },
 ];
 
+
+const faqItems = [
+  {
+    question: 'رونیا چیست؟',
+    answer: 'رونیا یک سامانه تخصصی برای تحلیل بازار بورس و سهام ایران است که ابزارهایی مانند تحلیل تکنیکال، تحلیل بنیادی، مقایسه نمادها، بررسی بازار، نوسان‌گیری و مدیریت سبد سهام را در یک محیط یکپارچه ارائه می‌کند.',
+  },
+  {
+    question: 'رونیا چه نوع تحلیل‌هایی ارائه می‌دهد؟',
+    answer: 'در رونیا ابزارهای تحلیل تکنیکال بورس، تحلیل بنیادی بورس، بررسی وضعیت بازار و مقایسه نمادها در اختیار کاربران قرار می‌گیرد.',
+  },
+  {
+    question: 'آیا رونیا برای تحلیل سهام بازار بورس ایران طراحی شده است؟',
+    answer: 'بله. محتوای سامانه و ابزارهای آن برای بررسی سهام، نمادها و شرایط بازار سرمایه ایران طراحی شده است.',
+  },
+  {
+    question: 'آیا رونیا ابزار نوسان‌گیری بورس دارد؟',
+    answer: 'بله. رونیا بخش نوسان‌گیری را برای بررسی فرصت‌های کوتاه‌مدت بازار و مشاهده داده‌های مرتبط در اختیار کاربران قرار می‌دهد.',
+  },
+  {
+    question: 'چگونه می‌توان از رونیا استفاده کرد؟',
+    answer: 'برای شروع، می‌توانید از طریق گزینه ورود یا ثبت‌نام وارد سامانه شوید و پس از ایجاد حساب کاربری از محیط تحلیل رونیا استفاده کنید.',
+  },
+];
+
 const steps = [
   ['۰۱', 'ثبت‌نام سریع', 'با ایمیل و شماره موبایل خود حساب کاربری ایجاد کنید.'],
   ['۰۲', 'دریافت رمز عبور', 'رمز ورود حساب از طریق پیامک برای شما ارسال می‌شود.'],
@@ -22,6 +46,22 @@ const PublicLandingPage: React.FC = () => {
 
   return (
     <div dir="rtl" className="roniya-public-page public-landing-workstation">
+
+      <script type="application/ld+json">
+        {JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: faqItems.map((item) => ({
+            '@type': 'Question',
+            name: item.question,
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: item.answer,
+            },
+          })),
+        })}
+      </script>
+
       <style>{`
         .roniya-public-page {
           --navy: #071426;
@@ -87,6 +127,13 @@ const PublicLandingPage: React.FC = () => {
         .public-site-address a { color: inherit; text-decoration: none; }
         .public-site-address a:hover { text-decoration: underline; }
         .public-footer-site { color: #8be9f6; font-weight: 800; }
+        .public-faq-grid { display: grid; gap: 12px; max-width: 900px; margin: 0 auto; }
+        .public-faq-item { border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.025); overflow: hidden; }
+        .public-faq-item summary { cursor: pointer; list-style: none; padding: 20px 22px; font-weight: 900; color: var(--text); }
+        .public-faq-item summary::-webkit-details-marker { display: none; }
+        .public-faq-item summary::after { content: '+'; float: left; color: #67e8f9; font-size: 20px; line-height: 1; }
+        .public-faq-item[open] summary::after { content: '−'; }
+        .public-faq-answer { padding: 0 22px 20px; color: var(--muted); line-height: 1.95; font-size: 14px; }
         .public-footer { border-top: 1px solid var(--line); padding: 25px 0 32px; color: #7f93aa; font-size: 13px; }
         .public-footer-inner { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
         @media (max-width: 820px) {
@@ -179,6 +226,24 @@ const PublicLandingPage: React.FC = () => {
                   <h3>{title}</h3>
                   <p>{description}</p>
                 </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="public-section" aria-labelledby="faq-title">
+          <div className="public-wrap">
+            <div className="public-section-head">
+              <div className="public-section-kicker">پرسش‌های متداول</div>
+              <h2 id="faq-title">سؤالات متداول درباره تحلیلگر هوشمند بورس رونیا</h2>
+              <p>پاسخ کوتاه به پرسش‌های رایج درباره امکانات و نحوه استفاده از رونیا.</p>
+            </div>
+            <div className="public-faq-grid">
+              {faqItems.map((item) => (
+                <details className="public-faq-item" key={item.question}>
+                  <summary>{item.question}</summary>
+                  <div className="public-faq-answer">{item.answer}</div>
+                </details>
               ))}
             </div>
           </div>
