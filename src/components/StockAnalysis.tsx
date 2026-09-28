@@ -237,19 +237,6 @@ function translateValue(value: string | undefined, map: Record<string, string>) 
   return map[raw] ?? map[lower] ?? raw;
 }
 
-function normalizeEnum(value: unknown, allowed: readonly string[], fallback: string): string {
-  const raw = String(value ?? '').trim();
-  if (!raw) return fallback;
-  const lower = raw.toLowerCase();
-  const aliases: Record<string, string> = {
-    buy: 'buy', BUY: 'buy', 'خرید': 'buy', 'خرید قوی': 'strong_buy',
-    sell: 'sell', SELL: 'sell', 'فروش': 'sell', 'فروش قوی': 'strong_sell',
-    hold: 'hold', HOLD: 'hold', 'نگهداری': 'hold',
-  };
-  const canonical = aliases[raw] ?? aliases[lower] ?? lower;
-  return allowed.includes(canonical) ? canonical : fallback;
-}
-
 function parseJsonSafely(raw: string) {
   try {
     return JSON.parse(raw);
@@ -986,8 +973,35 @@ function normalizeEnum<T extends string>(
   allowed: readonly T[],
   fallback: T,
 ): T {
-  const text = historySummaryText(value).trim() as T;
-  return allowed.includes(text) ? text : fallback;
+  const raw = historySummaryText(value).trim();
+  if (!raw) return fallback;
+  const lower = raw.toLowerCase();
+  const aliases: Record<string, string> = {
+    buy: 'buy',
+    'خرید': 'buy',
+    sell: 'sell',
+    'فروش': 'sell',
+    hold: 'hold',
+    'نگهداری': 'hold',
+    bullish: 'bullish',
+    'صعودی': 'bullish',
+    bearish: 'bearish',
+    'نزولی': 'bearish',
+    neutral: 'neutral',
+    'خنثی': 'neutral',
+    positive: 'positive',
+    'مثبت': 'positive',
+    negative: 'negative',
+    'منفی': 'negative',
+    low: 'low',
+    'کم': 'low',
+    medium: 'medium',
+    'متوسط': 'medium',
+    high: 'high',
+    'زیاد': 'high',
+  };
+  const canonical = aliases[raw] ?? aliases[lower] ?? lower;
+  return allowed.includes(canonical as T) ? (canonical as T) : fallback;
 }
 
 const recommendationValues = ['buy', 'hold', 'sell'] as const;
