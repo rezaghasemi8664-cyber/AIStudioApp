@@ -65,7 +65,7 @@ function numericCandidates(cells,start,direction){
     if(isSmallPeriod)score-=18;
     if(/[.]/.test(compact))score+=4;
     if(/ریال|میلیون|هزار|درصد|%/i.test(raw))score+=12;
-    out.push({value,distance,score,isYear,isSmallPeriod,raw});
+    out.push({value,distance,score,isYear,isSmallPeriod,raw,index:i});
   }
   return out.sort((a,b)=>b.score-a.score);
 }
@@ -76,8 +76,24 @@ function embeddedNumber(label){
 }
 function findMetricValues(sheets){
   const best={};
+  const currentPeriodHints=['دوره جاری','سال مالی جاری','جاری','current period','current year'];
+  const comparisonPeriodHints=['دوره مشابه','سال مالی مشابه','دوره قبل','سال قبل','سال مالی قبل','comparative','prior period','previous year'];
+
+  const columnHintScore=(rows,rowIndex,columnIndex)=>{
+    let score=0;
+    for(let r=Math.max(0,rowIndex-5);r<rowIndex;r++){
+      const text=normalizeText((rows[r]||[]).map(normalizeText).join(' '));
+      if(!text)continue;
+      if(currentPeriodHints.some(h=>normalizeMetricLabel(text).includes(normalizeMetricLabel(h))))score+=22;
+      if(comparisonPeriodHints.some(h=>normalizeMetricLabel(text).includes(normalizeMetricLabel(h))))score-=18;
+    }
+    return score;
+  };
+
   for(const sheet of sheets){
-    for(const rawRow of sheet.rows||[]){
+    const rows=sheet.rows||[];
+    for(let rowIndex=0;rowIndex<rows.length;rowIndex++){
+      const rawRow=rows[rowIndex];
       const cells=(rawRow||[]).map(normalizeText);
       const normalizedCells=cells.map(normalizeMetricLabel);
       for(let i=0;i<cells.length;i++){
@@ -87,12 +103,17 @@ function findMetricValues(sheets){
           if(!patterns.some(p=>{const pNorm=normalizeMetricLabel(p);return normalizedLabel===pNorm||normalizedLabel.includes(pNorm);}))continue;
           let candidates=numericCandidates(cells,i,1);
           if(!candidates.length)candidates=numericCandidates(cells,i,-1);
-          // A standalone year (Gregorian or Jalali) is a table header/period,
-          // not a financial value. Never use it as the metric value.
+          // A standalone year/date or a small period number is never itself a
+          // financial value. Header-aware scoring below selects the intended
+          // current-period column when several numeric periods are present.
           candidates=candidates.filter(candidate=>!candidate.isYear);
+          candidates=candidates.map(candidate=>({
+            ...candidate,
+            score:candidate.score+columnHintScore(rows,rowIndex,candidate.index)
+          })).sort((a,b)=>b.score-a.score);
           if(!candidates.length){
             const embedded=embeddedNumber(label);
-            if(embedded!==null)candidates=[{value:embedded,distance:0,score:72,isYear:false,isSmallPeriod:false}];
+            if(embedded!==null)candidates=[{value:embedded,distance:0,score:72,isYear:false,isSmallPeriod:false,index:i}];
           }
           if(!candidates.length)continue;
           const chosen=candidates[0];
