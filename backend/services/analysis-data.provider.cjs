@@ -305,5 +305,6 @@ function getProviderStatus() {
 
 module.exports = {
   getMarketData: getMarketData,
+  getFundamentalData: getFundamentalData,
   getProviderStatus: getProviderStatus
 };
