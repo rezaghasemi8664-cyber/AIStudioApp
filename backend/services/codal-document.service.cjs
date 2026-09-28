@@ -115,6 +115,7 @@ async function extractFinancialDataFromAnnouncement(announcement){
   addCandidate(announcement&&(announcement.link||announcement.url||announcement.link_report||announcement.linkReport),'report');
   addCandidate(announcement&&(announcement.linkPdf||announcement.link_pdf),'report');
   const failures=[];
+  const extracted=[];
 
   for(const candidate of candidates){
     try{
@@ -127,20 +128,51 @@ async function extractFinancialDataFromAnnouncement(announcement){
       const sheets=extractExcelRows(downloaded.buffer);
       const metrics=findMetricValues(sheets);
       if(Object.keys(metrics).length>0){
-        return {
-          available:true,
+        extracted.push({
           sourceType:isHtml?'codal-html-report':'excel',
           url:downloaded.finalUrl,
           bytes:downloaded.bytes,
           sheetCount:sheets.length,
           metrics,
           reason:candidate.type==='excel'?'استخراج مستقیم از فایل مالی CODAL انجام شد.':'استخراج از سند مالی CODAL انجام شد.'
-        };
+        });
+      } else {
+        failures.push('استخراج '+candidate.type+' انجام شد اما شاخص عددی پیدا نشد.');
       }
-      failures.push('استخراج '+candidate.type+' انجام شد اما شاخص عددی پیدا نشد.');
     }catch(error){
       failures.push('استخراج '+candidate.type+': '+error.message);
     }
+  }
+
+  if(extracted.length){
+    // Keep all successful sources so the caller can merge complementary
+    // metrics from Excel and HTML instead of stopping at the first hit.
+    const merged={};
+    extracted.forEach((item, sourceIndex)=>{
+      for(const [metric,value] of Object.entries(item.metrics||{})){
+        if(!value||!Number.isFinite(Number(value.value)))continue;
+        const confidence=Number(value.confidence);
+        const rank=(Number.isFinite(confidence)?confidence:0)+Math.max(0,10-sourceIndex);
+        const current=merged[metric];
+        if(current&&Number(current.selectionRank)>=rank)continue;
+        merged[metric]={
+          ...value,
+          sourceUrl:item.url,
+          sourceType:item.sourceType,
+          sourceIndex,
+          selectionRank:rank
+        };
+      }
+    });
+    return {
+      available:true,
+      sourceType:extracted.length===1?extracted[0].sourceType:'codal-financial-merged',
+      url:extracted[0].url,
+      bytes:extracted.reduce((sum,item)=>sum+(Number(item.bytes)||0),0),
+      sheetCount:extracted.reduce((sum,item)=>sum+(Number(item.sheetCount)||0),0),
+      metrics:merged,
+      reason:'استخراج و تجمیع داده‌های معتبر از اسناد مالی CODAL انجام شد.'
+    };
   }
 
   return {
