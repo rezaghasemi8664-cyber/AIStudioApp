@@ -214,7 +214,7 @@ async function getFundamentalData(symbolClean) {
       countAnnouncement: mergedAnnouncements.length,
       countPage: Math.max(
         Number(generalResult && generalResult.countPage) || 0,
-        Number(financialResult && financialResult.countPage) || 0
+        ...financialResults.map(item => Number(item && item.countPage) || 0)
       ),
       page: 1,
       fetchedAt: new Date().toISOString()
