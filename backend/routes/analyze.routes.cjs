@@ -143,9 +143,13 @@ router.post('/stock', authMiddleware, async function (req, res) {
       });
     }
 
-    if (typeof ctrl.analyzeStock === 'function') return ctrl.analyzeStock(req, res);
-    if (typeof ctrl.analyze === 'function') return ctrl.analyze(req, res);
-    return res.status(503).json({ success: false, message: 'سرویس تحلیل سهم در دسترس نیست.', code: 'STOCK_ANALYSIS_UNAVAILABLE', requestId: req.requestId });
+    return res.status(503).json({
+      success: false,
+      message: 'موتور تحلیل قطعی سهم در دسترس نیست.',
+      code: 'STOCK_ANALYSIS_UNAVAILABLE',
+      deterministic: true,
+      requestId: req.requestId
+    });
   } catch (error) {
     console.error('[ANALYZE-ROUTES] Deterministic stock analysis error:', error.message);
     return res.status(Number(error.statusCode) >= 400 ? Number(error.statusCode) : 500).json({
