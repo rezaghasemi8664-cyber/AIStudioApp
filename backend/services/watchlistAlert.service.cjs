@@ -154,7 +154,9 @@ async function evaluateArmedRules(userId) {
   const rules = await readRules(userId); const armed = rules.filter(rule => rule.status === 'armed'); const quotes = new Map(); const triggered = [];
   for (const rule of armed) {
     if (!quotes.has(rule.symbol)) { try { quotes.set(rule.symbol, await getQuote(rule.symbol)); } catch (_) { quotes.set(rule.symbol, null); } }
-    const quote = quotes.get(rule.symbol);\n    if (!quote || quote.dataStatus === 'UNAVAILABLE') continue;\n    const results = rule.conditions.map(condition => ({ ...condition, value: metricValue(quote, condition.metric), matched: evaluate(metricValue(quote, condition.metric), condition.operator, condition.threshold) }));
+    const quote = quotes.get(rule.symbol);
+    if (!quote || quote.dataStatus === 'UNAVAILABLE') continue;
+    const results = rule.conditions.map(condition => ({ ...condition, value: metricValue(quote, condition.metric), matched: evaluate(metricValue(quote, condition.metric), condition.operator, condition.threshold) }));
     const matched = rule.logic === 'OR' ? results.some(item => item.matched) : results.every(item => item.matched);
     if (!matched) continue;
     const triggeredAt = new Date().toISOString(); const nextRule = { ...rule, status: 'triggered', triggeredAt, updatedAt: triggeredAt }; const index = rules.findIndex(item => item.id === rule.id); if (index >= 0) rules[index] = nextRule;
