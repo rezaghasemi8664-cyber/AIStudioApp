@@ -52,7 +52,13 @@ async function extractFinancialDocuments(financialAnnouncements) {
   const selected = financialAnnouncements
     .filter((item) => {
       const announcement = item && item.announcement;
-      return Boolean(announcement && (announcement.link_excel || announcement.linkExcel));
+      // Do not require link_excel here. Some valid CODAL financial filings
+      // expose the statement tables on the report page even when the Excel
+      // download is unavailable; codal-document.service handles that fallback.
+      return Boolean(announcement && (
+        announcement.link_excel || announcement.linkExcel ||
+        announcement.link || announcement.url || announcement.link_report || announcement.linkReport
+      ));
     })
     .slice()
     .sort((a, b) => Number(b.classification?.importance || 0) - Number(a.classification?.importance || 0))
