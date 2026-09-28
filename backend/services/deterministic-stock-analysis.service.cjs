@@ -218,30 +218,20 @@ async function analyzeStock(params = {}) {
   // has not already supplied it. This keeps every deterministic entry point
   // independent of AI and guarantees the CODAL score is carried into the
   // final response instead of falling back to zero.
-  let fundamentalAnalysis = params.fundamentalAnalysis;
-  let fundamentalData = params.fundamentalData;
-
-  // Only reuse a supplied Fundamental result when it is a completed
-  // deterministic calculation. Legacy/context payloads can contain the old
-  // "requires-financial-document-data" result with score=null; passing that
-  // through would mask the real CODAL calculation and surface a zero/empty
-  // score to the API/UI. In that case, resolve Fundamental again through the
-  // canonical provider (fundamental-analysis.v2).
-  const suppliedFundamentalIsCalculated =
-    fundamentalAnalysis &&
-    typeof fundamentalAnalysis === 'object' &&
-    fundamentalAnalysis.scoreStatus === 'calculated' &&
-    num(fundamentalAnalysis.score) !== null;
-
-  if (!suppliedFundamentalIsCalculated) {
-    const fundamentalResult = await provider.getFundamentalData(symbol);
-    fundamentalAnalysis = fundamentalResult && fundamentalResult.analysis
-      ? fundamentalResult.analysis
-      : null;
-    fundamentalData = fundamentalResult && fundamentalResult.data
-      ? fundamentalResult.data
-      : null;
-  }
+  // The /api/analyze/stock route is a public deterministic entry point and
+  // must never inherit a cached/legacy Fundamental object from another
+  // analysis context. Even a legacy object marked "calculated" can contain
+  // score=0 and the old insufficient-data explanation. Always resolve the
+  // canonical CODAL Fundamental result here, then pass that exact result to
+  // the market-data provider so the score and explanation come from the same
+  // calculation.
+  const fundamentalResult = await provider.getFundamentalData(symbol);
+  const fundamentalAnalysis = fundamentalResult && fundamentalResult.analysis
+    ? fundamentalResult.analysis
+    : null;
+  const fundamentalData = fundamentalResult && fundamentalResult.data
+    ? fundamentalResult.data
+    : null;
 
   const data = await provider.getMarketData(symbol, {
     historyCount,
