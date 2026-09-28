@@ -889,6 +889,7 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
       marketMetrics: mergedMetrics,
     },
 
+    fundamentalScore: extractFundamentalScore(source, scores),
     scores: {
       fundamentalScore: extractFundamentalScore(source, scores),
       technicalScore: (() => {
@@ -1695,8 +1696,14 @@ const clearCurrentAnalysis = () => {
         sentimentMap
       ),
       confidence: analysisData.confidence ?? 0,
-      fundamentalScore: analysisData.scores?.fundamentalScore ?? null,
-      technicalScore: analysisData.scores?.technicalScore ?? null,
+      fundamentalScore:
+        analysisData.fundamentalScore ??
+        analysisData.scores?.fundamentalScore ??
+        null,
+      technicalScore:
+        analysisData.technicalScore ??
+        analysisData.scores?.technicalScore ??
+        null,
     };
   }, [analysisData]);
 
