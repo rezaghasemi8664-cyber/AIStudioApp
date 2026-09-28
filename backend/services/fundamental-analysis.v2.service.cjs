@@ -4,15 +4,43 @@ var documentService = require('./codal-document.service.cjs');
 var fundamentalScoreService = require('./fundamental-score.service.cjs');
 
 const IMPORTANT_CATEGORIES = [
-  { key: 'financial_statements', weight: 30, patterns: ['صورت مالی', 'صورت‌های مالی', 'صورت هاي مالي', 'گزارش مالی'] },
-  { key: 'profit_loss', weight: 25, patterns: ['سود و زیان', 'سود و زيان', 'درآمد و هزینه'] },
+  { key: 'financial_statements', weight: 30, patterns: ['صورت مالی', 'صورت‌های مالی', 'صورت هاي مالي', 'صورتهای مالی', 'اطلاعات و صورت مالی', 'اطلاعات و صورت‌های مالی', 'اطلاعات و صورتهاي مالی', 'صورت وضعیت مالی', 'ترازنامه', 'گزارش مالی'] },
+  { key: 'profit_loss', weight: 25, patterns: ['سود و زیان', 'سود و زيان', 'صورت سود و زیان', 'صورت سود و زيان', 'درآمد و هزینه', 'صورت جریان وجوه نقد', 'یادداشت‌های توضیحی', 'یادداشتهای توضیحی'] },
   { key: 'monthly_activity', weight: 15, patterns: ['گزارش فعالیت ماهانه', 'فعالیت ماهانه'] },
-  { key: 'earnings_forecast', weight: 20, patterns: ['پیش بینی درآمد', 'پیش‌بینی درآمد', 'پیش بینی سود', 'پیش‌بینی سود'] },
+  { key: 'earnings_forecast', weight: 20, patterns: ['پیش بینی درآمد', 'پیش‌بینی درآمد', 'پیش بینی سود', 'پیش‌بینی سود', 'گزارش تفسیری مدیریت', 'گزارش فعالیت هیئت مدیره'] },
   { key: 'capital_dividend', weight: 10, patterns: ['افزایش سرمایه', 'تقسیم سود', 'مجمع عمومی'] },
 ];
 
 function normalizeText(value) {
-  return String(value || '').replace(/\s+/g, ' ').trim();
+  return String(value || '')
+    .replace(/[\u200c\u200f\u200e]/g, ' ')
+    .replace(/[يى]/g, 'ی')
+    .replace(/ك/g, 'ک')
+    .replace(/ة/g, 'ه')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function chronologyKey(announcement) {
+  const value = normalizeText(
+    announcement?.datePublish ||
+    announcement?.date_publish ||
+    announcement?.dateSend ||
+    announcement?.date_send ||
+    announcement?.dateTitle ||
+    announcement?.date_title ||
+    ''
+  );
+  const digits = value
+    .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+  const compact = digits.replace(/[^0-9]/g, '');
+  if (compact.length >= 8) {
+    const n = Number(compact.slice(0, 14));
+    if (Number.isFinite(n)) return n;
+  }
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function classifyAnnouncement(announcement) {
@@ -61,7 +89,15 @@ async function extractFinancialDocuments(financialAnnouncements) {
       ));
     })
     .slice()
-    .sort((a, b) => Number(b.classification?.importance || 0) - Number(a.classification?.importance || 0))
+    // CODAL returns announcements in provider-dependent order. Selecting by
+    // category importance alone can repeatedly choose old high-importance
+    // filings and miss the latest financial statement. Prefer chronology,
+    // then category importance as a tie-breaker.
+    .sort((a, b) => {
+      const dateDiff = chronologyKey(b.announcement) - chronologyKey(a.announcement);
+      if (dateDiff !== 0) return dateDiff;
+      return Number(b.classification?.importance || 0) - Number(a.classification?.importance || 0);
+    })
     .slice(0, maxDocuments);
   const documents = [];
 
