@@ -264,10 +264,33 @@ async function getMarketData(symbol, options) {
   var fundamentalStatus = fundamentalResult.status;
   var fundamentalAnalysis = fundamentalResult.analysis || {};
 
-  // Fundamental scoring is Codal-only. Do not replace missing Codal
-  // financial-statement data with BRS EPS/P/E, because that would make the
-  // fundamental score unrelated to the company's actual Codal filings.
-
+  // CODAL remains the primary source. If the financial documents cannot be
+  // numerically extracted, use verified BRS Symbol EPS/P/E only as an explicit
+  // fallback instead of returning a null score that the frontend renders as 0.
+  if (!Number.isFinite(Number(fundamentalAnalysis.score))) {
+    var marketFundamental = market && typeof market === 'object'
+      ? (market.fundamental || market)
+      : {};
+    var fallbackFundamental = brsFundamentalScore.calculateFundamentalSnapshotScore({
+      eps: marketFundamental.eps,
+      pe: marketFundamental.pe,
+      groupPe: marketFundamental.groupPe
+    });
+    if (Number.isFinite(Number(fallbackFundamental.score))) {
+      fundamentalAnalysis = {
+        ...fundamentalAnalysis,
+        score: fallbackFundamental.score,
+        scoreStatus: fallbackFundamental.status,
+        scoreCoverage: fallbackFundamental.coverage,
+        scoreComponents: fallbackFundamental.components,
+        reason: fallbackFundamental.reason,
+        fallback: true,
+        primarySource: 'CODAL',
+        fallbackSource: fallbackFundamental.source,
+        codalReason: fundamentalAnalysis.reason || null
+      };
+    }
+  }
 
   return {
     symbol: symbolClean,
