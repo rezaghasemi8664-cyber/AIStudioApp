@@ -115,7 +115,10 @@ async function extractFinancialDocuments(financialAnnouncements) {
       // download is unavailable; codal-document.service handles that fallback.
       return Boolean(announcement && (
         announcement.link_excel || announcement.linkExcel ||
-        announcement.link || announcement.url || announcement.link_report || announcement.linkReport
+        announcement.linkAttachment || announcement.link_attachment ||
+        announcement.link || announcement.url ||
+        announcement.link_report || announcement.linkReport ||
+        announcement.linkPdf || announcement.link_pdf
       ));
     })
     .slice()
@@ -178,7 +181,7 @@ async function analyzeAnnouncements(input) {
       : quality.sufficientForScoring
         ? 'داده‌های عددی کافی شناسایی شدند، اما اجزای لازم برای محاسبه امتیاز بنیادی کامل نیستند.'
         : financial.length > 0
-          ? 'اطلاعیه‌های مالی شناسایی شدند، اما داده عددی کافی از فایل‌های Excel برای محاسبه امتیاز بنیادی استخراج نشد.'
+          ? 'اطلاعیه‌های مالی CODAL شناسایی شدند، اما از اسناد مالی قابل دریافت داده عددی کافی برای محاسبه امتیاز بنیادی استخراج نشد.'
           : 'برای محاسبه امتیاز بنیادی، داده عددی معتبر از صورت‌های مالی CODAL در دسترس نیست.',
   };
 }
