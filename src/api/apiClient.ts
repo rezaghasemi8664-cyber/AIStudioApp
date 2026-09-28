@@ -14,6 +14,62 @@ const getStoredToken = (): string | null => {
   return null;
 };
 
+function normalizeFundamentalAnalysisPayload(payload: any): any {
+  if (!payload || typeof payload !== 'object') return payload;
+
+  const root = payload?.data && typeof payload.data === 'object'
+    ? payload.data
+    : payload?.result && typeof payload.result === 'object'
+      ? payload.result
+      : payload;
+
+  if (!root || typeof root !== 'object') return payload;
+
+  const scores = root.scores && typeof root.scores === 'object' ? { ...root.scores } : {};
+  const fundamental = root.fundamentalAnalysis;
+  const meta = root.fundamentalMeta;
+
+  const candidates = [
+    root.fundamentalScore,
+    root.fundamental_score,
+    scores.fundamentalScore,
+    scores.fundamental_score,
+    meta?.score,
+    meta?.fundamentalScore,
+    fundamental && typeof fundamental === 'object' ? fundamental.score : undefined,
+    fundamental && typeof fundamental === 'object' ? fundamental.fundamentalScore : undefined,
+  ];
+
+  const numericScore = candidates
+    .map((value) => Number(value))
+    .find((value) => Number.isFinite(value) && value >= 0 && value <= 100);
+
+  if (numericScore !== undefined) {
+    root.fundamentalScore = numericScore;
+    root.fundamental_score = numericScore;
+    root.scores = { ...scores, fundamentalScore: numericScore };
+  }
+
+  const reasonCandidates = [
+    root.fundamentalReason,
+    root.fundamental_reason,
+    meta?.reason,
+    fundamental && typeof fundamental === 'object' ? fundamental.reason : undefined,
+    fundamental && typeof fundamental === 'object' ? fundamental.explanation : undefined,
+  ];
+
+  const reason = reasonCandidates.find(
+    (value) => typeof value === 'string' && value.trim().length > 0
+  );
+
+  if (reason) {
+    root.fundamentalReason = reason.trim();
+    root.fundamental_reason = reason.trim();
+  }
+
+  return payload;
+}
+
 function normalizeMoneyFlowPayload(payload: any): any {
   const data = payload?.data;
   const market = data?.market ?? data?.marketData ?? payload?.marketData ?? data;
@@ -76,9 +132,9 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-api.interceptors.response.use(
+\nfunction configIsStockAnalysis(url: string | undefined): boolean {\n  if (!url) return false;\n  return /\\/analyze\\/stock(?:\\?|$)/i.test(url);\n}\n\napi.interceptors.response.use(
   (response) => {
-    response.data = normalizeMoneyFlowPayload(response.data);
+    response.data = normalizeMoneyFlowPayload(response.data);\n    if (configIsStockAnalysis(response.config?.url)) {\n      response.data = normalizeFundamentalAnalysisPayload(response.data);\n    }
     return response;
   },
   (error: AxiosError) => {
