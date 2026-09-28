@@ -44,7 +44,7 @@ const PublicLandingPage: React.FC = () => {
         .public-wrap { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
         .public-nav { position: relative; z-index: 5; display: flex; align-items: center; justify-content: space-between; padding: 20px 0; }
         .public-brand { display: flex; align-items: center; gap: 16px; font-weight: 900; font-size: 20px; min-width: 0; }
-        .public-brand img { width: 88px; height: 88px; object-fit: contain; flex: 0 0 88px; filter: drop-shadow(0 10px 24px rgba(34,211,238,.28)); }
+        .public-brand img { width: 108px; height: 108px; object-fit: contain; flex: 0 0 108px; filter: drop-shadow(0 10px 24px rgba(34,211,238,.28)); }
         .public-brand span { white-space: nowrap; }
         .public-nav-actions { display: flex; gap: 10px; align-items: center; }
         .public-btn { border: 1px solid var(--line); border-radius: 12px; padding: 11px 18px; cursor: pointer; font: inherit; font-weight: 800; transition: .2s ease; }
@@ -83,19 +83,23 @@ const PublicLandingPage: React.FC = () => {
         .public-enamad { display: flex; justify-content: center; align-items: center; margin: 28px auto 0; padding: 16px 20px; width: fit-content; min-width: 190px; border: 1px solid rgba(148,163,184,.16); border-radius: 16px; background: rgba(255,255,255,.025); box-shadow: 0 12px 35px rgba(0,0,0,.12); }
         .public-enamad a { display: inline-flex; align-items: center; justify-content: center; }
         .public-enamad img { display: block; width: 120px; height: auto; max-width: 100%; }
+        .public-site-address { margin-top: 18px; color: #8be9f6; font-size: 15px; font-weight: 900; letter-spacing: .2px; }
+        .public-site-address a { color: inherit; text-decoration: none; }
+        .public-site-address a:hover { text-decoration: underline; }
+        .public-footer-site { color: #8be9f6; font-weight: 800; }
         .public-footer { border-top: 1px solid var(--line); padding: 25px 0 32px; color: #7f93aa; font-size: 13px; }
         .public-footer-inner { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
         @media (max-width: 820px) {
           .public-feature-grid, .public-process { grid-template-columns: 1fr 1fr; }
           .public-hero { padding-top: 48px; }
-          .public-brand img { width: 72px; height: 72px; flex-basis: 72px; }
+          .public-brand img { width: 86px; height: 86px; flex-basis: 86px; }
           .public-brand { font-size: 18px; }
         }
         @media (max-width: 560px) {
           .public-wrap { width: min(100% - 24px, 1180px); }
           .public-nav { align-items: flex-start; gap: 12px; }
           .public-brand { font-size: 15px; gap: 10px; }
-          .public-brand img { width: 64px; height: 64px; flex-basis: 64px; }
+          .public-brand img { width: 76px; height: 76px; flex-basis: 76px; }
           .public-brand span { white-space: normal; max-width: 150px; line-height: 1.5; }
           .public-nav-actions .public-btn-ghost { display: none; }
           .public-feature-grid, .public-process { grid-template-columns: 1fr; }
@@ -184,6 +188,7 @@ const PublicLandingPage: React.FC = () => {
           <h2 id="cta-title">تحلیل بازار بورس و بازار سهام را با ابزارهای یکپارچه رونیا دنبال کنید</h2>
           <p>همین حالا وارد سامانه شوید یا با ایمیل خود ثبت‌نام کنید و امکانات تحلیلگر هوشمند بورس رونیا را تجربه کنید.</p>
           <button className="public-btn public-btn-primary" onClick={goToLogin}>ورود / ثبت‌نام</button>
+          <div className="public-site-address"><a href="https://www.roniya-analyzer.ir/" aria-label="وب‌سایت تحلیلگر هوشمند بورس رونیا">www.roniya-analyzer.ir</a></div>
           <div className="public-enamad" aria-label="نماد اعتماد الکترونیکی">
             <a referrerPolicy="origin" target="_blank" rel="noopener noreferrer" href="https://trustseal.enamad.ir/?id=7523297&Code=o6Q8ZIOyrOl0YWyiXpn8ILYoZ2KnhLOR">
               <img referrerPolicy="origin" src="https://trustseal.enamad.ir/logo.aspx?id=7523297&Code=o6Q8ZIOyrOl0YWyiXpn8ILYoZ2KnhLOR" alt="نماد اعتماد الکترونیکی" style={{ cursor: 'pointer' }} data-enamad-code="o6Q8ZIOyrOl0YWyiXpn8ILYoZ2KnhLOR" />
@@ -196,6 +201,7 @@ const PublicLandingPage: React.FC = () => {
         <div className="public-wrap public-footer-inner">
           <span>© {new Date().getFullYear()} تحلیلگر هوشمند بورس رونیا</span>
           <span>رونیا · نرم‌افزار تحلیل بورس و سامانه تحلیل بازار سرمایه ایران</span>
+          <span className="public-footer-site">www.roniya-analyzer.ir</span>
         </div>
       </footer>
     </div>
