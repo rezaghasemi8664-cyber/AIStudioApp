@@ -47,20 +47,6 @@ const PublicLandingPage: React.FC = () => {
   return (
     <div dir="rtl" className="roniya-public-page public-landing-workstation">
 
-      <script type="application/ld+json">
-        {JSON.stringify({
-          '@context': 'https://schema.org',
-          '@type': 'FAQPage',
-          mainEntity: faqItems.map((item) => ({
-            '@type': 'Question',
-            name: item.question,
-            acceptedAnswer: {
-              '@type': 'Answer',
-              text: item.answer,
-            },
-          })),
-        })}
-      </script>
 
       <style>{`
         .roniya-public-page {
