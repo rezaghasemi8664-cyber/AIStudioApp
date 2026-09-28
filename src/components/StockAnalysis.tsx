@@ -70,7 +70,26 @@ type UnifiedMarketData = {
   marketMetrics?: AnalysisMarketMetrics;
 };
 
-type UnifiedAnalysisResult = AnalysisResult & {
+type FundamentalAnalysisPayload = {
+  available?: boolean;
+  announcementCount?: number;
+  importantAnnouncementCount?: number;
+  financialAnnouncementCount?: number;
+  score?: number | null;
+  scoreStatus?: string;
+  scoreCoverage?: number;
+  scoreComponents?: unknown;
+  reason?: string;
+  explanation?: string;
+  summary?: string;
+  text?: string;
+  [key: string]: unknown;
+};
+
+type UnifiedAnalysisResult = Omit<AnalysisResult, 'fundamentalAnalysis'> & {
+  // Canonical deterministic CODAL result. Legacy string payloads are still
+  // accepted while old history records are being opened.
+  fundamentalAnalysis?: FundamentalAnalysisPayload | string;
   marketData: UnifiedMarketData;
   usage?: AnalysisUsage | null;
   model?: string;
@@ -906,6 +925,21 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     scoreBreakdown: source.scoreBreakdown,
     reasons: source.reasons,
     source: source.source,
+
+    // Preserve the canonical Fundamental object in normalized state as well.
+    // Scalar score/reason fields remain derived aliases for legacy UI/history code.
+    fundamentalAnalysis: source.fundamentalAnalysis,
+    fundamentalAvailable:
+      source.fundamentalAvailable ??
+      (
+        source.fundamentalAnalysis &&
+        typeof source.fundamentalAnalysis === 'object'
+          ? source.fundamentalAnalysis.available === true &&
+            source.fundamentalAnalysis.scoreStatus === 'calculated' &&
+            toNum(source.fundamentalAnalysis.score) !== undefined
+          : false
+      ),
+    fundamentalReason: extractFundamentalExplanation(source, explanations) || undefined,
 
     marketData: {
       closingPrice,
