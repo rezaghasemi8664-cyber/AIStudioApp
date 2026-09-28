@@ -237,6 +237,19 @@ function translateValue(value: string | undefined, map: Record<string, string>) 
   return map[raw] ?? map[lower] ?? raw;
 }
 
+function normalizeEnum(value: unknown, allowed: readonly string[], fallback: string): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return fallback;
+  const lower = raw.toLowerCase();
+  const aliases: Record<string, string> = {
+    buy: 'buy', BUY: 'buy', 'خرید': 'buy', 'خرید قوی': 'strong_buy',
+    sell: 'sell', SELL: 'sell', 'فروش': 'sell', 'فروش قوی': 'strong_sell',
+    hold: 'hold', HOLD: 'hold', 'نگهداری': 'hold',
+  };
+  const canonical = aliases[raw] ?? aliases[lower] ?? lower;
+  return allowed.includes(canonical) ? canonical : fallback;
+}
+
 function parseJsonSafely(raw: string) {
   try {
     return JSON.parse(raw);
@@ -772,7 +785,11 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
   const normalized: UnifiedAnalysisResult = {
     symbol: renderableText(source.symbol, 'نامشخص'),
     summary: historySummaryText(source.summary) || historySummaryText(source.explanations) || '',
-    recommendation: normalizeEnum(source.recommendation, recommendationValues, 'hold'),
+    recommendation: normalizeEnum(
+      source.recommendation ?? source.recommendationFa,
+      recommendationValues,
+      'hold'
+    ),
     riskLevel: normalizeEnum(source.riskLevel ?? source.risk_level, riskValues, 'medium'),
     shortTermTrend: normalizeEnum(source.shortTermTrend ?? source.short_term_trend, trendValues, 'neutral'),
     mediumTermTrend: normalizeEnum(source.mediumTermTrend ?? source.medium_term_trend, trendValues, 'neutral'),
