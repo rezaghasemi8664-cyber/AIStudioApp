@@ -62,7 +62,7 @@ function numericCandidates(cells,start,direction){
     const isSmallPeriod=/^[-+]?\d{1,2}$/.test(compact)&&Math.abs(value)<=12;
     let score=100-distance*8;
     if(isYear)score-=80;
-    if(isSmallPeriod)score-=18;
+    if(isSmallPeriod)score-=30;
     if(/[.]/.test(compact))score+=4;
     if(/ریال|میلیون|هزار|درصد|%/i.test(raw))score+=12;
     out.push({value,distance,score,isYear,isSmallPeriod,raw,index:i});
@@ -81,11 +81,16 @@ function findMetricValues(sheets){
 
   const columnHintScore=(rows,rowIndex,columnIndex)=>{
     let score=0;
-    for(let r=Math.max(0,rowIndex-5);r<rowIndex;r++){
-      const text=normalizeText((rows[r]||[]).map(normalizeText).join(' '));
+    // Inspect the same column as the candidate, not the whole header row.
+    // This prevents a "current period" label in one column from boosting
+    // every numeric value in the row equally.
+    for(let r=Math.max(0,rowIndex-6);r<rowIndex;r++){
+      const row=rows[r]||[];
+      const text=normalizeText(row[columnIndex]||'');
       if(!text)continue;
-      if(currentPeriodHints.some(h=>normalizeMetricLabel(text).includes(normalizeMetricLabel(h))))score+=22;
-      if(comparisonPeriodHints.some(h=>normalizeMetricLabel(text).includes(normalizeMetricLabel(h))))score-=18;
+      const normalized=normalizeMetricLabel(text);
+      if(currentPeriodHints.some(h=>normalized.includes(normalizeMetricLabel(h))))score+=32;
+      if(comparisonPeriodHints.some(h=>normalized.includes(normalizeMetricLabel(h))))score-=30;
     }
     return score;
   };
@@ -103,9 +108,10 @@ function findMetricValues(sheets){
           if(!patterns.some(p=>{const pNorm=normalizeMetricLabel(p);return normalizedLabel===pNorm||normalizedLabel.includes(pNorm);}))continue;
           let candidates=numericCandidates(cells,i,1);
           if(!candidates.length)candidates=numericCandidates(cells,i,-1);
-          // A standalone year/date or a small period number is never itself a
-          // financial value. Header-aware scoring below selects the intended
-          // current-period column when several numeric periods are present.
+          // A standalone year/date is never itself a financial value. Small period
+          // numbers are strongly penalized, while header-aware scoring below
+          // selects the intended current-period column when several numeric
+          // periods are present.
           candidates=candidates.filter(candidate=>!candidate.isYear);
           candidates=candidates.map(candidate=>({
             ...candidate,
