@@ -1,6 +1,6 @@
 'use strict';
 const zlib = require('zlib');
-const DEFAULT_TIMEOUT_MS = 20000;
+const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
 function envNumber(name,fallback,min,max){const v=Number(process.env[name]);return Number.isFinite(v)?Math.min(max,Math.max(min,v)):fallback;}
 function normalizeDigits(v){return String(v??'').replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));}
@@ -149,10 +149,7 @@ async function extractFinancialDataFromAnnouncement(announcement){
   addCandidate(announcement&&(announcement.linkAttachment||announcement.link_attachment),'attachment');
   addCandidate(announcement&&(announcement.link||announcement.url||announcement.link_report||announcement.linkReport),'report');
   addCandidate(announcement&&(announcement.linkPdf||announcement.link_pdf),'report');
-  const failures=[];
-  const extracted=[];
-
-  for(const candidate of candidates){
+  const results = await Promise.all(candidates.map(async (candidate) => {
     try{
       const downloaded=await downloadDocument(candidate.url);
       const head=downloaded.buffer.slice(0,4096).toString('utf8');
@@ -163,21 +160,22 @@ async function extractFinancialDataFromAnnouncement(announcement){
       const sheets=extractExcelRows(downloaded.buffer);
       const metrics=findMetricValues(sheets);
       if(Object.keys(metrics).length>0){
-        extracted.push({
+        return {ok:true,item:{
           sourceType:isHtml?'codal-html-report':'excel',
           url:downloaded.finalUrl,
           bytes:downloaded.bytes,
           sheetCount:sheets.length,
           metrics,
           reason:candidate.type==='excel'?'استخراج مستقیم از فایل مالی CODAL انجام شد.':'استخراج از سند مالی CODAL انجام شد.'
-        });
-      } else {
-        failures.push('استخراج '+candidate.type+' انجام شد اما شاخص عددی پیدا نشد.');
+        }};
       }
+      return {ok:false,error:'استخراج '+candidate.type+' انجام شد اما شاخص عددی پیدا نشد.'};
     }catch(error){
-      failures.push('استخراج '+candidate.type+': '+error.message);
+      return {ok:false,error:'استخراج '+candidate.type+': '+error.message};
     }
-  }
+  }));
+  const extracted=results.filter(item=>item.ok).map(item=>item.item);
+  const failures=results.filter(item=>!item.ok).map(item=>item.error);
 
   if(extracted.length){
     // Keep all successful sources so the caller can merge complementary
