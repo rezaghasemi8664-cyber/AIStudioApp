@@ -1,12 +1,12 @@
 import React from 'react';
 
 const features = [
-  { title: 'تحلیل حرفه‌ای سهم', description: 'بررسی داده‌های بازار و ارائه تصویری یکپارچه برای تصمیم‌گیری آگاهانه‌تر درباره نمادها.', icon: '◈' },
-  { title: 'تحلیل بنیادی', description: 'بررسی شاخص‌های کلیدی و اطلاعات بنیادی برای شناخت بهتر وضعیت شرکت‌ها.', icon: '▣' },
-  { title: 'مقایسه نمادها', description: 'مقایسه چند سهم در یک نگاه و مشاهده نتایج تحلیلی در قالبی ساختاریافته.', icon: '⇄' },
-  { title: 'تحلیل بازار', description: 'نمایش تصویری وضعیت بازار و داده‌های مهم برای داشتن دیدی سریع‌تر نسبت به روند بازار.', icon: '◫' },
-  { title: 'نوسان‌گیری', description: 'شناسایی و بررسی فرصت‌های کوتاه‌مدت بازار با استفاده از داده‌های به‌روز.', icon: '↗' },
-  { title: 'سبد سهام', description: 'مدیریت و بررسی وضعیت سبد سهام در یک محیط یکپارچه و کاربردی.', icon: '▤' },
+  { title: 'تحلیل تکنیکال بورس', description: 'بررسی داده‌های بازار و روندهای قیمتی برای شناخت بهتر رفتار نمادها و تصمیم‌گیری آگاهانه‌تر.', icon: '◈' },
+  { title: 'تحلیل بنیادی بورس', description: 'بررسی شاخص‌های کلیدی و اطلاعات بنیادی برای شناخت بهتر وضعیت شرکت‌ها و ارزش‌گذاری آن‌ها.', icon: '▣' },
+  { title: 'مقایسه نمادها', description: 'مقایسه چند سهم در یک نگاه و مشاهده نتایج تحلیلی در قالبی ساختاریافته برای انتخاب و بررسی دقیق‌تر.', icon: '⇄' },
+  { title: 'تحلیل بازار بورس و سهام', description: 'نمایش تصویری وضعیت بازار و داده‌های مهم برای داشتن دیدی سریع‌تر نسبت به روند بازار سهام ایران.', icon: '◫' },
+  { title: 'نوسان‌گیری بورس', description: 'شناسایی و بررسی فرصت‌های کوتاه‌مدت بازار با استفاده از داده‌های به‌روز و ابزارهای تحلیلی رونیا.', icon: '↗' },
+  { title: 'سبد سهام', description: 'مدیریت و بررسی وضعیت سبد سهام در یک محیط یکپارچه و کاربردی برای معامله‌گران.', icon: '▤' },
 ];
 
 const steps = [
@@ -57,13 +57,13 @@ const PublicLandingPage: React.FC = () => {
         .public-badge span { width: 7px; height: 7px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 14px var(--cyan); }
         .public-hero h1 { max-width: 850px; margin: 22px auto 18px; font-size: clamp(34px, 6vw, 64px); line-height: 1.15; letter-spacing: -.8px; font-weight: 950; }
         .public-gradient-text { background: linear-gradient(90deg, #fff, #a5f3fc 48%, #67e8f9); -webkit-background-clip: text; background-clip: text; color: transparent; }
-        .public-hero p { max-width: 760px; margin: 0 auto; color: var(--muted); font-size: clamp(16px, 2vw, 19px); line-height: 2; }
+        .public-hero p { max-width: 780px; margin: 0 auto; color: var(--muted); font-size: clamp(16px, 2vw, 19px); line-height: 2; }
         .public-hero-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 30px; }
         .public-hero-actions .public-btn { min-width: 155px; }
         .public-trust { display: flex; justify-content: center; gap: 28px; flex-wrap: wrap; margin-top: 30px; color: #8da1b7; font-size: 13px; }
         .public-trust strong { color: #dce8f4; }
         .public-section { padding: 70px 0; }
-        .public-section-head { text-align: center; max-width: 720px; margin: 0 auto 38px; }
+        .public-section-head { text-align: center; max-width: 760px; margin: 0 auto 38px; }
         .public-section-kicker { color: #67e8f9; font-size: 13px; font-weight: 900; letter-spacing: .5px; }
         .public-section h2 { margin: 10px 0; font-size: clamp(27px, 4vw, 40px); }
         .public-section-head p { margin: 0; color: var(--muted); line-height: 1.9; }
@@ -119,14 +119,16 @@ const PublicLandingPage: React.FC = () => {
       </header>
 
       <main>
-        <section className="public-hero">
+        <section className="public-hero" aria-labelledby="hero-title">
           <div className="public-wrap">
             <img className="public-hero-logo" src="/1.png" alt="تحلیلگر هوشمند بورس رونیا" />
-            <div className="public-badge"><span /> سامانه تحلیل و بررسی بازار سرمایه</div>
-            <h1><span className="public-gradient-text">تحلیل هوشمند بازار</span><br />برای تصمیم‌گیری دقیق‌تر</h1>
+            <div className="public-badge"><span /> سامانه تحلیل و بررسی بازار سرمایه ایران</div>
+            <h1 id="hero-title"><span className="public-gradient-text">تحلیلگر هوشمند بورس رونیا</span><br />برای تحلیل بازار بورس و سهام ایران</h1>
             <p>
-              تحلیلگر هوشمند بورس رونیا یک سامانه تخصصی برای بررسی سهام و بازار سرمایه ایران است؛
-              محیطی یکپارچه برای تحلیل سهم، تحلیل بنیادی، مقایسه نمادها، بررسی بازار، نوسان‌گیری و مدیریت سبد سهام.
+              رونیا یک <strong>نرم‌افزار تحلیل بورس</strong> و سامانه تخصصی برای بررسی سهام و بازار سرمایه ایران است؛
+              محیطی یکپارچه برای <strong>تحلیل تکنیکال بورس</strong>، <strong>تحلیل بنیادی بورس</strong>، مقایسه نمادها،
+              <strong>تحلیل بازار سهام</strong>، نوسان‌گیری و مدیریت سبد سهام. رونیا با ارائه ابزارهای تحلیلی در یک محیط
+              یکپارچه، به معامله‌گران کمک می‌کند اطلاعات بازار را منظم‌تر بررسی کنند.
             </p>
             <div className="public-hero-actions">
               <button className="public-btn public-btn-primary" onClick={goToLogin}>شروع استفاده از سامانه</button>
@@ -140,12 +142,12 @@ const PublicLandingPage: React.FC = () => {
           </div>
         </section>
 
-        <section id="features" className="public-section">
+        <section id="features" className="public-section" aria-labelledby="features-title">
           <div className="public-wrap">
             <div className="public-section-head">
               <div className="public-section-kicker">امکانات سامانه</div>
-              <h2>همه ابزارهای مهم، در یک محیط یکپارچه</h2>
-              <p>رونیا اطلاعات و ابزارهای تحلیلی موردنیاز شما را در یک داشبورد حرفه‌ای و فارسی کنار هم قرار می‌دهد.</p>
+              <h2 id="features-title">ابزارهای تحلیل بورس و بازار سهام در رونیا</h2>
+              <p>رونیا به‌عنوان یک <strong>دستیار معامله‌گر بورس</strong>، اطلاعات و ابزارهای تحلیلی موردنیاز شما را در یک داشبورد حرفه‌ای و فارسی کنار هم قرار می‌دهد.</p>
             </div>
             <div className="public-feature-grid">
               {features.map((feature) => (
@@ -159,11 +161,11 @@ const PublicLandingPage: React.FC = () => {
           </div>
         </section>
 
-        <section className="public-section">
+        <section className="public-section" aria-labelledby="start-title">
           <div className="public-wrap">
             <div className="public-section-head">
               <div className="public-section-kicker">شروع کار</div>
-              <h2>شروع استفاده ساده است</h2>
+              <h2 id="start-title">شروع استفاده از رونیا ساده است</h2>
               <p>بدون پیچیدگی، حساب خود را ایجاد کنید و وارد محیط تحلیل رونیا شوید.</p>
             </div>
             <div className="public-process">
@@ -178,9 +180,9 @@ const PublicLandingPage: React.FC = () => {
           </div>
         </section>
 
-        <section className="public-wrap public-cta">
-          <h2>آماده ورود به دنیای تحلیل حرفه‌ای هستید؟</h2>
-          <p>همین حالا وارد سامانه شوید یا با شماره موبایل خود ثبت‌نام کنید و امکانات رونیا را تجربه کنید.</p>
+        <section className="public-wrap public-cta" aria-labelledby="cta-title">
+          <h2 id="cta-title">تحلیل بازار بورس را با ابزارهای یکپارچه رونیا دنبال کنید</h2>
+          <p>همین حالا وارد سامانه شوید یا با شماره موبایل خود ثبت‌نام کنید و امکانات تحلیلگر هوشمند بورس رونیا را تجربه کنید.</p>
           <button className="public-btn public-btn-primary" onClick={goToLogin}>ورود / ثبت‌نام</button>
           <div className="public-enamad" aria-label="نماد اعتماد الکترونیکی">
             <a referrerPolicy="origin" target="_blank" rel="noopener noreferrer" href="https://trustseal.enamad.ir/?id=7523297&Code=o6Q8ZIOyrOl0YWyiXpn8ILYoZ2KnhLOR">
@@ -193,7 +195,7 @@ const PublicLandingPage: React.FC = () => {
       <footer className="public-footer">
         <div className="public-wrap public-footer-inner">
           <span>© {new Date().getFullYear()} تحلیلگر هوشمند بورس رونیا</span>
-          <span>سامانه تحلیل و بررسی بازار سرمایه ایران</span>
+          <span>رونیا · نرم‌افزار تحلیل بورس و سامانه تحلیل بازار سرمایه ایران</span>
         </div>
       </footer>
     </div>
