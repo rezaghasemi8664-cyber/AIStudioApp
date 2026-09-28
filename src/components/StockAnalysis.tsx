@@ -200,13 +200,16 @@ function extractFundamentalScore(source: Record<string, any>, scores: Record<str
       ? fundamentalAnalysis.score ?? fundamentalAnalysis.fundamentalScore
       : null;
 
+  // The deterministic backend exposes the authoritative Codal score as
+  // fundamentalScore / scores.fundamentalScore. Prefer those scalar fields
+  // over legacy/nested fundamentalAnalysis payloads, which may be stale.
   const candidates = [
-    analysisScore,
     source?.fundamentalScore,
-    source?.fundamentalMeta?.score,
-    source?.fundamentalMeta?.fundamentalScore,
     source?.scores?.fundamentalScore,
     scores?.fundamentalScore,
+    analysisScore,
+    source?.fundamentalMeta?.score,
+    source?.fundamentalMeta?.fundamentalScore,
     scores?.fundamental,
     source?.fundamental,
   ];
@@ -222,9 +225,16 @@ function extractFundamentalScore(source: Record<string, any>, scores: Record<str
 function extractFundamentalExplanation(source: Record<string, any>, explanations: Record<string, any>): string {
   const fundamentalAnalysis = source?.fundamentalAnalysis;
 
-  if (typeof fundamentalAnalysis === 'string' && fundamentalAnalysis.trim()) {
-    return fundamentalAnalysis.trim();
-  }
+  // Prefer the explicit deterministic Codal reason. A legacy
+  // fundamentalAnalysis string can contain the old insufficient-data text.
+  const explicitReason = [
+    source?.fundamentalReason,
+    source?.fundamentalMeta?.reason,
+    explanations?.fundamental,
+    source?.detailedFundamentalExplanation,
+  ].find((value) => typeof value === 'string' && value.trim());
+
+  if (typeof explicitReason === 'string') return explicitReason.trim();
 
   if (fundamentalAnalysis && typeof fundamentalAnalysis === 'object') {
     const reason = [
@@ -237,13 +247,11 @@ function extractFundamentalExplanation(source: Record<string, any>, explanations
     if (typeof reason === 'string') return reason.trim();
   }
 
-  return historySummaryText(
-    explanations?.fundamental ??
-      source?.fundamentalReason ??
-      source?.fundamentalMeta?.reason ??
-      source?.detailedFundamentalExplanation ??
-      ''
-  );
+  if (typeof fundamentalAnalysis === 'string' && fundamentalAnalysis.trim()) {
+    return fundamentalAnalysis.trim();
+  }
+
+  return '';
 }
 
 function toNum(v: unknown): number | undefined {
