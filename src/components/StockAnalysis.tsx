@@ -86,30 +86,19 @@ type FundamentalAnalysisPayload = {
   [key: string]: unknown;
 };
 
-type UnifiedAnalysisResult = Omit<
-  AnalysisResult,
-  'fundamentalAnalysis' | 'fundamentalScore' | 'technicalScore'
-> & {
-  // Canonical deterministic CODAL result. Legacy string payloads are still
-  // accepted while old history records are being opened.
+type UnifiedAnalysisResult = AnalysisResult & {
+  // Canonical deterministic CODAL result. Keep all required AnalysisResult
+  // fields so existing UI code remains type-safe; only the Fundamental payload
+  // is narrowed from the legacy index-signature type.
   fundamentalAnalysis?: FundamentalAnalysisPayload | string;
   fundamentalAvailable?: boolean;
   fundamentalReason?: string;
-  fundamentalScore?: number | null;
-  technicalScore?: number | null;
   fundamentalData?: unknown;
-  marketData: UnifiedMarketData;
-  usage?: AnalysisUsage | null;
-  model?: string;
   meta?: Record<string, unknown>;
-  analysisDate?: string;
-  summary?: string;
-  targets?: Record<string, number>;
-  stopLoss?: number | null;
   risk_level?: string;
   ontology_version?: string;
-  rawData?: unknown;
-  marketMetrics?: AnalysisMarketMetrics;
+  targets?: Record<string, number>;
+  stopLoss?: number | null;
 
   // Deterministic technical-analysis metadata
   dataQuality?: unknown;
