@@ -203,6 +203,9 @@ function extractFundamentalScore(source: Record<string, any>, scores: Record<str
   const candidates = [
     analysisScore,
     source?.fundamentalScore,
+    source?.fundamentalMeta?.score,
+    source?.fundamentalMeta?.fundamentalScore,
+    source?.scores?.fundamentalScore,
     scores?.fundamentalScore,
     scores?.fundamental,
     source?.fundamental,
@@ -236,6 +239,8 @@ function extractFundamentalExplanation(source: Record<string, any>, explanations
 
   return historySummaryText(
     explanations?.fundamental ??
+      source?.fundamentalReason ??
+      source?.fundamentalMeta?.reason ??
       source?.detailedFundamentalExplanation ??
       ''
   );
