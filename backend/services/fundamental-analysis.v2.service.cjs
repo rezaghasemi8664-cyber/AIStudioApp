@@ -111,7 +111,7 @@ async function analyzeAnnouncements(input) {
     scoreCoverage: calculatedScore.coverage,
     scoreComponents: calculatedScore.components,
     reason: scoreReady
-      ? calculatedScore.reason
+      ? `تحلیل بنیادی بر اساس داده‌های Codal: از ${announcements.length} اطلاعیه Codal، ${documents.filter((item) => item.available).length} فایل مالی قابل استخراج استفاده شد و ${quality.extractedMetricCount} شاخص عددی استخراج شد. ${calculatedScore.reason}`
       : quality.sufficientForScoring
         ? 'داده‌های عددی کافی شناسایی شدند، اما اجزای لازم برای محاسبه امتیاز بنیادی کامل نیستند.'
         : financial.length > 0
