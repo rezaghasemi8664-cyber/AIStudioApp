@@ -203,16 +203,30 @@ function extractFundamentalScore(source: Record<string, any>, scores: Record<str
   // The deterministic backend exposes the authoritative Codal score as
   // fundamentalScore / scores.fundamentalScore. Prefer those scalar fields
   // over legacy/nested fundamentalAnalysis payloads, which may be stale.
-  const candidates = [
-    source?.fundamentalScore,
-    source?.scores?.fundamentalScore,
-    scores?.fundamentalScore,
-    analysisScore,
-    source?.fundamentalMeta?.score,
-    source?.fundamentalMeta?.fundamentalScore,
-    scores?.fundamental,
-    source?.fundamental,
-  ];
+  // For deterministic Codal responses, scores.fundamentalScore is the
+  // authoritative value. A legacy top-level fundamentalScore can be 0 even
+  // when the deterministic Codal score is populated (for example 44).
+  const candidates = source?.deterministic === true
+    ? [
+        source?.scores?.fundamentalScore,
+        scores?.fundamentalScore,
+        source?.fundamentalScore,
+        analysisScore,
+        source?.fundamentalMeta?.score,
+        source?.fundamentalMeta?.fundamentalScore,
+        scores?.fundamental,
+        source?.fundamental,
+      ]
+    : [
+        source?.fundamentalScore,
+        source?.scores?.fundamentalScore,
+        scores?.fundamentalScore,
+        analysisScore,
+        source?.fundamentalMeta?.score,
+        source?.fundamentalMeta?.fundamentalScore,
+        scores?.fundamental,
+        source?.fundamental,
+      ];
 
   for (const value of candidates) {
     const n = toNum(value);
@@ -227,12 +241,27 @@ function extractFundamentalExplanation(source: Record<string, any>, explanations
 
   // Prefer the explicit deterministic Codal reason. A legacy
   // fundamentalAnalysis string can contain the old insufficient-data text.
-  const explicitReason = [
-    source?.fundamentalReason,
-    source?.fundamentalMeta?.reason,
-    explanations?.fundamental,
-    source?.detailedFundamentalExplanation,
-  ].find((value) => typeof value === 'string' && value.trim());
+  // The deterministic backend builds fundamentalAnalysis and
+  // fundamentalReason from the same Codal result. Prefer that canonical
+  // analysis text so a stale legacy explanation cannot mask it.
+  const reasonCandidates = source?.deterministic === true
+    ? [
+        typeof fundamentalAnalysis === 'string' ? fundamentalAnalysis : undefined,
+        source?.fundamentalReason,
+        source?.fundamentalMeta?.reason,
+        explanations?.fundamental,
+        source?.detailedFundamentalExplanation,
+      ]
+    : [
+        source?.fundamentalReason,
+        source?.fundamentalMeta?.reason,
+        explanations?.fundamental,
+        source?.detailedFundamentalExplanation,
+      ];
+
+  const explicitReason = reasonCandidates.find(
+    (value) => typeof value === 'string' && value.trim()
+  );
 
   if (typeof explicitReason === 'string') return explicitReason.trim();
 
