@@ -19,63 +19,135 @@ function parseSharedStrings(xml){if(!xml)return[];return[...xml.matchAll(/<si\b[
 function columnIndex(column){let r=0;for(const ch of String(column||'').toUpperCase()){if(ch<'A'||ch>'Z')continue;r=r*26+ch.charCodeAt(0)-64;}return Math.max(0,r-1);}
 function parseWorksheet(xml,shared){const rows=[];for(const rm of String(xml||'').matchAll(/<row\b([^>]*)>([\s\S]*?)<\/row>/g)){const rn=Number(attr(rm[1],'r'))||rows.length+1,row=[];for(const cm of rm[2].matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)){const a=cm[1],body=cm[2],ref=attr(a,'r')||'',idx=columnIndex(ref.replace(/[0-9]/g,'')),type=attr(a,'t'),vm=body.match(/<v\b[^>]*>([\s\S]*?)<\/v>/),im=body.match(/<is\b[\s\S]*?<t\b[^>]*>([\s\S]*?)<\/t>[\s\S]*?<\/is>/);let value=vm?decodeXml(vm[1]):null;if(type==='s'&&value!==null){const si=Number(value);value=Number.isInteger(si)?(shared[si]||''):'';}else if(type==='inlineStr')value=im?decodeXml(im[1]):'';else if(value!==null){const n=parseNumber(value);if(n!==null)value=n;}row[idx]=value;}rows[rn-1]=row;}return rows.filter(Array.isArray);}
 function stripHtml(v){return decodeXml(String(v||'').replace(/<!--[\s\S]*?-->/g,' ').replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<br\s*\/?>/gi,' ').replace(/<[^>]+>/g,' '));}
-function parseHtmlWorkbook(buffer){const html=buffer.toString('utf8').replace(/^\uFEFF/,'');if(!/<(?:html|table|tr|td|th)\b/i.test(html))throw new Error('Unsupported legacy Excel document format');const rows=[];for(const rm of html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)){const cells=[...rm[1].matchAll(/<(?:td|th)\b[^>]*>([\s\S]*?)<\/(?:td|th)>/gi)].map(c=>normalizeText(stripHtml(c[1])));if(cells.length)rows.push(cells);}if(!rows.length)throw new Error('Legacy Excel workbook contains no HTML table rows');return[{name:'codal-html-workbook',rows:rows.slice(0,5000)}];}
+function parseHtmlWorkbook(buffer){
+  let html=buffer.toString('utf8').replace(/^\uFEFF/,'');
+  html=html.replace(/\\u003c/gi,'<').replace(/\\u003e/gi,'>').replace(/\\u0022/gi,'"').replace(/\\u0027/gi,"'").replace(/\\\//g,'/');
+  html=decodeXml(html);
+  if(!/<(?:html|table|tr|td|th)\b/i.test(html))throw new Error('Unsupported CODAL HTML/Excel document format');
+  const rows=[];
+  for(const rm of html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)){
+    const cells=[...rm[1].matchAll(/<(?:td|th)\b[^>]*>([\s\S]*?)<\/(?:td|th)>/gi)].map(x=>normalizeText(stripHtml(x[1])));
+    if(cells.length)rows.push(cells);
+  }
+  if(!rows.length){
+    const text=normalizeText(stripHtml(html));
+    if(text)rows.push(text.split(/\s{2,}/).filter(Boolean));
+  }
+  if(!rows.length)throw new Error('CODAL document contains no readable financial rows');
+  return[{name:'codal-html-workbook',rows:rows.slice(0,10000)}];
+}
 function extractExcelRows(buffer){if(buffer.slice(0,4).toString('hex')!=='504b0304')return parseHtmlWorkbook(buffer);const entries=extractZipEntries(buffer),shared=parseSharedStrings(entries.has('xl/sharedStrings.xml')?entries.get('xl/sharedStrings.xml').toString('utf8'):''),sheets=[];for(const [name,content] of entries){if(!/^xl\/worksheets\/sheet\d+\.xml$/i.test(name))continue;sheets.push({name,rows:parseWorksheet(content.toString('utf8'),shared).slice(0,2000)});}return sheets.sort((a,b)=>a.name.localeCompare(b.name));}
-const METRIC_PATTERNS={revenue:['جمع درآمدهای عملیاتی','جمع درآمد عملیاتی','درآمدهای عملیاتی','درآمد عملیاتی','درآمد حاصل از فروش','فروش خالص','فروش','درآمد'],operatingProfit:['سود (زیان) عملیاتی','سود زیان عملیاتی','سود و زیان عملیاتی','سود عملیاتی'],netProfit:['سود (زیان) خالص','سود زیان خالص','سود و زیان خالص','سود (زیان) خالص عملیات در حال تداوم','سود زیان خالص عملیات در حال تداوم','سود خالص سال','سود خالص'],assets:['جمع دارایی ها','جمع داراییها','جمع دارایی','دارایی های کل','داراییهای کل','جمع دارایی‌های غیرجاری و جاری'],liabilities:['جمع بدهی ها','جمع بدهیها','جمع بدهی','بدهی های کل','بدهیهای کل','جمع بدهی‌ها'],equity:['جمع حقوق مالکانه','حقوق صاحبان سهام','حقوق مالکانه','جمع حقوق صاحبان سهام'],cash:['موجودی نقد','وجه نقد','نقد و معادل نقد','موجودی نقد و بانک'],eps:['سود (زیان) خالص هر سهم','سود زیان خالص هر سهم','سود و زیان خالص هر سهم','سود پایه هر سهم','سود هر سهم','eps']};
-const METRIC_PRIORITY={assets:['جمع دارایی ها','جمع داراییها','جمع دارایی','دارایی های کل','داراییهای کل'],liabilities:['جمع بدهی ها','جمع بدهیها','جمع بدهی','بدهی های کل','بدهیهای کل'],equity:['جمع حقوق مالکانه','حقوق صاحبان سهام','حقوق مالکانه'],revenue:['درآمدهای عملیاتی','درآمد عملیاتی','درآمد حاصل از فروش','فروش','درآمد'],operatingProfit:['سود زیان عملیاتی','سود و زیان عملیاتی','سود عملیاتی'],netProfit:['سود زیان خالص','سود و زیان خالص','سود خالص'],eps:['سود پایه هر سهم','سود زیان خالص هر سهم','سود و زیان خالص هر سهم','سود هر سهم','eps'],cash:['موجودی نقد','وجه نقد','نقد و معادل نقد']};
-function metricPriority(metric,label){const normalized=normalizeMetricLabel(label);const patterns=METRIC_PRIORITY[metric]||[];const index=patterns.findIndex(p=>normalized===normalizeMetricLabel(p));if(index>=0)return 100-index;return patterns.some(p=>normalized.includes(normalizeMetricLabel(p)))?50:10;}
-function findMetricValues(sheets){const best={};for(const sheet of sheets)for(const row of sheet.rows){const cells=row.map(normalizeText),normalizedCells=cells.map(normalizeMetricLabel);for(let i=0;i<cells.length;i++){const label=cells[i],normalizedLabel=normalizedCells[i];if(!normalizedLabel)continue;for(const [metric,patterns] of Object.entries(METRIC_PATTERNS)){if(!patterns.some(p=>normalizedLabel===normalizeMetricLabel(p)||normalizedLabel.includes(normalizeMetricLabel(p))))continue;const right=cells.slice(i+1).map((v,d)=>({value:parseNumber(v),distance:d+1})).filter(x=>x.value!==null);const left=cells.slice(0,i).reverse().map((v,d)=>({value:parseNumber(v),distance:d+1})).filter(x=>x.value!==null);const candidates=right.length?right:left;if(!candidates.length)continue;const candidate={value:candidates[0].value,sheet:sheet.name,label,priority:metricPriority(metric,label)};if(!best[metric]||candidate.priority>best[metric].priority)best[metric]=candidate;}}}return Object.fromEntries(Object.entries(best).map(([k,v])=>[k,{value:v.value,sheet:v.sheet,label:v.label}]));}
-async function extractFinancialDataFromExcel(rawUrl){const downloaded=await downloadDocument(rawUrl);if(!looksLikeExcel(downloaded.contentType,downloaded.finalUrl,downloaded.buffer))throw new Error('CODAL attachment is not recognized as an Excel document');const sheets=extractExcelRows(downloaded.buffer);return{sourceType:'excel',url:downloaded.finalUrl,bytes:downloaded.bytes,sheetCount:sheets.length,metrics:findMetricValues(sheets)};}
-async function extractFinancialDataFromAnnouncement(announcement){
-  const excelUrl=announcement&&(announcement.link_excel||announcement.linkExcel);
-  const reportUrl=announcement&&(announcement.link||announcement.url||announcement.link_report||announcement.linkReport);
-  const failures=[];
-
-  if(excelUrl){
-    try{
-      const result=await extractFinancialDataFromExcel(excelUrl);
-      if(Object.keys(result.metrics).length>0){
-        return {available:true,...result};
+const METRIC_PATTERNS={
+  revenue:['جمع درآمدهای عملیاتی','جمع درآمد عملیاتی','درآمدهای عملیاتی','درآمد عملیاتی','درآمد حاصل از فروش','درآمد فروش','فروش خالص','فروش','درآمد','operating revenue','revenue','sales'],
+  operatingProfit:['سود (زیان) عملیاتی','سود زیان عملیاتی','سود و زیان عملیاتی','سود عملیاتی','سود عملیات','operating profit','operating income'],
+  netProfit:['سود (زیان) خالص','سود زیان خالص','سود و زیان خالص','سود (زیان) خالص عملیات در حال تداوم','سود زیان خالص عملیات در حال تداوم','سود خالص سال','سود خالص','سود (زیان) دوره','net profit','net income'],
+  assets:['جمع دارایی ها','جمع داراییها','جمع دارایی','دارایی های کل','داراییهای کل','جمع دارایی‌های غیرجاری و جاری','دارایی','total assets','assets'],
+  liabilities:['جمع بدهی ها','جمع بدهیها','جمع بدهی','بدهی های کل','بدهیهای کل','جمع بدهی‌ها','بدهی','total liabilities','liabilities'],
+  equity:['جمع حقوق مالکانه','حقوق صاحبان سهام','حقوق مالکانه','جمع حقوق صاحبان سهام','حقوق صاحبان سرمایه','حقوق مالکانه و بدهی','total equity','equity','shareholders equity'],
+  cash:['موجودی نقد','وجه نقد','نقد و معادل نقد','موجودی نقد و بانک','cash and cash equivalents'],
+  eps:['سود (زیان) خالص هر سهم','سود زیان خالص هر سهم','سود و زیان خالص هر سهم','سود پایه هر سهم','سود هر سهم','سود (زیان) هر سهم','eps','earnings per share']
+};
+const METRIC_PRIORITY={
+  assets:['جمع دارایی ها','جمع داراییها','جمع دارایی','دارایی های کل','داراییهای کل','total assets','assets'],
+  liabilities:['جمع بدهی ها','جمع بدهیها','جمع بدهی','بدهی های کل','بدهیهای کل','جمع بدهی‌ها','total liabilities','liabilities'],
+  equity:['جمع حقوق مالکانه','حقوق صاحبان سهام','حقوق مالکانه','جمع حقوق صاحبان سهام','حقوق صاحبان سرمایه','total equity','equity'],
+  revenue:['درآمدهای عملیاتی','درآمد عملیاتی','درآمد حاصل از فروش','درآمد فروش','فروش','درآمد','operating revenue','revenue','sales'],
+  operatingProfit:['سود زیان عملیاتی','سود و زیان عملیاتی','سود عملیاتی','سود عملیات','operating profit','operating income'],
+  netProfit:['سود زیان خالص','سود و زیان خالص','سود خالص','سود (زیان) دوره','net profit','net income'],
+  eps:['سود پایه هر سهم','سود زیان خالص هر سهم','سود و زیان خالص هر سهم','سود هر سهم','eps','earnings per share'],
+  cash:['موجودی نقد','وجه نقد','نقد و معادل نقد','موجودی نقد و بانک','cash and cash equivalents']
+};
+function metricPriority(metric,label){
+  const normalized=normalizeMetricLabel(label);
+  const patterns=METRIC_PRIORITY[metric]||[];
+  const index=patterns.findIndex(p=>normalized===normalizeMetricLabel(p));
+  if(index>=0)return 100-index;
+  return patterns.some(p=>normalized.includes(normalizeMetricLabel(p)))?50:10;
+}
+function numericCandidates(cells,start,direction){
+  const out=[];
+  const step=direction>0?1:-1;
+  for(let i=start+step, distance=1;i>=0&&i<cells.length&&distance<=10;i+=step,distance++){
+    const value=parseNumber(cells[i]);
+    if(value!==null)out.push({value,distance});
+  }
+  return out;
+}
+function embeddedNumber(label){
+  const text=normalizeText(label);
+  const match=text.match(/(?:^|\s)([-+]?\(?\s*[۰-۹٠-٩0-9][۰-۹٠-٩0-9٬،,.]*\s*\)?)(?:\s*(?:ریال|میلیون|هزار|درصد|%))?\s*$/);
+  return match?parseNumber(match[1]):null;
+}
+function findMetricValues(sheets){
+  const best={};
+  for(const sheet of sheets){
+    for(const rawRow of sheet.rows||[]){
+      const cells=(rawRow||[]).map(normalizeText);
+      const normalizedCells=cells.map(normalizeMetricLabel);
+      for(let i=0;i<cells.length;i++){
+        const label=cells[i], normalizedLabel=normalizedCells[i];
+        if(!normalizedLabel)continue;
+        for(const [metric,patterns] of Object.entries(METRIC_PATTERNS)){
+          if(!patterns.some(p=>{
+            const pNorm=normalizeMetricLabel(p);
+            return normalizedLabel===pNorm || normalizedLabel.includes(pNorm);
+          }))continue;
+          let candidates=numericCandidates(cells,i,1);
+          if(!candidates.length)candidates=numericCandidates(cells,i,-1);
+          if(!candidates.length){
+            const embedded=embeddedNumber(label);
+            if(embedded!==null)candidates=[{value:embedded,distance:0}];
+          }
+          if(!candidates.length)continue;
+          const candidate={value:candidates[0].value,sheet:sheet.name,label,priority:metricPriority(metric,label),distance:candidates[0].distance};
+          if(!best[metric]||candidate.priority>best[metric].priority||(candidate.priority===best[metric].priority&&candidate.distance<best[metric].distance))best[metric]=candidate;
+        }
       }
-      failures.push('فایل Excel دریافت شد اما شاخص عددی قابل استخراج نداشت.');
-    }catch(error){
-      failures.push('استخراج Excel: '+error.message);
     }
   }
+  return Object.fromEntries(Object.entries(best).map(([k,v])=>[k,{value:v.value,sheet:v.sheet,label:v.label}]));
+}
+async function extractFinancialDataFromExcel(rawUrl){const downloaded=await downloadDocument(rawUrl);if(!looksLikeExcel(downloaded.contentType,downloaded.finalUrl,downloaded.buffer))throw new Error('CODAL attachment is not recognized as an Excel document');const sheets=extractExcelRows(downloaded.buffer);return{sourceType:'excel',url:downloaded.finalUrl,bytes:downloaded.bytes,sheetCount:sheets.length,metrics:findMetricValues(sheets)};}
+async function extractFinancialDataFromAnnouncement(announcement){
+  const candidates=[];
+  const addCandidate=(url,type)=>{const value=String(url||'').trim();if(value&&!candidates.some(x=>x.url===value))candidates.push({url:value,type});};
+  addCandidate(announcement&&(announcement.link_excel||announcement.linkExcel),'excel');
+  addCandidate(announcement&&(announcement.linkAttachment||announcement.link_attachment),'attachment');
+  addCandidate(announcement&&(announcement.link||announcement.url||announcement.link_report||announcement.linkReport),'report');
+  addCandidate(announcement&&(announcement.linkPdf||announcement.link_pdf),'report');
+  const failures=[];
 
-  // Some CODAL filings expose the Excel link but the downloadable workbook is
-  // temporarily unavailable from the production server. The report page itself
-  // contains the same financial statement tables, so use it as a deterministic
-  // fallback instead of returning a false "insufficient numeric data" result.
-  if(reportUrl){
+  for(const candidate of candidates){
     try{
-      const downloaded=await downloadDocument(reportUrl);
-      if(!looksLikeExcel(downloaded.contentType,downloaded.finalUrl,downloaded.buffer)){
-        throw new Error('CODAL report response is not an HTML/table document');
+      const downloaded=await downloadDocument(candidate.url);
+      const head=downloaded.buffer.slice(0,4096).toString('utf8');
+      const isHtml=/text\/html|application\/html/i.test(downloaded.contentType)||/<(?:html|table|tr|td|th)\b/i.test(head);
+      if(candidate.type==='report'&&!isHtml&&!looksLikeExcel(downloaded.contentType,downloaded.finalUrl,downloaded.buffer)){
+        throw new Error('CODAL report response is not a readable HTML/Excel document');
       }
-      const sheets=parseHtmlWorkbook(downloaded.buffer);
+      const sheets=extractExcelRows(downloaded.buffer);
       const metrics=findMetricValues(sheets);
       if(Object.keys(metrics).length>0){
         return {
           available:true,
-          sourceType:'codal-html-report',
+          sourceType:isHtml?'codal-html-report':'excel',
           url:downloaded.finalUrl,
           bytes:downloaded.bytes,
           sheetCount:sheets.length,
           metrics,
-          reason:excelUrl?'استخراج از جداول گزارش CODAL پس از ناموفق بودن استخراج Excel انجام شد.':null,
+          reason:candidate.type==='excel'?'استخراج مستقیم از فایل مالی CODAL انجام شد.':'استخراج از سند مالی CODAL انجام شد.'
         };
       }
-      failures.push('گزارش HTML دریافت شد اما شاخص عددی قابل استخراج نداشت.');
+      failures.push('استخراج '+candidate.type+' انجام شد اما شاخص عددی پیدا نشد.');
     }catch(error){
-      failures.push('استخراج گزارش CODAL: '+error.message);
+      failures.push('استخراج '+candidate.type+': '+error.message);
     }
   }
 
   return {
     available:false,
-    sourceType:excelUrl?'excel':reportUrl?'codal-html-report':null,
-    reason:failures.join(' ' ) || 'لینک Excel یا گزارش مالی CODAL در دسترس نیست.',
+    sourceType:candidates[0]?.type||null,
+    reason:failures.join(' ')||'هیچ سند مالی قابل دریافت از CODAL در دسترس نیست.',
     metrics:{}
   };
 }
