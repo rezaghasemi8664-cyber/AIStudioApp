@@ -249,7 +249,10 @@ async function analyzeStock(params = {}) {
     technicalAnalysis: summary.join(' '),
     fundamentalAnalysis: String(fundamental.reason || 'برای محاسبه امتیاز بنیادی، داده عددی معتبر از صورت‌های مالی CODAL در دسترس نیست.'),
     fundamentalAvailable: fundamental.available === true && fundamentalScore !== null,
+    // Keep dedicated scalar fields alongside the human-readable explanation so
+    // every frontend/history consumer can render the same Codal-derived score.
     fundamentalScore: fundamentalScore,
+    fundamentalReason: String(fundamental.reason || ''),
     scores: { fundamentalScore, technicalScore },
     signals,
     entryPoints: signals.entryPoints,
