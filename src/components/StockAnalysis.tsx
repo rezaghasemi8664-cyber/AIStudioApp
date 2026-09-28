@@ -86,13 +86,17 @@ type FundamentalAnalysisPayload = {
   [key: string]: unknown;
 };
 
-type UnifiedAnalysisResult = Omit<AnalysisResult, 'fundamentalAnalysis'> & {
+type UnifiedAnalysisResult = Omit<
+  AnalysisResult,
+  'fundamentalAnalysis' | 'fundamentalScore' | 'technicalScore'
+> & {
   // Canonical deterministic CODAL result. Legacy string payloads are still
   // accepted while old history records are being opened.
   fundamentalAnalysis?: FundamentalAnalysisPayload | string;
   fundamentalAvailable?: boolean;
   fundamentalReason?: string;
   fundamentalScore?: number | null;
+  technicalScore?: number | null;
   fundamentalData?: unknown;
   marketData: UnifiedMarketData;
   usage?: AnalysisUsage | null;
