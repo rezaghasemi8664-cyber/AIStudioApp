@@ -919,10 +919,14 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     },
 
     fundamentalScore: extractFundamentalScore(source, scores),
+    technicalScore: (() => {
+      const value = source?.technicalScore ?? scores?.technicalScore ?? source?.score ?? scores?.technical ?? source?.technical;
+      return value === null || value === undefined || value === '' ? null : clamp(value, 0, 100, 0);
+    })(),
     scores: {
       fundamentalScore: extractFundamentalScore(source, scores),
       technicalScore: (() => {
-        const value = scores.technicalScore ?? source.technicalScore ?? scores.technical ?? source.technical;
+        const value = source?.technicalScore ?? scores?.technicalScore ?? source?.score ?? scores?.technical ?? source?.technical;
         return value === null || value === undefined || value === '' ? null : clamp(value, 0, 100, 0);
       })(),
     },
@@ -948,9 +952,10 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
       technical:
         historySummaryText(
           explanations.technical ??
-            source.technicalAnalysis ??
+            source.technicalReason ??
             source.detailedTechnicalExplanation ??
-            ''
+            source.technicalAnalysis ??
+            (source.deterministic === true && Array.isArray(source.reasons) ? source.reasons.join(' ') : '')
         ) || '—',
       additional:
         historySummaryText(
