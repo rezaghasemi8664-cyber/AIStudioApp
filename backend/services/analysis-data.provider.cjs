@@ -11,7 +11,6 @@
 var brs = require('./brs.service.cjs');
 var codal = require('./codal.provider.cjs');
 var fundamental = require('./fundamental-analysis.v2.service.cjs');
-var brsFundamentalScore = require('./brs-fundamental-score.service.cjs');
 
 function isoNow() {
   return new Date().toISOString();
@@ -263,34 +262,6 @@ async function getMarketData(symbol, options) {
   var historyMeta = getMeta(historyResult);
   var fundamentalStatus = fundamentalResult.status;
   var fundamentalAnalysis = fundamentalResult.analysis || {};
-
-  // CODAL remains the primary source. If the financial documents cannot be
-  // numerically extracted, use verified BRS Symbol EPS/P/E only as an explicit
-  // fallback instead of returning a null score that the frontend renders as 0.
-  if (!Number.isFinite(Number(fundamentalAnalysis.score))) {
-    var marketFundamental = market && typeof market === 'object'
-      ? (market.fundamental || market)
-      : {};
-    var fallbackFundamental = brsFundamentalScore.calculateFundamentalSnapshotScore({
-      eps: marketFundamental.eps,
-      pe: marketFundamental.pe,
-      groupPe: marketFundamental.groupPe
-    });
-    if (Number.isFinite(Number(fallbackFundamental.score))) {
-      fundamentalAnalysis = {
-        ...fundamentalAnalysis,
-        score: fallbackFundamental.score,
-        scoreStatus: fallbackFundamental.status,
-        scoreCoverage: fallbackFundamental.coverage,
-        scoreComponents: fallbackFundamental.components,
-        reason: fallbackFundamental.reason,
-        fallback: true,
-        primarySource: 'CODAL',
-        fallbackSource: fallbackFundamental.source,
-        codalReason: fundamentalAnalysis.reason || null
-      };
-    }
-  }
 
   return {
     symbol: symbolClean,
