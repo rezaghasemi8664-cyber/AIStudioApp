@@ -84,6 +84,9 @@ function findMetricValues(sheets){
           if(!patterns.some(p=>{const pNorm=normalizeMetricLabel(p);return normalizedLabel===pNorm||normalizedLabel.includes(pNorm);}))continue;
           let candidates=numericCandidates(cells,i,1);
           if(!candidates.length)candidates=numericCandidates(cells,i,-1);
+          // A standalone year (Gregorian or Jalali) is a table header/period,
+          // not a financial value. Never use it as the metric value.
+          candidates=candidates.filter(candidate=>!candidate.isYear);
           if(!candidates.length){
             const embedded=embeddedNumber(label);
             if(embedded!==null)candidates=[{value:embedded,distance:0,score:72,isYear:false,isSmallPeriod:false}];
