@@ -106,7 +106,7 @@ function numericDataQuality(metrics) {
 }
 
 async function extractFinancialDocuments(financialAnnouncements) {
-  const maxDocuments = Math.max(1, Math.min(12, Number(process.env.CODAL_MAX_FINANCIAL_DOCUMENTS) || 8));
+  const maxDocuments = Math.max(1, Math.min(4, Number(process.env.CODAL_MAX_FINANCIAL_DOCUMENTS) || 4));
   const selected = financialAnnouncements
     .filter((item) => {
       const announcement = item && item.announcement;
@@ -129,11 +129,12 @@ async function extractFinancialDocuments(financialAnnouncements) {
       return Number(b.classification?.importance || 0) - Number(a.classification?.importance || 0);
     })
     .slice(0, maxDocuments);
-  const documents = [];
-
-  for (const item of selected) {
+  // Download the small set of newest relevant filings concurrently.
+  // Sequential downloads of several CODAL reports can make the whole stock
+  // analysis exceed the API/client timeout even though each document is valid.
+  const documents = await Promise.all(selected.map(async (item) => {
     const result = await documentService.extractFinancialDataFromAnnouncement(item.announcement);
-    documents.push({
+    return {
       announcement: item.announcement,
       classification: item.classification,
       available: result.available,
@@ -143,13 +144,8 @@ async function extractFinancialDocuments(financialAnnouncements) {
       sheetCount: result.sheetCount || 0,
       metrics: result.metrics || {},
       reason: result.reason || null,
-    });
-
-    // Do not stop after the first score-ready workbook. Codal announcements
-    // often split current-period, comparative-period, balance-sheet and EPS
-    // data across separate attachments. Download all selected financial
-    // documents so complementary real Codal metrics can be merged.
-  }
+    };
+  }));
 
   return documents;
 }
