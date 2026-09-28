@@ -90,6 +90,10 @@ type UnifiedAnalysisResult = Omit<AnalysisResult, 'fundamentalAnalysis'> & {
   // Canonical deterministic CODAL result. Legacy string payloads are still
   // accepted while old history records are being opened.
   fundamentalAnalysis?: FundamentalAnalysisPayload | string;
+  fundamentalAvailable?: boolean;
+  fundamentalReason?: string;
+  fundamentalScore?: number | null;
+  fundamentalData?: unknown;
   marketData: UnifiedMarketData;
   usage?: AnalysisUsage | null;
   model?: string;
