@@ -8,7 +8,7 @@ function normalizeText(v){return normalizeDigits(v).replace(/[\u200c\u200f\u200e
 function normalizeMetricLabel(v){return normalizeText(v).toLowerCase().replace(/[()\[\]{}،,؛:٫٬–—-]/g,' ').replace(/\s+/g,' ').trim();}
 function parseNumber(v){if(typeof v==='number'&&Number.isFinite(v))return v;const t=normalizeDigits(v).replace(/[٬،,]/g,'').replace(/\s+/g,'').replace(/[٪%]/g,'').trim();if(!t||t==='-'||t==='—')return null;const neg=/^\(.*\)$/.test(t)||t.startsWith('-');const c=t.replace(/[()]/g,'').replace(/[^0-9.+-]/g,'');if(!c||c==='-'||c==='.')return null;const n=Number(c);return Number.isFinite(n)?(neg?-Math.abs(n):n):null;}
 function getAllowedHosts(){return String(process.env.CODAL_DOCUMENT_ALLOWED_HOSTS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);}
-function validateDocumentUrl(raw){if(!raw)return{ok:false,reason:'empty-url'};let url;try{url=new URL(raw);}catch{return{ok:false,reason:'invalid-url'};}if(url.username||url.password)return{ok:false,reason:'credentials-not-allowed'};if(url.protocol!=='https:')return{ok:false,reason:'https-required'};const allowed=getAllowedHosts();if(allowed.length&&!allowed.includes(url.hostname.toLowerCase()))return{ok:false,reason:'host-not-allowed'};return{ok:true,url};}
+function validateDocumentUrl(raw){if(!raw)return{ok:false,reason:'empty-url'};let url;try{url=new URL(raw,'https://www.codal.ir/');}catch{return{ok:false,reason:'invalid-url'};}if(url.username||url.password)return{ok:false,reason:'credentials-not-allowed'};if(url.protocol!=='https:')return{ok:false,reason:'https-required'};const allowed=getAllowedHosts();if(allowed.length&&!allowed.includes(url.hostname.toLowerCase()))return{ok:false,reason:'host-not-allowed'};return{ok:true,url};}
 async function downloadDocument(raw){const validation=validateDocumentUrl(raw);if(!validation.ok)throw new Error(`CODAL document URL rejected: ${validation.reason}`);const timeoutMs=envNumber('CODAL_DOCUMENT_TIMEOUT_MS',DEFAULT_TIMEOUT_MS,3000,60000),maxBytes=envNumber('CODAL_DOCUMENT_MAX_BYTES',DEFAULT_MAX_BYTES,256*1024,32*1024*1024),controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);try{const relayBase=String(process.env.CODAL_DOCUMENT_RELAY_URL||'').trim();let requestUrl=validation.url.toString();if(relayBase){const relayUrl=new URL(relayBase);relayUrl.searchParams.set('url',validation.url.toString());requestUrl=relayUrl.toString();}const response=await fetch(requestUrl,{method:'GET',redirect:'follow',signal:controller.signal,headers:{Accept:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/octet-stream;q=0.8,*/*;q=0.1','User-Agent':'RoniyaAnalyzer/5.2.1'}});if(!response.ok)throw new Error(`CODAL document HTTP ${response.status}`);const length=Number(response.headers.get('content-length'));if(Number.isFinite(length)&&length>maxBytes)throw new Error(`CODAL document exceeds ${maxBytes} bytes`);const chunks=[];let total=0;for await(const chunk of response.body){total+=chunk.length;if(total>maxBytes)throw new Error(`CODAL document exceeds ${maxBytes} bytes`);chunks.push(Buffer.from(chunk));}const buffer=Buffer.concat(chunks);return{buffer,contentType:String(response.headers.get('content-type')||'').toLowerCase(),finalUrl:response.url,bytes:buffer.length};}finally{clearTimeout(timer);}}
 function looksLikeExcel(contentType,url,buffer){const type=String(contentType||'').toLowerCase();const target=String(url||'');const head=buffer&&Buffer.isBuffer(buffer)?buffer.slice(0,512).toString('utf8').replace(/^\uFEFF/,'').trimStart():'';return /spreadsheet|excel|vnd\.ms-excel|officedocument\.spreadsheet|application\/octet-stream|text\/html/.test(type)||/\.(xlsx|xls)(?:$|[?#])/i.test(target)||head.startsWith('<html')||head.includes('<table')||head.startsWith('<!doctype');}
 function findEndOfCentralDirectory(buffer){const start=Math.max(0,buffer.length-65557);for(let o=buffer.length-22;o>=start;o--)if(buffer.readUInt32LE(o)===0x06054b50)return o;throw new Error('Invalid XLSX ZIP: end of central directory not found');}
@@ -26,5 +26,57 @@ const METRIC_PRIORITY={assets:['جمع دارایی ها','جمع داراییه
 function metricPriority(metric,label){const normalized=normalizeMetricLabel(label);const patterns=METRIC_PRIORITY[metric]||[];const index=patterns.findIndex(p=>normalized===normalizeMetricLabel(p));if(index>=0)return 100-index;return patterns.some(p=>normalized.includes(normalizeMetricLabel(p)))?50:10;}
 function findMetricValues(sheets){const best={};for(const sheet of sheets)for(const row of sheet.rows){const cells=row.map(normalizeText),normalizedCells=cells.map(normalizeMetricLabel);for(let i=0;i<cells.length;i++){const label=cells[i],normalizedLabel=normalizedCells[i];if(!normalizedLabel)continue;for(const [metric,patterns] of Object.entries(METRIC_PATTERNS)){if(!patterns.some(p=>normalizedLabel===normalizeMetricLabel(p)||normalizedLabel.includes(normalizeMetricLabel(p))))continue;const right=cells.slice(i+1).map((v,d)=>({value:parseNumber(v),distance:d+1})).filter(x=>x.value!==null);const left=cells.slice(0,i).reverse().map((v,d)=>({value:parseNumber(v),distance:d+1})).filter(x=>x.value!==null);const candidates=right.length?right:left;if(!candidates.length)continue;const candidate={value:candidates[0].value,sheet:sheet.name,label,priority:metricPriority(metric,label)};if(!best[metric]||candidate.priority>best[metric].priority)best[metric]=candidate;}}}return Object.fromEntries(Object.entries(best).map(([k,v])=>[k,{value:v.value,sheet:v.sheet,label:v.label}]));}
 async function extractFinancialDataFromExcel(rawUrl){const downloaded=await downloadDocument(rawUrl);if(!looksLikeExcel(downloaded.contentType,downloaded.finalUrl,downloaded.buffer))throw new Error('CODAL attachment is not recognized as an Excel document');const sheets=extractExcelRows(downloaded.buffer);return{sourceType:'excel',url:downloaded.finalUrl,bytes:downloaded.bytes,sheetCount:sheets.length,metrics:findMetricValues(sheets)};}
-async function extractFinancialDataFromAnnouncement(announcement){const excelUrl=announcement&&(announcement.link_excel||announcement.linkExcel);if(!excelUrl)return{available:false,sourceType:null,reason:'excel-link-not-available',metrics:{}};try{const result=await extractFinancialDataFromExcel(excelUrl);return{available:Object.keys(result.metrics).length>0,...result};}catch(error){return{available:false,sourceType:'excel',reason:error.message,metrics:{}};}}
+async async function extractFinancialDataFromAnnouncement(announcement){
+  const excelUrl=announcement&&(announcement.link_excel||announcement.linkExcel);
+  const reportUrl=announcement&&(announcement.link||announcement.url||announcement.link_report||announcement.linkReport);
+  const failures=[];
+
+  if(excelUrl){
+    try{
+      const result=await extractFinancialDataFromExcel(excelUrl);
+      if(Object.keys(result.metrics).length>0){
+        return {available:true,...result};
+      }
+      failures.push('فایل Excel دریافت شد اما شاخص عددی قابل استخراج نداشت.');
+    }catch(error){
+      failures.push('استخراج Excel: '+error.message);
+    }
+  }
+
+  // Some CODAL filings expose the Excel link but the downloadable workbook is
+  // temporarily unavailable from the production server. The report page itself
+  // contains the same financial statement tables, so use it as a deterministic
+  // fallback instead of returning a false "insufficient numeric data" result.
+  if(reportUrl){
+    try{
+      const downloaded=await downloadDocument(reportUrl);
+      if(!looksLikeExcel(downloaded.contentType,downloaded.finalUrl,downloaded.buffer)){
+        throw new Error('CODAL report response is not an HTML/table document');
+      }
+      const sheets=parseHtmlWorkbook(downloaded.buffer);
+      const metrics=findMetricValues(sheets);
+      if(Object.keys(metrics).length>0){
+        return {
+          available:true,
+          sourceType:'codal-html-report',
+          url:downloaded.finalUrl,
+          bytes:downloaded.bytes,
+          sheetCount:sheets.length,
+          metrics,
+          reason:excelUrl?'استخراج از جداول گزارش CODAL پس از ناموفق بودن استخراج Excel انجام شد.':null,
+        };
+      }
+      failures.push('گزارش HTML دریافت شد اما شاخص عددی قابل استخراج نداشت.');
+    }catch(error){
+      failures.push('استخراج گزارش CODAL: '+error.message);
+    }
+  }
+
+  return {
+    available:false,
+    sourceType:excelUrl?'excel':reportUrl?'codal-html-report':null,
+    reason:failures.join(' ' ) || 'لینک Excel یا گزارش مالی CODAL در دسترس نیست.',
+    metrics:{}
+  };
+}
 module.exports={normalizeDigits,normalizeText,normalizeMetricLabel,parseNumber,validateDocumentUrl,downloadDocument,extractZipEntries,extractExcelRows,findMetricValues,extractFinancialDataFromExcel,extractFinancialDataFromAnnouncement};
