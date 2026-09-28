@@ -242,7 +242,7 @@ const PublicLandingPage: React.FC = () => {
           <div className="public-site-address"><a href="https://www.roniya-analyzer.ir/" aria-label="وب‌سایت تحلیلگر هوشمند بورس رونیا">www.roniya-analyzer.ir</a></div>
           <div className="public-enamad" aria-label="نماد اعتماد الکترونیکی">
             <a referrerPolicy="origin" target="_blank" rel="noopener noreferrer" href="https://trustseal.enamad.ir/?id=7523297&Code=o6Q8ZIOyrOl0YWyiXpn8ILYoZ2KnhLOR">
-              <img referrerPolicy="origin" src="https://trustseal.enamad.ir/logo.aspx?id=7523297&Code=o6Q8ZIOyrOl0YWyiXpn8ILYoZ2KnhLOR" alt="نماد اعتماد الکترونیکی" loading="lazy" decoding="async" fetchPriority="low" style={{ cursor: 'pointer' }} data-enamad-code="o6Q8ZIOyrOl0YWyiXpn8ILYoZ2KnhLOR" />
+              <img referrerPolicy="origin" src="https://trustseal.enamad.ir/logo.aspx?id=7523297&Code=o6Q8ZIOyrOl0YWyiXpn8ILYoZ2KnhLOR" alt="نماد اعتماد الکترونیکی" style={{ cursor: 'pointer' }} data-enamad-code="o6Q8ZIOyrOl0YWyiXpn8ILYoZ2KnhLOR" />
             </a>
           </div>
         </section>
