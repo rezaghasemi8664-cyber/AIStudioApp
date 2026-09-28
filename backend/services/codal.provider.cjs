@@ -197,7 +197,16 @@ async function getCompanyReports(options = {}) {
   const config = getConfig();
   const url = buildUrl(options);
   const payload = await fetchJson(url, config.timeoutMs);
-  const announcements = asArray(payload).map(normalizeAnnouncement);
+  const requestedCategory = String(options.category ?? config.category ?? '').trim();
+  const announcements = asArray(payload).map((item) => {
+    const normalized = normalizeAnnouncement(item);
+    // Announcement.php filters the response by category. Preserve that
+    // provenance because some API responses omit the category field on each
+    // announcement. Without it, a valid category=1 filing can be lost when
+    // its title does not contain a financial-statement keyword.
+    if (!normalized.category && requestedCategory) normalized.category = requestedCategory;
+    return normalized;
+  });
 
   return {
     success: true,
