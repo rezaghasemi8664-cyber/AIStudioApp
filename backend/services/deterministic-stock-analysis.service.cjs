@@ -220,7 +220,20 @@ async function analyzeStock(params = {}) {
   // final response instead of falling back to zero.
   let fundamentalAnalysis = params.fundamentalAnalysis;
   let fundamentalData = params.fundamentalData;
-  if (!fundamentalAnalysis || typeof fundamentalAnalysis !== 'object') {
+
+  // Only reuse a supplied Fundamental result when it is a completed
+  // deterministic calculation. Legacy/context payloads can contain the old
+  // "requires-financial-document-data" result with score=null; passing that
+  // through would mask the real CODAL calculation and surface a zero/empty
+  // score to the API/UI. In that case, resolve Fundamental again through the
+  // canonical provider (fundamental-analysis.v2).
+  const suppliedFundamentalIsCalculated =
+    fundamentalAnalysis &&
+    typeof fundamentalAnalysis === 'object' &&
+    fundamentalAnalysis.scoreStatus === 'calculated' &&
+    num(fundamentalAnalysis.score) !== null;
+
+  if (!suppliedFundamentalIsCalculated) {
     const fundamentalResult = await provider.getFundamentalData(symbol);
     fundamentalAnalysis = fundamentalResult && fundamentalResult.analysis
       ? fundamentalResult.analysis
