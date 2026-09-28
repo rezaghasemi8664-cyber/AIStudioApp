@@ -16,7 +16,8 @@ function bandScore(value, bands) {
 function buildFundamentalReason(components, score) {
   const details = components.map(item => {
     if (item.key === 'eps') {
-      return `${item.label}: ${item.value} ریال، امتیاز ${item.score} از ${item.max}. ${item.reason}`;
+      const sourceText = item.source ? ` منبع داده Codal: ${item.source}.` : '';
+      return `${item.label}: ${item.value} ریال، امتیاز ${item.score} از ${item.max}. ${item.reason}${sourceText}`;
     }
 
     const percent = Number(item.value);
@@ -42,7 +43,7 @@ function calculateFundamentalScore(metrics) {
 
   const add = (key, label, score, max, value, reason) => {
     if (score == null) return;
-    components.push({ key, label, score, max, value, reason });
+    components.push({ key, label, score, max, value, reason, source: null });
   };
 
   if (revenue > 0 && netProfit != null) {
@@ -90,6 +91,22 @@ function calculateFundamentalScore(metrics) {
 
   if (eps != null) {
     add('eps', 'سود هر سهم', eps > 0 ? 20 : 0, 20, eps, eps > 0 ? 'EPS مثبت است.' : 'EPS غیرمثبت است.');
+  }
+
+  const metricByComponent = {
+    netMargin: 'netProfit',
+    operatingMargin: 'operatingProfit',
+    debtRatio: 'liabilities',
+    debtToEquity: 'liabilities',
+    roe: 'netProfit',
+    eps: 'eps',
+  };
+  for (const item of components) {
+    const metricKey = metricByComponent[item.key];
+    const metric = metricKey ? metrics?.[metricKey] : null;
+    if (metric && (metric.label || metric.sheet)) {
+      item.source = [metric.label, metric.sheet].filter(Boolean).join(' / ');
+    }
   }
 
   if (components.length < 2) {
