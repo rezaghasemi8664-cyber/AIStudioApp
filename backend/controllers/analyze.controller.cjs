@@ -4,6 +4,7 @@
 
 const aiService = require('../services/ai.service.cjs');
 const brsService = require('../services/brs.service.cjs');
+const analysisDataProvider = require('../services/analysis-data.provider.cjs');
 
 const prisma = require('../config/prisma.cjs');
 
@@ -285,14 +286,20 @@ function computeLowQualityMeta(quality,analysisPayload,aiResultData) {
 async function resolveAnalysisContext(symbol,fallbackData,dailyCount,weeklyCount) {
   const normalizedDailyCount=Math.max(5,toNumber(dailyCount,30)); const invalidQuality=createQualityMeta();
   if(!symbol) return {marketData:buildResolvedMarketData(null,[],fallbackData,invalidQuality,normalizedDailyCount,null),quality:invalidQuality};
-  const context={snapshot:null,daily:[],moneyFlow:null,snapshotError:null,historyError:null,moneyFlowError:null}; const historyLimit=Math.max(normalizedDailyCount,30); const canFetchAdjusted=brsService&&typeof brsService.getAdjustedDailyCandlestick==='function'; const canFetchHistory=brsService&&typeof brsService.getSymbolHistory==='function'; const canFetchMoneyFlow=brsService&&typeof brsService.getMoneyFlow==='function';
-  const qualitySources={liveSnapshotRequested:Boolean(brsService&&typeof brsService.getSymbolData==='function'),liveSnapshotSucceeded:false,historyRequested:Boolean(canFetchHistory),historySucceeded:false,adjustedDailyRequested:Boolean(canFetchAdjusted),adjustedDailySucceeded:false,moneyFlowRequested:Boolean(canFetchMoneyFlow),moneyFlowSucceeded:false}; const tasks=[];
+  const context={snapshot:null,daily:[],moneyFlow:null,fundamentalAnalysis:null,fundamentalData:null,snapshotError:null,historyError:null,moneyFlowError:null,fundamentalError:null}; const historyLimit=Math.max(normalizedDailyCount,30); const canFetchAdjusted=brsService&&typeof brsService.getAdjustedDailyCandlestick==='function'; const canFetchHistory=brsService&&typeof brsService.getSymbolHistory==='function'; const canFetchMoneyFlow=brsService&&typeof brsService.getMoneyFlow==='function';
+  const qualitySources={liveSnapshotRequested:Boolean(brsService&&typeof brsService.getSymbolData==='function'),liveSnapshotSucceeded:false,historyRequested:Boolean(canFetchHistory),historySucceeded:false,adjustedDailyRequested:Boolean(canFetchAdjusted),adjustedDailySucceeded:false,moneyFlowRequested:Boolean(canFetchMoneyFlow),moneyFlowSucceeded:false,fundamentalRequested:Boolean(analysisDataProvider&&typeof analysisDataProvider.getFundamentalData==='function'),fundamentalSucceeded:false}; const tasks=[];
   if(qualitySources.liveSnapshotRequested) tasks.push(brsService.getSymbolData(symbol).then(r=>{context.snapshot=extractBrsMarketData(r);qualitySources.liveSnapshotSucceeded=Boolean(context.snapshot);}).catch(err=>{context.snapshotError=err;console.warn('[Analyze] Live market fetch failed for '+symbol+':',err.message);}));
   if(canFetchAdjusted) tasks.push(brsService.getAdjustedDailyCandlestick(symbol,historyLimit).then(r=>{context.daily=sanitizeCandleSeries(extractHistoryItems(r),normalizedDailyCount);qualitySources.adjustedDailySucceeded=context.daily.length>0;qualitySources.historySucceeded=qualitySources.adjustedDailySucceeded;}).catch(err=>{context.historyError=err;console.warn('[Analyze] Adjusted daily history fetch failed for '+symbol+':',err.message);})); else if(canFetchHistory) tasks.push(brsService.getSymbolHistory(symbol,historyLimit).then(r=>{context.daily=sanitizeCandleSeries(extractHistoryItems(r),normalizedDailyCount);qualitySources.historySucceeded=context.daily.length>0;}).catch(err=>{context.historyError=err;console.warn('[Analyze] History fetch failed for '+symbol+':',err.message);}));
   if(canFetchMoneyFlow) tasks.push(brsService.getMoneyFlow(symbol).then(r=>{const normalized=normalizeMoneyFlowPayload(r);context.moneyFlow=normalized;qualitySources.moneyFlowSucceeded=Boolean((normalized.real&&toFiniteOrNull(normalized.real.net)!==null)||(normalized.legal&&toFiniteOrNull(normalized.legal.net)!==null));}).catch(err=>{context.moneyFlowError=err;console.warn('[Analyze] Money flow fetch failed for '+symbol+':',err.message);}));
+  if(qualitySources.fundamentalRequested) tasks.push(analysisDataProvider.getFundamentalData(symbol).then(r=>{context.fundamentalData=r&&r.data?r.data:null;context.fundamentalAnalysis=r&&r.analysis&&typeof r.analysis==='object'?r.analysis:null;qualitySources.fundamentalSucceeded=Boolean(context.fundamentalAnalysis&&context.fundamentalAnalysis.scoreStatus==='calculated'&&Number.isFinite(Number(context.fundamentalAnalysis.score)));}).catch(err=>{context.fundamentalError=err;console.warn('[Analyze] Fundamental fetch failed for '+symbol+':',err.message);}));
   if(tasks.length>0) await Promise.allSettled(tasks);
   const quality=createQualityMeta(Object.assign(buildMarketDataQuality(context.snapshot,context.daily,fallbackData,normalizedDailyCount,context.moneyFlow),{sources:qualitySources}));
-  return {marketData:buildResolvedMarketData(context.snapshot,context.daily,fallbackData,quality,normalizedDailyCount,context.moneyFlow),quality,errors:{snapshot:context.snapshotError,history:context.historyError,moneyFlow:context.moneyFlowError}};
+  const marketData=buildResolvedMarketData(context.snapshot,context.daily,fallbackData,quality,normalizedDailyCount,context.moneyFlow);
+  marketData.fundamentalAnalysis=context.fundamentalAnalysis;
+  marketData.fundamentalData=context.fundamentalData;
+  marketData.sources=Object.assign({},marketData.sources||{},{fundamental:'CODAL',fundamentalRequest:context.fundamentalError?{message:context.fundamentalError.message}:null});
+  marketData._meta=Object.assign({},marketData._meta||{},{fundamentalAvailable:Boolean(context.fundamentalAnalysis&&context.fundamentalAnalysis.scoreStatus==='calculated'),fundamentalScore:context.fundamentalAnalysis&&Number.isFinite(Number(context.fundamentalAnalysis.score))?Number(context.fundamentalAnalysis.score):null});
+  return {marketData,quality,errors:{snapshot:context.snapshotError,history:context.historyError,moneyFlow:context.moneyFlowError,fundamental:context.fundamentalError}};
 }
 function shouldRejectAnalysisQuality(){return false;}
 function normalizeAnalysisType(value){return typeof value!=='string'||!value.trim()?'analysis':value.trim();}
