@@ -2205,10 +2205,10 @@ const clearCurrentAnalysis = () => {
                   }`}
                 >
                   <div className="text-[12px] font-extrabold">
-                    {new Date(item.date || item.createdAt).toLocaleDateString('fa-IR')}
+                    {new Date(item.createdAt).toLocaleDateString('fa-IR', { timeZone: 'UTC' })}
                   </div>
                   <div className="mt-1 text-[11px] font-medium text-slate-500">
-                    {new Date(item.date || item.createdAt).toLocaleTimeString('fa-IR')}
+                    {new Date(item.createdAt).toLocaleTimeString('fa-IR', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                   </div>
                 </button>
               );
@@ -2225,7 +2225,7 @@ const clearCurrentAnalysis = () => {
             <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
               <div className="text-[11px] font-bold text-blue-700">تاریخ و زمان ثبت در پایگاه داده</div>
               <div className="mt-1 text-[13px] font-extrabold text-blue-950">
-                {new Date(marketSummary.createdAt).toLocaleString('fa-IR')}
+                {new Date(marketSummary.createdAt).toLocaleString('fa-IR', { timeZone: 'UTC', dateStyle: 'short', timeStyle: 'medium' })}
               </div>
             </div>
 

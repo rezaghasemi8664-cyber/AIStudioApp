@@ -6,7 +6,7 @@ const prisma = require('../config/prisma.cjs');
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
 const INTERNAL_PORT = Number(process.env.PORT || 3001);
 const LIVE_ENDPOINT = `http://127.0.0.1:${INTERNAL_PORT}/api/v1/market-summary/live`;
-const SCHEDULED_TIMES = new Set(['12:35', '12:40', '12:45', '12:55', '13:10', '13:30', '18:00']);
+const SCHEDULED_TIMES = new Set(['13:35', '13:40', '13:45', '13:55', '14:10', '14:30', '18:00']);
 
 function tehranParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -115,8 +115,8 @@ async function generateDailyMarketSummary(options = {}) {
     if (!SCHEDULED_TIMES.has(currentTime)) {
       return { success: false, generated: false, skipped: true, reason: 'OUTSIDE_SCHEDULED_WINDOW', currentTime };
     }
-  } else if (hour !== 12 || minute !== 35) {
-    return { success: false, generated: false, skipped: true, reason: 'OUTSIDE_12_35_WINDOW' };
+  } else if (hour !== 13 || minute !== 35) {
+    return { success: false, generated: false, skipped: true, reason: 'OUTSIDE_13_35_WINDOW' };
   }
 
   if (!isTradingCalendarDay()) {
