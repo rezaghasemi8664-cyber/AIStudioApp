@@ -169,7 +169,7 @@ async function getFundamentalData(symbolClean) {
     // while the financial statements needed for scoring may be on page 2/3.
     const financialPages = Math.max(
       1,
-      Math.min(5, Number(process.env.CODAL_FINANCIAL_PAGES) || 3)
+      Math.min(5, Number(process.env.CODAL_FINANCIAL_PAGES) || 1)
     );
     const financialResults = await Promise.all(
       Array.from({ length: financialPages }, (_, index) =>
