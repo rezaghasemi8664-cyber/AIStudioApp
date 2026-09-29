@@ -1814,16 +1814,29 @@ const clearCurrentAnalysis = () => {
   const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
   const theme = 'light';
 
-  const chartData = useMemo(() => {
-      if (hasAdjustedDailyDisplayData) {
-      if (adjustedDailyCandles.length > 0) return adjustedDailyCandles;
-      if (adjustedCandleToShow) return [adjustedCandleToShow];
-      return [];
-    }
+  const chartData = useMemo<OHLCPoint[]>(() => {
+    // Candle fields may arrive either as a single OHLCPoint or as arrays
+    // (including nested arrays) from legacy API payloads. Flatten and retain
+    // only valid candle objects before passing data to CandleChart.
+    const flattenCandles = (value: unknown): OHLCPoint[] => {
+      if (!Array.isArray(value)) {
+        return value && typeof value === 'object' ? [value as OHLCPoint] : [];
+      }
+      return value.flatMap((item) => flattenCandles(item));
+    };
 
-    if (dailyCandles.length > 0) return dailyCandles;
-    if (dailyCandleToShow) return [dailyCandleToShow];
-    return [];
+    const preferred = hasAdjustedDailyDisplayData
+      ? (adjustedDailyCandles.length > 0 ? adjustedDailyCandles : adjustedCandleToShow)
+      : (dailyCandles.length > 0 ? dailyCandles : dailyCandleToShow);
+
+    return flattenCandles(preferred).filter((item) =>
+      item && typeof item === 'object' &&
+      typeof item.date === 'string' &&
+      Number.isFinite(item.open) &&
+      Number.isFinite(item.high) &&
+      Number.isFinite(item.low) &&
+      Number.isFinite(item.close)
+    );
   }, [
     hasAdjustedDailyDisplayData,
     adjustedDailyCandles,
