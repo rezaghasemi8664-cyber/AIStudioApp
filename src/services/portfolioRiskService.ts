@@ -48,11 +48,12 @@ async function getQuotes(symbol: string) {
   for (const path of paths) {
     try {
       const response = await api.get(path, { params: { limit: 365 } });
-      const raw = response?.data?.data ?? response?.data ?? [];
+      const payload = response?.data;
+      const raw = payload?.data?.candles ?? payload?.data?.items ?? payload?.data ?? payload?.candles ?? payload?.items ?? payload ?? [];
       if (!Array.isArray(raw)) continue;
       const rows = raw.map(row => ({
-        date: normalizeDate(row.date ?? row.tradeDate ?? row.jalaliDate ?? row.timestamp),
-        close: num(row.close ?? row.closePrice ?? row.closingPrice ?? row.lastPrice ?? row.last),
+        date: normalizeDate(row.date ?? row.d ?? row.tradeDate ?? row.jalaliDate ?? row.timestamp),
+        close: num(row.close ?? row.lastClosePrice ?? row.closePrice ?? row.closingPrice ?? row.lastPrice ?? row.last),
       })).filter((x): x is { date: string; close: number } => Boolean(x.date) && x.close != null && x.close > 0).sort((a, b) => a.date.localeCompare(b.date));
       if (rows.length >= 2) return rows;
     } catch (_) {}
