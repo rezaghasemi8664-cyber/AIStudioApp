@@ -1772,10 +1772,17 @@ const clearCurrentAnalysis = () => {
         sentimentMap
       ),
       confidence: analysisData.confidence ?? 0,
+      // The canonical CODAL Fundamental object is the single source of truth.
+      // Never let a legacy scalar 0 mask a calculated nested score.
       fundamentalScore:
-        analysisData.fundamentalScore ??
-        analysisData.scores?.fundamentalScore ??
-        null,
+        analysisData.fundamentalAnalysis &&
+        typeof analysisData.fundamentalAnalysis === 'object' &&
+        analysisData.fundamentalAnalysis.scoreStatus === 'calculated' &&
+        toNum(analysisData.fundamentalAnalysis.score) !== undefined
+          ? toNum(analysisData.fundamentalAnalysis.score) ?? null
+          : analysisData.fundamentalScore ??
+            analysisData.scores?.fundamentalScore ??
+            null,
       technicalScore:
         analysisData.technicalScore ??
         analysisData.scores?.technicalScore ??
@@ -2570,7 +2577,15 @@ const clearCurrentAnalysis = () => {
                       subtitle="تحلیل مرتبط با کیفیت متغیرهای مالی، ارزش‌گذاری و وضعیت سهم"
                     />
                     <div className="whitespace-pre-wrap text-[14px] font-medium leading-8 text-slate-800">
-                      {historySummaryText(analysisData.explanations?.fundamental) || '—'}
+                      {historySummaryText(
+                        analysisData.fundamentalAnalysis &&
+                        typeof analysisData.fundamentalAnalysis === 'object' &&
+                        analysisData.fundamentalAnalysis.scoreStatus === 'calculated'
+                          ? analysisData.fundamentalAnalysis.reason ??
+                            analysisData.fundamentalAnalysis.explanation ??
+                            analysisData.explanations?.fundamental
+                          : analysisData.explanations?.fundamental
+                      ) || '—'}
                     </div>
                   </div>
 
