@@ -88,8 +88,13 @@ const WelcomeBanner: React.FC<WelcomeBannerProps> = ({ onClose }) => {
     return (
         <div className={`roniya-welcome-banner fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}>
             <div
-                className={`roniya-welcome-card relative w-full max-w-2xl bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-700 ${visible ? 'translate-y-0 scale-100' : 'translate-y-full scale-90'}`}
-                style={{ fontFamily: 'var(--welcome-banner-text-font-family, inherit)' }}
+                className={`roniya-welcome-card relative w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-700 ${visible ? 'translate-y-0 scale-100' : 'translate-y-full scale-90'}`}
+                style={{
+                    fontFamily: 'var(--welcome-banner-text-font-family, inherit)',
+                    backgroundColor: '#ffffff',
+                    color: '#17202b',
+                    border: '1px solid #dbe4eb',
+                }}
             >
                 <div className="p-1">
                     <div className="absolute top-0 left-0 h-1 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500" style={{ width: `${progress}%`, transition: 'width 0.1s linear' }} />
@@ -100,12 +105,13 @@ const WelcomeBanner: React.FC<WelcomeBannerProps> = ({ onClose }) => {
                         <InfoIcon className="w-8 h-8" />
                     </div>
 
-                    <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">خوش آمدید</h2>
+                    <h2 className="text-2xl font-bold mb-4" style={{ color: '#17202b' }}>خوش آمدید</h2>
 
                     <div
-                        className="text-slate-700 dark:text-slate-200 leading-relaxed mb-8 text-justify"
+                        className="leading-relaxed mb-8 text-justify"
                         style={{
                             fontSize: 'var(--welcome-banner-text-font-size, 16px)',
+                            color: '#263746',
                         }}
                     >
                         {config.text}
@@ -121,7 +127,7 @@ const WelcomeBanner: React.FC<WelcomeBannerProps> = ({ onClose }) => {
 
                 <button
                     onClick={handleClose}
-                    className="absolute top-4 left-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                    className="absolute top-4 left-4 p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors"
                 >
                     <XMarkIcon className="w-6 h-6" />
                 </button>
