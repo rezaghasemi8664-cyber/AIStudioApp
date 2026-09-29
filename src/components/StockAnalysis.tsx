@@ -2161,12 +2161,12 @@ const clearCurrentAnalysis = () => {
 
     <span
       className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${
-        analysisHistory.length >= 3
+        analysisHistory.length >= 10
           ? 'bg-rose-100 text-rose-700'
           : 'bg-emerald-100 text-emerald-700'
       }`}
     >
-      {faNumber(analysisHistory.length)} / {faNumber(3)}
+      {faNumber(Math.min(analysisHistory.length, 10))} / {faNumber(10)}
     </span>
   </button>
 </div>
