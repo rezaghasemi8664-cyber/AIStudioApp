@@ -65,8 +65,8 @@ type UnifiedMarketData = {
   adjustedDailyCandles: OHLCPoint[];
   hasAnyAdjustedDailyRawSource?: boolean;
   dailySummary: DailySummary | null;
-  dailyCandle: OHLCPoint | null;
-  adjustedDailyCandle: OHLCPoint | null;
+  dailyCandle: OHLCPoint | OHLCPoint[] | null;
+  adjustedDailyCandle: OHLCPoint | OHLCPoint[] | null;
   marketMetrics?: AnalysisMarketMetrics;
 };
 
@@ -1796,7 +1796,7 @@ const clearCurrentAnalysis = () => {
     typeof analysisData?.riskLevel === 'string' ? analysisData.riskLevel : undefined
   );
 
-  const resolvedMarketMetrics = useMemo<AnalysisMarketMetrics | undefined>(() => {
+  const resolvedMarketMetrics = useMemo<AnalysisMarketMetrics | null | undefined>(() => {
     return analysisData?.marketData?.marketMetrics ?? analysisData?.marketMetrics;
   }, [analysisData]);
 
