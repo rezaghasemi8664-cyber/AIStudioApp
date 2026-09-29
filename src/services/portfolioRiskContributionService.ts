@@ -29,13 +29,23 @@ const stddev = (values: number[]) => {
 };
 
 async function getQuotes(symbol: string) {
-  const response = await api.get(`/brs/symbol/${encodeURIComponent(symbol)}/history`, { params: { limit: 365 } });
-  const raw = response?.data?.data ?? response?.data ?? [];
-  if (!Array.isArray(raw)) return [];
-  return raw.map(row => ({
-    date: normalizeDate(row.date ?? row.tradeDate ?? row.jalaliDate ?? row.timestamp),
-    close: num(row.close ?? row.closePrice ?? row.closingPrice ?? row.lastPrice),
-  })).filter((x): x is { date: string; close: number } => Boolean(x.date) && x.close != null && x.close > 0).sort((a, b) => a.date.localeCompare(b.date));
+  const paths = [
+    `/brs/symbol/${encodeURIComponent(symbol)}/candles`,
+    `/brs/symbol/${encodeURIComponent(symbol)}/history`,
+  ];
+  for (const path of paths) {
+    try {
+      const response = await api.get(path, { params: { limit: 365 } });
+      const raw = response?.data?.data ?? response?.data ?? [];
+      if (!Array.isArray(raw)) continue;
+      const rows = raw.map(row => ({
+        date: normalizeDate(row.date ?? row.tradeDate ?? row.jalaliDate ?? row.timestamp),
+        close: num(row.close ?? row.closePrice ?? row.closingPrice ?? row.lastPrice ?? row.last),
+      })).filter((x): x is { date: string; close: number } => Boolean(x.date) && x.close != null && x.close > 0).sort((a, b) => a.date.localeCompare(b.date));
+      if (rows.length >= 2) return rows;
+    } catch (_) {}
+  }
+  return [];
 }
 
 export async function getPortfolioRiskContribution(): Promise<PortfolioRiskContributionResult> {
