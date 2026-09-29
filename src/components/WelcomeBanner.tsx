@@ -7,36 +7,58 @@ interface WelcomeBannerProps {
     onClose: () => void;
 }
 
-const DEFAULT_CONFIG: WelcomeBannerConfig = {
+const EMPTY_CONFIG: WelcomeBannerConfig = {
     text: '',
     durationSeconds: 10,
 };
 
 const WelcomeBanner: React.FC<WelcomeBannerProps> = ({ onClose }) => {
-    const [config, setConfig] = useState<WelcomeBannerConfig>(DEFAULT_CONFIG);
+    const [config, setConfig] = useState<WelcomeBannerConfig>(EMPTY_CONFIG);
     const [progress, setProgress] = useState(100);
     const [visible, setVisible] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
 
+        const sleep = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms));
+
         const loadConfig = async () => {
-            try {
-                const loaded = await themeService.getWelcomeBannerConfig();
-                if (!cancelled) setConfig(loaded);
-            } catch (error) {
-                console.error('Error loading welcome banner config:', error);
+            for (let attempt = 0; attempt < 4; attempt += 1) {
+                try {
+                    const loaded = await themeService.getWelcomeBannerConfig();
+                    if (cancelled) return;
+
+                    const text = typeof loaded?.text === 'string' ? loaded.text.trim() : '';
+                    if (!text) {
+                        onClose();
+                        return;
+                    }
+
+                    setConfig({
+                        text,
+                        durationSeconds: Math.max(1, Math.min(120, Math.trunc(Number(loaded.durationSeconds) || 10))),
+                    });
+                    setProgress(100);
+                    setVisible(true);
+                    return;
+                } catch (error) {
+                    console.error('[WelcomeBanner] Error loading global banner config:', error);
+                    if (attempt < 3) await sleep(400 * (attempt + 1));
+                }
             }
+
+            if (!cancelled) onClose();
         };
 
         void loadConfig();
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [onClose]);
 
     useEffect(() => {
-        const entryTimer = window.setTimeout(() => setVisible(true), 100);
+        if (!config.text.trim()) return;
+
         const intervalMs = 100;
         const totalMs = Math.max(config.durationSeconds, 1) * 1000;
         const step = (intervalMs / totalMs) * 100;
@@ -54,10 +76,9 @@ const WelcomeBanner: React.FC<WelcomeBannerProps> = ({ onClose }) => {
         }, intervalMs);
 
         return () => {
-            window.clearTimeout(entryTimer);
             window.clearInterval(timer);
         };
-    }, [config.durationSeconds]);
+    }, [config.durationSeconds, config.text]);
 
     const handleClose = () => {
         setVisible(false);
@@ -67,7 +88,7 @@ const WelcomeBanner: React.FC<WelcomeBannerProps> = ({ onClose }) => {
     return (
         <div className={`roniya-welcome-banner fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}>
             <div
-                className={`roniya-welcome-card relative w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-700 ${visible ? 'translate-y-0 scale-100' : 'translate-y-full scale-90'}`}
+                className={`roniya-welcome-card relative w-full max-w-2xl bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-700 ${visible ? 'translate-y-0 scale-100' : 'translate-y-full scale-90'}`}
                 style={{ fontFamily: 'var(--welcome-banner-text-font-family, inherit)' }}
             >
                 <div className="p-1">
@@ -79,10 +100,10 @@ const WelcomeBanner: React.FC<WelcomeBannerProps> = ({ onClose }) => {
                         <InfoIcon className="w-8 h-8" />
                     </div>
 
-                    <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">خوش آمدید</h2>
+                    <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-white">خوش آمدید</h2>
 
                     <div
-                        className="text-gray-600 dark:text-gray-300 leading-relaxed mb-8 text-justify"
+                        className="text-slate-700 dark:text-slate-200 leading-relaxed mb-8 text-justify"
                         style={{
                             fontSize: 'var(--welcome-banner-text-font-size, 16px)',
                         }}
