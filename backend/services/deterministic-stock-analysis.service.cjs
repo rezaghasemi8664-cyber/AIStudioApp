@@ -196,14 +196,80 @@ function buildMarketData(data) {
   };
 }
 
-function buildSignals(result) {
+
+function deriveTrendLabels(candles, indicators) {
+  const values = closes(candles);
+  const current = values[values.length - 1] ?? null;
+  const recent = values.slice(-10);
+  const shortBase = recent.length >= 5 ? recent[0] : null;
+  const shortChange = current !== null && shortBase !== null && shortBase > 0 ? ((current - shortBase) / shortBase) * 100 : null;
+  const mediumBase = values.length >= 40 ? values[values.length - 40] : values.length >= 20 ? values[0] : null;
+  const mediumChange = current !== null && mediumBase !== null && mediumBase > 0 ? ((current - mediumBase) / mediumBase) * 100 : null;
+  const shortMA = indicators.ema20 ?? indicators.sma20;
+  const mediumMA = indicators.sma50 ?? indicators.sma20;
+  const classify = (change, ma, threshold) => {
+    if (change === null && ma === null) return 'خنثی';
+    const up = (change !== null && change >= threshold) || (ma !== null && current !== null && current > ma);
+    const down = (change !== null && change <= -threshold) || (ma !== null && current !== null && current < ma);
+    return up && !down ? 'صعودی' : down && !up ? 'نزولی' : 'خنثی';
+  };
+  return {
+    shortTermTrend: classify(shortChange, shortMA, 1),
+    mediumTermTrend: classify(mediumChange, mediumMA, 3),
+    shortTermChangePercent: shortChange,
+    mediumTermChangePercent: mediumChange,
+  };
+}
+
+function deriveMultiLevels(candles, result) {
+  const current = num(result.currentPrice) ?? first(candles[candles.length - 1]?.close);
+  if (current === null || current <= 0) return { entryPoints: [], targets: {} };
+  const atrValue = num(result.indicators?.atr14) ?? current * 0.03;
   const support = first(result.supportResistance?.support);
   const resistance = first(result.supportResistance?.resistance);
+  const lowerBand = num(result.indicators?.bollinger?.lower);
+  const ema20 = first(result.indicators?.ema20, result.indicators?.sma20);
+  const highs = candles.slice(-60).map(c => num(c.high)).filter(v => v !== null && v > current);
+  const lows = candles.slice(-60).map(c => num(c.low)).filter(v => v !== null && v < current);
+  const uniqueSorted = (arr) => [...new Set(arr.map(v => Math.round(v)))].sort((a,b) => a-b);
+  const entries = uniqueSorted([
+    support,
+    lowerBand,
+    ema20,
+    ...lows.filter(v => v < current * 0.995).slice(-6)
+  ]).filter(v => v > 0 && v < current * 0.995);
+  const entryCandidates = entries.length ? entries.slice(-3).sort((a,b)=>b-a) : [current * 0.985, current * 0.965, current * 0.94].map(v=>Math.round(v));
+  const entryPoints = entryCandidates.map((price, i) => ({
+    price,
+    reason: i === 0 ? 'ورود نزدیک‌ترین حمایت معتبر زیر قیمت فعلی' : i === 1 ? 'ورود پله‌ای در حمایت پایین‌تر / میانگین متحرک' : 'ورود پله‌ای عمیق‌تر برای اصلاح قیمت'
+  }));
+  const targetCandidates = uniqueSorted([
+    resistance,
+    ...highs,
+    current + atrValue,
+    current + atrValue * 2,
+    current + atrValue * 3
+  ]).filter(v => v > current * 1.01);
+  const targets = {};
+  targetCandidates.slice(0, 4).forEach((v, i) => { targets['target' + (i + 1)] = v; });
+  if (!Object.keys(targets).length) {
+    [1,2,3].forEach((n, i) => { targets['target' + (i + 1)] = Math.round(current + atrValue * n); });
+  }
+  return { entryPoints, targets };
+}
+function buildSignals(result, candles) {
+  const levels = deriveMultiLevels(candles, result);
+  const resistance = first(result.supportResistance?.resistance);
+  const exitPoints = Object.entries(levels.targets).map(([key, price]) => ({
+    price,
+    reason: key === 'target1' ? 'اولین مقاومت/هدف معتبر بالاتر از قیمت فعلی' : 'هدف قیمتی بعدی بر اساس مقاومت و دامنه نوسان'
+  }));
+  const support = first(result.supportResistance?.support);
   return {
-    entryPoints: support === null ? [] : [{ price: support, reason: 'حمایت تکنیکال اخیر' }],
-    exitPoints: resistance === null ? [] : [{ price: resistance, reason: 'مقاومت تکنیکال اخیر' }],
-    stopLoss: support !== null && support > 0 ? Math.round(support * 0.97) : null,
-    targets: resistance === null ? {} : { target1: resistance },
+    entryPoints: levels.entryPoints,
+    exitPoints,
+    stopLoss: support !== null && support > 0 ? Math.round(support * 0.97) : Math.round((num(result.currentPrice) || 0) * 0.93),
+    targets: levels.targets,
   };
 }
 
@@ -249,7 +315,7 @@ async function analyzeStock(params = {}) {
     rsiPeriod: params.rsiPeriod === undefined ? undefined : Number(params.rsiPeriod),
   });
   const marketData = buildMarketData(data);
-  const signals = buildSignals(result);
+  const signals = buildSignals({ ...result, currentPrice: marketData.currentPrice }, data.candles);
   const warning = qualityWarning(data.dataQuality);
   // Keep the canonical CODAL Fundamental object intact all the way to the API.
   // Scalar aliases below are derived from this same object for legacy consumers.
@@ -275,8 +341,9 @@ async function analyzeStock(params = {}) {
   const technicalScore = num(result.score) ?? 0;
   const recommendationFa = result.recommendation || 'نگهداری';
   const recommendation = recommendationFa === 'خرید' ? 'BUY' : recommendationFa === 'فروش' ? 'SELL' : 'HOLD';
+  const trendLabels = deriveTrendLabels(data.candles, result.indicators || {});
   const sentiment = deriveSentiment(marketData);
-  const summary = [`روند سهم ${result.trend || 'خنثی'} است و امتیاز تکنیکال ${technicalScore} از ۱۰۰ ثبت شده است.`, `سیگنال موتور تکنیکال: ${recommendationFa}.`, `روند احساس بازار: ${sentiment}.`];
+  const summary = [`روند سهم ${result.trend || 'خنثی'} است و امتیاز تکنیکال ${technicalScore} از ۱۰۰ ثبت شده است.`, `سیگنال موتور تکنیکال: ${recommendationFa}.`, `روند کوتاه‌مدت: ${trendLabels.shortTermTrend}؛ میان‌مدت: ${trendLabels.mediumTermTrend}.`, `روند احساس بازار: ${sentiment}.`];
   if (warning) summary.push(warning);
 
   return {
@@ -285,6 +352,10 @@ async function analyzeStock(params = {}) {
     recommendation,
     recommendationFa,
     sentiment,
+    shortTermTrend: trendLabels.shortTermTrend,
+    mediumTermTrend: trendLabels.mediumTermTrend,
+    shortTermChangePercent: trendLabels.shortTermChangePercent,
+    mediumTermChangePercent: trendLabels.mediumTermChangePercent,
     currentPrice: marketData.currentPrice,
     closingPrice: marketData.closingPrice,
     score: technicalScore,
