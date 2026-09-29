@@ -168,9 +168,92 @@ function configIsStockAnalysis(url: string | undefined): boolean {
   return /\/analyze\/stock(?:\?|$)/i.test(url);
 }
 
+
+async function enrichStockAnalysisResponse(response: any): Promise<any> {
+  if (!configIsStockAnalysis(response.config?.url)) return response;
+
+  let requestData: any = response.config?.data;
+  if (typeof requestData === 'string') {
+    try { requestData = JSON.parse(requestData); } catch { requestData = null; }
+  }
+
+  const symbol = typeof requestData?.symbol === 'string' ? requestData.symbol.trim() : '';
+  if (!symbol) return response;
+
+  const root = response.data?.data && typeof response.data.data === 'object'
+    ? response.data.data
+    : response.data?.result && typeof response.data.result === 'object'
+      ? response.data.result
+      : response.data;
+
+  const currentFundamental = root?.fundamentalAnalysis;
+  const currentCalculated =
+    currentFundamental &&
+    typeof currentFundamental === 'object' &&
+    currentFundamental.scoreStatus === 'calculated' &&
+    Number.isFinite(Number(currentFundamental.score));
+
+  if (currentCalculated) return response;
+
+  try {
+    // The StockAnalysis component uses this Axios client. Fetch the same
+    // canonical CODAL data boundary here so a legacy 0 from /analyze/stock
+    // cannot mask the calculated score returned by /analyze/stock-data.
+    const supplementalResponse = await api.get(
+      `/analyze/stock-data/${encodeURIComponent(symbol)}?historyCount=30`
+    );
+    const supplementalData = supplementalResponse.data?.data;
+    const supplementalFundamental = supplementalData?.fundamentalAnalysis;
+
+    if (
+      !supplementalData ||
+      !supplementalFundamental ||
+      typeof supplementalFundamental !== 'object' ||
+      supplementalFundamental.scoreStatus !== 'calculated' ||
+      !Number.isFinite(Number(supplementalFundamental.score))
+    ) {
+      return response;
+    }
+
+    const supplementalScore = Number(supplementalFundamental.score);
+    const mergedRoot = {
+      ...(root || {}),
+      fundamentalAnalysis: supplementalFundamental,
+      fundamentalScore: supplementalScore,
+      scores: {
+        ...(root?.scores || {}),
+        fundamentalScore: supplementalScore,
+      },
+      fundamentalReason:
+        supplementalFundamental.reason ??
+        supplementalFundamental.explanation ??
+        root?.fundamentalReason,
+    };
+
+    if (response.data?.data && typeof response.data.data === 'object') {
+      response.data = { ...response.data, data: mergedRoot };
+    } else if (response.data?.result && typeof response.data.result === 'object') {
+      response.data = { ...response.data, result: mergedRoot };
+    } else {
+      response.data = {
+        ...response.data,
+        ...mergedRoot,
+        data: mergedRoot,
+      };
+    }
+
+    response.data = normalizeFundamentalAnalysisPayload(response.data);
+  } catch (error) {
+    console.warn('[apiClient] stock analysis CODAL enrichment failed:', error);
+  }
+
+  return response;
+}
+
 api.interceptors.response.use(
-  (response) => {
+  async (response) => {
     response.data = normalizeMoneyFlowPayload(response.data);
+    response = await enrichStockAnalysisResponse(response);
     if (configIsStockAnalysis(response.config?.url)) {
       response.data = normalizeFundamentalAnalysisPayload(response.data);
     }
