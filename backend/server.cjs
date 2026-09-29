@@ -383,9 +383,11 @@ app.use(function requestTimeout(req, res, next) {
     timeout = 120000;
   }
 
-  if (req.path.startsWith('/api/scalping') ||
+  if (req.path.startsWith('/api/analyze/stock') ||
+      req.path.startsWith('/api/analyze/stock-data') ||
+      req.path.startsWith('/api/scalping') ||
       req.path.startsWith('/api/v1/scalping')) {
-    timeout = 90000;
+    timeout = 120000;
   }
 
   req.setTimeout(timeout);
