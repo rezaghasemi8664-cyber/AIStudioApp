@@ -7,7 +7,7 @@ export function normalizePortfolioDate(value: unknown): string | null {
     .replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
     .replace(/[.\-]/g, '/');
 
-  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  const compactMatch = normalized.match(/^(\d{4})(\d{2})(\d{2})(?:\D|$)/);\n  if (compactMatch) {\n    const year = Number(compactMatch[1]);\n    const month = Number(compactMatch[2]);\n    const day = Number(compactMatch[3]);\n    if (year >= 1900 && month >= 1 && month <= 12 && day >= 1 && day <= 31) return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;\n    if (year >= 1200 && year <= 1600 && month >= 1 && month <= 12 && day >= 1 && day <= 31) return jalaliToGregorian(year, month, day);\n  }\n\n  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (isoMatch) {
     const year = Number(isoMatch[1]);
     const month = Number(isoMatch[2]);
