@@ -16,13 +16,16 @@ export function normalizePortfolioDate(value: unknown): string | null {
     if (year >= 1200 && year <= 1600 && month >= 1 && month <= 12 && day >= 1 && day <= 31) return jalaliToGregorian(year, month, day);
   }
 
-  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  const isoMatch = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (isoMatch) {
     const year = Number(isoMatch[1]);
     const month = Number(isoMatch[2]);
     const day = Number(isoMatch[3]);
     if (year >= 1900 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
       return `${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+    }
+    if (year >= 1200 && year <= 1600 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return jalaliToGregorian(year, month, day);
     }
   }
 
