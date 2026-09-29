@@ -14,9 +14,6 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const { Server } = require('socket.io');
-const bootstrapSockets = require('./socket/index.cjs');
-const { startMarketSummaryCron, stopMarketSummaryCron } = require('./cron/marketSummaryCron.cjs');
-const { startCronJobs } = require('./cron/index.cjs');
 
 
 // ═══════════════════════════════════════════════════════════════════
@@ -51,6 +48,10 @@ try {
     AI_AVAILABLE: !!(process.env.GAPGPT_API_KEY),
   };
 }
+
+const bootstrapSockets = require('./socket/index.cjs');
+const { startMarketSummaryCron, stopMarketSummaryCron } = require('./cron/marketSummaryCron.cjs');
+const { startCronJobs } = require('./cron/index.cjs');
 
 const PORT = env.PORT || 3001;
 const IS_DEV = env.IS_DEV || process.env.NODE_ENV !== 'production';
