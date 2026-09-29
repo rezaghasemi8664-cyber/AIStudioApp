@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 const scalpingService = require('../services/scalping.service.cjs');
 const sharedMarketService = require('../services/sharedMarket.service.cjs');
