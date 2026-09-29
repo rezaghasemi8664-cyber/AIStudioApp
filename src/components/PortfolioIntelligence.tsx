@@ -38,13 +38,26 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
     if (!isOnline) { setError('برای دریافت ارزش لحظه‌ای سبد باید آنلاین باشید.'); setLoading(false); return; }
     setLoading(true); setError(null);
     try {
-      const portfolio = await portfolioService.getPortfolio();
-      const next = await Promise.all(portfolio.map(async item => {
-        try {
-          const q = await quote(item.symbol); const cost = item.entryPrice * item.quantity; const value = q.price == null ? null : q.price * item.quantity; const pnl = value == null ? null : value - cost; const pnlPercent = pnl == null || cost <= 0 ? null : (pnl / cost) * 100;
-          return { id: item.id, symbol: item.symbol, name: item.name, quantity: item.quantity, entryPrice: item.entryPrice, currentPrice: q.price, changePercent: q.change, value, cost, pnl, pnlPercent };
-        } catch (_) { return { id: item.id, symbol: item.symbol, name: item.name, quantity: item.quantity, entryPrice: item.entryPrice, currentPrice: null, changePercent: null, value: null, cost: item.entryPrice * item.quantity, pnl: null, pnlPercent: null }; }
-      }));
+      const portfolio = await portfolioService.refreshPortfolioQuotes();
+      const next = portfolio.map(item => {
+        const cost = item.entryPrice * item.quantity;
+        const value = item.currentPrice == null ? null : item.currentPrice * item.quantity;
+        const pnl = value == null ? null : value - cost;
+        const pnlPercent = pnl == null || cost <= 0 ? null : (pnl / cost) * 100;
+        return {
+          id: item.id,
+          symbol: item.symbol,
+          name: item.name,
+          quantity: item.quantity,
+          entryPrice: item.entryPrice,
+          currentPrice: item.currentPrice,
+          changePercent: item.changePercent ?? null,
+          value,
+          cost,
+          pnl,
+          pnlPercent,
+        };
+      });
       setItems(next); setUpdatedAt(new Date().toISOString());
     } catch (e: any) { setError(e?.response?.data?.message || e?.message || 'دریافت اطلاعات سبد ناموفق بود.'); }
     finally { setLoading(false); }
