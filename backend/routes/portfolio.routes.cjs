@@ -50,6 +50,9 @@ async function enrichWithRealQuotes(items) {
     return {
       ...item,
       currentPrice: hasPrice ? currentPrice : null,
+      changePercent: quote
+        ? Number(quote.lastChangePercent ?? quote.changePercent ?? quote.last_change_percent ?? quote.percentChange ?? quote.pcp)
+        : null,
       dataStatus,
       source: quote ? (quote.source || 'shared-db') : null,
       fetchedAt: quote ? (quote.updatedAt || null) : null,
