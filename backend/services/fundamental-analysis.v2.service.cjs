@@ -107,6 +107,11 @@ function numericDataQuality(metrics) {
 
 async function extractFinancialDocuments(financialAnnouncements) {
   const maxDocuments = Math.max(1, Math.min(4, Number(process.env.CODAL_MAX_FINANCIAL_DOCUMENTS) || 2));
+  const isScoringFinancialStatement = (announcement) => {
+    const title = normalizeText(announcement?.title || '');
+    return /صورت مالی|صورت های مالی|صورت‌های مالی|اطلاعات و صورت مالی|اطلاعات و صورت‌های مالی|صورت وضعیت مالی|ترازنامه|سود و زیان|صورت سود و زیان|گزارش تفسیری مدیریت/i.test(title);
+  };
+
   const selected = financialAnnouncements
     .filter((item) => {
       const announcement = item && item.announcement;
@@ -127,6 +132,11 @@ async function extractFinancialDocuments(financialAnnouncements) {
     // filings and miss the latest financial statement. Prefer chronology,
     // then category importance as a tie-breaker.
     .sort((a, b) => {
+      // Prefer actual financial-statement filings over generic category=1
+      // disclosures such as dividend schedules. This is critical when the
+      // general CODAL page is merged with the financial category.
+      const statementDiff = Number(isScoringFinancialStatement(b.announcement)) - Number(isScoringFinancialStatement(a.announcement));
+      if (statementDiff !== 0) return statementDiff;
       const dateDiff = chronologyKey(b.announcement) - chronologyKey(a.announcement);
       if (dateDiff !== 0) return dateDiff;
       return Number(b.classification?.importance || 0) - Number(a.classification?.importance || 0);
