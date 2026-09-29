@@ -4,8 +4,8 @@
  * Market Summary Cron Job
  *
  * Schedule (Tehran):
- * - Primary: 13:35
- * - Retries: 13:40, 13:45, 13:55, 14:10, 14:30
+ * - Primary: 12:35
+ * - Retries: 12:40, 12:45, 12:55, 13:10, 13:30
  * - Recovery: 18:00 only when today's summary is still missing
  * - Saturday through Wednesday only
  * - Never creates duplicate records for a day
@@ -18,12 +18,12 @@ const dailyMarketSummaryService = require('../services/dailyMarketSummary.servic
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
 const TRADING_DAYS = '0,1,2,3,6';
 const SCHEDULES = [
-  { expression: `35 13 * * ${TRADING_DAYS}`, attempt: 1, label: '13:35 primary' },
-  { expression: `40 13 * * ${TRADING_DAYS}`, attempt: 2, label: '13:40 retry' },
-  { expression: `45 13 * * ${TRADING_DAYS}`, attempt: 3, label: '13:45 retry' },
-  { expression: `55 13 * * ${TRADING_DAYS}`, attempt: 4, label: '13:55 retry' },
-  { expression: `10 14 * * ${TRADING_DAYS}`, attempt: 5, label: '14:10 retry' },
-  { expression: `30 14 * * ${TRADING_DAYS}`, attempt: 6, label: '14:30 retry' },
+  { expression: `35 12 * * ${TRADING_DAYS}`, attempt: 1, label: '12:35 primary' },
+  { expression: `40 12 * * ${TRADING_DAYS}`, attempt: 2, label: '12:40 retry' },
+  { expression: `45 12 * * ${TRADING_DAYS}`, attempt: 3, label: '12:45 retry' },
+  { expression: `55 12 * * ${TRADING_DAYS}`, attempt: 4, label: '12:55 retry' },
+  { expression: `10 13 * * ${TRADING_DAYS}`, attempt: 5, label: '13:10 retry' },
+  { expression: `30 13 * * ${TRADING_DAYS}`, attempt: 6, label: '13:30 retry' },
   { expression: `0 18 * * ${TRADING_DAYS}`, attempt: 7, label: '18:00 recovery' }
 ];
 
@@ -111,7 +111,7 @@ function startMarketSummaryCron() {
     )
   );
 
-  console.log('[Cron] ✅ Market Summary scheduled: 13:35 primary + 13:40/13:45/13:55/14:10/14:30 retries + 18:00 recovery; Tehran; no duplicate daily records.');
+  console.log('[Cron] ✅ Market Summary scheduled: 12:35 primary + 12:40/12:45/12:55/13:10/13:30 retries + 18:00 recovery; Tehran; no duplicate daily records.');
   return { tasks };
 }
 
