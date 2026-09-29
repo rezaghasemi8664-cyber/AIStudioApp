@@ -156,7 +156,7 @@ async function extractFinancialDataFromAnnouncement(announcement){
     try{
       const downloaded=await downloadDocument(candidate.url);
       const head=downloaded.buffer.slice(0,4096).toString('utf8');
-      const isHtml=/text\\/html|application\\/html/i.test(downloaded.contentType)||/<(?:html|table|tr|td|th)\\b/i.test(head);
+      const isHtml=/text\/html|application\/html/i.test(downloaded.contentType)||/<(?:html|table|tr|td|th)\\b/i.test(head);
       if(candidate.type==='report'&&!isHtml&&!looksLikeExcel(downloaded.contentType,downloaded.finalUrl,downloaded.buffer)){
         throw new Error('CODAL report response is not a readable HTML/Excel document');
       }
