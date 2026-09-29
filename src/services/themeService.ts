@@ -11,8 +11,8 @@ const THEME_KEY = 'app_theme_settings';
 const GLOBAL_THEME_KEY = 'global_app_theme_settings';
 
 // Backend-first: welcome banner key is managed server-side
-const DEFAULT_WELCOME_BANNER_CONFIG: WelcomeBannerConfig = {
-  text: 'به استودیوی طراحی خوش آمدید. در این بخش می‌توانید ظاهر اجزای مختلف سامانه را شخصی‌سازی کرده و تغییرات را به‌صورت سراسری اعمال کنید.',
+const EMPTY_WELCOME_BANNER_CONFIG: WelcomeBannerConfig = {
+  text: '',
   durationSeconds: 10,
 };
 
@@ -248,7 +248,7 @@ async function saveGlobalThemeToServer(theme: ThemeSettings): Promise<ApiResult<
 }
 
 async function fetchWelcomeBannerConfigFromServer(): Promise<ApiResult<WelcomeBannerConfig>> {
-  const res = await safeApi<unknown>('/settings/global/ui/welcome-banner-config', { method: 'GET' });
+  const res = await safeApi<unknown>('/settings/global/ui/welcome-banner-config', { method: 'GET', cache: 'no-store' });
   if (!res.ok) return { ...res, data: DEFAULT_WELCOME_BANNER_CONFIG };
 
   // safeApi returns the complete HTTP JSON response in res.data.
@@ -281,11 +281,11 @@ async function fetchWelcomeBannerConfigFromServer(): Promise<ApiResult<WelcomeBa
   const text =
     typeof rawValue?.text === 'string' && rawValue.text.trim()
       ? rawValue.text
-      : DEFAULT_WELCOME_BANNER_CONFIG.text;
+      : EMPTY_WELCOME_BANNER_CONFIG.text;
   const durationRaw = Number(rawValue?.durationSeconds);
   const durationSeconds = Number.isFinite(durationRaw)
     ? Math.max(1, Math.min(120, Math.trunc(durationRaw)))
-    : DEFAULT_WELCOME_BANNER_CONFIG.durationSeconds;
+    : EMPTY_WELCOME_BANNER_CONFIG.durationSeconds;
 
   return { ...res, data: { text, durationSeconds } };
 }
@@ -298,7 +298,7 @@ async function saveWelcomeBannerConfigToServer(
     method: 'PUT',
     body: JSON.stringify({
       value: {
-        text: config.text ?? DEFAULT_WELCOME_BANNER_CONFIG.text,
+        text: config.text ?? EMPTY_WELCOME_BANNER_CONFIG.text,
         durationSeconds: duration,
       },
     }),
@@ -399,7 +399,7 @@ export const discardLocalDraftTheme = (): void => {
 
 export const getWelcomeBannerConfig = async (): Promise<WelcomeBannerConfig> => {
   const res = await fetchWelcomeBannerConfigFromServer();
-  return res.ok && res.data ? res.data : DEFAULT_WELCOME_BANNER_CONFIG;
+  return res.ok && res.data ? res.data : EMPTY_WELCOME_BANNER_CONFIG;
 };
 
 export const setWelcomeBannerConfig = async (
