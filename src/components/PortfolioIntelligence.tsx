@@ -50,7 +50,7 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
           name: item.name,
           quantity: item.quantity,
           entryPrice: item.entryPrice,
-          currentPrice: item.currentPrice,
+          currentPrice: item.currentPrice ?? null,
           changePercent: item.changePercent ?? null,
           value,
           cost,
