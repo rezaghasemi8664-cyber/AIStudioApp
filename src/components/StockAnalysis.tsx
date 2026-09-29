@@ -960,7 +960,7 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
       marketMetrics: mergedMetrics,
     },
 
-    fundamentalScore: extractFundamentalScore(source, scores),
+    // Always derive the displayed Fundamental score from the canonical CODAL payload first.\n    // This prevents a legacy scalar value of 0 from masking a calculated nested score.\n    fundamentalScore: extractFundamentalScore(\n      {\n        ...source,\n        fundamentalAnalysis: source.fundamentalAnalysis,\n        fundamentalScore:\n          source?.fundamentalAnalysis &&\n          typeof source.fundamentalAnalysis === 'object' &&\n          source.fundamentalAnalysis.scoreStatus === 'calculated'\n            ? source.fundamentalAnalysis.score\n            : source.fundamentalScore,\n      },\n      scores\n    ),
     technicalScore: (() => {
       const value = source?.technicalScore ?? scores?.technicalScore ?? source?.score ?? scores?.technical ?? source?.technical;
       return value === null || value === undefined || value === '' ? null : clamp(value, 0, 100, 0);
