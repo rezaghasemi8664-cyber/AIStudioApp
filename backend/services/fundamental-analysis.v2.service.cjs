@@ -106,7 +106,7 @@ function numericDataQuality(metrics) {
 }
 
 async function extractFinancialDocuments(financialAnnouncements) {
-  const maxDocuments = Math.max(1, Math.min(4, Number(process.env.CODAL_MAX_FINANCIAL_DOCUMENTS) || 4));
+  const maxDocuments = Math.max(1, Math.min(4, Number(process.env.CODAL_MAX_FINANCIAL_DOCUMENTS) || 2));
   const selected = financialAnnouncements
     .filter((item) => {
       const announcement = item && item.announcement;
