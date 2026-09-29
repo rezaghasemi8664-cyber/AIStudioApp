@@ -85,11 +85,20 @@ async function getSignals(req, res) {
     const userId = getUserId(req);
     if (!userId) return sendUnauthorized(res);
     const signals = await scalpingService.getOpportunities(userId, {});
+    const updateTimes = signals
+      .map((signal) => signal.updatedAt || signal.createdAt)
+      .filter(Boolean)
+      .map((value) => new Date(value))
+      .filter((value) => !Number.isNaN(value.getTime()));
+    const lastUpdateDate = updateTimes.length
+      ? new Date(Math.max(...updateTimes.map((value) => value.getTime())))
+      : null;
     return sendSuccess(res, {
       signals,
       totalSignals: signals.length,
       activeSignals: signals.length,
-      lastUpdate: signals.reduce((latest, signal) => signal.updatedAt || signal.createdAt || latest, null)
+      lastUpdate: lastUpdateDate ? lastUpdateDate.toISOString() : null,
+      marketDate: signals[0]?.marketDate || null
     });
   } catch (error) {
     return sendError(res, error, 500);
