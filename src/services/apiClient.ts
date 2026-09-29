@@ -82,14 +82,31 @@ async function enrichStockAnalysis(payload: any, symbol: string, headers: Record
 
     const currentData = payload.data && typeof payload.data === 'object' ? payload.data : {};
     const primaryFundamentalAnalysis = currentData.fundamentalAnalysis ?? payload.fundamentalAnalysis ?? null;
-    const primaryFundamentalScore = toFinite(
-      currentData.fundamentalScore
-      ?? currentData.scores?.fundamentalScore
-      ?? primaryFundamentalAnalysis?.score
-    );
+    const primaryCanonicalScore =
+      primaryFundamentalAnalysis &&
+      typeof primaryFundamentalAnalysis === 'object' &&
+      primaryFundamentalAnalysis.scoreStatus === 'calculated'
+        ? toFinite(primaryFundamentalAnalysis.score ?? primaryFundamentalAnalysis.fundamentalScore)
+        : null;
+    const primaryFundamentalScore = primaryCanonicalScore !== null
+      ? primaryCanonicalScore
+      : toFinite(
+          currentData.fundamentalScore
+          ?? currentData.scores?.fundamentalScore
+          ?? primaryFundamentalAnalysis?.score
+        );
     const supplementalFundamentalAnalysis = supplementalData.fundamentalAnalysis ?? null;
-    const supplementalFundamentalScore = toFinite(supplementalFundamentalAnalysis?.score);
-    const primaryFundamentalIsValid = primaryFundamentalScore !== null && primaryFundamentalScore > 0;
+    const supplementalCanonicalScore =
+      supplementalFundamentalAnalysis &&
+      typeof supplementalFundamentalAnalysis === 'object' &&
+      supplementalFundamentalAnalysis.scoreStatus === 'calculated'
+        ? toFinite(supplementalFundamentalAnalysis.score ?? supplementalFundamentalAnalysis.fundamentalScore)
+        : null;
+    const supplementalFundamentalScore = supplementalCanonicalScore ?? toFinite(supplementalFundamentalAnalysis?.score);
+    const primaryFundamentalIsValid =
+      primaryFundamentalScore !== null &&
+      primaryFundamentalScore >= 0 &&
+      (primaryCanonicalScore !== null || primaryFundamentalScore > 0);
     const fundamentalAnalysis = primaryFundamentalIsValid
       ? primaryFundamentalAnalysis
       : supplementalFundamentalAnalysis;
