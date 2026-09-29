@@ -97,9 +97,28 @@ exports.getGlobalSetting = async (req, res) => {
   try {
     const { category, key } = req.params;
 
+    if (category === 'ui' && key === 'welcome-banner-config') {
+      res.setHeader('Cache-Control', 'no-store, no-cache, max-age=0, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+    }
+
     const setting = await findSettingByKeyAndCategory(category, key);
 
     if (!setting) {
+      if (category === 'ui' && key === 'welcome-banner-config') {
+        return res.json({
+          success: true,
+          data: {
+            category,
+            key,
+            parsedValue: {
+              text: '',
+              durationSeconds: 10
+            }
+          }
+        });
+      }
+
       return res.status(404).json({
         success: false,
         message: 'تنظیم یافت نشد'
