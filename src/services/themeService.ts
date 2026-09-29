@@ -249,7 +249,7 @@ async function saveGlobalThemeToServer(theme: ThemeSettings): Promise<ApiResult<
 
 async function fetchWelcomeBannerConfigFromServer(): Promise<ApiResult<WelcomeBannerConfig>> {
   const res = await safeApi<unknown>('/settings/global/ui/welcome-banner-config', { method: 'GET', cache: 'no-store' });
-  if (!res.ok) return { ...res, data: DEFAULT_WELCOME_BANNER_CONFIG };
+  if (!res.ok) return { ...res, data: EMPTY_WELCOME_BANNER_CONFIG };
 
   // safeApi returns the complete HTTP JSON response in res.data.
   // The backend response shape is:
