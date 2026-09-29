@@ -198,7 +198,7 @@ function buildMarketData(data) {
 
 
 function deriveTrendLabels(candles, indicators) {
-  const values = closes(candles);
+  const values = candles.map(c => num(c?.close)).filter(v => v !== null && v > 0);
   const current = values[values.length - 1] ?? null;
   const recent = values.slice(-10);
   const shortBase = recent.length >= 5 ? recent[0] : null;
