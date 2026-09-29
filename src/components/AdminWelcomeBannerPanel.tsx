@@ -2,13 +2,13 @@ import React, { useEffect, useState } from 'react';
 import * as themeService from '../services/themeService';
 import type { WelcomeBannerConfig } from '../types';
 
-const DEFAULT_CONFIG: WelcomeBannerConfig = {
-  text: 'به رونیا خوش آمدید.',
+const EMPTY_CONFIG: WelcomeBannerConfig = {
+  text: '',
   durationSeconds: 10,
 };
 
 const AdminWelcomeBannerPanel: React.FC = () => {
-  const [config, setConfig] = useState<WelcomeBannerConfig>(DEFAULT_CONFIG);
+  const [config, setConfig] = useState<WelcomeBannerConfig>(EMPTY_CONFIG);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
