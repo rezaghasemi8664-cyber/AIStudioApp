@@ -8,7 +8,7 @@
  * API keys are never returned or logged.
  */
 
-const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_TIMEOUT_MS = 5000;
 const DEFAULT_PAGE = 1;
 
 function getConfig() {
