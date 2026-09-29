@@ -1,3 +1,5 @@
+Process started with PID 5812 (shell: powershell)
+Initial output:
 // backend/controllers/conversation.controller.cjs
 'use strict';
 
@@ -300,3 +302,42 @@ async function addMessage(req, res) {
     }
 
     // Validate
+    const conversation = await prisma.conversation.findFirst({
+      where: { id: conversationId, userId },
+      select: { id: true }
+    });
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: 'Conversation not found' });
+    }
+
+    const members = prisma.conversationMember
+      ? await prisma.conversationMember.findMany({ where: { conversationId }, select: { userId: true } })
+      : [];
+    const otherUserId = members.map(m => m.userId).find(id => id !== userId);
+    if (!otherUserId) {
+      return res.status(400).json({ success: false, message: 'Conversation has no other member' });
+    }
+
+    const message = await prisma.message.create({
+      data: { senderId: userId, receiverId: otherUserId, content }
+    });
+
+    res.status(201).json({ success: true, data: message });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+module.exports = {
+  getConversations,
+  createConversation,
+  getConversationById,
+  updateConversation,
+  deleteConversation,
+  getMessages,
+  addMessage
+};
+
+
+
+[executed on device: WIN-EIB1P1KSTQB (4c1a77fd-2d38-4b78-aa95-eea099d76756)]
