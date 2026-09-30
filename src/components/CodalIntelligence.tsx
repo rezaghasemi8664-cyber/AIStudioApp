@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import DatePicker, { persian_fa } from 'react-modern-calendar-datepicker';
+import DatePicker, { DayValue } from 'react-modern-calendar-datepicker';
+import persian_fa from 'react-modern-calendar-datepicker';
 import { getCodalReports, CodalReport, CodalReportsResult } from '../services/codalIntelligenceService';
 import { JalaliDate, isoToJalali, jalaliToIso } from '../utils/jalaliDate';
 
@@ -28,7 +29,8 @@ const CodalIntelligence: React.FC<Props> = ({ isOnline }) => {
         <label className="block text-sm font-bold mb-2">از تاریخ</label>
         <DatePicker
           value={fromDate}
-          onChange={(date) => {
+          onChange={(date: DayValue) => {
+            if (!date) return;
             setFromDate(date);
             setFrom(jalaliToIso(date) || '');
           }}
@@ -39,7 +41,7 @@ const CodalIntelligence: React.FC<Props> = ({ isOnline }) => {
           renderInput={({ ref }) => (
             <div className="relative">
               <input
-                ref={ref}
+                ref={ref as React.Ref<HTMLInputElement>}
                 readOnly
                 value={fromDate ? `${fromDate.year}/${String(fromDate.month).padStart(2, '0')}/${String(fromDate.day).padStart(2, '0')}` : ''}
                 placeholder="انتخاب تاریخ"
@@ -54,7 +56,8 @@ const CodalIntelligence: React.FC<Props> = ({ isOnline }) => {
         <label className="block text-sm font-bold mb-2">تا تاریخ</label>
         <DatePicker
           value={toDate}
-          onChange={(date) => {
+          onChange={(date: DayValue) => {
+            if (!date) return;
             setToDate(date);
             setTo(jalaliToIso(date) || '');
           }}
@@ -65,7 +68,7 @@ const CodalIntelligence: React.FC<Props> = ({ isOnline }) => {
           renderInput={({ ref }) => (
             <div className="relative">
               <input
-                ref={ref}
+                ref={ref as React.Ref<HTMLInputElement>}
                 readOnly
                 value={toDate ? `${toDate.year}/${String(toDate.month).padStart(2, '0')}/${String(toDate.day).padStart(2, '0')}` : ''}
                 placeholder="انتخاب تاریخ"
