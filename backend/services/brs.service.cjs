@@ -1603,8 +1603,8 @@ function getSymbolHistory(symbol, limit) {
   var url;
   try {
     url = buildSymbolEndpointUrl(endpoints.BRS_HISTORY, symbolClean, {
-      count: requestedLimit > 0 ? requestedLimit : undefined,
-      removeParams: []
+      count: undefined,
+      removeParams: ['count']
     });
   } catch (error) {
     return Promise.reject(error);
@@ -1690,9 +1690,9 @@ async function getAdjustedDailyCandlestick(symbol, limit) {
       });
 
       var candlestickUrl = buildSymbolEndpointUrl(endpoints.BRS_CANDLESTICK, symbolClean, {
-        count: requestedLimit > 0 ? requestedLimit : undefined,
+        count: undefined,
         type: 3,
-        removeParams: []
+        removeParams: ['count']
       });
 
       var response = await fetchBRS(candlestickUrl, 'Candlestick AdjDaily: ' + symbolClean);
