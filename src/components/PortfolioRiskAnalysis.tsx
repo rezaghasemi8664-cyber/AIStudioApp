@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { getPortfolioRisk, type PortfolioRiskResult } from '../services/portfolioRiskService';
+import { formatPortfolioDate, formatPortfolioDateTime, formatPortfolioNumber, formatPortfolioPercent } from '../utils/portfolioDate';
 
 interface Props { isOnline: boolean; }
-const pct = (v: number | null) => v == null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
+const pct = (v: number | null) => formatPortfolioPercent(v, 2);
 
 const PortfolioRiskAnalysis: React.FC<Props> = ({ isOnline }) => {
   const [data, setData] = useState<PortfolioRiskResult | null>(null);
@@ -34,7 +35,7 @@ const PortfolioRiskAnalysis: React.FC<Props> = ({ isOnline }) => {
       </div>
       <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 overflow-x-auto">
         <div className="p-4 border-b border-[var(--color-border)]"><h3 className="font-black text-lg">ریسک هر نماد</h3><p className="text-xs text-gray-500 mt-1">نوسان و افت هر نماد از تاریخ ورود همان موقعیت محاسبه شده است.</p></div>
-        <table className="w-full text-sm"><thead><tr className="text-right text-gray-500"><th className="p-3">نماد</th><th className="p-3">نوسان روزانه</th><th className="p-3">انحراف نزولی</th><th className="p-3">حداکثر افت</th><th className="p-3">مشاهدات</th></tr></thead><tbody>{data.holdingRisks.map(row => <tr key={row.symbol} className="border-t border-[var(--color-border)]"><td className="p-3 font-black">{row.symbol}</td><td className="p-3 font-mono">{pct(row.volatilityPercent)}</td><td className="p-3 font-mono">{pct(row.downsideDeviationPercent)}</td><td className="p-3 font-mono text-red-600">{pct(row.maxDrawdownPercent)}</td><td className="p-3 font-mono">{row.observations}</td></tr>)}</tbody></table>
+        <table className="w-full text-sm"><thead><tr className="text-right text-gray-500"><th className="p-3">نماد</th><th className="p-3">نوسان روزانه</th><th className="p-3">انحراف نزولی</th><th className="p-3">حداکثر افت</th><th className="p-3">مشاهدات</th></tr></thead><tbody>{data.holdingRisks.map(row => <tr key={row.symbol} className="border-t border-[var(--color-border)]"><td className="p-3 font-black">{row.symbol}</td><td className="p-3 font-mono">{pct(row.volatilityPercent)}</td><td className="p-3 font-mono">{pct(row.downsideDeviationPercent)}</td><td className="p-3 font-mono text-red-600">{pct(row.maxDrawdownPercent)}</td><td className="p-3 font-mono">{formatPortfolioNumber(row.observations, 0)}</td></tr>)}</tbody></table>
       </div>
       <div className="rounded-xl border border-[var(--color-border)] p-4 text-xs text-gray-500">این بخش صرفاً محاسبات آماری توصیفی از داده تاریخی واقعی است و هیچ مدل هوش مصنوعی یا امتیازدهی مصنوعی در آن استفاده نشده است.</div>
     </>}
