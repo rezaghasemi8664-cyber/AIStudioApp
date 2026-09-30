@@ -32,13 +32,29 @@ async function getHistory(symbol: string): Promise<QuotePoint[]> {
       const response = await api.get(path, { params: { limit: 5000 } });
       const payload = response?.data;
       const raw = payload?.data?.candles ?? payload?.data?.items ?? payload?.data ?? payload?.candles ?? payload?.items ?? payload ?? [];
-      if (!Array.isArray(raw)) continue;
+      if (!Array.isArray(raw)) {
+        console.warn('[PortfolioHistory][getHistory] unexpected payload', { symbol, path, payload });
+        continue;
+      }
       const rows = raw.map(row => ({
         date: normalizeDate(row.date ?? row.d ?? row.tradeDate ?? row.jalaliDate ?? row.timestamp),
         close: num(row.close ?? row.lastClosePrice ?? row.closePrice ?? row.closingPrice ?? row.lastPrice ?? row.last),
       })).filter((row): row is { date: string; close: number } => Boolean(row.date) && row.close != null && row.close > 0);
+      console.log('[PortfolioHistory][getHistory]', {
+        symbol,
+        path,
+        rawCount: raw.length,
+        count: rows.length,
+        first: rows[0]?.date ?? null,
+        last: rows[rows.length - 1]?.date ?? null,
+        has1405_05_28: rows.some(row => row.date === '2026-08-19'),
+        has1405_06_09: rows.some(row => row.date === '2026-08-31'),
+        has1405_07_06: rows.some(row => row.date === '2026-09-28'),
+      });
       if (rows.length >= 2) return rows;
-    } catch (_) {}
+    } catch (error) {
+      console.warn('[PortfolioHistory][getHistory] failed', { symbol, path, error });
+    }
   }
   return [];
 }
@@ -113,6 +129,15 @@ export async function getPortfolioHistory(): Promise<PortfolioHistoryPoint[]> {
     quotes: await getHistory(item.symbol).catch(() => []),
   })));
 
+  console.log('[PortfolioHistory] rows', rows.map(({ item, quotes }) => ({
+    symbol: item.symbol,
+    entryDate: item.entryDate,
+    quantity: item.quantity,
+    quoteCount: quotes.length,
+    first: quotes[0]?.date ?? null,
+    last: quotes[quotes.length - 1]?.date ?? null,
+  })));
+
   const byDate = new Map<string, { value: number; cost: number }>();
 
   rows.forEach(({ item, quotes }) => {
@@ -128,6 +153,14 @@ export async function getPortfolioHistory(): Promise<PortfolioHistoryPoint[]> {
   });
 
   const sorted = Array.from(byDate.entries()).sort(([a], [b]) => a.localeCompare(b));
+  console.log('[PortfolioHistory] byDate', {
+    count: sorted.length,
+    first: sorted[0]?.[0] ?? null,
+    last: sorted[sorted.length - 1]?.[0] ?? null,
+    has1405_06_09: sorted.some(([date]) => date === '2026-08-31'),
+    has1405_07_06: sorted.some(([date]) => date === '2026-09-28'),
+  });
+
   let previousValue: number | null = null;
   let previousCost: number | null = null;
 
