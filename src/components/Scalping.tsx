@@ -44,7 +44,7 @@ const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ oppor
     <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-lg font-bold text-[var(--color-accent)]">{opportunity.symbol}</h3>
-        <div className="flex items-center gap-1 text-xs font-medium text-green-500 bg-green-500/10 px-2 py-1 rounded-full">
+        <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${signalType === 'SELL' ? 'text-red-500 bg-red-500/10' : 'text-green-500 bg-green-500/10'}`}>
           <ArrowTrendingUpIcon className="w-3 h-3" />
           <span>{signalType === 'SELL' ? 'سیگنال فروش' : 'فرصت فعال'}</span>
         </div>
