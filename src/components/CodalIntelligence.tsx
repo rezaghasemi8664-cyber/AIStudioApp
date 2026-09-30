@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import DatePicker, { persian_fa } from 'react-modern-calendar-datepicker';
 import { getCodalReports, CodalReport, CodalReportsResult } from '../services/codalIntelligenceService';
+import { JalaliDate, isoToJalali, jalaliToIso } from '../utils/jalaliDate';
 
 interface Props { isOnline: boolean; }
 const faNumber = (value: number | string) => String(value).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
@@ -9,7 +11,7 @@ const metricLabels: Record<string, string> = { revenue: 'درآمد', netProfit:
 const timelineOrder = ['capital-increase', 'financial-statement', 'monthly-performance', 'dividend', 'general-meeting', 'earnings-forecast', 'audit', 'contract', 'production-sales', 'board-meeting', 'other'];
 
 const CodalIntelligence: React.FC<Props> = ({ isOnline }) => {
-  const [symbol, setSymbol] = useState(''); const [from, setFrom] = useState(''); const [to, setTo] = useState(''); const [limit, setLimit] = useState(50); const [category, setCategory] = useState('all'); const [sort, setSort] = useState<'newest' | 'oldest' | 'important'>('newest');
+  const [symbol, setSymbol] = useState(''); const [from, setFrom] = useState(''); const [to, setTo] = useState(''); const [fromDate, setFromDate] = useState<JalaliDate | null>(null); const [toDate, setToDate] = useState<JalaliDate | null>(null); const [limit, setLimit] = useState(50); const [category, setCategory] = useState('all'); const [sort, setSort] = useState<'newest' | 'oldest' | 'important'>('newest');
   const [result, setResult] = useState<CodalReportsResult | null>(null); const [selected, setSelected] = useState<CodalReport | null>(null); const [loading, setLoading] = useState(false); const [error, setError] = useState('');
   const load = useCallback(async () => { if (!isOnline) { setError('اتصال آنلاین در دسترس نیست.'); return; } setLoading(true); setError(''); try { setResult(await getCodalReports({ symbol: symbol.trim(), from, to, limit })); } catch (e: any) { setError(e?.response?.data?.message || e?.message || 'دریافت اطلاعیه‌های کدال ناموفق بود.'); } finally { setLoading(false); } }, [isOnline, symbol, from, to, limit]);
   useEffect(() => { void load(); }, [load]);
@@ -22,8 +24,58 @@ const CodalIntelligence: React.FC<Props> = ({ isOnline }) => {
   return <section dir="rtl" className="page-shell codal-intelligence-page space-y-5">
     <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4"><div className="flex flex-wrap items-end gap-3">
       <div className="min-w-[180px] flex-1"><label className="block text-sm font-bold mb-2">نماد</label><input value={symbol} onChange={e => setSymbol(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void load(); }} placeholder="مثلاً فملی" className="w-full rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2" /></div>
-      <div><label className="block text-sm font-bold mb-2">از تاریخ</label><input value={from} onChange={e => setFrom(e.target.value)} placeholder="YYYY-MM-DD" className="rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2" /></div>
-      <div><label className="block text-sm font-bold mb-2">تا تاریخ</label><input value={to} onChange={e => setTo(e.target.value)} placeholder="YYYY-MM-DD" className="rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2" /></div>
+      <div>
+        <label className="block text-sm font-bold mb-2">از تاریخ</label>
+        <DatePicker
+          value={fromDate}
+          onChange={(date) => {
+            setFromDate(date);
+            setFrom(jalaliToIso(date) || '');
+          }}
+          locale={persian_fa}
+          inputPlaceholder="انتخاب تاریخ"
+          shouldHighlightWeekends
+          calendarPopperPosition="bottom"
+          renderInput={({ ref }) => (
+            <div className="relative">
+              <input
+                ref={ref}
+                readOnly
+                value={fromDate ? `${fromDate.year}/${String(fromDate.month).padStart(2, '0')}/${String(fromDate.day).padStart(2, '0')}` : ''}
+                placeholder="انتخاب تاریخ"
+                className="w-full rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2 pl-10 cursor-pointer"
+              />
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg">📅</span>
+            </div>
+          )}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-bold mb-2">تا تاریخ</label>
+        <DatePicker
+          value={toDate}
+          onChange={(date) => {
+            setToDate(date);
+            setTo(jalaliToIso(date) || '');
+          }}
+          locale={persian_fa}
+          inputPlaceholder="انتخاب تاریخ"
+          shouldHighlightWeekends
+          calendarPopperPosition="bottom"
+          renderInput={({ ref }) => (
+            <div className="relative">
+              <input
+                ref={ref}
+                readOnly
+                value={toDate ? `${toDate.year}/${String(toDate.month).padStart(2, '0')}/${String(toDate.day).padStart(2, '0')}` : ''}
+                placeholder="انتخاب تاریخ"
+                className="w-full rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2 pl-10 cursor-pointer"
+              />
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg">📅</span>
+            </div>
+          )}
+        />
+      </div>
       <div><label className="block text-sm font-bold mb-2">تعداد</label><select value={limit} onChange={e => setLimit(Number(e.target.value))} className="rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2"><option value={25}>۲۵</option><option value={50}>۵۰</option><option value={100}>۱۰۰</option><option value={200}>۲۰۰</option></select></div>
       <div><label className="block text-sm font-bold mb-2">مرتب‌سازی</label><select value={sort} onChange={e => setSort(e.target.value as typeof sort)} className="rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2"><option value="newest">جدیدترین</option><option value="oldest">قدیمی‌ترین</option><option value="important">رویدادهای مهم</option></select></div>
       <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl bg-cyan-600 text-white px-5 py-2.5 font-bold disabled:opacity-50">{loading ? 'در حال دریافت…' : 'جستجو'}</button>
