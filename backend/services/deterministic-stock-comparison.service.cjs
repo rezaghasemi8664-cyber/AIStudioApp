@@ -86,7 +86,8 @@ function compareMetric(rows, key, direction) {
 
 async function compareStocksDeterministic(params = {}) {
   const symbols = Array.from(new Set((Array.isArray(params.symbols) ? params.symbols : []).map(s => String(s || '').trim().toUpperCase()).filter(Boolean)));
-  if (symbols.length < 2) throw Object.assign(new Error('حداقل دو نماد برای مقایسه لازم است.'), { statusCode: 400, code: 'COMPARE_SYMBOLS_REQUIRED' });
+  const allowSingle = params.allowSingle === true;
+  if (symbols.length < (allowSingle ? 1 : 2)) throw Object.assign(new Error('حداقل دو نماد برای مقایسه لازم است.'), { statusCode: 400, code: 'COMPARE_SYMBOLS_REQUIRED' });
   if (symbols.length > 5) throw Object.assign(new Error('حداکثر پنج نماد را می‌توان همزمان مقایسه کرد.'), { statusCode: 400, code: 'COMPARE_SYMBOLS_LIMIT' });
 
   const historyCount = Math.max(50, Math.min(500, Number(params.historyCount ?? params.dailyCount ?? 120)));
@@ -100,7 +101,7 @@ async function compareStocksDeterministic(params = {}) {
 
   const rows = results.filter(item => item.result).map(item => buildComparable(item.result));
   const failed = results.filter(item => item.error).map(item => ({ symbol: item.symbol, ...item.error }));
-  if (rows.length < 2) throw Object.assign(new Error('برای حداقل دو نماد، داده معتبر مقایسه‌ای در دسترس نیست.'), { statusCode: 422, code: 'COMPARE_INSUFFICIENT_DATA', failed });
+  if (rows.length < (allowSingle ? 1 : 2)) throw Object.assign(new Error(allowSingle ? 'برای نماد واردشده داده معتبر در دسترس نیست.' : 'برای حداقل دو نماد، داده معتبر مقایسه‌ای در دسترس نیست.'), { statusCode: 422, code: allowSingle ? 'SINGLE_SYMBOL_INSUFFICIENT_DATA' : 'COMPARE_INSUFFICIENT_DATA', failed });
 
   const qualityValues = rows.map(row => row.comparisonQuality?.score).filter(value => Number.isFinite(Number(value)));
   const averageQualityScore = qualityValues.length
