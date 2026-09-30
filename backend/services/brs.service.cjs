@@ -1617,6 +1617,9 @@ function getSymbolHistory(symbol, limit) {
     }
 
     var mapped = rawArray.map(mapHistoryItem).filter(isMeaningfulOHLC);
+    // BRS may return the full history in ascending order. Always keep the newest records
+    // when a limit is requested; otherwise the portfolio history can stop months in the past.
+    mapped.sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); });
     setCache(cacheKey, mapped, CACHE_TTL.history, { fetchedAt: response.transportMeta.fetchedAt });
 
     var result = requestedLimit > 0 ? mapped.slice(0, requestedLimit) : mapped;
@@ -1697,6 +1700,8 @@ async function getAdjustedDailyCandlestick(symbol, limit) {
       if (!Array.isArray(rawArray)) throw new Error('BRS Candlestick did not return an array');
 
       var mapped = rawArray.map(mapAdjustedDailyCandlestickItem).filter(isMeaningfulOHLC);
+      // Keep the latest daily candles first so the requested limit covers the current period.
+      mapped.sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); });
       setCache(cacheKey, mapped, CACHE_TTL.candlestick, { fetchedAt: response.transportMeta.fetchedAt });
 
       var result = requestedLimit > 0 ? mapped.slice(0, requestedLimit) : mapped;
