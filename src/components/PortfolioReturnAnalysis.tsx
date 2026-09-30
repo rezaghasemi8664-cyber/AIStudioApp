@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { getPortfolioHistory, type PortfolioHistoryPoint } from '../services/portfolioHistoryService';
-import { formatPortfolioDate, formatPortfolioDateTime, formatPortfolioNumber, formatPortfolioPercent } from '../utils/portfolioDate';
+import { formatPortfolioDate, formatPortfolioNumber, formatPortfolioPercent } from '../utils/portfolioDate';
 
 interface Props { isOnline: boolean; }
 
