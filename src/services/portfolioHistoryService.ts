@@ -22,41 +22,70 @@ const num = (value: unknown): number | null => {
 
 const normalizeDate = normalizePortfolioDate;
 
-async function getHistory(symbol: string): Promise<QuotePoint[]> {
-  const paths = [
-    `/brs/symbol/${encodeURIComponent(symbol)}/candles`,
-    `/brs/symbol/${encodeURIComponent(symbol)}/history`,
-  ];
-  for (const path of paths) {
-    try {
-      const response = await api.get(path, { params: { limit: 5000 } });
-      const payload = response?.data;
-      const raw = payload?.data?.candles ?? payload?.data?.items ?? payload?.data ?? payload?.candles ?? payload?.items ?? payload ?? [];
-      if (!Array.isArray(raw)) {
-        console.warn('[PortfolioHistory][getHistory] unexpected payload', { symbol, path, payload });
-        continue;
-      }
-      const rows = raw.map(row => ({
-        date: normalizeDate(row.date ?? row.d ?? row.tradeDate ?? row.jalaliDate ?? row.timestamp),
-        close: num(row.close ?? row.lastClosePrice ?? row.closePrice ?? row.closingPrice ?? row.lastPrice ?? row.last),
-      })).filter((row): row is { date: string; close: number } => Boolean(row.date) && row.close != null && row.close > 0);
-      console.log('[PortfolioHistory][getHistory]', {
-        symbol,
-        path,
-        rawCount: raw.length,
-        count: rows.length,
-        first: rows[0]?.date ?? null,
-        last: rows[rows.length - 1]?.date ?? null,
-        has1405_05_28: rows.some(row => row.date === '2026-08-19'),
-        has1405_06_09: rows.some(row => row.date === '2026-08-31'),
-        has1405_07_06: rows.some(row => row.date === '2026-09-28'),
-      });
-      if (rows.length >= 2) return rows;
-    } catch (error) {
-      console.warn('[PortfolioHistory][getHistory] failed', { symbol, path, error });
+async function fetchHistoryPath(symbol: string, path: string): Promise<QuotePoint[]> {
+  try {
+    const response = await api.get(path, { params: { limit: 5000 } });
+    const payload = response?.data;
+    const raw = payload?.data?.candles ?? payload?.data?.items ?? payload?.data ?? payload?.candles ?? payload?.items ?? payload ?? [];
+    if (!Array.isArray(raw)) {
+      console.warn('[PortfolioHistory][fetchHistoryPath] unexpected payload', { symbol, path, payload });
+      return [];
     }
+
+    const rows = raw.map(row => ({
+      date: normalizeDate(row.date ?? row.d ?? row.tradeDate ?? row.jalaliDate ?? row.timestamp),
+      close: num(row.close ?? row.lastClosePrice ?? row.closePrice ?? row.closingPrice ?? row.lastPrice ?? row.last),
+    })).filter((row): row is { date: string; close: number } => Boolean(row.date) && row.close != null && row.close > 0);
+
+    console.log('[PortfolioHistory][fetchHistoryPath]', {
+      symbol,
+      path,
+      rawCount: raw.length,
+      count: rows.length,
+      first: rows[0]?.date ?? null,
+      last: rows[rows.length - 1]?.date ?? null,
+    });
+
+    return rows;
+  } catch (error) {
+    console.warn('[PortfolioHistory][fetchHistoryPath] failed', { symbol, path, error });
+    return [];
   }
-  return [];
+}
+
+async function getHistory(symbol: string): Promise<QuotePoint[]> {
+  const encodedSymbol = encodeURIComponent(symbol);
+  const [candles, history] = await Promise.all([
+    fetchHistoryPath(symbol, `/brs/symbol/${encodedSymbol}/candles`),
+    fetchHistoryPath(symbol, `/brs/symbol/${encodedSymbol}/history`),
+  ]);
+
+  // Both endpoints can contain complementary portions of the symbol history.
+  // Merge them instead of returning the first endpoint that happens to have two rows.
+  const merged = new Map<string, QuotePoint>();
+  [...history, ...candles].forEach(point => {
+    // Prefer the history endpoint when both endpoints contain the same date.
+    if (!merged.has(point.date) || history.some(item => item.date === point.date && item.close === point.close)) {
+      merged.set(point.date, point);
+    }
+  });
+
+  const rows = Array.from(merged.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+  console.log('[PortfolioHistory][getHistory] merged', {
+    symbol,
+    candlesCount: candles.length,
+    historyCount: history.length,
+    mergedCount: rows.length,
+    first: rows[0]?.date ?? null,
+    last: rows[rows.length - 1]?.date ?? null,
+    has1405_04_18: rows.some(row => row.date === '2026-07-09'),
+    has1405_05_28: rows.some(row => row.date === '2026-08-19'),
+    has1405_06_09: rows.some(row => row.date === '2026-08-31'),
+    has1405_07_06: rows.some(row => row.date === '2026-09-28'),
+  });
+
+  return rows;
 }
 
 interface HistoricalLot {
