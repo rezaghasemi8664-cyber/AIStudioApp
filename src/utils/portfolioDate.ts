@@ -65,3 +65,46 @@ function jalaliToGregorian(jy: number, jm: number, jd: number): string {
   gDate.setUTCDate(gDate.getUTCDate() + days);
   return gDate.toISOString().slice(0, 10);
 }
+
+
+export function formatPortfolioNumber(value: number | null | undefined, maximumFractionDigits = 0): string {
+  if (value == null || !Number.isFinite(Number(value))) return '—';
+  return Number(value).toLocaleString('fa-IR', {
+    maximumFractionDigits,
+    minimumFractionDigits: maximumFractionDigits,
+  });
+}
+
+export function formatPortfolioPercent(value: number | null | undefined, maximumFractionDigits = 2): string {
+  if (value == null || !Number.isFinite(Number(value))) return '—';
+  const n = Number(value);
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${formatPortfolioNumber(n, maximumFractionDigits)}٪`;
+}
+
+export function formatPortfolioDate(value: unknown): string {
+  const normalized = normalizePortfolioDate(value);
+  if (!normalized) return '—';
+  const [year, month, day] = normalized.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+export function formatPortfolioDateTime(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '—';
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return formatPortfolioDate(value);
+  return new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
