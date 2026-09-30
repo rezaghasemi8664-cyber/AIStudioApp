@@ -27,18 +27,10 @@ const CodalIntelligence: React.FC<Props> = ({ isOnline }) => {
       <div>
         <label className="block text-sm font-bold mb-2">از تاریخ</label>
         <JalaliDatePicker value={fromDate} onChange={date=>{ setFromDate(date); setFrom(jalaliToIso(date)||''); }} placeholder="انتخاب تاریخ" />
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg">📅</span>
-            </div>
-          )}
-        />
       </div>
       <div>
         <label className="block text-sm font-bold mb-2">تا تاریخ</label>
         <JalaliDatePicker value={toDate} onChange={date=>{ setToDate(date); setTo(jalaliToIso(date)||''); }} placeholder="انتخاب تاریخ" />
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg">📅</span>
-            </div>
-          )}
-        />
       </div>
       <div><label className="block text-sm font-bold mb-2">تعداد</label><select value={limit} onChange={e => setLimit(Number(e.target.value))} className="rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2"><option value={25}>۲۵</option><option value={50}>۵۰</option><option value={100}>۱۰۰</option><option value={200}>۲۰۰</option></select></div>
       <div><label className="block text-sm font-bold mb-2">مرتب‌سازی</label><select value={sort} onChange={e => setSort(e.target.value as typeof sort)} className="rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2"><option value="newest">جدیدترین</option><option value="oldest">قدیمی‌ترین</option><option value="important">رویدادهای مهم</option></select></div>
