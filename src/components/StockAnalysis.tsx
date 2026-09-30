@@ -1597,6 +1597,9 @@ try {
           item.createdAt ??
           item.created_at ??
           new Date(item.timestamp).toISOString(),
+        dataStatus:
+          item.dataStatus ??
+          (item.parsedResult ?? item.result ? 'CACHED' : 'UNAVAILABLE'),
       }))
   );
 } catch (historyError) {
@@ -2777,15 +2780,3 @@ const clearCurrentAnalysis = () => {
             })
           )}
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-
-
-
-
-
