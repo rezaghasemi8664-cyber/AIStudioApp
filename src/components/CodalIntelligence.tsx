@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import DatePicker, { DayValue } from 'react-modern-calendar-datepicker';
+import JalaliDatePicker from './JalaliDatePicker';
 import { getCodalReports, CodalReport, CodalReportsResult } from '../services/codalIntelligenceService';
 import { JalaliDate, isoToJalali, jalaliToIso } from '../utils/jalaliDate';
 
@@ -26,26 +26,7 @@ const CodalIntelligence: React.FC<Props> = ({ isOnline }) => {
       <div className="min-w-[180px] flex-1"><label className="block text-sm font-bold mb-2">نماد</label><input value={symbol} onChange={e => setSymbol(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void load(); }} placeholder="مثلاً فملی" className="w-full rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2" /></div>
       <div>
         <label className="block text-sm font-bold mb-2">از تاریخ</label>
-        <DatePicker
-          value={fromDate}
-          onChange={(date: DayValue) => {
-            if (!date) return;
-            setFromDate(date);
-            setFrom(jalaliToIso(date) || '');
-          }}
-          locale="fa"
-          inputPlaceholder="انتخاب تاریخ"
-          shouldHighlightWeekends
-          calendarPopperPosition="bottom"
-          renderInput={({ ref }) => (
-            <div className="relative">
-              <input
-                ref={ref as React.Ref<HTMLInputElement>}
-                readOnly
-                value={fromDate ? `${fromDate.year}/${String(fromDate.month).padStart(2, '0')}/${String(fromDate.day).padStart(2, '0')}` : ''}
-                placeholder="انتخاب تاریخ"
-                className="w-full rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2 pl-10 cursor-pointer"
-              />
+        <JalaliDatePicker value={fromDate} onChange={date=>{ setFromDate(date); setFrom(jalaliToIso(date)||''); }} placeholder="انتخاب تاریخ" />
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg">📅</span>
             </div>
           )}
@@ -53,26 +34,7 @@ const CodalIntelligence: React.FC<Props> = ({ isOnline }) => {
       </div>
       <div>
         <label className="block text-sm font-bold mb-2">تا تاریخ</label>
-        <DatePicker
-          value={toDate}
-          onChange={(date: DayValue) => {
-            if (!date) return;
-            setToDate(date);
-            setTo(jalaliToIso(date) || '');
-          }}
-          locale="fa"
-          inputPlaceholder="انتخاب تاریخ"
-          shouldHighlightWeekends
-          calendarPopperPosition="bottom"
-          renderInput={({ ref }) => (
-            <div className="relative">
-              <input
-                ref={ref as React.Ref<HTMLInputElement>}
-                readOnly
-                value={toDate ? `${toDate.year}/${String(toDate.month).padStart(2, '0')}/${String(toDate.day).padStart(2, '0')}` : ''}
-                placeholder="انتخاب تاریخ"
-                className="w-full rounded-xl border border-[var(--color-border)] bg-transparent px-3 py-2 pl-10 cursor-pointer"
-              />
+        <JalaliDatePicker value={toDate} onChange={date=>{ setToDate(date); setTo(jalaliToIso(date)||''); }} placeholder="انتخاب تاریخ" />
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg">📅</span>
             </div>
           )}
