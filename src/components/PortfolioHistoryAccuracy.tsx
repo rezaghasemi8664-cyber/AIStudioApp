@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { getPortfolioHistory, type PortfolioHistoryPoint } from '../services/portfolioHistoryService';
+import { formatPortfolioDate, formatPortfolioDateTime, formatPortfolioNumber, formatPortfolioPercent } from '../utils/portfolioDate';
 
 interface Props { isOnline: boolean; }
 type Range = 30 | 90 | 180 | 365;
 
-const money = (value: number | null) => value == null ? '—' : Math.round(value).toLocaleString('fa-IR');
-const pct = (value: number | null) => value == null ? '—' : `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+const money = (value: number | null) => formatPortfolioNumber(value, 0);
+const pct = (value: number | null) => formatPortfolioPercent(value, 2);
 
 const PortfolioHistoryAccuracy: React.FC<Props> = ({ isOnline }) => {
   const [points, setPoints] = useState<PortfolioHistoryPoint[]>([]);
@@ -66,7 +67,7 @@ const PortfolioHistoryAccuracy: React.FC<Props> = ({ isOnline }) => {
       {[['ارزش شروع', money(stats.startValue)], ['ارزش پایان', money(stats.endValue)], ['سرمایه شروع', money(stats.startCost)], ['سرمایه پایان', money(stats.endCost)], ['تغییر ارزش', pct(stats.returnPercent)]].map(([label, value]) => <div key={label} className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4"><p className="text-xs text-gray-500">{label}</p><p className="mt-2 text-lg font-black font-mono">{value}</p></div>)}
     </div>
     {chart ? <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4"><div className="flex justify-between text-xs text-gray-500 mb-2"><span>حداقل: {money(chart.min)}</span><span>حداکثر: {money(chart.max)}</span></div><div className="overflow-x-auto"><svg viewBox="0 0 760 220" className="w-full min-w-[620px] h-56" role="img" aria-label="نمودار ارزش تاریخی سبد"><polyline fill="none" stroke="currentColor" strokeWidth="3" points={chart.polyline} /></svg></div></div> : <div className="rounded-2xl border border-dashed border-[var(--color-border)] p-8 text-center text-gray-500">برای این بازه داده تاریخی معتبر در دسترس نیست.</div>}
-    {visible.length > 0 && <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-800"><tr><th className="p-3 text-right">تاریخ</th><th className="p-3 text-right">ارزش سبد</th><th className="p-3 text-right">بهای تمام‌شده فعال</th><th className="p-3 text-right">سود/زیان</th><th className="p-3 text-right">بازدهی</th></tr></thead><tbody>{[...visible].reverse().slice(0, 30).map(point => <tr key={point.date} className="border-t border-[var(--color-border)]"><td className="p-3 font-mono">{point.date}</td><td className="p-3 font-mono">{money(point.value)}</td><td className="p-3 font-mono">{money(point.cost)}</td><td className="p-3 font-mono">{money(point.pnl)}</td><td className="p-3 font-mono">{pct(point.returnPercent)}</td></tr>)}</tbody></table></div></div>}
+    {visible.length > 0 && <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-800"><tr><th className="p-3 text-right">تاریخ</th><th className="p-3 text-right">ارزش سبد</th><th className="p-3 text-right">بهای تمام‌شده فعال</th><th className="p-3 text-right">سود/زیان</th><th className="p-3 text-right">بازدهی</th></tr></thead><tbody>{[...visible].reverse().slice(0, 30).map(point => <tr key={formatPortfolioDate(point.date)} className="border-t border-[var(--color-border)]"><td className="p-3 font-mono">{formatPortfolioDate(point.date)}</td><td className="p-3 font-mono">{money(point.value)}</td><td className="p-3 font-mono">{money(point.cost)}</td><td className="p-3 font-mono">{money(point.pnl)}</td><td className="p-3 font-mono">{pct(point.returnPercent)}</td></tr>)}</tbody></table></div></div>}
   </div>;
 };
 
