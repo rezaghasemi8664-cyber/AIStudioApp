@@ -9,6 +9,14 @@ interface Props { isOnline: boolean; }
 const money = (value: number | null) => formatPortfolioNumber(value, 0);
 const pct = (value: number | null) => formatPortfolioPercent(value, 2);
 
+const jalaliDateToIso = (value: JalaliDate | null): string | null => {
+  if (!value) return null;
+  const d = jalaliToGregorian(value);
+  if (!d || Number.isNaN(d.getTime())) return null;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
 const toJalali = (iso: string | null): JalaliDate | null => {
   if (!iso) return null;
   const d = new Date(iso + 'T12:00:00Z');
@@ -49,8 +57,8 @@ const PortfolioReturnAnalysis: React.FC<Props> = ({ isOnline }) => {
 
   const rangePoints = useMemo(() => {
     if (!points.length) return [];
-    const fromIso = appliedFromDate ? jalaliToGregorian(appliedFromDate)?.toISOString().slice(0, 10) : null;
-    const toIso = appliedToDate ? jalaliToGregorian(appliedToDate)?.toISOString().slice(0, 10) : null;
+    const fromIso = jalaliDateToIso(appliedFromDate);
+    const toIso = jalaliDateToIso(appliedToDate);
     if (fromIso && toIso && fromIso > toIso) return [];
     return points.filter(point => {
       const date = normalizePortfolioDate(point.date);
@@ -124,7 +132,7 @@ const PortfolioReturnAnalysis: React.FC<Props> = ({ isOnline }) => {
       {rangePoints.length > 0 && <>
         <div className="mb-3 rounded-xl bg-cyan-50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-900 px-4 py-3">
           <p className="text-xs text-gray-500">بازه اعمال‌شده</p>
-          <p className="mt-1 font-black">{formatPortfolioDate(stats.firstDate)} تا {formatPortfolioDate(stats.lastDate)}</p>
+          <p className="mt-1 font-black">{formatPortfolioDate(jalaliDateToIso(appliedFromDate))} تا {formatPortfolioDate(jalaliDateToIso(appliedToDate))}</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[['سود/زیان تجمعی', money(stats.totalPnl)], ['بازدهی بر مبنای بهای تمام‌شده', pct(stats.totalReturn)], ['تغییر سرمایه ثبت‌شده', money(stats.totalCapitalChange)], ['P/L ناشی از حرکت بازار', money(stats.marketPnl)]].map(([label, value]) => <div key={label} className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4"><p className="text-xs text-gray-500">{label}</p><p className="mt-2 text-xl font-black font-mono">{value}</p></div>)}
