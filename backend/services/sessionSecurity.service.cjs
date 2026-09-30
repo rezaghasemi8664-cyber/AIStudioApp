@@ -17,10 +17,19 @@ async function enforceSession(token, userId) {
   });
 
   if (!session) {
-    session = await prisma.session.create({
-      data: { userId: Number(userId), token, createdAt: new Date() },
-      select: { id: true, userId: true, createdAt: true },
-    });
+    try {
+      session = await prisma.session.create({
+        data: { userId: Number(userId), token, createdAt: new Date() },
+        select: { id: true, userId: true, createdAt: true },
+      });
+    } catch (createError) {
+      // Another concurrent request may have created this unique token.
+      session = await prisma.session.findUnique({
+        where: { token },
+        select: { id: true, userId: true, createdAt: true },
+      });
+      if (!session) throw createError;
+    }
   }
 
   if (Number(session.userId) !== Number(userId)) {

@@ -14,9 +14,6 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const { Server } = require('socket.io');
-const bootstrapSockets = require('./socket/index.cjs');
-const { startMarketSummaryCron, stopMarketSummaryCron } = require('./cron/marketSummaryCron.cjs');
-const { startCronJobs } = require('./cron/index.cjs');
 
 
 // ═══════════════════════════════════════════════════════════════════
@@ -51,6 +48,10 @@ try {
     AI_AVAILABLE: !!(process.env.GAPGPT_API_KEY),
   };
 }
+
+const bootstrapSockets = require('./socket/index.cjs');
+const { startMarketSummaryCron, stopMarketSummaryCron } = require('./cron/marketSummaryCron.cjs');
+const { startCronJobs } = require('./cron/index.cjs');
 
 const PORT = env.PORT || 3001;
 const IS_DEV = env.IS_DEV || process.env.NODE_ENV !== 'production';
@@ -382,9 +383,11 @@ app.use(function requestTimeout(req, res, next) {
     timeout = 120000;
   }
 
-  if (req.path.startsWith('/api/scalping') ||
+  if (req.path.startsWith('/api/analyze/stock') ||
+      req.path.startsWith('/api/analyze/stock-data') ||
+      req.path.startsWith('/api/scalping') ||
       req.path.startsWith('/api/v1/scalping')) {
-    timeout = 90000;
+    timeout = 120000;
   }
 
   req.setTimeout(timeout);

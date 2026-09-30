@@ -23,13 +23,24 @@ const num = (value: unknown): number | null => {
 const normalizeDate = normalizePortfolioDate;
 
 async function getHistory(symbol: string): Promise<QuotePoint[]> {
-  const response = await api.get(`/brs/symbol/${encodeURIComponent(symbol)}/history`, { params: { limit: 365 } });
-  const raw = response?.data?.data ?? response?.data ?? [];
-  if (!Array.isArray(raw)) return [];
-  return raw.map(row => ({
-    date: normalizeDate(row.date ?? row.tradeDate ?? row.jalaliDate ?? row.timestamp),
-    close: num(row.close ?? row.closePrice ?? row.closingPrice ?? row.lastPrice),
-  })).filter((row): row is { date: string; close: number } => Boolean(row.date) && row.close != null && row.close > 0);
+  const paths = [
+    `/brs/symbol/${encodeURIComponent(symbol)}/candles`,
+    `/brs/symbol/${encodeURIComponent(symbol)}/history`,
+  ];
+  for (const path of paths) {
+    try {
+      const response = await api.get(path, { params: { limit: 365 } });
+      const payload = response?.data;
+      const raw = payload?.data?.candles ?? payload?.data?.items ?? payload?.data ?? payload?.candles ?? payload?.items ?? payload ?? [];
+      if (!Array.isArray(raw)) continue;
+      const rows = raw.map(row => ({
+        date: normalizeDate(row.date ?? row.d ?? row.tradeDate ?? row.jalaliDate ?? row.timestamp),
+        close: num(row.close ?? row.lastClosePrice ?? row.closePrice ?? row.closingPrice ?? row.lastPrice ?? row.last),
+      })).filter((row): row is { date: string; close: number } => Boolean(row.date) && row.close != null && row.close > 0);
+      if (rows.length >= 2) return rows;
+    } catch (_) {}
+  }
+  return [];
 }
 
 interface HistoricalLot {

@@ -570,6 +570,12 @@ const getHistoryStats = async (req, res) => {
       });
     }
 
+    const total = await prisma.analysisHistory.count({
+      where: {
+        userId,
+      },
+    });
+
     const items = await prisma.analysisHistory.findMany({
       where: {
         userId,
@@ -619,7 +625,7 @@ const getHistoryStats = async (req, res) => {
     return res.json({
       success: true,
       data: {
-        total: items.length,
+        total,
         buyCount,
         sellCount,
         holdCount,

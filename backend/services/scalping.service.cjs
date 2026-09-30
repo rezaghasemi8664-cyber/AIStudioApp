@@ -38,8 +38,14 @@ async function getOpportunities(userId, options) {
 
   // User-facing signals are now read only from the shared market snapshot.
   // The central worker is responsible for refreshing MarketScalpingOpportunity.
+  // Only expose active opportunities belonging to the latest marketDate.
+  // marketDate is the market session date, not the row creation/update time.
+  const market = await sharedMarketService.getMarketCurrent();
+  if (!market || !market.marketDate) return [];
+
   const rows = await sharedMarketService.getScalpingOpportunities({
     status: 'ACTIVE',
+    marketDate: market.marketDate,
     limit
   });
 

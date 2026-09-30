@@ -1,6 +1,6 @@
 'use strict';
 const zlib = require('zlib');
-const DEFAULT_TIMEOUT_MS = 20000;
+const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_BYTES = 16 * 1024 * 1024;
 function envNumber(name,fallback,min,max){const v=Number(process.env[name]);return Number.isFinite(v)?Math.min(max,Math.max(min,v)):fallback;}
 function normalizeDigits(v){return String(v??'').replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));}
@@ -149,31 +149,36 @@ async function extractFinancialDataFromAnnouncement(announcement){
   addCandidate(announcement&&(announcement.linkAttachment||announcement.link_attachment),'attachment');
   addCandidate(announcement&&(announcement.link||announcement.url||announcement.link_report||announcement.linkReport),'report');
   addCandidate(announcement&&(announcement.linkPdf||announcement.link_pdf),'report');
-  const results = await Promise.all(candidates.map(async (candidate) => {
+  // CODAL relay can become unreliable when multiple document URLs are fetched concurrently.
+  // Try the primary Excel document first and only fall back when it fails or has no metrics.
+  const results=[];
+  for(const candidate of candidates){
     try{
       const downloaded=await downloadDocument(candidate.url);
       const head=downloaded.buffer.slice(0,4096).toString('utf8');
-      const isHtml=/text\/html|application\/html/i.test(downloaded.contentType)||/<(?:html|table|tr|td|th)\b/i.test(head);
+      const isHtml=/text\/html|application\/html/i.test(downloaded.contentType)||/<(?:html|table|tr|td|th)\\b/i.test(head);
       if(candidate.type==='report'&&!isHtml&&!looksLikeExcel(downloaded.contentType,downloaded.finalUrl,downloaded.buffer)){
         throw new Error('CODAL report response is not a readable HTML/Excel document');
       }
       const sheets=extractExcelRows(downloaded.buffer);
       const metrics=findMetricValues(sheets);
       if(Object.keys(metrics).length>0){
-        return {ok:true,item:{
+        results.push({ok:true,item:{
           sourceType:isHtml?'codal-html-report':'excel',
           url:downloaded.finalUrl,
           bytes:downloaded.bytes,
           sheetCount:sheets.length,
           metrics,
           reason:candidate.type==='excel'?'استخراج مستقیم از فایل مالی CODAL انجام شد.':'استخراج از سند مالی CODAL انجام شد.'
-        }};
+        }});
+        if(candidate.type==='excel') break;
+      }else{
+        results.push({ok:false,error:'استخراج '+candidate.type+' انجام شد اما شاخص عددی پیدا نشد.'});
       }
-      return {ok:false,error:'استخراج '+candidate.type+' انجام شد اما شاخص عددی پیدا نشد.'};
     }catch(error){
-      return {ok:false,error:'استخراج '+candidate.type+': '+error.message};
+      results.push({ok:false,error:'استخراج '+candidate.type+': '+error.message});
     }
-  }));
+  }
   const extracted=results.filter(item=>item.ok).map(item=>item.item);
   const failures=results.filter(item=>!item.ok).map(item=>item.error);
 

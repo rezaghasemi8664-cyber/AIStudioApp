@@ -5,7 +5,7 @@
  *
  * Schedule (Tehran):
  * - Primary: 12:35
- * - Retries: 13:40, 13:45, 13:55, 14:10, 14:30
+ * - Retries: 12:40, 12:45, 12:55, 13:10, 13:30
  * - Recovery: 18:00 only when today's summary is still missing
  * - Saturday through Wednesday only
  * - Never creates duplicate records for a day

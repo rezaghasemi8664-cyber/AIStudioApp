@@ -106,7 +106,12 @@ function numericDataQuality(metrics) {
 }
 
 async function extractFinancialDocuments(financialAnnouncements) {
-  const maxDocuments = Math.max(1, Math.min(4, Number(process.env.CODAL_MAX_FINANCIAL_DOCUMENTS) || 4));
+  const maxDocuments = Math.max(1, Math.min(4, Number(process.env.CODAL_MAX_FINANCIAL_DOCUMENTS) || 2));
+  const isScoringFinancialStatement = (announcement) => {
+    const title = normalizeText(announcement?.title || '');
+    return /صورت مالی|صورت های مالی|صورت‌های مالی|اطلاعات و صورت مالی|اطلاعات و صورت‌های مالی|صورت وضعیت مالی|ترازنامه|سود و زیان|صورت سود و زیان|گزارش تفسیری مدیریت/i.test(title);
+  };
+
   const selected = financialAnnouncements
     .filter((item) => {
       const announcement = item && item.announcement;
@@ -127,28 +132,49 @@ async function extractFinancialDocuments(financialAnnouncements) {
     // filings and miss the latest financial statement. Prefer chronology,
     // then category importance as a tie-breaker.
     .sort((a, b) => {
+      // Prefer actual financial-statement filings over generic category=1
+      // disclosures such as dividend schedules. This is critical when the
+      // general CODAL page is merged with the financial category.
+      const statementDiff = Number(isScoringFinancialStatement(b.announcement)) - Number(isScoringFinancialStatement(a.announcement));
+      if (statementDiff !== 0) return statementDiff;
       const dateDiff = chronologyKey(b.announcement) - chronologyKey(a.announcement);
       if (dateDiff !== 0) return dateDiff;
       return Number(b.classification?.importance || 0) - Number(a.classification?.importance || 0);
     })
     .slice(0, maxDocuments);
-  // Download the small set of newest relevant filings concurrently.
-  // Sequential downloads of several CODAL reports can make the whole stock
-  // analysis exceed the API/client timeout even though each document is valid.
-  const documents = await Promise.all(selected.map(async (item) => {
-    const result = await documentService.extractFinancialDataFromAnnouncement(item.announcement);
-    return {
-      announcement: item.announcement,
-      classification: item.classification,
-      available: result.available,
-      sourceType: result.sourceType,
-      url: result.url || item.announcement.link_excel || item.announcement.linkExcel,
-      bytes: result.bytes || 0,
-      sheetCount: result.sheetCount || 0,
-      metrics: result.metrics || {},
-      reason: result.reason || null,
-    };
-  }));
+  // CODAL/relay hosts can be sensitive to several simultaneous document
+  // downloads. Process the small selected set sequentially so one slow or
+  // rate-limited document cannot cause the other valid financial statements
+  // to fail. This also makes extraction deterministic across repeated calls.
+  const documents = [];
+  for (const item of selected) {
+    try {
+      const result = await documentService.extractFinancialDataFromAnnouncement(item.announcement);
+      documents.push({
+        announcement: item.announcement,
+        classification: item.classification,
+        available: result.available,
+        sourceType: result.sourceType,
+        url: result.url || item.announcement.link_excel || item.announcement.linkExcel,
+        bytes: result.bytes || 0,
+        sheetCount: result.sheetCount || 0,
+        metrics: result.metrics || {},
+        reason: result.reason || null,
+      });
+    } catch (error) {
+      documents.push({
+        announcement: item.announcement,
+        classification: item.classification,
+        available: false,
+        sourceType: null,
+        url: item.announcement.link_excel || item.announcement.linkExcel || null,
+        bytes: 0,
+        sheetCount: 0,
+        metrics: {},
+        reason: error?.message || 'استخراج سند مالی CODAL ناموفق بود.',
+      });
+    }
+  }
 
   return documents;
 }

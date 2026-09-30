@@ -334,10 +334,13 @@ async function getIndustries(limit = 100) {
     .map(normalizeIndustry);
 }
 
-async function getScalpingOpportunities({ status = 'ACTIVE', limit = 50 } = {}) {
+async function getScalpingOpportunities({ status = 'ACTIVE', marketDate = null, limit = 50 } = {}) {
   const take = Math.max(1, Math.min(Number(limit) || 50, 200));
+  const where = {};
+  if (status) where.status = status;
+  if (marketDate) where.marketDate = marketDate;
   const rows = await prisma.marketScalpingOpportunity.findMany({
-    where: status ? { status } : undefined,
+    where,
     orderBy: [{ score: 'desc' }, { updatedAt: 'desc' }],
     take,
   });

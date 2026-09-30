@@ -319,6 +319,7 @@ function extractArrayPayload(payload) {
     if (Array.isArray(body.candles)) return body.candles;
     if (Array.isArray(body.history)) return body.history;
     if (Array.isArray(body.daily)) return body.daily;
+    if (Array.isArray(body.candle_daily_adjusted)) return body.candle_daily_adjusted;
   }
   return null;
 }
@@ -565,11 +566,22 @@ function hasMeaningfulSymbolPayload(raw) {
 
 function isMeaningfulOHLC(item) {
   if (!item || typeof item !== 'object') return false;
-  var values = [item.open, item.high, item.low, item.close, item.last, item.volume, item.value];
-  for (var i = 0; i < values.length; i += 1) {
-    if (typeof values[i] === 'number' && Number.isFinite(values[i]) && values[i] > 0) return true;
-  }
-  return false;
+
+  var open = toNumber(item.open);
+  var high = toNumber(item.high);
+  var low = toNumber(item.low);
+  var close = toNumber(item.close);
+
+  if (open == null || high == null || low == null || close == null) return false;
+  if (open <= 0 || high <= 0 || low <= 0 || close <= 0) return false;
+
+  return (
+    high >= low &&
+    high >= open &&
+    high >= close &&
+    low <= open &&
+    low <= close
+  );
 }
 
 function getTehranDateParts(date) {
