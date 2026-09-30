@@ -64,8 +64,12 @@ export default function JalaliDatePicker({ value, onChange, placeholder = 'ان�
 
   return (
     <div className="relative w-full" dir="rtl">
-      <button type="button" disabled={disabled} onClick={() => { if (!open && value) setView(value); setOpen(v => !v); }} className={`w-full text-right border rounded px-3 py-2 bg-white dark:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${className}`}>
-        {selectedText || placeholder}
+      <button type="button" disabled={disabled} onClick={() => { if (!open && value) setView(value); setOpen(v => !v); }} className={`w-full flex items-center gap-2 border rounded px-3 py-2 bg-white dark:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${className}`}>
+        <svg aria-hidden="true" className="h-5 w-5 shrink-0 text-cyan-600 dark:text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <rect x="3" y="4" width="18" height="17" rx="2" />
+          <path d="M16 2v4M8 2v4M3 10h18" />
+        </svg>
+        <span className="flex-1 text-right">{selectedText || placeholder}</span>
       </button>
       {open && !disabled && (
         <div className="absolute z-[100] mt-2 w-[320px] max-w-[90vw] rounded-xl border border-gray-200 bg-white p-3 shadow-2xl dark:border-gray-700 dark:bg-gray-800">
