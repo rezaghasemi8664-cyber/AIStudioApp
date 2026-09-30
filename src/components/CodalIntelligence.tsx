@@ -60,7 +60,7 @@ const CodalIntelligence: React.FC<Props> = ({ isOnline }) => {
             setToDate(date);
             setTo(jalaliToIso(date) || '');
           }}
-          locale={persian_fa}
+          locale="fa"
           inputPlaceholder="انتخاب تاریخ"
           shouldHighlightWeekends
           calendarPopperPosition="bottom"
