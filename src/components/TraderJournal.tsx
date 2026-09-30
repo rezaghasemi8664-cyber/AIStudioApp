@@ -1,5 +1,5 @@
 import React,{useEffect,useMemo,useState}from'react';
-import DatePicker, { DayValue } from 'react-modern-calendar-datepicker';
+import JalaliDatePicker from './JalaliDatePicker';
 import{createJournalEntry,deleteJournalEntry,getJournal,TraderJournalEntry}from'../services/traderJournalService';
 import{PlusIcon,TrashIcon}from'./Icons';
 type JournalForm={symbol:string;side:'BUY'|'SELL';tradeDate:string;quantity:string;entryPrice:string;exitPrice:string;setup:string;emotion:string;thesis:string;lesson:string;notes:string};
