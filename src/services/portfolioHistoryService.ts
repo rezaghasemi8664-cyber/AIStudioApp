@@ -29,7 +29,7 @@ async function getHistory(symbol: string): Promise<QuotePoint[]> {
   ];
   for (const path of paths) {
     try {
-      const response = await api.get(path, { params: { limit: 365 } });
+      const response = await api.get(path, { params: { limit: 5000 } });
       const payload = response?.data;
       const raw = payload?.data?.candles ?? payload?.data?.items ?? payload?.data ?? payload?.candles ?? payload?.items ?? payload ?? [];
       if (!Array.isArray(raw)) continue;
