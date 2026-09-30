@@ -1272,7 +1272,9 @@ useEffect(() => {
               item.createdAt ??
               item.created_at ??
               new Date(item.timestamp).toISOString(),
-            dataStatus: item.dataStatus,
+            dataStatus:
+        item.dataStatus ??
+        (item.parsedResult ?? item.result ? 'CACHED' : 'UNAVAILABLE'),
             source: item.source,
             fetchedAt: item.fetchedAt,
             stale: item.stale === true,
@@ -2688,7 +2690,22 @@ const clearCurrentAnalysis = () => {
             </div>
           ) : (
             analysisHistory.map((item) => {
-              const date = new Date(item.createdAt);
+              const formatHistoryDateTime = (value: string) => {
+                const match = String(value || '').match(
+                  /^(\\d{4})-(\\d{2})-(\\d{2})[T\\s](\\d{2}):(\\d{2})/
+                );
+                if (!match) {
+                  const fallback = new Date(value);
+                  if (Number.isNaN(fallback.getTime())) return '—';
+                  return fallback.toLocaleDateString('fa-IR') + ' - ' +
+                    fallback.toLocaleTimeString('fa-IR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    });
+                }
+                const [, year, month, day, hour, minute] = match;
+                return `${faNumber(year)}/${faNumber(month)}/${faNumber(day)} - ${faNumber(hour)}:${faNumber(minute)}`;
+              };
 
               return (
                 <div
@@ -2710,11 +2727,7 @@ const clearCurrentAnalysis = () => {
                     </div>
 
                     <div className="mt-1 text-[11px] font-medium text-slate-500">
-                      {date.toLocaleDateString('fa-IR')} -{' '}
-                      {date.toLocaleTimeString('fa-IR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {formatHistoryDateTime(item.createdAt)}
                     </div>
 
                     <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -2769,7 +2782,6 @@ const clearCurrentAnalysis = () => {
     </div>
   );
 }
-
 
 
 
