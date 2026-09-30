@@ -21,7 +21,7 @@ function daysInMonth(year: number, month: number) {
   return Math.round((firstNext.getTime() - first.getTime()) / 86400000);
 }
 
-function toPersianNumber(value: number) {
+function toPersianNumber(value: string | number) {
   return String(value).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
 }
 
@@ -46,7 +46,7 @@ export default function JalaliDatePicker({ value, onChange, placeholder = 'ان�
     return { count, offset };
   }, [view]);
 
-  const selectedText = value ? `${toPersianNumber(value.year)}/${toPersianNumber(String(value.month).padStart(2, '0') as unknown as number)}/${toPersianNumber(String(value.day).padStart(2, '0') as unknown as number)}` : '';
+  const selectedText = value ? `${toPersianNumber(value.year)}/${toPersianNumber(String(value.month).padStart(2, '0'))}/${toPersianNumber(String(value.day).padStart(2, '0'))}` : '';
 
   const moveMonth = (delta: number) => {
     let year = view.year;
