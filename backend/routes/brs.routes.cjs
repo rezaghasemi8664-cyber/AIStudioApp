@@ -37,7 +37,7 @@ router.get('/symbol/:symbol', userAuth, async function (req, res) {
 router.get('/symbol/:symbol/history', userAuth, async function (req, res) {
   try {
     const symbol = String(req.params.symbol || '').trim();
-    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 60, 10), 365);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 60, 10), 5000);
     if (!symbol) return res.status(400).json({ success: false, message: 'نام نماد الزامی است.' });
     // Portfolio analytics needs real per-symbol daily history. Do not depend on MarketDaily;
     // the shared DB is not guaranteed to contain history for every portfolio symbol.
