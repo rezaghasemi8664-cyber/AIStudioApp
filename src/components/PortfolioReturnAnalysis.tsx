@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { getPortfolioHistory, type PortfolioHistoryPoint } from '../services/portfolioHistoryService';
 import JalaliDatePicker from './JalaliDatePicker';
-import { JalaliDate, jalaliToGregorian } from '../utils/jalaliDate';
+import type { JalaliDate } from '../utils/jalaliDate';
+import { jalaliToGregorian } from '../utils/jalaliDate';
 import { formatPortfolioDate, formatPortfolioNumber, formatPortfolioPercent, normalizePortfolioDate } from '../utils/portfolioDate';
 
 interface Props { isOnline: boolean; }
@@ -31,8 +32,8 @@ const PortfolioReturnAnalysis: React.FC<Props> = ({ isOnline }) => {
   const [error, setError] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState<JalaliDate | null>(null);
   const [toDate, setToDate] = useState<JalaliDate | null>(null);
-  const [appliedFromDate, setAppliedFromDate] = useState<JalaliDate | null>(null);
-  const [appliedToDate, setAppliedToDate] = useState<JalaliDate | null>(null);
+  const [appliedFromIso, setAppliedFromIso] = useState<string | null>(null);
+  const [appliedToIso, setAppliedToIso] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!isOnline) { setError('برای دریافت بازدهی تاریخی سبد باید آنلاین باشید.'); return; }
@@ -45,8 +46,8 @@ const PortfolioReturnAnalysis: React.FC<Props> = ({ isOnline }) => {
         const last = toJalali(normalizePortfolioDate(history[history.length - 1].date));
         setFromDate(prev => prev ?? first);
         setToDate(prev => prev ?? last);
-        setAppliedFromDate(prev => prev ?? first);
-        setAppliedToDate(prev => prev ?? last);
+        setAppliedFromIso(prev => prev ?? jalaliDateToIso(first));
+        setAppliedToIso(prev => prev ?? jalaliDateToIso(last));
       }
     } catch (e: any) {
       setError(e?.response?.data?.message || e?.message || 'دریافت بازدهی تاریخی سبد ناموفق بود.');
@@ -57,14 +58,14 @@ const PortfolioReturnAnalysis: React.FC<Props> = ({ isOnline }) => {
 
   const rangePoints = useMemo(() => {
     if (!points.length) return [];
-    const fromIso = jalaliDateToIso(appliedFromDate);
-    const toIso = jalaliDateToIso(appliedToDate);
+    const fromIso = appliedFromIso;
+    const toIso = appliedToIso;
     if (fromIso && toIso && fromIso > toIso) return [];
     return points.filter(point => {
       const date = normalizePortfolioDate(point.date);
       return !!date && (!fromIso || date >= fromIso) && (!toIso || date <= toIso);
     });
-  }, [points, appliedFromDate, appliedToDate]);
+  }, [points, appliedFromIso, appliedToIso]);
 
   const stats = useMemo(() => {
     if (!rangePoints.length) return { totalPnl: null, totalReturn: null, totalCapitalChange: null, marketPnl: null, avgDailyReturn: null, positiveDays: 0, negativeDays: 0 };
@@ -74,8 +75,8 @@ const PortfolioReturnAnalysis: React.FC<Props> = ({ isOnline }) => {
     const capitalChange = rangePoints.reduce((sum, point) => sum + point.capitalChange, 0);
     const dailyReturns = rangePoints.map(point => point.dailyReturnPercent).filter((value): value is number => value != null);
     return {
-      totalPnl: last.pnl,
-      totalReturn: last.cost > 0 ? (last.pnl / last.cost) * 100 : null,
+      totalPnl: last.pnl - first.pnl,
+      totalReturn: first.cost > 0 ? ((last.pnl - first.pnl) / first.cost) * 100 : null,
       totalCapitalChange: capitalChange,
       marketPnl,
       avgDailyReturn: dailyReturns.length ? dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length : null,
@@ -104,8 +105,8 @@ const PortfolioReturnAnalysis: React.FC<Props> = ({ isOnline }) => {
             const last = toJalali(normalizePortfolioDate(points[points.length - 1].date));
             setFromDate(first);
             setToDate(last);
-            setAppliedFromDate(first);
-            setAppliedToDate(last);
+            setAppliedFromIso(jalaliDateToIso(first));
+            setAppliedToIso(jalaliDateToIso(last));
           }} className="text-xs rounded-lg border px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800">کل بازه</button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -117,8 +118,11 @@ const PortfolioReturnAnalysis: React.FC<Props> = ({ isOnline }) => {
             type="button"
             disabled={!fromDate || !toDate || invalidDraftRange}
             onClick={() => {
-              setAppliedFromDate(fromDate);
-              setAppliedToDate(toDate);
+              const nextFromIso = jalaliDateToIso(fromDate);
+              const nextToIso = jalaliDateToIso(toDate);
+              if (!nextFromIso || !nextToIso || nextFromIso > nextToIso) return;
+              setAppliedFromIso(nextFromIso);
+              setAppliedToIso(nextToIso);
             }}
             className="rounded-xl bg-cyan-600 text-white px-4 py-2 text-sm font-bold disabled:opacity-50"
           >
@@ -132,7 +136,7 @@ const PortfolioReturnAnalysis: React.FC<Props> = ({ isOnline }) => {
       {rangePoints.length > 0 && <>
         <div className="mb-3 rounded-xl bg-cyan-50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-900 px-4 py-3">
           <p className="text-xs text-gray-500">بازه اعمال‌شده</p>
-          <p className="mt-1 font-black">{formatPortfolioDate(jalaliDateToIso(appliedFromDate))} تا {formatPortfolioDate(jalaliDateToIso(appliedToDate))}</p>
+          <p className="mt-1 font-black">{formatPortfolioDate(appliedFromIso)} تا {formatPortfolioDate(appliedToIso)}</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[['سود/زیان تجمعی', money(stats.totalPnl)], ['بازدهی بر مبنای بهای تمام‌شده', pct(stats.totalReturn)], ['تغییر سرمایه ثبت‌شده', money(stats.totalCapitalChange)], ['P/L ناشی از حرکت بازار', money(stats.marketPnl)]].map(([label, value]) => <div key={label} className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4"><p className="text-xs text-gray-500">{label}</p><p className="mt-2 text-xl font-black font-mono">{value}</p></div>)}
