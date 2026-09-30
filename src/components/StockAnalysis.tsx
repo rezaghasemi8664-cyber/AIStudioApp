@@ -2780,3 +2780,8 @@ const clearCurrentAnalysis = () => {
             })
           )}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
