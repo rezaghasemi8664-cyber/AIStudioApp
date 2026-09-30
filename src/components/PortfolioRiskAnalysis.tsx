@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { getPortfolioRisk, type PortfolioRiskResult } from '../services/portfolioRiskService';
-import { formatPortfolioDate, formatPortfolioDateTime, formatPortfolioNumber, formatPortfolioPercent } from '../utils/portfolioDate';
+import { formatPortfolioNumber, formatPortfolioPercent } from '../utils/portfolioDate';
 
 interface Props { isOnline: boolean; }
 const pct = (v: number | null) => formatPortfolioPercent(v, 2);
