@@ -89,7 +89,7 @@ async function answer(params = {}) {
     return { type: 'clarification', title: 'نماد مشخص نیست', answer: 'لطفاً نام یا نماد سهم را وارد کنید؛ مثال: «قیمت فملی چیست؟»' };
   }
 
-  const result = await comparisonService.compareStocksDeterministic({ symbols });
+  const result = await comparisonService.compareStocksDeterministic({ symbols, allowSingle: true });
   const rows = Array.isArray(result?.rows) ? result.rows : [];
   if (!rows.length) {
     return { type: 'noData', title: 'داده در دسترس نیست', answer: 'برای نماد واردشده داده معتبر از منابع متصل در دسترس نیست.', failed: result?.failed || [] };
