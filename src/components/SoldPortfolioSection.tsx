@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { PortfolioApiItem, SoldTrade } from '../services/portfolioService';
 import { deleteSoldTrade, getSoldTrades, recordSale } from '../services/portfolioService';
 import { TrashIcon } from './Icons';
+import DatePicker, { DayValue } from 'react-modern-calendar-datepicker';
 
 interface Props {
   lots: PortfolioApiItem[];
@@ -73,6 +74,7 @@ export default function SoldPortfolioSection({ lots, isOnline, onChanged }: Prop
   const [soldQuantity, setSoldQuantity] = useState('');
   const [sellPrice, setSellPrice] = useState('');
   const [sellDate, setSellDate] = useState('');
+  const [sellDatePicker, setSellDatePicker] = useState<DayValue>(null);
   const [allocations, setAllocations] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -110,7 +112,7 @@ export default function SoldPortfolioSection({ lots, isOnline, onChanged }: Prop
         sellDate,
         allocations: Object.entries(allocations).filter(([, quantity]) => Number(quantity) > 0).map(([lotId, quantity]) => ({ lotId, quantity: Number(quantity) })),
       });
-      setSoldQuantity(''); setSellPrice(''); setAllocations({});
+      setSoldQuantity(''); setSellPrice(''); setSellDate(''); setSellDatePicker(null); setAllocations({});
       await load();
       await onChanged?.();
     } catch (e: any) {
@@ -164,7 +166,7 @@ export default function SoldPortfolioSection({ lots, isOnline, onChanged }: Prop
         </select>
         <input type="number" min="1" step="1" value={soldQuantity} onChange={e => setSoldQuantity(e.target.value)} placeholder="تعداد فروخته‌شده" className="border rounded px-3 py-2" disabled={!isOnline} />
         <input type="number" min="0" step="any" value={sellPrice} onChange={e => setSellPrice(e.target.value)} placeholder="قیمت فروش (ریال)" className="border rounded px-3 py-2" disabled={!isOnline} />
-        <input value={sellDate} onChange={e => setSellDate(e.target.value)} placeholder="تاریخ فروش ۱۴۰۵/۰۶/۲۶" inputMode="numeric" dir="ltr" className="border rounded px-3 py-2" disabled={!isOnline} />
+        <DatePicker value={sellDatePicker} onChange={(date: DayValue)=>{if(!date)return;setSellDatePicker(date);setSellDate(`${date.year}/${String(date.month).padStart(2,'0')}/${String(date.day).padStart(2,'0')}`);}} locale="fa" inputPlaceholder="انتخاب تاریخ" shouldHighlightWeekends calendarPopperPosition="bottom" renderInput={({ref})=><input ref={ref as React.Ref<HTMLInputElement>} value={sellDate} readOnly placeholder="تاریخ فروش" dir="ltr" className="border rounded px-3 py-2 cursor-pointer" disabled={!isOnline}/>} />
       </div>
 
       {symbolLots.length > 0 && <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
