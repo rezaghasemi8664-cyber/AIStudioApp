@@ -24,6 +24,10 @@ function sqlDate(key) {
   const [y, m, d] = String(key).split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d));
 }
+function isTradingCalendarDay(date = new Date()) {
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone: MARKET_TZ, weekday: 'short' }).format(date);
+  return ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'].includes(weekday);
+}
 function num(v, fallback = null) {
   if (v === null || v === undefined || v === '') return fallback;
   const n = Number(String(v).replace(/,/g, ''));
@@ -150,7 +154,7 @@ async function updateMarketCurrent() {
   const response = await brsService.getMarketIndex();
   const market = unwrap(response) || {};
   const marketDate = sqlDate(tehranDateKey());
-  const open = market.isMarketOpen === true;
+  const open = isTradingCalendarDay() && market.isMarketOpen === true;
 
   await prisma.marketCurrent.upsert({
     where: { marketDate },
@@ -481,6 +485,8 @@ async function runJob(name, fn) {
 
 async function runMarketWorker() {
   const status = await brsService.getMarketStatus().catch(() => ({ isOpen: false }));
+  const calendarOpen = isTradingCalendarDay();
+  const effectiveOpen = calendarOpen && status?.isOpen === true;
   const existingMarketCurrent = await prisma.marketCurrent.findFirst({
     orderBy: { updatedAt: 'desc' },
     select: { id: true, updatedAt: true }
@@ -490,7 +496,7 @@ async function runMarketWorker() {
   // Otherwise a fresh deployment can remain empty forever until the next
   // trading session, causing /api/v1/market/index to return NO_SHARED_MARKET_DATA.
   const needsBootstrap = !existingMarketCurrent;
-  if (!status || status.isOpen !== true) {
+  if (!effectiveOpen) {
     if (!needsBootstrap) return { status: 'skipped', reason: 'market-closed' };
     console.log('[MARKET WORKER] Market is closed, but shared market data is empty; running bootstrap refresh.');
   }
@@ -499,7 +505,7 @@ async function runMarketWorker() {
   const symbols = await updateSymbolsAndMovers();
   await runJob('market-daily', () => updateMarketDaily(symbols));
   await runJob('industries', () => updateIndustries(symbols));
-  await runJob('scalping-opportunities', () => updateScalpingOpportunities(symbols, status?.isOpen === true));
+  await runJob('scalping-opportunities', () => updateScalpingOpportunities(symbols, effectiveOpen));
   return { status: 'success', symbols: symbols.length };
 }
 
