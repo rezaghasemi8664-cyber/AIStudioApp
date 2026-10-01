@@ -1,6 +1,5 @@
 name: Build
-# Trigger Build on the current main commit after a CI-only correction.
-
+# CI trigger marker: 2026-10-01
 on:
   push:
     branches:
