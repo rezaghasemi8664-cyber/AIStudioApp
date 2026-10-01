@@ -17,6 +17,9 @@ export interface MarketRadarMover {
 export interface MarketRadarSector {
   name: string;
   symbols: number;
+  positive: number;
+  negative: number;
+  neutral: number;
   changePercent: number;
   value: number;
 }
