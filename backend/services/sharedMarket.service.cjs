@@ -74,23 +74,10 @@ function normalizeMarketCurrent(row) {
 function normalizeSymbol(row) {
   if (!row) return null;
 
-  // MarketSymbolCurrent keeps the common snapshot fields, while the raw BRS
-  // payload in dataJson also contains the distinct closing-price change.
-  // Expose both percentages explicitly so consumers such as Professional
-  // Watchlist do not have to guess or receive empty values.
-  let raw = null;
-  if (row.dataJson) {
-    try { raw = JSON.parse(row.dataJson); } catch (_) { raw = null; }
-  }
-
-  const lastChangePercent = decimalToNumber(
-    row.changePercent != null
-      ? row.changePercent
-      : (raw?.lastChangePercent ?? raw?.plp)
-  );
-  const closeChangePercent = decimalToNumber(
-    raw?.closingChangePercent ?? raw?.closeChangePercent ?? raw?.pcp
-  );
+  // Both percentages are first-class fields in the shared DB snapshot.
+  // The watchlist must never need to parse raw BRS payloads at read time.
+  const lastChangePercent = decimalToNumber(row.changePercent);
+  const closeChangePercent = decimalToNumber(row.closeChangePercent);
 
   return {
     id: row.id,
