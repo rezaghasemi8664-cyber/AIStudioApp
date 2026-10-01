@@ -820,3 +820,4 @@ exports.findLatestUnsummarizedMarketDay = async () => null;
 exports.isTradingDay = isTradingDay;
 exports.buildMergedMarketDataForDay = buildMergedMarketDataForDay;
 exports.rebuildExistingTechnicalSummaries = rebuildExistingTechnicalSummaries;
+exports.getHistoricalIndexSeries = getHistoricalIndexSeries;
