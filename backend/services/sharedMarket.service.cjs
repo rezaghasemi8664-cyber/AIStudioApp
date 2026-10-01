@@ -218,118 +218,106 @@ async function getSymbolHistory(symbol, limit = 60) {
   }));
 }
 
+function getBreadthChangePercent(row) {
+  const raw = row?.dataJson ? (() => { try { return JSON.parse(row.dataJson); } catch { return null; } })() : null;
+  const last = Number(row?.lastPrice);
+  const yesterday = Number(raw?.yesterday ?? raw?.previousPrice ?? raw?.yesterdayPrice);
+  if (Number.isFinite(last) && last > 0 && Number.isFinite(yesterday) && yesterday > 0) {
+    return ((last - yesterday) / yesterday) * 100;
+  }
+  const stored = Number(row?.changePercent);
+  return Number.isFinite(stored) ? stored : null;
+}
+
 async function getBreadth() {
   const [market, industries] = await Promise.all([getMarketCurrent(), getIndustries(100)]);
-
   if (!market) return null;
 
-  // Use the current symbol snapshot both as a breadth fallback and as the
-  // source for real buy/sell volume. Raw rows remain stored, but invalid
-  // placeholder-price records are excluded from derived analytics.
   const symbols = await getSymbols({ limit: 10000 });
-  const valid = symbols.filter((row) =>
-    isMarketAnalyticsEligible(row) &&
-    !/شاخص|index/i.test(`${row.symbol} ${row.name || ""}`)
-  );
+  const valid = symbols
+    .filter((row) => isMarketAnalyticsEligible(row) && !/شاخص|index/i.test(`${row.symbol} ${row.name || ""}`))
+    .map((row) => ({ ...row, radarChangePercent: getBreadthChangePercent(row) }))
+    .filter((row) => row.radarChangePercent !== null);
 
-  const positive = valid.filter((row) => Number(row.changePercent) > 0).length;
-  const negative = valid.filter((row) => Number(row.changePercent) < 0).length;
-  const neutral = valid.filter((row) => Number(row.changePercent) === 0).length;
+  const positive = valid.filter((row) => row.radarChangePercent > 0).length;
+  const negative = valid.filter((row) => row.radarChangePercent < 0).length;
+  const neutral = valid.filter((row) => row.radarChangePercent === 0).length;
   const total = positive + negative + neutral;
 
-  const gainers = valid.filter((row) => Number(row.changePercent) > 0)
-    .sort((a, b) => Number(b.changePercent) - Number(a.changePercent))
-    .slice(0, 10).map(normalizeSymbol);
-  const losers = valid.filter((row) => Number(row.changePercent) < 0)
-    .sort((a, b) => Number(a.changePercent) - Number(b.changePercent))
-    .slice(0, 10).map(normalizeSymbol);
+  const gainers = valid.filter((row) => row.radarChangePercent > 0)
+    .sort((a, b) => b.radarChangePercent - a.radarChangePercent)
+    .slice(0, 10).map((row) => ({ ...normalizeSymbol(row), changePercent: row.radarChangePercent, lastChangePercent: row.radarChangePercent }));
+  const losers = valid.filter((row) => row.radarChangePercent < 0)
+    .sort((a, b) => a.radarChangePercent - b.radarChangePercent)
+    .slice(0, 10).map((row) => ({ ...normalizeSymbol(row), changePercent: row.radarChangePercent, lastChangePercent: row.radarChangePercent }));
   const highVolume = [...valid]
     .sort((a, b) => (Number(b.volume || 0) - Number(a.volume || 0)) || (Number(b.value || 0) - Number(a.value || 0)))
     .slice(0, 10).map(normalizeSymbol);
 
-  const realFlowRows = valid.filter((row) =>
-    Number(row.realBuyVolume || 0) > 0 || Number(row.realSellVolume || 0) > 0
-  );
+  const realFlowRows = valid.filter((row) => Number(row.realBuyVolume || 0) > 0 || Number(row.realSellVolume || 0) > 0);
   const totalRealBuyVolume = realFlowRows.reduce((sum, row) => sum + Math.max(0, Number(row.realBuyVolume || 0)), 0);
   const totalRealSellVolume = realFlowRows.reduce((sum, row) => sum + Math.max(0, Number(row.realSellVolume || 0)), 0);
-  const netRealBuyVolume = totalRealBuyVolume - totalRealSellVolume;
 
-  // Industry snapshots can contain stale placeholder rows (especially ETF
-  // records with impossible daily moves). Exclude only clear anomalies so
-  // legitimate industry movements remain visible.
-  // Use the exact same eligible symbol universe as breadth so industry
-  // counts reconcile with positive + negative + neutral.
   const sectorStats = new Map();
   for (const row of valid) {
-    const name = String(row.sector || '').trim();
-    if (!name) continue;
-    const current = sectorStats.get(name) || { symbols: 0, sumPct: 0, pctCount: 0, value: 0 };
+    const name = String(row.sector || '').trim() || 'سایر / صنعت نامشخص';
+    const current = sectorStats.get(name) || { symbols: 0, positive: 0, negative: 0, neutral: 0, sumPct: 0, value: 0 };
     current.symbols += 1;
-    const pct = Number(row.changePercent);
-    if (Number.isFinite(pct)) { current.sumPct += pct; current.pctCount += 1; }
+    if (row.radarChangePercent > 0) current.positive += 1;
+    else if (row.radarChangePercent < 0) current.negative += 1;
+    else current.neutral += 1;
+    current.sumPct += row.radarChangePercent;
     current.value += Number(row.value || 0);
     sectorStats.set(name, current);
   }
+
   const persistedByName = new Map(
     industries
       .filter((row) => Number.isFinite(Number(row.changePercent)) && Math.abs(Number(row.changePercent)) < 20)
       .map((row) => [String(row.industryName || '').trim(), row])
   );
+
   const sectors = [...sectorStats.entries()]
     .map(([name, stats]) => {
       const persisted = persistedByName.get(name);
       return {
         name,
         symbols: stats.symbols,
-        changePercent: stats.pctCount ? stats.sumPct / stats.pctCount : Number(persisted?.changePercent),
+        positive: stats.positive,
+        negative: stats.negative,
+        neutral: stats.neutral,
+        changePercent: stats.symbols ? stats.sumPct / stats.symbols : Number(persisted?.changePercent),
         value: stats.value,
         rank: Number(persisted?.rank || 0),
       };
     })
     .filter((row) => Number.isFinite(row.changePercent));
 
-  const leaders = [...sectors]
-    .sort((a, b) => (b.changePercent || 0) - (a.changePercent || 0))
-    .slice(0, 6);
-
-  const laggards = [...sectors]
-    .sort((a, b) => (a.changePercent || 0) - (b.changePercent || 0))
-    .slice(0, 6);
+  const leaders = [...sectors].sort((a, b) => b.changePercent - a.changePercent).slice(0, 6);
+  const laggards = [...sectors].sort((a, b) => a.changePercent - b.changePercent).slice(0, 6);
 
   return {
     available: true,
     stale: !!market.isStale,
     source: market.source || 'shared-db',
     updatedAt: market.updatedAt,
-    positive,
-    negative,
-    neutral,
-    total,
+    positive, negative, neutral, total,
     positivePercent: total ? (positive / total) * 100 : 0,
     negativePercent: total ? (negative / total) * 100 : 0,
     neutralPercent: total ? (neutral / total) * 100 : 0,
     advanceDeclineRatio: negative ? positive / negative : null,
     coveragePercent: symbols.length ? (total / symbols.length) * 100 : 0,
-    topGainers: gainers,
-    topLosers: losers,
-    topVolumes: highVolume,
+    topGainers: gainers, topLosers: losers, topVolumes: highVolume,
     realFlow: {
       available: realFlowRows.length > 0,
       rowsWithRealFlow: realFlowRows.length,
-      totalRealBuyVolume,
-      totalRealSellVolume,
-      netRealBuyVolume,
+      totalRealBuyVolume, totalRealSellVolume,
+      netRealBuyVolume: totalRealBuyVolume - totalRealSellVolume,
       unit: 'volume'
     },
-    sectors: {
-      available: sectors.length > 0,
-      leaders,
-      laggards,
-      rows: sectors,
-    },
+    sectors: { available: sectors.length > 0, leaders, laggards, rows: sectors },
   };
 }
-
 async function getMovers(category, limit = 10) {
   const take = Math.max(1, Math.min(Number(limit) || 10, 100));
   const rows = await prisma.marketMoverCurrent.findMany({
