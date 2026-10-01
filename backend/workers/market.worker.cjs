@@ -206,6 +206,7 @@ async function updateSymbolsAndMovers() {
     closePrice: num(item.closingPrice),
     change: num(item.lastChange),
     changePercent: num(item.lastChangePercent),
+    closeChangePercent: num(item.closingChangePercent),
     volume: int(item.tradeVolume),
     value: num(item.tradeValue),
     tradeCount: int(item.tradeCount),
