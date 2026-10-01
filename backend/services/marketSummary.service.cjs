@@ -314,11 +314,14 @@ function technicalSma(values, period) {
   return tail.reduce((sum, value) => sum + value, 0) / period;
 }
 function technicalEma(values, period) {
-  if (!Array.isArray(values) || values.length < 2) return null;
-  const p = Math.max(2, Math.min(period, values.length));
-  let emaValue = values.slice(0, p).reduce((sum, value) => sum + value, 0) / p;
-  const multiplier = 2 / (p + 1);
-  for (const value of values.slice(p)) emaValue = (value - emaValue) * multiplier + emaValue;
+  // Do not silently shorten the requested EMA period. Doing so makes EMA10
+  // equal to EMA5 when only five observations exist and can create false
+  // crossover signals. A period is reported only when enough observations
+  // are available to calculate that period.
+  if (!Array.isArray(values) || values.length < period || period < 2) return null;
+  let emaValue = values.slice(0, period).reduce((sum, value) => sum + value, 0) / period;
+  const multiplier = 2 / (period + 1);
+  for (const value of values.slice(period)) emaValue = (value - emaValue) * multiplier + emaValue;
   return emaValue;
 }
 function technicalRsi(values, period = 14) {
@@ -377,16 +380,28 @@ async function buildTechnicalMarketAnalysis(currentMarketData, fallbackDate = ne
 
   let score = 0;
   const signals = [];
-  if (sma5 !== null) { score += latest >= sma5 ? 1 : -1; signals.push(latest >= sma5 ? 'شاخص بالاتر از SMA5' : 'شاخص پایین‌تر از SMA5'); }
-  if (sma10 !== null) { score += latest >= sma10 ? 1 : -1; signals.push(latest >= sma10 ? 'شاخص بالاتر از SMA10' : 'شاخص پایین‌تر از SMA10'); }
-  if (ema5 !== null && ema10 !== null) { score += ema5 >= ema10 ? 1 : -1; signals.push(ema5 >= ema10 ? 'EMA5 بالاتر از EMA10' : 'EMA5 پایین‌تر از EMA10'); }
+  if (sma5 !== null) {
+    score += latest > sma5 ? 1 : latest < sma5 ? -1 : 0;
+    if (latest !== sma5) signals.push(latest > sma5 ? 'شاخص بالاتر از SMA5' : 'شاخص پایین‌تر از SMA5');
+  }
+  if (sma10 !== null) {
+    score += latest > sma10 ? 1 : latest < sma10 ? -1 : 0;
+    if (latest !== sma10) signals.push(latest > sma10 ? 'شاخص بالاتر از SMA10' : 'شاخص پایین‌تر از SMA10');
+  }
+  if (ema5 !== null && ema10 !== null) {
+    score += ema5 > ema10 ? 1 : ema5 < ema10 ? -1 : 0;
+    if (ema5 !== ema10) signals.push(ema5 > ema10 ? 'EMA5 بالاتر از EMA10' : 'EMA5 پایین‌تر از EMA10');
+  }
   if (rsi14 !== null) {
     if (rsi14 >= 70) { score -= 1; signals.push('RSI14 در اشباع خرید'); }
     else if (rsi14 <= 30) { score += 1; signals.push('RSI14 در اشباع فروش'); }
     else if (rsi14 >= 55) { score += 1; signals.push('RSI14 بالاتر از ۵۵'); }
     else if (rsi14 <= 45) { score -= 1; signals.push('RSI14 پایین‌تر از ۴۵'); }
   }
-  if (macd !== null) { score += macd >= 0 ? 1 : -1; signals.push(macd >= 0 ? 'MACD بالاتر از صفر' : 'MACD پایین‌تر از صفر'); }
+  if (macd !== null) {
+    score += macd > 0 ? 1 : macd < 0 ? -1 : 0;
+    if (macd !== 0) signals.push(macd > 0 ? 'MACD بالاتر از صفر' : 'MACD پایین‌تر از صفر');
+  }
 
   const direction = technicalDirection(score);
   const window = closes.slice(-Math.min(20, closes.length));
