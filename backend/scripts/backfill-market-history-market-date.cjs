@@ -28,10 +28,7 @@ function normalizeDate(value) {
   if (year >= 1900) {
     const iso = `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
     const date = new Date(`${iso}T00:00:00.000Z`);
-    if (
-      Number.isNaN(date.getTime()) ||
-      date.toISOString().slice(0, 10) !== iso
-    ) {
+    if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== iso) {
       return null;
     }
     return { kind: "gregorian", source: raw, gregorian: iso, jalali: null };
@@ -50,10 +47,36 @@ function normalizeDate(value) {
 
 function snapshotTime(value) {
   if (value == null) return "";
-  const raw = String(value).trim();
-  const match = /(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(raw);
+  const match = String(value).trim().match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
   if (!match) return "";
   return [match[1].padStart(2, "0"), match[2], match[3] || "00"].join(":");
+}
+
+function getIndexData(payload) {
+  if (!payload || typeof payload !== "object") return null;
+
+  // Current MarketHistory format: { date, time, index, ... }
+  if (
+    payload.type !== "symbols" &&
+    payload.date != null &&
+    Number.isFinite(Number(payload.index))
+  ) {
+    return payload;
+  }
+
+  // Legacy format: { type: "index", data: { date, time, index, ... } }
+  if (
+    payload.type === "index" &&
+    payload.data &&
+    typeof payload.data === "object" &&
+    !Array.isArray(payload.data) &&
+    payload.data.date != null &&
+    Number.isFinite(Number(payload.data.index))
+  ) {
+    return payload.data;
+  }
+
+  return null;
 }
 
 async function main() {
@@ -70,30 +93,13 @@ async function main() {
 
   for (const row of rows) {
     const payload = parseJson(row.jsonData);
-    const nested = payload?.data;
-    const data =
-      payload?.type === "index" &&
-      nested &&
-      typeof nested === "object" &&
-      !Array.isArray(nested)
-        ? nested
-        : payload?.type === "index"
-          ? payload
-          : null;
+    const data = getIndexData(payload);
 
-    const isIndexSnapshot =
-      payload?.type === "index" &&
-      data &&
-      typeof data === "object" &&
-      !Array.isArray(data) &&
-      data.date != null &&
-      Number.isFinite(Number(data.index));
-
-    if (!isIndexSnapshot) {
+    if (!data) {
       ignoredNonIndex.push({
         id: row.id,
         type: payload?.type ?? null,
-        reason: payload?.type === "index" ? "invalid-index-snapshot" : "not-index-snapshot",
+        reason: "not-index-snapshot",
       });
       continue;
     }
@@ -112,15 +118,15 @@ async function main() {
     validRows += 1;
     if (row.marketDate) alreadyFilled.push(row.id);
 
-    const time = snapshotTime(data.time);
     const current = {
       id: row.id,
       dateKind: normalized.kind,
       jalali: normalized.jalali,
       gregorian: normalized.gregorian,
-      time,
+      time: snapshotTime(data.time),
       createdAt: row.createdAt,
     };
+
     const list = byDay.get(normalized.gregorian) || [];
     list.push(current);
     byDay.set(normalized.gregorian, list);
@@ -132,11 +138,9 @@ async function main() {
       list.sort((a, b) => {
         const timeCompare = b.time.localeCompare(a.time);
         if (timeCompare !== 0) return timeCompare;
-        return (
-          new Date(b.createdAt || 0).getTime() -
-          new Date(a.createdAt || 0).getTime()
-        );
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
       });
+
       const latest = list[0];
       return {
         marketDate: gregorian,
@@ -148,30 +152,20 @@ async function main() {
       };
     });
 
-  const duplicateRows = days.reduce(
-    (sum, day) => sum + Math.max(0, day.rows - 1),
-    0
-  );
+  const duplicateRows = days.reduce((sum, day) => sum + Math.max(0, day.rows - 1), 0);
 
-  console.log(
-    JSON.stringify(
-      {
-        mode: "DRY_RUN",
-        totalRows: rows.length,
-        validRows,
-        ignoredNonIndexRows: ignoredNonIndex.length,
-        invalidRows: invalid.length,
-        uniqueTradingDays: days.length,
-        duplicateRows,
-        alreadyFilledRows: alreadyFilled.length,
-        invalid,
-        ignoredNonIndex,
-        days,
-      },
-      null,
-      2
-    )
-  );
+  console.log(JSON.stringify({
+    mode: "DRY_RUN",
+    totalRows: rows.length,
+    validRows,
+    ignoredNonIndexRows: ignoredNonIndex.length,
+    invalidRows: invalid.length,
+    uniqueTradingDays: days.length,
+    duplicateRows,
+    alreadyFilledRows: alreadyFilled.length,
+    invalid,
+    days,
+  }, null, 2));
 
   if (invalid.length > 0) process.exitCode = 2;
 }
