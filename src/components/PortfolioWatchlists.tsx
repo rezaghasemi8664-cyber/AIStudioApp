@@ -122,7 +122,19 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
   const refreshQuotes = useCallback(async () => {
     if (!activeWatchlist || activeWatchlist.symbols.length === 0 || !isOnline) return;
     const tradingSession = isTehranTradingSession();
-    const symbolsToFetch = tradingSession ? activeWatchlist.symbols : activeWatchlist.symbols.filter(item => !quotes[item.symbol]);
+    // Outside the trading session, refresh only missing/incomplete cached quotes.
+    // This lets the watchlist repair older snapshots without generating direct
+    // BRS traffic while the market is closed.
+    const symbolsToFetch = tradingSession
+      ? activeWatchlist.symbols
+      : activeWatchlist.symbols.filter(item => {
+          const quote = quotes[item.symbol];
+          return !quote
+            || quote.lastPrice == null
+            || quote.lastChangePercent == null
+            || quote.closePrice == null
+            || quote.closeChangePercent == null;
+        });
     if (!symbolsToFetch.length) return;
     setQuoteLoading(true);
     try {
