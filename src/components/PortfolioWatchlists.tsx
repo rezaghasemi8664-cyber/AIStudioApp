@@ -71,8 +71,14 @@ const PortfolioWatchlists: React.FC<PortfolioWatchlistsProps> = ({ currentUser, 
     const positive = validRows.filter(row => row.change > 0).length;
     const negative = validRows.filter(row => row.change < 0).length;
     const neutral = validRows.filter(row => row.change === 0).length;
-    const maxGain = validRows.length ? validRows.reduce((best, row) => row.change > best.change ? row : best) : null;
-    const maxLoss = validRows.length ? validRows.reduce((worst, row) => row.change < worst.change ? row : worst) : null;
+    // "بیشترین رشد" must only consider positive symbols, and
+    // "بیشترین افت" must only consider negative symbols. Otherwise a
+    // watchlist containing only positive symbols incorrectly labels the
+    // smallest positive change as a loss.
+    const gainRows = validRows.filter(row => row.change > 0);
+    const lossRows = validRows.filter(row => row.change < 0);
+    const maxGain = gainRows.length ? gainRows.reduce((best, row) => row.change > best.change ? row : best) : null;
+    const maxLoss = lossRows.length ? lossRows.reduce((worst, row) => row.change < worst.change ? row : worst) : null;
     const volumeRows = rows.filter(row => Number.isFinite(row.volume));
     const maxVolume = volumeRows.length ? volumeRows.reduce((best, row) => row.volume > best.volume ? row : best) : null;
     const updatedRows = rows.filter(row => Number.isFinite(row.updatedAt));
