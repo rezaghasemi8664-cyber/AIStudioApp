@@ -2,7 +2,7 @@
 
 const express = require('express');
 const authenticate = require('../middleware/authenticate');
-const sharedBrsService = require('../services/sharedBrs.service.cjs');
+const sharedMarketService = require('../services/sharedMarket.service.cjs');
 const { calculateSmartScore } = require('../services/smartScore.service.cjs');
 
 const router = express.Router();
@@ -12,16 +12,52 @@ router.get('/symbol/:symbol', authenticate, async (req, res) => {
     const symbol = String(req.params.symbol || '').trim().toUpperCase();
     if (!symbol) return res.status(400).json({ success: false, message: 'نماد الزامی است.' });
 
-    const [currentResult, historyResult] = await Promise.all([
-      sharedBrsService.getSymbolData(symbol),
-      sharedBrsService.getSymbolHistory(symbol, 365)
+    const [current, history] = await Promise.all([
+      sharedMarketService.getSymbols({ symbol, limit: 1 }),
+      sharedMarketService.getSymbolHistory(symbol, 365)
     ]);
 
-    const data = currentResult?.data || currentResult || {};
-    const history = Array.isArray(historyResult?.data) ? historyResult.data : [];
-    return res.json({ success: true, data: calculateSmartScore(data, history), symbol, source: 'brs', historyRecords: history.length });
+    const currentRow = Array.isArray(current) ? current[0] : null;
+    if (!currentRow) {
+      return res.status(404).json({ success: false, message: 'اطلاعات نماد ' + symbol + ' در بازار موجود نیست.' });
+    }
+
+    let raw = {};
+    if (currentRow.dataJson) {
+      try { raw = JSON.parse(currentRow.dataJson) || {}; } catch (_) { raw = {}; }
+    }
+
+    const data = {
+      ...raw,
+      ...currentRow,
+      lastPrice: currentRow.lastPrice,
+      closePrice: currentRow.closePrice,
+      lastChangePercent: currentRow.lastChangePercent,
+      closeChangePercent: currentRow.closeChangePercent,
+      volume: currentRow.volume,
+      value: currentRow.value,
+      high: raw.high ?? currentRow.high,
+      low: raw.low ?? currentRow.low,
+      realBuyVolume: currentRow.realBuyVolume,
+      realSellVolume: currentRow.realSellVolume,
+      realNetValue: Number(currentRow.realBuyVolume || 0) - Number(currentRow.realSellVolume || 0),
+      realMoneyFlow: Number(currentRow.realBuyVolume || 0) - Number(currentRow.realSellVolume || 0)
+    };
+
+    const result = calculateSmartScore(data, Array.isArray(history) ? history : []);
+    return res.json({
+      success: true,
+      data: result,
+      symbol,
+      source: 'shared-market-db',
+      historyRecords: Array.isArray(history) ? history.length : 0
+    });
   } catch (error) {
-    return res.status(502).json({ success: false, message: error?.message || 'دریافت امتیاز هوشمند ناموفق بود.' });
+    console.error('[SMART SCORE] Failed for ' + req.params.symbol + ':', error);
+    return res.status(502).json({
+      success: false,
+      message: error?.message || 'دریافت امتیاز هوشمند ناموفق بود.'
+    });
   }
 });
 
