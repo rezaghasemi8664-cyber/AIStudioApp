@@ -3,6 +3,7 @@
 const { startMarketWorker } = require('../workers/market.worker.cjs');
 const { registerMarketCron } = require('./market.cron.cjs');
 const { registerUsageCron } = require('./usage.cron.cjs');
+const { registerMarketTechnicalDailyCron } = require('./marketTechnicalDaily.cron.cjs');
 
 let cronStarted = false;
 
@@ -44,7 +45,8 @@ function startCronJobs() {
   const results = [
     safeStart('market-worker', startMarketWorker),
     safeRegister('market-history', registerMarketCron),
-    safeRegister('usage', registerUsageCron)
+    safeRegister('usage', registerUsageCron),
+    safeRegister('market-technical-daily', registerMarketTechnicalDailyCron)
   ];
 
   cronStarted = true;
