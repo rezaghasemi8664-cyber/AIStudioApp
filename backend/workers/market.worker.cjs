@@ -195,28 +195,40 @@ async function updateSymbolsAndMovers() {
   const rows = unwrap(response);
   if (!Array.isArray(rows) || !rows.length) throw new Error('BRS AllSymbols returned no symbols');
 
-  const symbols = rows.map(item => ({
-    symbol: String(item.symbol || '').trim(),
-    name: item.name || null,
-    insCode: String(item.isin || item.id || '').trim() || null,
-    open: num(item.open ?? item.openPrice),
-    high: num(item.high ?? item.highPrice),
-    low: num(item.low ?? item.lowPrice),
-    lastPrice: num(item.lastPrice),
-    closePrice: num(item.closingPrice),
-    change: num(item.lastChange),
-    changePercent: num(item.lastChangePercent),
-    closeChangePercent: num(item.closingChangePercent),
-    volume: int(item.tradeVolume),
-    value: num(item.tradeValue),
-    tradeCount: int(item.tradeCount),
-    yesterday: num(item.yesterday ?? item.previousPrice ?? item.yesterdayPrice),
-    sector: item.sector || null,
-    realBuyVolume: int(item.realBuyVolume, 0),
-    realSellVolume: int(item.realSellVolume, 0),
-    legalBuyVolume: int(item.instBuyVolume, 0),
-    legalSellVolume: int(item.instSellVolume, 0)
-  })).filter(x => x.symbol);
+  const symbols = rows.map(item => {
+    const closePrice = num(item.closingPrice);
+    const yesterday = num(item.yesterday ?? item.previousPrice ?? item.yesterdayPrice);
+    // BRS normally supplies pcp/closingChangePercent. For older or partial
+    // snapshots, derive the same closing-vs-yesterday percentage from the
+    // same BRS snapshot so the shared DB never leaves this field blank.
+    const closeChangePercent = num(
+      item.closingChangePercent,
+      closePrice !== null && yesterday > 0 ? ((closePrice - yesterday) / yesterday) * 100 : null
+    );
+
+    return {
+      symbol: String(item.symbol || '').trim(),
+      name: item.name || null,
+      insCode: String(item.isin || item.id || '').trim() || null,
+      open: num(item.open ?? item.openPrice),
+      high: num(item.high ?? item.highPrice),
+      low: num(item.low ?? item.lowPrice),
+      lastPrice: num(item.lastPrice),
+      closePrice,
+      change: num(item.lastChange),
+      changePercent: num(item.lastChangePercent),
+      closeChangePercent,
+      volume: int(item.tradeVolume),
+      value: num(item.tradeValue),
+      tradeCount: int(item.tradeCount),
+      yesterday,
+      sector: item.sector || null,
+      realBuyVolume: int(item.realBuyVolume, 0),
+      realSellVolume: int(item.realSellVolume, 0),
+      legalBuyVolume: int(item.instBuyVolume, 0),
+      legalSellVolume: int(item.instSellVolume, 0)
+    };
+  }).filter(x => x.symbol);
 
   for (const item of symbols) {
     const { open, high, low, yesterday, ...dbItem } = item;
