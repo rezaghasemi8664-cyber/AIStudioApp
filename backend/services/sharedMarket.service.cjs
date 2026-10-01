@@ -257,26 +257,36 @@ async function getBreadth() {
   // Industry snapshots can contain stale placeholder rows (especially ETF
   // records with impossible daily moves). Exclude only clear anomalies so
   // legitimate industry movements remain visible.
-  const sectors = industries
-    .filter((row) => {
-      const change = Number(row.changePercent);
-      if (!Number.isFinite(change)) return false;
-      if (Math.abs(change) >= 20) return false;
-      const name = String(row.industryName || '').trim();
-      // ETF industry names may arrive with corrupted Unicode characters.
-      // Large negative moves are invalid for this industry snapshot and
-      // should not contaminate the market-rotation summary.
-      if (/صندوق/.test(name) && Math.abs(change) > 10) return false;
-      if (/سرمایه/.test(name) && Math.abs(change) > 10) return false;
-      return true;
+  // Use the exact same eligible symbol universe as breadth so industry
+  // counts reconcile with positive + negative + neutral.
+  const sectorStats = new Map();
+  for (const row of valid) {
+    const name = String(row.sector || '').trim();
+    if (!name) continue;
+    const current = sectorStats.get(name) || { symbols: 0, sumPct: 0, pctCount: 0, value: 0 };
+    current.symbols += 1;
+    const pct = Number(row.changePercent);
+    if (Number.isFinite(pct)) { current.sumPct += pct; current.pctCount += 1; }
+    current.value += Number(row.value || 0);
+    sectorStats.set(name, current);
+  }
+  const persistedByName = new Map(
+    industries
+      .filter((row) => Number.isFinite(Number(row.changePercent)) && Math.abs(Number(row.changePercent)) < 20)
+      .map((row) => [String(row.industryName || '').trim(), row])
+  );
+  const sectors = [...sectorStats.entries()]
+    .map(([name, stats]) => {
+      const persisted = persistedByName.get(name);
+      return {
+        name,
+        symbols: stats.symbols,
+        changePercent: stats.pctCount ? stats.sumPct / stats.pctCount : Number(persisted?.changePercent),
+        value: stats.value,
+        rank: Number(persisted?.rank || 0),
+      };
     })
-    .map((row) => ({
-      name: row.industryName,
-      symbols: Number(row.symbolCount || 0),
-      changePercent: row.changePercent,
-      value: row.value,
-      rank: row.rank,
-    }));
+    .filter((row) => Number.isFinite(row.changePercent));
 
   const leaders = [...sectors]
     .sort((a, b) => (b.changePercent || 0) - (a.changePercent || 0))
