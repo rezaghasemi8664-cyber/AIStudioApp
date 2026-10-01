@@ -76,16 +76,21 @@ const IndustryHeatmap: React.FC<{ rows: MarketRadarSector[] }> = ({ rows }) => {
                 backgroundColor: change >= 4 ? 'rgba(5, 150, 105, 0.88)' : change >= 2 ? 'rgba(16, 185, 129, 0.82)' : change > 0 ? 'rgba(52, 211, 153, 0.72)' : change <= -4 ? 'rgba(190, 24, 93, 0.88)' : change <= -2 ? 'rgba(225, 29, 72, 0.82)' : change < 0 ? 'rgba(244, 63, 94, 0.72)' : 'rgba(100, 116, 139, 0.78)',
                 borderColor: change > 0 ? 'rgba(16, 185, 129, 0.95)' : change < 0 ? 'rgba(244, 63, 94, 0.95)' : 'rgba(100, 116, 139, 0.95)',
               }}
-              className={`group min-h-[112px] rounded-2xl border p-3 transition hover:-translate-y-0.5 hover:shadow-lg ${heatClass(change)}`}
+              className={`group min-h-[136px] rounded-2xl border p-3 transition hover:-translate-y-0.5 hover:shadow-lg ${heatClass(change)}`}
             >
               <div className="flex h-full flex-col justify-between gap-3">
                 <div className="flex items-start justify-between gap-2">
                   <span className={`min-w-0 whitespace-normal break-words text-base font-black leading-6 ${change > 0 ? "text-emerald-50" : change < 0 ? "text-rose-50" : "text-white"}`}>{row.name}</span>
                   <span className="shrink-0 rounded-lg bg-black/10 px-2.5 py-1.5 text-sm font-black tabular-nums text-white">{signedPercent(row.changePercent)}</span>
                 </div>
-                <div className="flex items-end justify-between gap-2">
-                  <div className="space-y-1.5"><div className="grid grid-cols-3 gap-2 text-center"><div><div className="text-xs font-black text-emerald-100">مثبت</div><div className="mt-0.5 text-lg font-black leading-none tabular-nums text-white">{fa(row.positive)}</div></div><div><div className="text-xs font-black text-rose-100">منفی</div><div className="mt-0.5 text-lg font-black leading-none tabular-nums text-white">{fa(row.negative)}</div></div><div><div className="text-xs font-black text-slate-100">خنثی</div><div className="mt-0.5 text-lg font-black leading-none tabular-nums text-white">{fa(row.neutral)}</div></div></div><div className="mt-1 text-xs font-bold text-white/90">مجموع {fa(row.symbols)} نماد</div></div>
-                  <div className="text-left"><div className="text-xs font-bold text-white/80">ارزش معاملات</div><div className="mt-0.5 text-sm font-black tabular-nums text-white">{fa(row.value)}</div></div>
+                <div className="flex items-end justify-between gap-3">
+                  <div className="min-w-[118px] space-y-1.5">
+                    <div className="flex items-center justify-between gap-3 text-sm font-black"><span className="text-emerald-100">مثبت</span><span className="text-lg font-black leading-none tabular-nums text-white">{fa(row.positive)}</span></div>
+                    <div className="flex items-center justify-between gap-3 text-sm font-black"><span className="text-rose-100">منفی</span><span className="text-lg font-black leading-none tabular-nums text-white">{fa(row.negative)}</span></div>
+                    <div className="flex items-center justify-between gap-3 text-sm font-black"><span className="text-slate-100">خنثی</span><span className="text-lg font-black leading-none tabular-nums text-white">{fa(row.neutral)}</span></div>
+                    <div className="mt-1 border-t border-white/20 pt-1 text-sm font-black text-white">نماد {fa(row.symbols)}</div>
+                  </div>
+                  <div className="text-left"><div className="text-sm font-black text-white">ارزش معاملات</div><div className="mt-0.5 text-base font-black tabular-nums text-white">{fa(row.value)}</div></div>
                 </div>
               </div>
             </div>
