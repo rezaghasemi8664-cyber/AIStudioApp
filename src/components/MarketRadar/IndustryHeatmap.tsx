@@ -80,12 +80,12 @@ const IndustryHeatmap: React.FC<{ rows: MarketRadarSector[] }> = ({ rows }) => {
             >
               <div className="flex h-full flex-col justify-between gap-3">
                 <div className="flex items-start justify-between gap-2">
-                  <span className={`min-w-0 whitespace-normal break-words text-sm font-black leading-5 ${change > 0 ? "text-emerald-100" : change < 0 ? "text-rose-100" : "text-slate-100"}`}>{row.name}</span>
-                  <span className="shrink-0 rounded-lg bg-black/10 px-2 py-1 text-xs font-black tabular-nums">{signedPercent(row.changePercent)}</span>
+                  <span className={`min-w-0 whitespace-normal break-words text-base font-black leading-6 ${change > 0 ? "text-emerald-50" : change < 0 ? "text-rose-50" : "text-white"}`}>{row.name}</span>
+                  <span className="shrink-0 rounded-lg bg-black/10 px-2.5 py-1.5 text-sm font-black tabular-nums text-white">{signedPercent(row.changePercent)}</span>
                 </div>
                 <div className="flex items-end justify-between gap-2">
-                  <div><div className="text-[10px] font-semibold text-white/80">مثبت · منفی · خنثی</div><div className="mt-0.5 text-xs font-black tabular-nums"><span className="text-emerald-100">{fa(row.positive)}</span> · <span className="text-rose-100">{fa(row.negative)}</span> · <span className="text-slate-100">{fa(row.neutral)}</span></div><div className="mt-0.5 text-[10px] text-white/70">مجموع {fa(row.symbols)} نماد</div></div>
-                  <div className="text-left"><div className="text-[10px] opacity-60">ارزش معاملات</div><div className="mt-0.5 text-xs font-bold tabular-nums">{fa(row.value)}</div></div>
+                  <div className="space-y-1.5"><div className="grid grid-cols-3 gap-2 text-center"><div><div className="text-xs font-black text-emerald-100">مثبت</div><div className="mt-0.5 text-lg font-black leading-none tabular-nums text-white">{fa(row.positive)}</div></div><div><div className="text-xs font-black text-rose-100">منفی</div><div className="mt-0.5 text-lg font-black leading-none tabular-nums text-white">{fa(row.negative)}</div></div><div><div className="text-xs font-black text-slate-100">خنثی</div><div className="mt-0.5 text-lg font-black leading-none tabular-nums text-white">{fa(row.neutral)}</div></div></div><div className="mt-1 text-xs font-bold text-white/90">مجموع {fa(row.symbols)} نماد</div></div>
+                  <div className="text-left"><div className="text-xs font-bold text-white/80">ارزش معاملات</div><div className="mt-0.5 text-sm font-black tabular-nums text-white">{fa(row.value)}</div></div>
                 </div>
               </div>
             </div>
