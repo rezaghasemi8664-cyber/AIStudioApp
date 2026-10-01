@@ -105,11 +105,10 @@ export default function JalaliDatePicker({ value, onChange, placeholder = 'ان�
         <span className="flex-1 text-right">{selectedText || placeholder}</span>
       </button>
       {open && !disabled && typeof document !== 'undefined' && createPortal(
-        <div
-          className="fixed z-[2147483647] w-[320px] max-w-[calc(100vw-16px)] rounded-xl border border-gray-200 bg-white p-3 shadow-2xl dark:border-gray-700 dark:bg-gray-800"
-          style={{ top: popupPosition.top, left: popupPosition.left }}
-          dir="rtl"
-        >
+        <div className="fixed inset-0 z-[2147483647] flex items-start justify-center bg-black/10 p-2 pt-20" dir="rtl">
+          <div
+            className="w-[320px] max-w-full max-h-[calc(100vh-88px)] overflow-auto rounded-xl border border-gray-200 bg-white p-3 shadow-2xl dark:border-gray-700 dark:bg-gray-800"
+          >
           <div className="flex items-center justify-between mb-3">
             <button type="button" onClick={() => moveMonth(1)} className="px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="ماه بعد">‹</button>
             <strong>{monthNames[view.month - 1]} {toPersianNumber(view.year)}</strong>
@@ -128,6 +127,7 @@ export default function JalaliDatePicker({ value, onChange, placeholder = 'ان�
             })}
           </div>
           <button type="button" onClick={() => { onChange(today); setView(today); setOpen(false); }} className="mt-3 w-full rounded-lg py-1.5 text-sm text-cyan-700 hover:bg-cyan-50 dark:text-cyan-300 dark:hover:bg-cyan-900/30">امروز</button>
+          </div>
         </div>,
         document.body
       )}
