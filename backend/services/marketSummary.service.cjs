@@ -337,35 +337,51 @@ function technicalRsi(values, period = 14) {
 function technicalDirection(score) {
   return score >= 2 ? 'صعودی' : score <= -2 ? 'نزولی' : 'خنثی/ترکیبی';
 }
-async function buildTechnicalMarketAnalysis(currentMarketData, fallbackDate = new Date()) {
-  const model = getMarketSummaryModel();
-  let rows = [];
+async function getHistoricalIndexSeries(referenceDate, limit = 60) {
+  const model = getMarketHistoryModel();
+  if (!model) return [];
+  const targetDay = toDateOnlyISO(referenceDate);
   try {
-    const day = getTehranDayStart(fallbackDate);
-    rows = await model.findMany({
-      where: { summaryDate: { lt: day } },
-      orderBy: { summaryDate: 'asc' },
-      take: 60,
-      select: { summaryDate: true, overallIndex: true, equalIndex: true }
+    const rows = await model.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 3000,
+      select: { id: true, jsonData: true, createdAt: true }
     });
-  } catch (_) {}
-  const history = rows.map(r => ({
-    index: toNumber(r.overallIndex),
-    equal: toNumber(r.equalIndex)
-  })).filter(r => r.index !== null);
+    const byDay = new Map();
+    for (const row of rows) {
+      const day = toDateOnlyISO(row.createdAt);
+      if (!day || day === targetDay) continue;
+      const candidate = extractMarketDataCandidate(parseJsonSafe(row.jsonData));
+      if (!candidate || isLikelySyntheticMarketData(candidate)) continue;
+      const index = pickValue(candidate, FIELD_KEYS.index);
+      if (index === null) continue;
+      const previous = byDay.get(day);
+      if (!previous || new Date(row.createdAt).getTime() > new Date(previous.createdAt).getTime()) {
+        byDay.set(day, { date: day, createdAt: row.createdAt, index });
+      }
+    }
+    return [...byDay.values()]
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+      .slice(-Math.max(1, Number(limit) || 60));
+  } catch (_) {
+    return [];
+  }
+}
+
+async function buildTechnicalMarketAnalysis(currentMarketData, fallbackDate = new Date()) {
+  const historical = await getHistoricalIndexSeries(fallbackDate, 60);
+  const history = historical.map(r => ({ index: r.index, equal: null }));
   const currentIndex = pickValue(currentMarketData, FIELD_KEYS.index);
   const currentEqual = pickValue(currentMarketData, FIELD_KEYS.equalIndex);
   if (currentIndex !== null) history.push({ index: currentIndex, equal: currentEqual });
-
   const closes = history.map(r => r.index).filter(Number.isFinite);
   if (closes.length < 3) {
     return {
       available: false,
-      text: '۱۵) تحلیل تکنیکال و چشم‌انداز کوتاه‌مدت: داده تاریخی کافی برای محاسبه معتبر شاخص‌های تکنیکال در دسترس نیست؛ بنابراین پیش‌بینی روند روزهای آینده ارائه نمی‌شود تا از حدس‌زدن جلوگیری شود.',
+      text: '۱۵) تحلیل تکنیکال و چشم‌انداز کوتاه‌مدت: داده تاریخی واقعی کافی برای محاسبه معتبر شاخص‌های تکنیکال در دسترس نیست؛ بنابراین پیش‌بینی روند روزهای آینده ارائه نمی‌شود تا از حدس‌زدن جلوگیری شود.',
       indicators: { observations: closes.length }
     };
   }
-
   const latest = closes[closes.length - 1];
   const previous = closes[closes.length - 2];
   const sma5 = technicalSma(closes, 5);
@@ -377,7 +393,6 @@ async function buildTechnicalMarketAnalysis(currentMarketData, fallbackDate = ne
   const ema26 = technicalEma(closes, 26);
   const macd = ema12 !== null && ema26 !== null ? ema12 - ema26 : null;
   const momentum = previous !== 0 ? ((latest - previous) / previous) * 100 : null;
-
   let score = 0;
   const signals = [];
   if (sma5 !== null) {
@@ -402,37 +417,22 @@ async function buildTechnicalMarketAnalysis(currentMarketData, fallbackDate = ne
     score += macd > 0 ? 1 : macd < 0 ? -1 : 0;
     if (macd !== 0) signals.push(macd > 0 ? 'MACD بالاتر از صفر' : 'MACD پایین‌تر از صفر');
   }
-
-  const direction = technicalDirection(score);
+  const trendDirection = technicalDirection(score);
   const window = closes.slice(-Math.min(20, closes.length));
   const support = Math.min(...window);
   const resistance = Math.max(...window);
-  const equalValues = history.map(r => r.equal).filter(Number.isFinite);
-  const equalTrend = equalValues.length >= 2
-    ? (equalValues[equalValues.length - 1] >= equalValues[equalValues.length - 2] ? 'مثبت/باثبات' : 'منفی')
-    : 'نامشخص';
-  const trendText = direction === 'صعودی'
-    ? 'سناریوی پایه ۱ تا ۳ جلسه آینده متمایل به تداوم حرکت صعودی است، مشروط به حفظ شاخص بالای میانگین‌های محاسبه‌شده.'
-    : direction === 'نزولی'
-      ? 'سناریوی پایه ۱ تا ۳ جلسه آینده متمایل به تداوم فشار نزولی است، مشروط به باقی ماندن شاخص زیر میانگین‌های محاسبه‌شده.'
-      : 'سناریوی پایه ۱ تا ۳ جلسه آینده خنثی/نوسانی است و جهت معتبر تا دریافت داده جدید تأیید نشده است.';
-  const rsiText = rsi14 === null ? 'قابل محاسبه نیست' : fa(rsi14, 1);
-  const macdText = macd === null ? 'قابل محاسبه نیست' : fa(macd);
-  const momentumText = momentum === null ? 'قابل محاسبه نیست' : signedPct(momentum);
-  const dataNote = closes.length < 15
-    ? 'تعداد مشاهدات برای RSI14 و ابزارهای بلندتر کافی نیست و این شاخص‌ها عمداً در نتیجه به‌عنوان قطعی تلقی نشده‌اند.'
-    : 'شاخص‌ها بر مبنای جلسات ذخیره‌شده بازار محاسبه شده‌اند.';
+  const technicalText = [
+    '۱۵) تحلیل تکنیکال و چشم‌انداز کوتاه‌مدت: این بخش با محاسبات قطعی روی سری تاریخی واقعی شاخص کل تولید شده و به مدل هوش مصنوعی وابسته نیست.',
+    `SMA5: ${fa(sma5)}؛ SMA10: ${fa(sma10)}؛ EMA5: ${fa(ema5)}؛ EMA10: ${fa(ema10)}؛ RSI14: ${rsi14 === null ? 'قابل محاسبه نیست' : fa(rsi14)}؛ MACD: ${macd === null ? 'قابل محاسبه نیست' : fa(macd)}؛ مومنتوم آخرین جلسه: ${signedPct(momentum)}.`,
+    `محدوده ۲۰ جلسه اخیر: حمایت محاسباتی ${fa(support)} و مقاومت محاسباتی ${fa(resistance)}؛ روند شاخص هم‌وزن برای این سری تاریخی در دسترس نیست مگر داده تاریخی هم‌وزن نیز ذخیره شده باشد.`,
+    `برآیند ابزارهای تکنیکال، سوگیری فعلی را «${trendDirection}» نشان می‌دهد. سناریوی پایه ۱ تا ۳ جلسه آینده ${trendDirection === 'صعودی' ? 'متمایل به تداوم حرکت صعودی، مشروط به حفظ رابطه فعلی با میانگین‌ها' : trendDirection === 'نزولی' ? 'متمایل به تداوم حرکت نزولی، مشروط به حفظ رابطه فعلی با میانگین‌ها' : 'خنثی/نوسانی است و جهت معتبر تا دریافت داده جدید تأیید نشده است'}.`,
+    `سیگنال‌های اصلی: ${signals.length ? signals.join('؛ ') : 'سیگنال قطعی از ابزارهای در دسترس شناسایی نشد'}.`,
+    `تعداد جلسات تاریخی واقعی استفاده‌شده: ${fa(closes.length, 0)}. شاخص‌هایی که داده کافی برای آن‌ها وجود ندارد عمداً قطعی تلقی نشده‌اند. این چشم‌انداز پیش‌بینی قطعی بازار یا توصیه خرید/فروش نیست و با ورود داده جلسات بعدی باید دوباره محاسبه شود.`
+  ].join('\\n\\n');
   return {
     available: true,
-    indicators: { observations: closes.length, sma5, sma10, ema5, ema10, rsi14, macd, momentum, support, resistance, score, direction },
-    text: [
-      '۱۵) تحلیل تکنیکال و چشم‌انداز کوتاه‌مدت: این بخش با محاسبات قطعی روی سری تاریخی شاخص کل تولید شده و به مدل هوش مصنوعی وابسته نیست.',
-      `SMA5: ${fa(sma5)}؛ SMA10: ${fa(sma10)}؛ EMA5: ${fa(ema5)}؛ EMA10: ${fa(ema10)}؛ RSI14: ${rsiText}؛ MACD: ${macdText}؛ مومنتوم آخرین جلسه: ${momentumText}.`,
-      `محدوده ۲۰ جلسه اخیر: حمایت محاسباتی ${fa(support)} و مقاومت محاسباتی ${fa(resistance)}؛ روند شاخص هم‌وزن در داده موجود ${equalTrend} است.`,
-      `برآیند ابزارهای تکنیکال، سوگیری فعلی را «${direction}» نشان می‌دهد. ${trendText}`,
-      `سیگنال‌های اصلی: ${signals.join('؛ ') || 'سیگنال معتبر کافی ثبت نشد'}.`,
-      `${dataNote} این چشم‌انداز پیش‌بینی قطعی بازار یا توصیه خرید/فروش نیست و با ورود داده جلسات بعدی باید دوباره محاسبه شود.`
-    ].join('\\n\\n')
+    text: technicalText,
+    indicators: { observations: closes.length, sma5, sma10, ema5, ema10, rsi14, ema12, ema26, macd, momentum, support, resistance }
   };
 }
 
