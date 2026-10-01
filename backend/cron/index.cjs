@@ -1,6 +1,7 @@
 'use strict';
 
 const { startMarketWorker } = require('../workers/market.worker.cjs');
+const { registerMarketCron } = require('./market.cron.cjs');
 const { registerUsageCron } = require('./usage.cron.cjs');
 
 let cronStarted = false;
@@ -42,6 +43,7 @@ function startCronJobs() {
 
   const results = [
     safeStart('market-worker', startMarketWorker),
+    safeRegister('market-history', registerMarketCron),
     safeRegister('usage', registerUsageCron)
   ];
 
