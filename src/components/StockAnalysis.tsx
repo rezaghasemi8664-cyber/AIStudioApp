@@ -2629,7 +2629,7 @@ const clearCurrentAnalysis = () => {
                         label="تاریخ تحلیل"
                         value={
                           analysisData.analysisDate
-                            ? new Date(analysisData.analysisDate).toLocaleString('fa-IR')
+                            ? new Date(analysisData.analysisDate).toLocaleString('fa-IR-u-ca-persian', { timeZone: 'Asia/Tehran' })
                             : '—'
                         }
                       />
