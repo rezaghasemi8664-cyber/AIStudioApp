@@ -43,33 +43,38 @@ export function normalizePortfolioDate(value: unknown): string | null {
   return Number.isFinite(parsed) ? new Date(parsed).toISOString().slice(0, 10) : null;
 }
 
+const PERSIAN_FORMATTER = new Intl.DateTimeFormat('en-US-u-ca-persian', {
+  timeZone: 'UTC', year: 'numeric', month: 'numeric', day: 'numeric',
+});
+const JALALI_GREGORIAN_CACHE = new Map<string,string>();
 function jalaliToGregorian(jy: number, jm: number, jd: number): string {
   const target = { year: jy, month: jm, day: jd };
-  const formatter = new Intl.DateTimeFormat('en-US-u-ca-persian', {
-    timeZone: 'UTC',
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-  });
+  const cacheKey = `${jy}-${jm}-${jd}`;
+  const cached = JALALI_GREGORIAN_CACHE.get(cacheKey);
+  if (cached) return cached;
 
   const readPersianParts = (date: Date) => {
-    const raw = formatter.formatToParts(date);
+    const raw = PERSIAN_FORMATTER.formatToParts(date);
     const get = (type: string) => Number(raw.find(part => part.type === type)?.value || 0);
     return { year: get('year'), month: get('month'), day: get('day') };
   };
 
   // 1 Farvardin is around 20/21 March. Search a bounded window so the
   // conversion is independent of Gregorian leap-year arithmetic.
-  const approximate = new Date(Date.UTC(jy + 621, 2, 21, 12, 0, 0));
-  for (let offset = -370; offset <= 370; offset += 1) {
-    const candidate = new Date(approximate);
-    candidate.setUTCDate(approximate.getUTCDate() + offset);
+  const approximateMs = Date.UTC(jy + 621, 2, 21, 12, 0, 0);
+  let lo = approximateMs - 370 * 86400000, hi = approximateMs + 370 * 86400000;
+  while (lo <= hi) {
+    const mid = lo + Math.floor((hi - lo) / (2 * 86400000)) * 86400000;
+    const candidate = new Date(mid);
     const parts = readPersianParts(candidate);
-    if (parts.year === target.year && parts.month === target.month && parts.day === target.day) {
-      return candidate.toISOString().slice(0, 10);
+    const cmp = parts.year !== target.year ? parts.year - target.year : parts.month !== target.month ? parts.month - target.month : parts.day - target.day;
+    if (cmp === 0) {
+      const result = candidate.toISOString().slice(0, 10);
+      JALALI_GREGORIAN_CACHE.set(cacheKey, result);
+      return result;
     }
+    if (cmp < 0) lo = mid + 86400000; else hi = mid - 86400000;
   }
-
   return '';
 }
 
