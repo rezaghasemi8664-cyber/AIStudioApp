@@ -29,17 +29,23 @@ async function enrichWithRealQuotes(items) {
   if (!items.length) return [];
 
   const symbols = Array.from(new Set(items.map(item => item.symbol).filter(Boolean)));
-  const rows = await Promise.all(symbols.map(async symbol => {
-    try {
-      const data = await sharedMarketService.getSymbols({ symbol, limit: 1 });
-      return [symbol, Array.isArray(data) && data.length ? data[0] : null];
-    } catch (error) {
-      console.error('[PORTFOLIO] Shared quote read failed for ' + symbol + ':', error.message);
-      return [symbol, null];
-    }
-  }));
+  let marketRows = [];
+  try {
+    marketRows = await prisma.marketSymbolCurrent.findMany({
+      where: { symbol: { in: symbols } },
+      orderBy: { updatedAt: 'desc' },
+    });
+  } catch (error) {
+    console.error('[PORTFOLIO] Shared quote batch read failed:', error.message);
+  }
 
-  const quoteMap = new Map(rows);
+  const quoteMap = new Map();
+  for (const row of marketRows) {
+    const symbol = String(row.symbol || '').trim().toUpperCase();
+    if (!symbol || quoteMap.has(symbol)) continue;
+    quoteMap.set(symbol, sharedMarketService.normalizeSymbol(row));
+  }
+
   return items.map(item => {
     const quote = quoteMap.get(item.symbol);
     const currentPrice = quote ? Number(quote.lastPrice ?? quote.closePrice) : null;
