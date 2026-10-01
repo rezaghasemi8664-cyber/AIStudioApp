@@ -308,6 +308,119 @@ function extractMoneyFlow(data) {
     unit: netValue !== null || buyValue !== null || sellValue !== null ? 'value' : 'volume'
   };
 }
+function technicalSma(values, period) {
+  if (!Array.isArray(values) || values.length < period) return null;
+  const tail = values.slice(-period);
+  return tail.reduce((sum, value) => sum + value, 0) / period;
+}
+function technicalEma(values, period) {
+  if (!Array.isArray(values) || values.length < 2) return null;
+  const p = Math.max(2, Math.min(period, values.length));
+  let emaValue = values.slice(0, p).reduce((sum, value) => sum + value, 0) / p;
+  const multiplier = 2 / (p + 1);
+  for (const value of values.slice(p)) emaValue = (value - emaValue) * multiplier + emaValue;
+  return emaValue;
+}
+function technicalRsi(values, period = 14) {
+  if (!Array.isArray(values) || values.length < period + 1) return null;
+  const changes = [];
+  for (let i = 1; i < values.length; i += 1) changes.push(values[i] - values[i - 1]);
+  const tail = changes.slice(-period);
+  const gains = tail.reduce((sum, v) => sum + Math.max(0, v), 0);
+  const losses = tail.reduce((sum, v) => sum + Math.max(0, -v), 0);
+  if (losses === 0) return gains > 0 ? 100 : 50;
+  return 100 - (100 / (1 + ((gains / period) / (losses / period))));
+}
+function technicalDirection(score) {
+  return score >= 2 ? 'صعودی' : score <= -2 ? 'نزولی' : 'خنثی/ترکیبی';
+}
+async function buildTechnicalMarketAnalysis(currentMarketData, fallbackDate = new Date()) {
+  const model = getMarketSummaryModel();
+  let rows = [];
+  try {
+    const day = getTehranDayStart(fallbackDate);
+    rows = await model.findMany({
+      where: { summaryDate: { lt: day } },
+      orderBy: { summaryDate: 'asc' },
+      take: 60,
+      select: { summaryDate: true, overallIndex: true, equalIndex: true }
+    });
+  } catch (_) {}
+  const history = rows.map(r => ({
+    index: toNumber(r.overallIndex),
+    equal: toNumber(r.equalIndex)
+  })).filter(r => r.index !== null);
+  const currentIndex = pickValue(currentMarketData, FIELD_KEYS.index);
+  const currentEqual = pickValue(currentMarketData, FIELD_KEYS.equalIndex);
+  if (currentIndex !== null) history.push({ index: currentIndex, equal: currentEqual });
+
+  const closes = history.map(r => r.index).filter(Number.isFinite);
+  if (closes.length < 3) {
+    return {
+      available: false,
+      text: '۱۵) تحلیل تکنیکال و چشم‌انداز کوتاه‌مدت: داده تاریخی کافی برای محاسبه معتبر شاخص‌های تکنیکال در دسترس نیست؛ بنابراین پیش‌بینی روند روزهای آینده ارائه نمی‌شود تا از حدس‌زدن جلوگیری شود.',
+      indicators: { observations: closes.length }
+    };
+  }
+
+  const latest = closes[closes.length - 1];
+  const previous = closes[closes.length - 2];
+  const sma5 = technicalSma(closes, 5);
+  const sma10 = technicalSma(closes, 10);
+  const ema5 = technicalEma(closes, 5);
+  const ema10 = technicalEma(closes, 10);
+  const rsi14 = technicalRsi(closes, 14);
+  const ema12 = technicalEma(closes, 12);
+  const ema26 = technicalEma(closes, 26);
+  const macd = ema12 !== null && ema26 !== null ? ema12 - ema26 : null;
+  const momentum = previous !== 0 ? ((latest - previous) / previous) * 100 : null;
+
+  let score = 0;
+  const signals = [];
+  if (sma5 !== null) { score += latest >= sma5 ? 1 : -1; signals.push(latest >= sma5 ? 'شاخص بالاتر از SMA5' : 'شاخص پایین‌تر از SMA5'); }
+  if (sma10 !== null) { score += latest >= sma10 ? 1 : -1; signals.push(latest >= sma10 ? 'شاخص بالاتر از SMA10' : 'شاخص پایین‌تر از SMA10'); }
+  if (ema5 !== null && ema10 !== null) { score += ema5 >= ema10 ? 1 : -1; signals.push(ema5 >= ema10 ? 'EMA5 بالاتر از EMA10' : 'EMA5 پایین‌تر از EMA10'); }
+  if (rsi14 !== null) {
+    if (rsi14 >= 70) { score -= 1; signals.push('RSI14 در اشباع خرید'); }
+    else if (rsi14 <= 30) { score += 1; signals.push('RSI14 در اشباع فروش'); }
+    else if (rsi14 >= 55) { score += 1; signals.push('RSI14 بالاتر از ۵۵'); }
+    else if (rsi14 <= 45) { score -= 1; signals.push('RSI14 پایین‌تر از ۴۵'); }
+  }
+  if (macd !== null) { score += macd >= 0 ? 1 : -1; signals.push(macd >= 0 ? 'MACD بالاتر از صفر' : 'MACD پایین‌تر از صفر'); }
+
+  const direction = technicalDirection(score);
+  const window = closes.slice(-Math.min(20, closes.length));
+  const support = Math.min(...window);
+  const resistance = Math.max(...window);
+  const equalValues = history.map(r => r.equal).filter(Number.isFinite);
+  const equalTrend = equalValues.length >= 2
+    ? (equalValues[equalValues.length - 1] >= equalValues[equalValues.length - 2] ? 'مثبت/باثبات' : 'منفی')
+    : 'نامشخص';
+  const trendText = direction === 'صعودی'
+    ? 'سناریوی پایه ۱ تا ۳ جلسه آینده متمایل به تداوم حرکت صعودی است، مشروط به حفظ شاخص بالای میانگین‌های محاسبه‌شده.'
+    : direction === 'نزولی'
+      ? 'سناریوی پایه ۱ تا ۳ جلسه آینده متمایل به تداوم فشار نزولی است، مشروط به باقی ماندن شاخص زیر میانگین‌های محاسبه‌شده.'
+      : 'سناریوی پایه ۱ تا ۳ جلسه آینده خنثی/نوسانی است و جهت معتبر تا دریافت داده جدید تأیید نشده است.';
+  const rsiText = rsi14 === null ? 'قابل محاسبه نیست' : fa(rsi14, 1);
+  const macdText = macd === null ? 'قابل محاسبه نیست' : fa(macd);
+  const momentumText = momentum === null ? 'قابل محاسبه نیست' : signedPct(momentum);
+  const dataNote = closes.length < 15
+    ? 'تعداد مشاهدات برای RSI14 و ابزارهای بلندتر کافی نیست و این شاخص‌ها عمداً در نتیجه به‌عنوان قطعی تلقی نشده‌اند.'
+    : 'شاخص‌ها بر مبنای جلسات ذخیره‌شده بازار محاسبه شده‌اند.';
+  return {
+    available: true,
+    indicators: { observations: closes.length, sma5, sma10, ema5, ema10, rsi14, macd, momentum, support, resistance, score, direction },
+    text: [
+      '۱۵) تحلیل تکنیکال و چشم‌انداز کوتاه‌مدت: این بخش با محاسبات قطعی روی سری تاریخی شاخص کل تولید شده و به مدل هوش مصنوعی وابسته نیست.',
+      `SMA5: ${fa(sma5)}؛ SMA10: ${fa(sma10)}؛ EMA5: ${fa(ema5)}؛ EMA10: ${fa(ema10)}؛ RSI14: ${rsiText}؛ MACD: ${macdText}؛ مومنتوم آخرین جلسه: ${momentumText}.`,
+      `محدوده ۲۰ جلسه اخیر: حمایت محاسباتی ${fa(support)} و مقاومت محاسباتی ${fa(resistance)}؛ روند شاخص هم‌وزن در داده موجود ${equalTrend} است.`,
+      `برآیند ابزارهای تکنیکال، سوگیری فعلی را «${direction}» نشان می‌دهد. ${trendText}`,
+      `سیگنال‌های اصلی: ${signals.join('؛ ') || 'سیگنال معتبر کافی ثبت نشد'}.`,
+      `${dataNote} این چشم‌انداز پیش‌بینی قطعی بازار یا توصیه خرید/فروش نیست و با ورود داده جلسات بعدی باید دوباره محاسبه شود.`
+    ].join('\\n\\n')
+  };
+}
+
 function buildDeterministicSummary(data) {
   const overall = pickValue(data, FIELD_KEYS.index);
   const overallChange = pickValue(data, FIELD_KEYS.changeIndex);
@@ -346,6 +459,7 @@ function buildDeterministicSummary(data) {
   // only valid when an independent, validated volatility/risk metric exists.
   const volatility = pickValue(data, ['volatility', 'volatilityPercent', 'marketVolatility', 'riskScore']);
   const risk = volatility === null ? 'قابل محاسبه نیست' : volatility;
+  const technical = data.__technicalAnalysis;
 
   return [
     `۱) وضعیت کلی بازار: بازار ${state} است؛ برآیند شاخص کل ${direction(overallChange)}، شاخص هم‌وزن ${direction(equalChange)} و پهنای بازار ${breadth.positive > breadth.negative ? 'مثبت' : breadth.negative > breadth.positive ? 'منفی' : 'متعادل'} است؛ سوگیری ترکیبی داده‌ها «${bias}» است.`,
@@ -362,6 +476,7 @@ function buildDeterministicSummary(data) {
     `۱۲) جمع‌بندی داده‌ای: در داده فعلی، شاخص‌ها و پهنای بازار ${bias === 'صعودی' ? 'مثبت' : bias === 'نزولی' ? 'منفی' : 'ترکیبی'} هستند؛ این عبارت صرفاً توصیف وضعیت ثبت‌شده بازار است و توصیه سرمایه‌گذاری محسوب نمی‌شود.`,
     `۱۳) شروط پایش: تغییر جهت شاخص‌ها، تغییر نسبت نمادهای مثبت و منفی، و تغییر جریان پول حقیقی باید در داده‌های بعدی پایش شود؛ در حالت ترکیبی، تغییر وضعیت تنها پس از مشاهده داده جدید گزارش می‌شود.`,
     `۱۴) کیفیت داده و محدودیت تحلیل: ${breadth.total > 0 ? `عرض بازار از ${fa(breadth.total,0)} نماد واجد شرایط تحلیل از snapshot محاسبه شده و پوشش snapshot ${breadth.coverage === null ? 'نامشخص' : signedPct(breadth.coverage)} است` : 'عرض بازار از فهرست نمادهای موجود قابل محاسبه کامل نیست'}؛ رکوردهای فاقد شرایط معتبر تحلیل از محاسبات کنار گذاشته شده‌اند و هیچ مقدار یا نتیجه‌ای که داده معتبر برای آن وجود نداشته باشد حدس زده نشده است. منبع محاسباتی این خلاصه داده بازار و سوابق ذخیره‌شده است و به مدل هوش مصنوعی وابسته نیست.`
+    technical?.text || '۱۵) تحلیل تکنیکال و چشم‌انداز کوتاه‌مدت: داده تاریخی کافی برای محاسبه معتبر شاخص‌های تکنیکال در دسترس نیست؛ پیش‌بینی روند ارائه نشد.',
   ].join('\n\n');
 }
 
@@ -521,6 +636,8 @@ async function generateMarketSummary({ marketData, fallbackDate = new Date() }) 
   const sourceDate = toDateOrNull(fallbackDate) || new Date();
   const targetDay = getTehranDayStart(sourceDate);
   const breadth = buildBreadth(marketData);
+  const technical = await buildTechnicalMarketAnalysis(marketData, sourceDate);
+  const summaryData = { ...marketData, __technicalAnalysis: technical };
   const payload = {
     summaryDate: targetDay,
     overallIndex: pickValue(marketData, FIELD_KEYS.index),
@@ -537,8 +654,8 @@ async function generateMarketSummary({ marketData, fallbackDate = new Date() }) 
     topGainers: jsonStringifySafe(breadth.gainers),
     topLosers: jsonStringifySafe(breadth.losers),
     topVolumes: jsonStringifySafe(breadth.volumes),
-    content: buildDeterministicSummary(marketData),
-    summary: buildDeterministicSummary(marketData),
+    content: buildDeterministicSummary(summaryData),
+    summary: buildDeterministicSummary(summaryData),
     rawJson: jsonStringifySafe({ data: marketData, meta: { generatedAt: new Date().toISOString(), source: 'deterministic-market-summary', ai: false } })
   };
   const existing = await findBySummaryDateSafe(targetDay);
