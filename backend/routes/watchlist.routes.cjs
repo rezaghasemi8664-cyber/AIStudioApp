@@ -9,7 +9,14 @@ async function readWatchlists(userId) {
     // The shared market snapshot is the authoritative source for watchlist
     // quotes. Do not depend on a previously saved user-preference quote:
     // older watchlists may contain no quote or a partial quote.
-    const sharedRows = await sharedMarketService.getSymbols({ limit: 10000 });
+    const requestedSymbols = [...new Set(
+      watchlists.flatMap(list => list.symbols.map(item => item.symbol)).filter(Boolean)
+    )];
+    const sharedRows = requestedSymbols.length
+      ? await prisma.marketSymbolCurrent.findMany({
+          where: { symbol: { in: requestedSymbols } },
+        })
+      : [];
     const sharedBySymbol = new Map(sharedRows.map(item => [normalizeSymbol(item.symbol), item]));
 
     return watchlists.map(watchlist => ({
@@ -46,7 +53,7 @@ async function readWatchlists(userId) {
             closePrice,
             closeChangePercent,
             updatedAt: market.updatedAt ? new Date(market.updatedAt).toISOString() : new Date().toISOString(),
-            dataStatus: market.isStale ? 'CACHED' : 'LIVE',
+            dataStatus: 'CACHED',
             source: market.source ? String(market.source) : 'shared-db',
             stale: Boolean(market.isStale),
           },
