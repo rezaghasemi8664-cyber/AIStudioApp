@@ -100,9 +100,15 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
         const schedule = apiConfigService.getMarketIndexSchedule();
         if (!schedule.isEnabled) return true;
         const now = new Date();
-        const currentDay = now.getDay();
+        const parts = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'Asia/Tehran', weekday: 'short', hour: '2-digit', minute: '2-digit',
+            hour12: false, hourCycle: 'h23',
+        }).formatToParts(now);
+        const get = (type: string) => parts.find(part => part.type === type)?.value ?? '';
+        const weekdayMap: Record<string, number> = { Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6 };
+        const currentDay = weekdayMap[get('weekday')];
         if (!schedule.days.includes(currentDay)) return false;
-        const currentTime = now.toTimeString().slice(0, 5);
+        const currentTime = `${get("hour")}:${get("minute")}`;
         return !(currentTime < schedule.startTime || currentTime > schedule.endTime);
     }, []);
 
