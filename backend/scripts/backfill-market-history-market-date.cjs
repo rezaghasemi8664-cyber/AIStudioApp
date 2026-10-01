@@ -34,29 +34,42 @@ function snapshotTime(value) {
 async function main() {
   const rows = await prisma.marketHistory.findMany({
     orderBy: { id: "asc" },
-    select: {
-      id: true,
-      jsonData: true,
-      createdAt: true,
-      marketDate: true,
-    },
+    select: { id: true, jsonData: true, createdAt: true, marketDate: true },
   });
 
   const byDay = new Map();
   const invalid = [];
+  const ignoredNonIndex = [];
   const alreadyFilled = [];
   let validRows = 0;
 
   for (const row of rows) {
-    const data = parseJson(row.jsonData);
-    const jalali = normalizeJalaliDate(data?.date);
+    const payload = parseJson(row.jsonData);
+    const data = payload?.data;
+    const isIndexSnapshot =
+      payload?.type === "index" &&
+      data &&
+      typeof data === "object" &&
+      !Array.isArray(data);
+
+    if (!isIndexSnapshot) {
+      ignoredNonIndex.push({
+        id: row.id,
+        type: payload?.type ?? null,
+        reason: "not-index-snapshot",
+      });
+      continue;
+    }
+
+    const jalali = normalizeJalaliDate(data.date);
     const gregorian = jalali ? jalaliToGregorianISO(jalali) : null;
 
     if (!gregorian) {
       invalid.push({
         id: row.id,
-        date: data?.date ?? null,
-        reason: data?.date ? "invalid-jalali-date" : "missing-date",
+        date: data.date ?? null,
+        time: data.time ?? null,
+        reason: data.date ? "invalid-jalali-date" : "missing-date",
       });
       continue;
     }
@@ -64,15 +77,8 @@ async function main() {
     validRows += 1;
     if (row.marketDate) alreadyFilled.push(row.id);
 
-    const time = snapshotTime(data?.time);
-    const current = {
-      id: row.id,
-      jalali,
-      gregorian,
-      time,
-      createdAt: row.createdAt,
-    };
-
+    const time = snapshotTime(data.time);
+    const current = { id: row.id, jalali, gregorian, time, createdAt: row.createdAt };
     const list = byDay.get(gregorian) || [];
     list.push(current);
     byDay.set(gregorian, list);
@@ -87,7 +93,6 @@ async function main() {
         return new Date(b.createdAt || 0).getTime() -
           new Date(a.createdAt || 0).getTime();
       });
-
       const latest = list[0];
       return {
         marketDate: gregorian,
@@ -104,17 +109,17 @@ async function main() {
     mode: "DRY_RUN",
     totalRows: rows.length,
     validRows,
+    ignoredNonIndexRows: ignoredNonIndex.length,
     invalidRows: invalid.length,
     uniqueTradingDays: days.length,
     duplicateRows,
     alreadyFilledRows: alreadyFilled.length,
     invalid,
+    ignoredNonIndex,
     days,
   }, null, 2));
 
-  if (invalid.length > 0) {
-    process.exitCode = 2;
-  }
+  if (invalid.length > 0) process.exitCode = 2;
 }
 
 main()
