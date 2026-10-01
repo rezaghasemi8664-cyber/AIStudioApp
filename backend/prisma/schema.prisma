@@ -291,6 +291,7 @@ model MarketSymbolCurrent {
   closePrice      Decimal? @db.Decimal(18, 2)
   change          Decimal? @db.Decimal(18, 4)
   changePercent   Decimal? @db.Decimal(10, 4)
+  closeChangePercent Decimal? @db.Decimal(10, 4)
   volume          BigInt?
   value           Decimal? @db.Decimal(24, 2)
   tradeCount      BigInt?
