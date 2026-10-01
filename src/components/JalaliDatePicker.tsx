@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { JalaliDate, jalaliToGregorian } from '../utils/jalaliDate';
 
 type Props = {
@@ -37,6 +38,38 @@ export default function JalaliDatePicker({ value, onChange, placeholder = 'ان�
   }, []);
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<JalaliDate>(value || today);
+  const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const updatePopupPosition = () => {
+      const button = buttonRef.current;
+      if (!button) return;
+
+      const rect = button.getBoundingClientRect();
+      const width = Math.min(320, Math.max(0, window.innerWidth - 16));
+      const left = Math.min(
+        Math.max(8, rect.left),
+        Math.max(8, window.innerWidth - width - 8)
+      );
+
+      setPopupPosition({
+        top: Math.min(rect.bottom + 8, Math.max(8, window.innerHeight - 420)),
+        left,
+      });
+    };
+
+    updatePopupPosition();
+    window.addEventListener('resize', updatePopupPosition);
+    window.addEventListener('scroll', updatePopupPosition, true);
+
+    return () => {
+      window.removeEventListener('resize', updatePopupPosition);
+      window.removeEventListener('scroll', updatePopupPosition, true);
+    };
+  }, [open]);
 
   const days = useMemo(() => {
     const count = daysInMonth(view.year, view.month);
@@ -64,15 +97,19 @@ export default function JalaliDatePicker({ value, onChange, placeholder = 'ان�
 
   return (
     <div className={open ? "relative z-[1000] w-full" : "relative z-0 w-full"} dir="rtl">
-      <button type="button" disabled={disabled} onClick={() => { if (!open && value) setView(value); setOpen(v => !v); }} className={`w-full flex items-center gap-2 border rounded px-3 py-2 bg-white dark:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${className}`}>
+      <button ref={buttonRef} type="button" disabled={disabled} onClick={() => { if (!open && value) setView(value); setOpen(v => !v); }} className={`w-full flex items-center gap-2 border rounded px-3 py-2 bg-white dark:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${className}`}>
         <svg aria-hidden="true" className="h-5 w-5 shrink-0 text-cyan-600 dark:text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <rect x="3" y="4" width="18" height="17" rx="2" />
           <path d="M16 2v4M8 2v4M3 10h18" />
         </svg>
         <span className="flex-1 text-right">{selectedText || placeholder}</span>
       </button>
-      {open && !disabled && (
-        <div className="absolute z-[100] mt-2 w-[320px] max-w-[90vw] rounded-xl border border-gray-200 bg-white p-3 shadow-2xl dark:border-gray-700 dark:bg-gray-800">
+      {open && !disabled && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed z-[2147483647] w-[320px] max-w-[calc(100vw-16px)] rounded-xl border border-gray-200 bg-white p-3 shadow-2xl dark:border-gray-700 dark:bg-gray-800"
+          style={{ top: popupPosition.top, left: popupPosition.left }}
+          dir="rtl"
+        >
           <div className="flex items-center justify-between mb-3">
             <button type="button" onClick={() => moveMonth(1)} className="px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="ماه بعد">‹</button>
             <strong>{monthNames[view.month - 1]} {toPersianNumber(view.year)}</strong>
@@ -91,7 +128,8 @@ export default function JalaliDatePicker({ value, onChange, placeholder = 'ان�
             })}
           </div>
           <button type="button" onClick={() => { onChange(today); setView(today); setOpen(false); }} className="mt-3 w-full rounded-lg py-1.5 text-sm text-cyan-700 hover:bg-cyan-50 dark:text-cyan-300 dark:hover:bg-cyan-900/30">امروز</button>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
