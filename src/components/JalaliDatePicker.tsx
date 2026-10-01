@@ -63,7 +63,7 @@ export default function JalaliDatePicker({ value, onChange, placeholder = 'ان�
   };
 
   return (
-    <div className="relative w-full" dir="rtl">
+    <div className={open ? "relative z-[1000] w-full" : "relative z-0 w-full"} dir="rtl">
       <button type="button" disabled={disabled} onClick={() => { if (!open && value) setView(value); setOpen(v => !v); }} className={`w-full flex items-center gap-2 border rounded px-3 py-2 bg-white dark:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${className}`}>
         <svg aria-hidden="true" className="h-5 w-5 shrink-0 text-cyan-600 dark:text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <rect x="3" y="4" width="18" height="17" rx="2" />
