@@ -1,7 +1,7 @@
 'use strict';
 
 const express = require('express');
-const authenticate = require('../middleware/authenticate');
+const authenticate = require('../middlewares/authenticate.middleware.cjs');
 const sharedMarketService = require('../services/sharedMarket.service.cjs');
 const { calculateSmartScore } = require('../services/smartScore.service.cjs');
 
