@@ -338,9 +338,44 @@ function technicalDirection(score) {
   return score >= 2 ? 'صعودی' : score <= -2 ? 'نزولی' : 'خنثی/ترکیبی';
 }
 async function getHistoricalIndexSeries(referenceDate, limit = 60) {
+  const targetDay = toDateOnlyISO(referenceDate);
+  const technicalModel = getModel(prisma, 'MarketTechnicalDaily', 'marketTechnicalDaily');
+
+  if (technicalModel) {
+    try {
+      const rows = await technicalModel.findMany({
+        orderBy: { marketDate: 'desc' },
+        take: Math.max(1, Number(limit) || 60),
+        select: { marketDate: true, overallIndex: true, createdAt: true }
+      });
+
+      const daily = rows
+        .filter(row => toDateOnlyISO(row.marketDate) !== targetDay)
+        .map(row => {
+          const index = Number(row.overallIndex);
+          return Number.isFinite(index) && index > 0
+            ? {
+                date: toDateOnlyISO(row.marketDate),
+                createdAt: row.createdAt,
+                index
+              }
+            : null;
+        })
+        .filter(Boolean)
+        .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+      if (daily.length > 0) return daily.slice(-Math.max(1, Number(limit) || 60));
+    } catch (error) {
+      console.warn('[TECHNICAL] MarketTechnicalDaily read failed:', error?.message || error);
+    }
+  }
+
+  // Transitional fallback: use real MarketHistory only when the daily technical
+  // table is not populated yet. This keeps existing summaries functional while
+  // the new end-of-day history is being backfilled.
   const model = getMarketHistoryModel();
   if (!model) return [];
-  const targetDay = toDateOnlyISO(referenceDate);
+
   try {
     const rows = await model.findMany({
       orderBy: { createdAt: 'desc' },
