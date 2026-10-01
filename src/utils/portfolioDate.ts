@@ -44,26 +44,33 @@ export function normalizePortfolioDate(value: unknown): string | null {
 }
 
 function jalaliToGregorian(jy: number, jm: number, jd: number): string {
-  const gy = jy + 621;
-  const breaks = [-61, 9, 38, 199, 426, 686, 756, 818, 1111, 1181, 1210, 1635, 2060, 2097, 2192, 2262, 2324, 2394, 2456, 3178];
-  let leapJ = -14;
-  let jp = breaks[0];
-  let jump = 0;
-  for (let i = 1; i < breaks.length; i += 1) {
-    const jmBreak = breaks[i];
-    jump = jmBreak - jp;
-    if (jy < jmBreak) break;
-    leapJ += Math.floor(jump / 33) * 8 + Math.floor(((jump % 33) + 3) / 4);
-    jp = jmBreak;
+  const target = { year: jy, month: jm, day: jd };
+  const formatter = new Intl.DateTimeFormat('en-US-u-ca-persian', {
+    timeZone: 'UTC',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  });
+
+  const readPersianParts = (date: Date) => {
+    const raw = formatter.formatToParts(date);
+    const get = (type: string) => Number(raw.find(part => part.type === type)?.value || 0);
+    return { year: get('year'), month: get('month'), day: get('day') };
+  };
+
+  // 1 Farvardin is around 20/21 March. Search a bounded window so the
+  // conversion is independent of Gregorian leap-year arithmetic.
+  const approximate = new Date(Date.UTC(jy + 621, 2, 21, 12, 0, 0));
+  for (let offset = -370; offset <= 370; offset += 1) {
+    const candidate = new Date(approximate);
+    candidate.setUTCDate(approximate.getUTCDate() + offset);
+    const parts = readPersianParts(candidate);
+    if (parts.year === target.year && parts.month === target.month && parts.day === target.day) {
+      return candidate.toISOString().slice(0, 10);
+    }
   }
-  const n = jy - jp;
-  if (jump === 33 && n === 4) leapJ += 1;
-  const leapG = Math.floor(gy / 4) - Math.floor((Math.floor(gy / 100) + 1) * 3 / 4) - 150;
-  const march = 20 + leapJ - leapG;
-  const days = jm <= 6 ? (jm - 1) * 31 + (jd - 1) : (jm - 7) * 30 + 186 + (jd - 1);
-  const gDate = new Date(Date.UTC(gy, 2, march));
-  gDate.setUTCDate(gDate.getUTCDate() + days);
-  return gDate.toISOString().slice(0, 10);
+
+  return '';
 }
 
 
