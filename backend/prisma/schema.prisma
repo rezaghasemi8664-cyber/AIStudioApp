@@ -204,10 +204,13 @@ model AnalysisHistory {
 }
 
 model MarketHistory {
-  id        Int       @id(map: "PK__MarketHi__3213E83F9B8AD4C3") @default(autoincrement())
-  jsonData  String?   @db.NVarChar(Max)
-  createdAt DateTime? @default(dbgenerated("sysdatetime()"), map: "DF__MarketHi__creat__7FEAFD3E")
+  id         Int       @id(map: "PK__MarketHi__3213E83F9B8AD4C3") @default(autoincrement())
+  jsonData   String?   @db.NVarChar(Max)
+  marketDate DateTime? @db.Date
+  createdAt  DateTime? @default(dbgenerated("sysdatetime()"), map: "DF__MarketHi__creat__7FEAFD3E")
+  updatedAt  DateTime?
 
+  @@index([marketDate], map: "IX_MarketHistory_marketDate")
   @@map("MarketHistory")
   @@schema("dbo")
 }
