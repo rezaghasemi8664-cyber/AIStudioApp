@@ -230,10 +230,15 @@ function getBreadthChangePercent(row) {
 }
 
 async function getBreadth() {
-  const [market, industries] = await Promise.all([getMarketCurrent(), getIndustries(100)]);
-  if (!market) return null;
-
-  const symbols = await getSymbols({ limit: 10000 });
+  const [market, symbols, industriesResult] = await Promise.all([
+    getMarketCurrent(),
+    getSymbols({ limit: 10000 }),
+    getIndustries(100).catch(() => []),
+  ]);
+  // Breadth is derived from MarketSymbolCurrent and must remain available even
+  // if the optional persisted industry snapshot is temporarily unavailable.
+  if (!market && symbols.length === 0) return null;
+  const industries = industriesResult;
   const valid = symbols
     .filter((row) => isMarketAnalyticsEligible(row) && !/شاخص|index/i.test(`${row.symbol} ${row.name || ""}`))
     .map((row) => ({ ...row, radarChangePercent: getBreadthChangePercent(row) }))
