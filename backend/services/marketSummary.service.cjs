@@ -706,6 +706,46 @@ async function ensureRecentTradingDaySummaries(daysBack = 7) {
   return ensured;
 }
 
+
+async function rebuildExistingTechnicalSummaries({ limit = SUMMARY_RETENTION_COUNT } = {}) {
+  const model = getMarketSummaryModel();
+  const rows = await model.findMany({
+    orderBy: [{ summaryDate: 'asc' }, { id: 'asc' }],
+    take: Math.min(50, Math.max(1, Number(limit) || SUMMARY_RETENTION_COUNT))
+  });
+  const updated = [];
+  for (const record of rows) {
+    const raw = parseJsonSafe(record.rawJson) || {};
+    const rawData = raw?.data && typeof raw.data === 'object' ? raw.data : {};
+    const marketData = {
+      ...rawData,
+      overallIndex: toNumber(record.overallIndex) ?? pickValue(rawData, FIELD_KEYS.index),
+      overallChange: toNumber(record.overallChange) ?? pickValue(rawData, FIELD_KEYS.changeIndex),
+      equalIndex: toNumber(record.equalIndex) ?? pickValue(rawData, FIELD_KEYS.equalIndex),
+      equalChange: toNumber(record.equalChange) ?? pickValue(rawData, FIELD_KEYS.equalChange),
+      marketStatus: record.marketStatus || rawData.marketStatus || rawData.state,
+      totalTrades: record.totalTrades,
+      totalVolume: record.totalVolume,
+      totalValue: record.totalValue,
+      positiveStocks: record.positiveStocks,
+      negativeStocks: record.negativeStocks,
+      neutralStocks: record.neutralStocks,
+      topGainers: parseJsonSafe(record.topGainers) || [],
+      topLosers: parseJsonSafe(record.topLosers) || [],
+      topVolumes: parseJsonSafe(record.topVolumes) || []
+    };
+    if (!isUsableMarketData(marketData) || isLikelySyntheticMarketData(marketData)) continue;
+    const technical = await buildTechnicalMarketAnalysis(marketData, record.summaryDate);
+    const content = buildDeterministicSummary({ ...marketData, __technicalAnalysis: technical });
+    const saved = await model.update({
+      where: { id: record.id },
+      data: { content, summary: content }
+    });
+    updated.push({ id: saved.id, summaryDate: toDateOnlyISO(saved.summaryDate), observations: technical?.indicators?.observations ?? null, technicalAvailable: Boolean(technical?.available) });
+  }
+  return { updatedCount: updated.length, updated };
+}
+
 exports.findOrGenerateLatest = async () => {
   const ensured = await ensureRecentTradingDaySummaries(7);
   const model = getMarketSummaryModel();
