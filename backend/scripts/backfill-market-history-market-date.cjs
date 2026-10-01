@@ -80,6 +80,13 @@ function getIndexData(payload) {
 }
 
 async function main() {
+  const mode = String(process.env.MARKET_HISTORY_BACKFILL_MODE || "DRY_RUN").trim().toUpperCase();
+  const apply = mode === "APPLY";
+
+  if (!["DRY_RUN", "APPLY"].includes(mode)) {
+    throw new Error("MARKET_HISTORY_BACKFILL_MODE must be DRY_RUN or APPLY");
+  }
+
   const rows = await prisma.marketHistory.findMany({
     orderBy: { id: "asc" },
     select: { id: true, jsonData: true, createdAt: true, marketDate: true },
@@ -132,6 +139,12 @@ async function main() {
     byDay.set(normalized.gregorian, list);
   }
 
+  if (invalid.length > 0) {
+    throw new Error(
+      `Aborting backfill: ${invalid.length} index snapshots have invalid dates.`
+    );
+  }
+
   const days = [...byDay.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([gregorian, list]) => {
@@ -149,27 +162,66 @@ async function main() {
         rows: list.length,
         latestRowId: latest.id,
         latestBrsTime: latest.time || null,
+        duplicateIds: list.slice(1).map((item) => item.id),
       };
     });
 
-  const duplicateRows = days.reduce((sum, day) => sum + Math.max(0, day.rows - 1), 0);
+  const duplicateRows = days.reduce(
+    (sum, day) => sum + Math.max(0, day.rows - 1),
+    0
+  );
+
+  if (!apply) {
+    console.log(JSON.stringify({
+      mode: "DRY_RUN",
+      totalRows: rows.length,
+      validRows,
+      ignoredNonIndexRows: ignoredNonIndex.length,
+      invalidRows: invalid.length,
+      uniqueTradingDays: days.length,
+      duplicateRows,
+      alreadyFilledRows: alreadyFilled.length,
+      invalid,
+      days: days.map(({ duplicateIds, ...day }) => ({
+        ...day,
+        duplicateCount: duplicateIds.length,
+      })),
+    }, null, 2));
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const day of days) {
+      await tx.marketHistory.update({
+        where: { id: day.latestRowId },
+        data: {
+          marketDate: new Date(`${day.marketDate}T00:00:00.000Z`),
+          updatedAt: day.latestBrsTime
+            ? new Date(rows.find((row) => row.id === day.latestRowId)?.createdAt || Date.now())
+            : new Date(rows.find((row) => row.id === day.latestRowId)?.createdAt || Date.now()),
+        },
+      });
+    }
+
+    const deleteIds = days.flatMap((day) => day.duplicateIds);
+    if (deleteIds.length > 0) {
+      await tx.marketHistory.deleteMany({
+        where: { id: { in: deleteIds } },
+      });
+    }
+  });
 
   console.log(JSON.stringify({
-    mode: "DRY_RUN",
-    totalRows: rows.length,
+    mode: "APPLY",
+    totalRowsBefore: rows.length,
     validRows,
     ignoredNonIndexRows: ignoredNonIndex.length,
-    invalidRows: invalid.length,
     uniqueTradingDays: days.length,
-    duplicateRows,
-    alreadyFilledRows: alreadyFilled.length,
-    invalid,
-    days,
+    updatedDailySnapshots: days.length,
+    deletedDuplicateRows: duplicateRows,
+    preservedNonIndexRows: ignoredNonIndex.length,
   }, null, 2));
-
-  if (invalid.length > 0) process.exitCode = 2;
 }
-
 main()
   .catch((error) => {
     console.error("[MARKET][BACKFILL][DRY_RUN] Failed:", error);
