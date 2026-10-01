@@ -84,7 +84,7 @@ const IndustryHeatmap: React.FC<{ rows: MarketRadarSector[] }> = ({ rows }) => {
                   <span className="shrink-0 rounded-lg bg-black/10 px-2 py-1 text-xs font-black tabular-nums">{signedPercent(row.changePercent)}</span>
                 </div>
                 <div className="flex items-end justify-between gap-2">
-                  <div><div className="text-[10px] font-semibold text-white/80">تعداد نماد</div><div className="mt-0.5 text-sm font-black tabular-nums">{fa(row.symbols)}</div></div>
+                  <div><div className="text-[10px] font-semibold text-white/80">مثبت · منفی · خنثی</div><div className="mt-0.5 text-xs font-black tabular-nums"><span className="text-emerald-100">{fa(row.positive)}</span> · <span className="text-rose-100">{fa(row.negative)}</span> · <span className="text-slate-100">{fa(row.neutral)}</span></div><div className="mt-0.5 text-[10px] text-white/70">مجموع {fa(row.symbols)} نماد</div></div>
                   <div className="text-left"><div className="text-[10px] opacity-60">ارزش معاملات</div><div className="mt-0.5 text-xs font-bold tabular-nums">{fa(row.value)}</div></div>
                 </div>
               </div>
