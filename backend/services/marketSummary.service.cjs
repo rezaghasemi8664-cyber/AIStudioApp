@@ -804,3 +804,4 @@ exports.runCatchUpForMissingSummary = async () => ({ data: null, generated: fals
 exports.findLatestUnsummarizedMarketDay = async () => null;
 exports.isTradingDay = isTradingDay;
 exports.buildMergedMarketDataForDay = buildMergedMarketDataForDay;
+exports.rebuildExistingTechnicalSummaries = rebuildExistingTechnicalSummaries;
