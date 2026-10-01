@@ -15,12 +15,37 @@ function parseJson(value) {
   }
 }
 
-function normalizeJalaliDate(value) {
+function normalizeDate(value) {
   if (value == null) return null;
   const raw = String(value).trim().replace(/\//g, "-");
   const match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(raw);
   if (!match) return null;
-  return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  if (year >= 1900) {
+    const iso = `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+    const date = new Date(`${iso}T00:00:00.000Z`);
+    if (
+      Number.isNaN(date.getTime()) ||
+      date.toISOString().slice(0, 10) !== iso
+    ) {
+      return null;
+    }
+    return { kind: "gregorian", source: raw, gregorian: iso, jalali: null };
+  }
+
+  if (year < 1200 || year > 1600 || month < 1 || month > 12 || day < 1 || day > 31) {
+    return null;
+  }
+
+  const jalali = `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
+  const gregorian = jalaliToGregorianISO(jalali);
+  if (!gregorian) return null;
+
+  return { kind: "jalali", source: raw, gregorian, jalali };
 }
 
 function snapshotTime(value) {
@@ -45,31 +70,41 @@ async function main() {
 
   for (const row of rows) {
     const payload = parseJson(row.jsonData);
-    const data = payload?.data;
+    const nested = payload?.data;
+    const data =
+      payload?.type === "index" &&
+      nested &&
+      typeof nested === "object" &&
+      !Array.isArray(nested)
+        ? nested
+        : payload?.type === "index"
+          ? payload
+          : null;
+
     const isIndexSnapshot =
       payload?.type === "index" &&
       data &&
       typeof data === "object" &&
-      !Array.isArray(data);
+      !Array.isArray(data) &&
+      data.date != null &&
+      Number.isFinite(Number(data.index));
 
     if (!isIndexSnapshot) {
       ignoredNonIndex.push({
         id: row.id,
         type: payload?.type ?? null,
-        reason: "not-index-snapshot",
+        reason: payload?.type === "index" ? "invalid-index-snapshot" : "not-index-snapshot",
       });
       continue;
     }
 
-    const jalali = normalizeJalaliDate(data.date);
-    const gregorian = jalali ? jalaliToGregorianISO(jalali) : null;
-
-    if (!gregorian) {
+    const normalized = normalizeDate(data.date);
+    if (!normalized) {
       invalid.push({
         id: row.id,
         date: data.date ?? null,
         time: data.time ?? null,
-        reason: data.date ? "invalid-jalali-date" : "missing-date",
+        reason: "invalid-date",
       });
       continue;
     }
@@ -78,10 +113,17 @@ async function main() {
     if (row.marketDate) alreadyFilled.push(row.id);
 
     const time = snapshotTime(data.time);
-    const current = { id: row.id, jalali, gregorian, time, createdAt: row.createdAt };
-    const list = byDay.get(gregorian) || [];
+    const current = {
+      id: row.id,
+      dateKind: normalized.kind,
+      jalali: normalized.jalali,
+      gregorian: normalized.gregorian,
+      time,
+      createdAt: row.createdAt,
+    };
+    const list = byDay.get(normalized.gregorian) || [];
     list.push(current);
-    byDay.set(gregorian, list);
+    byDay.set(normalized.gregorian, list);
   }
 
   const days = [...byDay.entries()]
@@ -90,34 +132,46 @@ async function main() {
       list.sort((a, b) => {
         const timeCompare = b.time.localeCompare(a.time);
         if (timeCompare !== 0) return timeCompare;
-        return new Date(b.createdAt || 0).getTime() -
-          new Date(a.createdAt || 0).getTime();
+        return (
+          new Date(b.createdAt || 0).getTime() -
+          new Date(a.createdAt || 0).getTime()
+        );
       });
       const latest = list[0];
       return {
         marketDate: gregorian,
         jalaliDate: latest.jalali,
+        sourceDateKind: latest.dateKind,
         rows: list.length,
         latestRowId: latest.id,
         latestBrsTime: latest.time || null,
       };
     });
 
-  const duplicateRows = days.reduce((sum, day) => sum + Math.max(0, day.rows - 1), 0);
+  const duplicateRows = days.reduce(
+    (sum, day) => sum + Math.max(0, day.rows - 1),
+    0
+  );
 
-  console.log(JSON.stringify({
-    mode: "DRY_RUN",
-    totalRows: rows.length,
-    validRows,
-    ignoredNonIndexRows: ignoredNonIndex.length,
-    invalidRows: invalid.length,
-    uniqueTradingDays: days.length,
-    duplicateRows,
-    alreadyFilledRows: alreadyFilled.length,
-    invalid,
-    ignoredNonIndex,
-    days,
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        mode: "DRY_RUN",
+        totalRows: rows.length,
+        validRows,
+        ignoredNonIndexRows: ignoredNonIndex.length,
+        invalidRows: invalid.length,
+        uniqueTradingDays: days.length,
+        duplicateRows,
+        alreadyFilledRows: alreadyFilled.length,
+        invalid,
+        ignoredNonIndex,
+        days,
+      },
+      null,
+      2
+    )
+  );
 
   if (invalid.length > 0) process.exitCode = 2;
 }
