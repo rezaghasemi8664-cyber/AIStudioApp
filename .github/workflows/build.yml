@@ -1,5 +1,6 @@
 name: Build
 # CI trigger marker: 2026-10-01
+# Force CI for watchlist API restoration: 2026-10-01
 on:
   push:
     branches:
