@@ -2,6 +2,7 @@
 
 const prisma = require("../config/prisma.cjs");
 const env = require("../config/env.cjs");
+const { jalaliToGregorianDate } = require("../utils/jalaliDate.cjs");
 
 const BRS_API_KEY = env.BRS_API_KEY || "";
 const BRS_TIMEOUT_MS = parseInt(env.BRS_TIMEOUT_MS, 10) || 15000;
@@ -211,7 +212,7 @@ function extractStoredMarketSnapshot(record) {
         ...parsed,
         ...metadata,
       },
-      record.createdAt || record.updatedAt || null,
+      record.updatedAt || record.createdAt || null,
       "db"
     );
   }
@@ -222,7 +223,7 @@ function extractStoredMarketSnapshot(record) {
         data: parsed,
         ...metadata,
       },
-      record.createdAt || record.updatedAt || null,
+      record.updatedAt || record.createdAt || null,
       "db"
     );
   }
@@ -316,7 +317,7 @@ async function fetchSymbolDetail(symbolName) {
 
 async function getLatestMarketHistory() {
   const record = await prisma.marketHistory.findFirst({
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
   });
 
   if (!record) return null;
@@ -389,7 +390,7 @@ async function saveMarketDaily(records) {
 
 async function getMarketHistory(limit = 30) {
   const records = await prisma.marketHistory.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
     take: limit,
   });
 
@@ -567,15 +568,43 @@ async function saveMarketSnapshot(data) {
     return null;
   }
 
-  const record = await prisma.marketHistory.create({
-    data: {
-      jsonData: JSON.stringify(snapshot),
-    },
+  // MarketHistory is intentionally one successful snapshot per trading day.
+  // BRS returns the trading date in Jalali format (e.g. 1405-06-30).
+  // A failed fetch never reaches this function, so the previous successful
+  // snapshot remains untouched.
+  const marketDate = jalaliToGregorianDate(snapshot.date);
+  if (!marketDate) {
+    console.warn(
+      "[MARKET][SNAPSHOT] Skip: invalid Jalali market date:",
+      snapshot.date
+    );
+    return null;
+  }
+
+  const existing = await prisma.marketHistory.findFirst({
+    where: { marketDate },
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
   });
+
+  const record = existing
+    ? await prisma.marketHistory.update({
+        where: { id: existing.id },
+        data: {
+          jsonData: JSON.stringify(snapshot),
+          updatedAt: new Date(),
+        },
+      })
+    : await prisma.marketHistory.create({
+        data: {
+          jsonData: JSON.stringify(snapshot),
+          marketDate,
+          updatedAt: new Date(),
+        },
+      });
 
   console.log(
     `[MARKET][SNAPSHOT] Saved id=${record.id} index=${snapshot.index} at ${
-      record.createdAt || snapshot.snapshotCreatedAt
+      record.updatedAt || record.createdAt || snapshot.snapshotCreatedAt
     }`
   );
 
