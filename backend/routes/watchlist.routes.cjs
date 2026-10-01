@@ -14,6 +14,11 @@ function getUserId(req) {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 function normalizeSymbol(value) { return String(value || '').trim().toUpperCase(); }
+function nullableNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
 function normalizeWatchlist(item) {
   if (!item || typeof item !== 'object') return null;
   const id = String(item.id || '').trim();
@@ -23,11 +28,11 @@ function normalizeWatchlist(item) {
     symbol: normalizeSymbol(symbol?.symbol),
     name: String(symbol?.name || symbol?.symbol || '').trim(),
     quote: symbol?.quote && typeof symbol.quote === 'object' ? {
-      volume: Number.isFinite(Number(symbol.quote.volume)) ? Number(symbol.quote.volume) : null,
-      lastPrice: Number.isFinite(Number(symbol.quote.lastPrice)) ? Number(symbol.quote.lastPrice) : null,
-      lastChangePercent: Number.isFinite(Number(symbol.quote.lastChangePercent)) ? Number(symbol.quote.lastChangePercent) : null,
-      closePrice: Number.isFinite(Number(symbol.quote.closePrice)) ? Number(symbol.quote.closePrice) : null,
-      closeChangePercent: Number.isFinite(Number(symbol.quote.closeChangePercent)) ? Number(symbol.quote.closeChangePercent) : null,
+      volume: nullableNumber(symbol.quote.volume),
+      lastPrice: nullableNumber(symbol.quote.lastPrice),
+      lastChangePercent: nullableNumber(symbol.quote.lastChangePercent),
+      closePrice: nullableNumber(symbol.quote.closePrice),
+      closeChangePercent: nullableNumber(symbol.quote.closeChangePercent),
       updatedAt: String(symbol.quote.updatedAt || ''),
       dataStatus: ['LIVE', 'CACHED', 'UNAVAILABLE'].includes(symbol.quote.dataStatus) ? symbol.quote.dataStatus : 'CACHED',
       source: symbol.quote.source ? String(symbol.quote.source) : undefined,
@@ -70,9 +75,10 @@ async function readWatchlists(userId) {
           } catch (_) {}
         }
 
-        const closePrice = Number.isFinite(Number(market.closePrice)) ? Number(market.closePrice) : null;
-        const closeChangePercent = Number.isFinite(Number(market.closeChangePercent))
-          ? Number(market.closeChangePercent)
+        const closePrice = nullableNumber(market.closePrice);
+        const storedCloseChangePercent = nullableNumber(market.closeChangePercent);
+        const closeChangePercent = storedCloseChangePercent != null
+          ? storedCloseChangePercent
           : closePrice != null && yesterday > 0
             ? ((closePrice - yesterday) / yesterday) * 100
             : null;
@@ -81,11 +87,9 @@ async function readWatchlists(userId) {
           ...item,
           name: market.name || item.name,
           quote: {
-            volume: Number.isFinite(Number(market.volume)) ? Number(market.volume) : null,
-            lastPrice: Number.isFinite(Number(market.lastPrice)) ? Number(market.lastPrice) : null,
-            lastChangePercent: Number.isFinite(Number(market.lastChangePercent))
-              ? Number(market.lastChangePercent)
-              : Number.isFinite(Number(market.changePercent)) ? Number(market.changePercent) : null,
+            volume: nullableNumber(market.volume),
+            lastPrice: nullableNumber(market.lastPrice),
+            lastChangePercent: nullableNumber(market.lastChangePercent) ?? nullableNumber(market.changePercent),
             closePrice,
             closeChangePercent,
             updatedAt: market.updatedAt ? new Date(market.updatedAt).toISOString() : new Date().toISOString(),
