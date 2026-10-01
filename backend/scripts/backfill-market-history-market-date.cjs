@@ -93,6 +93,7 @@ async function main() {
   });
 
   const byDay = new Map();
+  const rowById = new Map(rows.map((row) => [row.id, row]));
   const invalid = [];
   const ignoredNonIndex = [];
   const alreadyFilled = [];
@@ -196,9 +197,9 @@ async function main() {
         where: { id: day.latestRowId },
         data: {
           marketDate: new Date(`${day.marketDate}T00:00:00.000Z`),
-          updatedAt: day.latestBrsTime
-            ? new Date(rows.find((row) => row.id === day.latestRowId)?.createdAt || Date.now())
-            : new Date(rows.find((row) => row.id === day.latestRowId)?.createdAt || Date.now()),
+          updatedAt: new Date(
+            rowById.get(day.latestRowId)?.createdAt || Date.now()
+          ),
         },
       });
     }
