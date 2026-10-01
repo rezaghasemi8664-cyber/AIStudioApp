@@ -36,6 +36,11 @@ async function writeMarketTechnicalDaily() {
   const index = n(raw.index ?? raw.marketIndex ?? raw.indexValue ?? raw.lastIndex);
   if (!(index > 0)) return { skipped: true, reason: 'INVALID_INDEX' };
 
+  // Keep only the latest 90 trading-day records to prevent unbounded table growth.
+  await prisma.marketTechnicalDaily.deleteMany({
+    where: { marketDate: { lt: new Date(Date.UTC(marketDate.getUTCFullYear(), marketDate.getUTCMonth(), marketDate.getUTCDate() - 120)) } }
+  });
+
   const saved = await prisma.marketTechnicalDaily.create({
     data: {
       marketDate,
