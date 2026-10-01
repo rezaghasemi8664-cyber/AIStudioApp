@@ -39,7 +39,7 @@ function ChartLine({ values, secondaryValues, width = 760, height = 270, padding
   return <>
     {tickValues.map((tick, index) => {
       const y = height - padding - ((tick - min) / span) * (height - padding * 2);
-      return <g key={`grid-${index}`} pointerEvents="none"><line x1={padding} x2={width - padding} y1={y} y2={y} stroke="currentColor" strokeOpacity="0.10" strokeDasharray="3 5" /><text x={padding - 8} y={y + 4} textAnchor="end" className="fill-slate-500 text-[10px]">{fa(tick, 0)}</text></g>;
+      return <g key={`grid-${index}`} pointerEvents="none"><line x1={padding} x2={width - padding} y1={y} y2={y} stroke="currentColor" strokeOpacity="0.10" strokeDasharray="3 5" /><text x={padding - 8} y={y + 4} textAnchor="end" className="fill-slate-700 text-[13px] font-black dark:fill-slate-300">{fa(tick, 0)}</text></g>;
     })}
     <polyline points={buildPoints(values)} fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
     {singlePoint && (() => { const point = toPoint(valid[0].value, valid[0].index); return <circle cx={point.x} cy={point.y} r="7" fill="currentColor" stroke="var(--color-surface)" strokeWidth="3" />; })()}
@@ -90,12 +90,12 @@ const MarketRadarHistory: React.FC = () => {
   return <article dir="rtl" className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
       <div><h2 className="font-black text-[var(--color-text-primary)]">روند تاریخی بازار</h2><p className="mt-1 text-xs text-slate-500">داده روزانه واقعی از MarketSummary؛ بدون تولید یا برآورد داده</p></div>
-      <div className="flex flex-wrap gap-2">{ranges.map((item) => <button key={item.value} onClick={() => setRange(item.value)} className={`rounded-xl px-3 py-2 text-xs font-bold transition ${range === item.value ? 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-400/30' : 'border border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.06]'}`}>{item.label}</button>)}</div>
+      <div className="flex flex-wrap gap-2">{ranges.map((item) => <button key={item.value} onClick={() => setRange(item.value)} className={`rounded-xl px-3 py-2 text-sm font-black transition ${range === item.value ? 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-400/30' : 'border border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.06]'}`}>{item.label}</button>)}</div>
     </div>
 
     <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/5 pt-4">
-      <span className="ml-1 text-xs font-bold text-slate-500">متریک:</span>
-      {metrics.map((item) => <button key={item.value} onClick={() => { setMetric(item.value); setHovered(null); }} className={`rounded-xl px-3 py-2 text-xs font-bold transition ${metric === item.value ? 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-400/30' : 'border border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.06]'}`}>{item.label}</button>)}
+      <span className="ml-1 text-sm font-black text-slate-700 dark:text-slate-300">متریک:</span>
+      {metrics.map((item) => <button key={item.value} onClick={() => { setMetric(item.value); setHovered(null); }} className={`rounded-xl px-3 py-2 text-sm font-black transition ${metric === item.value ? 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-400/30' : 'border border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.06]'}`}>{item.label}</button>)}
       {metric === 'index' && <label className="mr-2 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-bold text-slate-400"><input type="checkbox" checked={compareIndex} onChange={(event) => setCompareIndex(event.target.checked)} className="h-4 w-4 accent-violet-500" /> مقایسه با شاخص هم‌وزن</label>}
     </div>
 
@@ -108,21 +108,21 @@ const MarketRadarHistory: React.FC = () => {
               <line x1={hovered.x} x2={hovered.x} y1="25" y2="245" stroke="currentColor" strokeOpacity="0.2" strokeDasharray="4 4" />
               <circle cx={hovered.x} cy={hovered.y} r="7" fill="currentColor" />
               <rect x={Math.min(Math.max(hovered.x - 112, 8), 544)} y={Math.max(hovered.y - 88, 8)} width="224" height={metric === 'index' && compareIndex ? 76 : 58} rx="12" fill="var(--color-surface)" stroke="currentColor" strokeOpacity="0.25" />
-              <text x={Math.min(Math.max(hovered.x, 120), 640)} y={Math.max(hovered.y - 61, 25)} textAnchor="middle" className="fill-[var(--color-text-primary)] text-[11px] font-bold">{dateFa(hoveredPoint.timestamp)}</text>
-              <text x={Math.min(Math.max(hovered.x, 120), 640)} y={Math.max(hovered.y - 41, 45)} textAnchor="middle" className="fill-sky-300 text-[11px] font-black">شاخص کل: {valueLabel(hoveredValue)}</text>
-              {metric === 'index' && compareIndex && <text x={Math.min(Math.max(hovered.x, 120), 640)} y={Math.max(hovered.y - 21, 65)} textAnchor="middle" className="fill-violet-300 text-[11px] font-black">هم‌وزن: {fa(hoveredEqual, 2)}</text>}
+              <text x={Math.min(Math.max(hovered.x, 120), 640)} y={Math.max(hovered.y - 61, 25)} textAnchor="middle" className="fill-[var(--color-text-primary)] text-[14px] font-black">{dateFa(hoveredPoint.timestamp)}</text>
+              <text x={Math.min(Math.max(hovered.x, 120), 640)} y={Math.max(hovered.y - 41, 45)} textAnchor="middle" className="fill-sky-500 text-[14px] font-black dark:fill-sky-300">شاخص کل: {valueLabel(hoveredValue)}</text>
+              {metric === 'index' && compareIndex && <text x={Math.min(Math.max(hovered.x, 120), 640)} y={Math.max(hovered.y - 21, 65)} textAnchor="middle" className="fill-violet-500 text-[14px] font-black dark:fill-violet-300">هم‌وزن: {fa(hoveredEqual, 2)}</text>}
             </g>}
           </svg>
-          {metric === 'index' && compareIndex && <div className="flex justify-center gap-5 pb-2 text-[11px] font-bold text-slate-500"><span className="inline-flex items-center gap-2"><i className="h-2 w-6 rounded-full bg-sky-400" /> شاخص کل</span><span className="inline-flex items-center gap-2"><i className="h-0.5 w-6 border-t-2 border-dashed border-violet-400" /> شاخص هم‌وزن</span></div>}
+          {metric === 'index' && compareIndex && <div className="flex justify-center gap-5 pb-2 text-sm font-black text-slate-700 dark:text-slate-300"><span className="inline-flex items-center gap-2"><i className="h-2 w-6 rounded-full bg-sky-400" /> شاخص کل</span><span className="inline-flex items-center gap-2"><i className="h-0.5 w-6 border-t-2 border-dashed border-violet-400" /> شاخص هم‌وزن</span></div>}
         </div>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-6">
-        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">متریک انتخاب‌شده</div><div className="mt-1 font-black text-slate-200">{selectedMetric.label}</div></div>
-        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">آخرین مقدار</div><div className="mt-1 font-black tabular-nums text-slate-200">{valueLabel(lastValue)}</div></div>
-        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">بیشترین مقدار</div><div className="mt-1 font-black tabular-nums text-emerald-400">{valueLabel(high)}</div></div>
-        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">کمترین مقدار</div><div className="mt-1 font-black tabular-nums text-rose-400">{valueLabel(low)}</div></div>
-        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">تغییر بازه</div><div className={`mt-1 font-black tabular-nums ${rangeChange === null ? 'text-slate-200' : rangeChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{rangeChangeLabel}</div>{metric === 'index' && compareIndex && <div className={`mt-1 text-[10px] font-bold ${equalRangeChange === null ? 'text-slate-500' : equalRangeChange >= 0 ? 'text-emerald-400/80' : 'text-rose-400/80'}`}>هم‌وزن: {equalRangeChangeLabel}</div>}</div>
-        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">آخرین تاریخ / نقاط</div><div className="mt-1 font-black text-slate-200">{last ? dateFa(last.timestamp) : '—'}</div><div className="mt-1 text-[10px] text-slate-500">{fa(data.points.length)} نقطه</div></div>
+        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-sm font-black text-slate-700 dark:text-slate-300">متریک انتخاب‌شده</div><div className="mt-1 font-black text-slate-200">{selectedMetric.label}</div></div>
+        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-sm font-black text-slate-700 dark:text-slate-300">آخرین مقدار</div><div className="mt-1 font-black tabular-nums text-slate-200">{valueLabel(lastValue)}</div></div>
+        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-sm font-black text-slate-700 dark:text-slate-300">بیشترین مقدار</div><div className="mt-1 font-black tabular-nums text-emerald-400">{valueLabel(high)}</div></div>
+        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-sm font-black text-slate-700 dark:text-slate-300">کمترین مقدار</div><div className="mt-1 font-black tabular-nums text-rose-400">{valueLabel(low)}</div></div>
+        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-sm font-black text-slate-700 dark:text-slate-300">تغییر بازه</div><div className={`mt-1 font-black tabular-nums ${rangeChange === null ? 'text-slate-200' : rangeChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{rangeChangeLabel}</div>{metric === 'index' && compareIndex && <div className={`mt-1 text-[10px] font-bold ${equalRangeChange === null ? 'text-slate-500' : equalRangeChange >= 0 ? 'text-emerald-400/80' : 'text-rose-400/80'}`}>هم‌وزن: {equalRangeChangeLabel}</div>}</div>
+        <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-sm font-black text-slate-700 dark:text-slate-300">آخرین تاریخ / نقاط</div><div className="mt-1 font-black text-slate-200">{last ? dateFa(last.timestamp) : '—'}</div><div className="mt-1 text-sm font-black text-slate-600 dark:text-slate-300">{fa(data.points.length)} نقطه</div></div>
       </div>
     </>}
   </article>;
