@@ -30,6 +30,86 @@ async function pruneOldTechnicalDailyRecords() {
   return result.count;
 }
 
+async function backfillMarketTechnicalDaily() {
+  const rows = await prisma.marketHistory.findMany({
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, createdAt: true, jsonData: true }
+  });
+
+  const byDay = new Map();
+
+  for (const row of rows) {
+    const key = dayKey(row.createdAt);
+    if (!tradingWeekday(row.createdAt) || byDay.has(key)) continue;
+
+    let raw;
+    try {
+      raw = JSON.parse(row.jsonData || '{}');
+    } catch {
+      continue;
+    }
+
+    const index = n(raw.index ?? raw.marketIndex ?? raw.indexValue ?? raw.lastIndex);
+    if (!(index > 0)) continue;
+
+    byDay.set(key, {
+      marketDate: dayValue(row.createdAt),
+      overallIndex: index,
+      overallChange: n(raw.index_change ?? raw.indexChange ?? raw.changeValue),
+      equalIndex: n(raw.indexEqualWeight ?? raw.index_equalWeight ?? raw.equalWeightedIndex),
+      equalChange: n(raw.indexEqualWeightChange ?? raw.index_equalWeight_change ?? raw.equalWeightedChangeValue),
+      source: String(raw.source || 'market-history').slice(0, 50)
+    });
+  }
+
+  let created = 0;
+  let updated = 0;
+
+  for (const item of byDay.values()) {
+    const existing = await prisma.marketTechnicalDaily.findUnique({
+      where: { marketDate: item.marketDate },
+      select: { id: true }
+    });
+
+    if (existing) {
+      await prisma.marketTechnicalDaily.update({
+        where: { id: existing.id },
+        data: {
+          overallIndex: item.overallIndex,
+          overallChange: item.overallChange,
+          equalIndex: item.equalIndex,
+          equalChange: item.equalChange,
+          source: item.source
+        }
+      });
+      updated++;
+    } else {
+      await prisma.marketTechnicalDaily.create({
+        data: {
+          marketDate: item.marketDate,
+          overallIndex: item.overallIndex,
+          overallChange: item.overallChange,
+          equalIndex: item.equalIndex,
+          equalChange: item.equalChange,
+          source: item.source
+        }
+      });
+      created++;
+    }
+  }
+
+  const deleted = await pruneOldTechnicalDailyRecords();
+  console.log('[CRON][MarketTechnicalDaily] backfill completed', {
+    sourceRows: rows.length,
+    validTradingDays: byDay.size,
+    created,
+    updated,
+    deleted
+  });
+
+  return { sourceRows: rows.length, validTradingDays: byDay.size, created, updated, deleted };
+}
+
 async function writeMarketTechnicalDaily() {
   const now = new Date();
   const marketDate = dayValue(now);
@@ -70,4 +150,4 @@ function registerMarketTechnicalDailyCron() {
   console.log('[CRON] MarketTechnicalDaily scheduled 12:32 Tehran');
 }
 
-module.exports = { registerMarketTechnicalDailyCron, writeMarketTechnicalDaily };
+module.exports = { registerMarketTechnicalDailyCron, writeMarketTechnicalDaily, backfillMarketTechnicalDaily };
