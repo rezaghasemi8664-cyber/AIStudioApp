@@ -82,8 +82,10 @@ const MarketRadarHistory: React.FC = () => {
   const equalRangeChange = percentChange(validEqualValues[0], lastEqualValid);
   const rangeChangeLabel = rangeChange === null ? '—' : `${rangeChange >= 0 ? '+' : ''}${fa(rangeChange, 2)}٪`;
   const equalRangeChangeLabel = equalRangeChange === null ? '—' : `${equalRangeChange >= 0 ? '+' : ''}${fa(equalRangeChange, 2)}٪`;
-  const high = validValues.length ? Math.max(...validValues) : null;
-  const low = validValues.length ? Math.min(...validValues) : null;
+  // For 1d, the first point is only the previous-session baseline and must not affect today's high/low.
+  const extremaValues = range === '1d' && values.length > 1 ? values.slice(1).filter(valueIsValid) : validValues;
+  const high = extremaValues.length ? Math.max(...extremaValues) : null;
+  const low = extremaValues.length ? Math.min(...extremaValues) : null;
 
   return <article dir="rtl" className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
