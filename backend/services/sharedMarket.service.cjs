@@ -39,12 +39,21 @@ function isMarketAnalyticsEligible(row) {
   return !placeholderPrice;
 }
 
+function isTradingCalendarDay(date = new Date()) {
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Tehran',
+    weekday: 'short'
+  }).format(date);
+  return ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'].includes(weekday);
+}
+
 function normalizeMarketCurrent(row) {
   if (!row) return null;
+  const calendarOpen = isTradingCalendarDay();
   return {
     id: row.id,
     marketDate: row.marketDate,
-    marketStatus: row.marketStatus,
+    marketStatus: calendarOpen ? row.marketStatus : 'CLOSED',
     overallIndex: decimalToNumber(row.overallIndex),
     overallChange: decimalToNumber(row.overallChange),
     equalIndex: decimalToNumber(row.equalIndex),
@@ -57,7 +66,7 @@ function normalizeMarketCurrent(row) {
     neutralStocks: row.neutralStocks,
     updatedAt: row.updatedAt,
     source: row.source,
-    isStale: row.isStale,
+    isStale: row.isStale || !calendarOpen,
     dataJson: row.dataJson || null,
   };
 }
