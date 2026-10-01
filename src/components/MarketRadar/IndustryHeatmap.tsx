@@ -80,7 +80,7 @@ const IndustryHeatmap: React.FC<{ rows: MarketRadarSector[] }> = ({ rows }) => {
             >
               <div className="flex h-full flex-col justify-between gap-3">
                 <div className="flex items-start justify-between gap-2">
-                  <span className={`line-clamp-2 text-sm font-black leading-5 ${change > 0 ? "text-emerald-100" : change < 0 ? "text-rose-100" : "text-slate-100"}`}>{row.name}</span>
+                  <span className={`min-w-0 whitespace-normal break-words text-sm font-black leading-5 ${change > 0 ? "text-emerald-100" : change < 0 ? "text-rose-100" : "text-slate-100"}`}>{row.name}</span>
                   <span className="shrink-0 rounded-lg bg-black/10 px-2 py-1 text-xs font-black tabular-nums">{signedPercent(row.changePercent)}</span>
                 </div>
                 <div className="flex items-end justify-between gap-2">
