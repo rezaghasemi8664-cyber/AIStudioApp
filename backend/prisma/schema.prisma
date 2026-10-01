@@ -258,6 +258,21 @@ model MarketSummary {
   @@schema("dbo")
 }
 
+model MarketTechnicalDaily {
+  id            Int      @id @default(autoincrement())
+  marketDate    DateTime @unique @db.Date
+  overallIndex  Decimal? @db.Decimal(20, 4)
+  overallChange Decimal? @db.Decimal(20, 4)
+  equalIndex    Decimal? @db.Decimal(20, 4)
+  equalChange   Decimal? @db.Decimal(20, 4)
+  source        String?  @db.NVarChar(50)
+  createdAt     DateTime @default(dbgenerated("sysdatetime()"))
+
+  @@index([marketDate])
+  @@map("MarketTechnicalDaily")
+  @@schema("dbo")
+}
+
 model MarketCurrent {
   id             Int      @id @default(autoincrement())
   marketDate     DateTime @unique @db.Date
