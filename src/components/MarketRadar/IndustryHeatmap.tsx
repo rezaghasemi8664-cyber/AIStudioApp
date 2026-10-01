@@ -83,14 +83,15 @@ const IndustryHeatmap: React.FC<{ rows: MarketRadarSector[] }> = ({ rows }) => {
                   <span className={`min-w-0 whitespace-normal break-words text-base font-black leading-6 ${change > 0 ? "text-emerald-50" : change < 0 ? "text-rose-50" : "text-white"}`}>{row.name}</span>
                   <span className="shrink-0 rounded-lg bg-black/10 px-2.5 py-1.5 text-sm font-black tabular-nums text-white">{signedPercent(row.changePercent)}</span>
                 </div>
-                <div className="flex items-end justify-between gap-3">
-                  <div className="min-w-[118px] space-y-1.5">
-                    <div className="flex items-center justify-between gap-3 text-sm font-black"><span className="text-emerald-100">مثبت</span><span className="text-lg font-black leading-none tabular-nums text-white">{fa(row.positive)}</span></div>
-                    <div className="flex items-center justify-between gap-3 text-sm font-black"><span className="text-rose-100">منفی</span><span className="text-lg font-black leading-none tabular-nums text-white">{fa(row.negative)}</span></div>
-                    <div className="flex items-center justify-between gap-3 text-sm font-black"><span className="text-slate-100">خنثی</span><span className="text-lg font-black leading-none tabular-nums text-white">{fa(row.neutral)}</span></div>
-                    <div className="mt-1 border-t border-white/20 pt-1 text-sm font-black text-white">نماد {fa(row.symbols)}</div>
+                <div className="mt-auto grid grid-cols-2 gap-3 border-t border-white/15 pt-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-black text-white">مجموع نماد</div>
+                    <div className="mt-0.5 text-lg font-black leading-none tabular-nums text-white">{fa(row.symbols)}</div>
                   </div>
-                  <div className="text-left"><div className="text-sm font-black text-white">ارزش معاملات</div><div className="mt-0.5 text-base font-black tabular-nums text-white">{fa(row.value)}</div></div>
+                  <div className="min-w-0 text-left">
+                    <div className="whitespace-normal break-words text-sm font-black text-white">ارزش معاملات</div>
+                    <div className="mt-0.5 break-all text-base font-black leading-tight tabular-nums text-white">{fa(row.value)}</div>
+                  </div>
                 </div>
               </div>
             </div>
