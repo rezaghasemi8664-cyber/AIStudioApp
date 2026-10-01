@@ -49,7 +49,7 @@ function normalizeIndexRows(payload: unknown): MarketRadarIndex[] {
   return result;
 }
 function normalizeMover(item: unknown): MarketRadarMover { const row = record(item); return { symbol: String(row.symbol ?? row.ticker ?? row.code ?? '—'), changePercent: numberFrom(row, ['changePercent', 'percentChange', 'change']), volume: numberFrom(row, ['volume', 'tradeVolume', 'tradedVolume'], 0) ?? 0, value: numberFrom(row, ['value', 'tradeValue', 'tradedValue'], 0) ?? 0 }; }
-function normalizeSector(item: unknown): MarketRadarSector { const row = record(item); return { name: String(row.name ?? row.title ?? row.industry ?? row.group ?? '—'), symbols: numberFrom(row, ['symbols', 'symbolCount', 'count', 'symbolsCount'], 0) ?? 0, changePercent: numberFrom(row, ['changePercent', 'percentChange', 'change'], 0) ?? 0, value: numberFrom(row, ['value', 'marketValue', 'tradeValue'], 0) ?? 0 }; }
+function normalizeSector(item: unknown): MarketRadarSector { const row = record(item); return { name: String(row.name ?? row.title ?? row.industry ?? row.group ?? '—'), symbols: numberFrom(row, ['symbols', 'symbolCount', 'count', 'symbolsCount'], 0) ?? 0, positive: numberFrom(row, ['positive'], 0) ?? 0, negative: numberFrom(row, ['negative'], 0) ?? 0, neutral: numberFrom(row, ['neutral'], 0) ?? 0, changePercent: numberFrom(row, ['changePercent', 'percentChange', 'change'], 0) ?? 0, value: numberFrom(row, ['value', 'marketValue', 'tradeValue'], 0) ?? 0 }; }
 function normalizeBreadth(payload: unknown): MarketRadarBreadth | null {
   const root = record(unwrap(payload)); if (root.available === false && !root.positive && !root.negative && !root.neutral) return null;
   const sectorRoot = record(root.sectors);
