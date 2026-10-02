@@ -19,12 +19,6 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-function getModel() {
-  const model = prisma?.MarketSummary || prisma?.marketSummary;
-  if (!model) throw new Error('[MarketRadarHistory] MarketSummary model is unavailable.');
-  return model;
-}
-
 function normalizeRange(value) {
   const range = String(value || '1d').toLowerCase();
   return RANGES.has(range) ? range : null;
@@ -32,11 +26,14 @@ function normalizeRange(value) {
 
 function startDateFor(range, latestDate) {
   const start = new Date(latestDate);
-  // For the 1-day view we need the previous trading session as the baseline
-  // so the UI can calculate the day-over-day percentage change.
   const days = range === '1d' ? 2 : RANGE_DAYS[range];
   start.setUTCDate(start.getUTCDate() - (days - 1));
   return start;
+}
+
+function dateKey(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
 }
 
 async function getHistory(inputRange) {
@@ -47,57 +44,101 @@ async function getHistory(inputRange) {
     throw error;
   }
 
-  const latestModel = prisma?.MarketCurrent || prisma?.marketCurrent;
-  const summaryModel = getModel();
+  const summaryModel = prisma?.MarketSummary || prisma?.marketSummary;
+  const technicalModel = prisma?.MarketTechnicalDaily || prisma?.marketTechnicalDaily;
+  const currentModel = prisma?.MarketCurrent || prisma?.marketCurrent;
 
-  const latest = latestModel
-    ? await latestModel.findFirst({ orderBy: { marketDate: 'desc' }, select: { marketDate: true } })
-    : await summaryModel.findFirst({ orderBy: { summaryDate: 'desc' }, select: { summaryDate: true } });
+  if (!summaryModel && !technicalModel && !currentModel) {
+    throw new Error('[MarketRadarHistory] No market history model is available.');
+  }
 
-  if (!latest) return { range, available: false, points: [], generatedAt: null };
+  // MarketTechnicalDaily is the durable daily index history. MarketSummary/MarketCurrent
+  // may contain only a short retention window, so they must not be the primary source
+  // for 3m/6m/1y charts.
+  let latestRow = null;
+  if (technicalModel) {
+    latestRow = await technicalModel.findFirst({ orderBy: { marketDate: 'desc' }, select: { marketDate: true } });
+  }
+  if (!latestRow && summaryModel) {
+    latestRow = await summaryModel.findFirst({ orderBy: { summaryDate: 'desc' }, select: { summaryDate: true } });
+  }
+  if (!latestRow && currentModel) {
+    latestRow = await currentModel.findFirst({ orderBy: { marketDate: 'desc' }, select: { marketDate: true } });
+  }
 
-  const latestDate = new Date(latest.marketDate || latest.summaryDate);
+  if (!latestRow) return { range, available: false, points: [], generatedAt: null };
+
+  const latestDate = new Date(latestRow.marketDate || latestRow.summaryDate);
   const startDate = startDateFor(range, latestDate);
 
-  let rows = [];
-  if (latestModel) {
-    rows = await latestModel.findMany({
-      where: { marketDate: { gte: startDate, lte: latestDate } },
-      orderBy: { marketDate: 'asc' },
-      select: {
-        marketDate: true,
-        overallIndex: true,
-        equalIndex: true,
-        totalValue: true,
-        totalVolume: true,
-        totalTrades: true
-      }
+  const [technicalRows, summaryRows, currentRows] = await Promise.all([
+    technicalModel
+      ? technicalModel.findMany({
+          where: { marketDate: { gte: startDate, lte: latestDate } },
+          orderBy: { marketDate: 'asc' },
+          select: { marketDate: true, overallIndex: true, equalIndex: true }
+        })
+      : [],
+    summaryModel
+      ? summaryModel.findMany({
+          where: { summaryDate: { gte: startDate, lte: latestDate } },
+          orderBy: { summaryDate: 'asc' },
+          select: { summaryDate: true, overallIndex: true, equalIndex: true, totalValue: true, totalVolume: true, totalTrades: true }
+        })
+      : [],
+    currentModel
+      ? currentModel.findMany({
+          where: { marketDate: { gte: startDate, lte: latestDate } },
+          orderBy: { marketDate: 'asc' },
+          select: { marketDate: true, overallIndex: true, equalIndex: true, totalValue: true, totalVolume: true, totalTrades: true }
+        })
+      : []
+  ]);
+
+  const byDate = new Map();
+
+  const ensure = (dateValue) => {
+    const key = dateKey(dateValue);
+    if (!key) return null;
+    if (!byDate.has(key)) byDate.set(key, {
+      timestamp: new Date(dateValue).toISOString(),
+      index: null,
+      equalWeightedIndex: null,
+      totalValue: null,
+      totalVolume: null,
+      totalTrades: null
     });
+    return byDate.get(key);
+  };
+
+  for (const row of technicalRows) {
+    const point = ensure(row.marketDate);
+    if (!point) continue;
+    point.index = toNumber(row.overallIndex) ?? point.index;
+    point.equalWeightedIndex = toNumber(row.equalIndex) ?? point.equalWeightedIndex;
   }
 
-  if (!rows.length) {
-    rows = await summaryModel.findMany({
-      where: { summaryDate: { gte: startDate, lte: latestDate } },
-      orderBy: { summaryDate: 'asc' },
-      select: {
-        summaryDate: true,
-        overallIndex: true,
-        equalIndex: true,
-        totalValue: true,
-        totalVolume: true,
-        totalTrades: true
-      }
-    });
+  for (const row of summaryRows) {
+    const point = ensure(row.summaryDate);
+    if (!point) continue;
+    point.index = toNumber(row.overallIndex) ?? point.index;
+    point.equalWeightedIndex = toNumber(row.equalIndex) ?? point.equalWeightedIndex;
+    point.totalValue = toNumber(row.totalValue) ?? point.totalValue;
+    point.totalVolume = toNumber(row.totalVolume) ?? point.totalVolume;
+    point.totalTrades = toNumber(row.totalTrades) ?? point.totalTrades;
   }
 
-  const points = rows.map((row) => ({
-    timestamp: new Date(row.marketDate || row.summaryDate).toISOString(),
-    index: toNumber(row.overallIndex),
-    equalWeightedIndex: toNumber(row.equalIndex),
-    totalValue: toNumber(row.totalValue),
-    totalVolume: toNumber(row.totalVolume),
-    totalTrades: toNumber(row.totalTrades)
-  }));
+  for (const row of currentRows) {
+    const point = ensure(row.marketDate);
+    if (!point) continue;
+    point.index = toNumber(row.overallIndex) ?? point.index;
+    point.equalWeightedIndex = toNumber(row.equalIndex) ?? point.equalWeightedIndex;
+    point.totalValue = toNumber(row.totalValue) ?? point.totalValue;
+    point.totalVolume = toNumber(row.totalVolume) ?? point.totalVolume;
+    point.totalTrades = toNumber(row.totalTrades) ?? point.totalTrades;
+  }
+
+  const points = [...byDate.values()].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 
   return {
     range,
