@@ -70,6 +70,7 @@ function isTradingCalendarDay(date = new Date()) {
 function normalizeMarketCurrent(row) {
   if (!row) return null;
   const marketWindow = getTehranMarketWindow();
+  const calendarOpen = marketWindow.isTradingDay;
   return {
     id: row.id,
     marketDate: row.marketDate,
