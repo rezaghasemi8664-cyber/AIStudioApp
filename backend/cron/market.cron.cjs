@@ -39,7 +39,7 @@ function isMarketOpenBySchedule(now = new Date()) {
   return (
     window.isTradingDay &&
     window.minutesOfDay >= MARKET_OPEN_MINUTE &&
-    window.minutesOfDay <= MARKET_CLOSE_MINUTE
+    window.minutesOfDay < MARKET_CLOSE_MINUTE
   );
 }
 
@@ -67,7 +67,11 @@ function registerMarketCron() {
         return;
       }
 
-      const saved = await saveMarketSnapshot(data);
+      // The scheduler is authoritative for the regular session.
+    // A snapshot fetched at/after 12:30 must never be persisted as OPEN.
+    // The cron itself stops before 12:30, so this also protects against
+    // accidental boundary execution.
+    const saved = await saveMarketSnapshot(data);
       if (saved) {
         console.log(
           `[CRON] Market snapshot saved at ${new Date().toISOString()}`
