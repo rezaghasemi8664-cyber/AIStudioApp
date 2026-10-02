@@ -67,7 +67,7 @@ export async function getDashboardMovers(): Promise<{ gainers: DashboardMover[];
 const normalizeIndustries = (payload: unknown): DashboardIndustry[] => {
   const value = unwrap(payload); const root = record(value);
   const source: unknown[] = Array.isArray(value) ? value : Array.isArray(root.items) ? root.items : [];
-  return source.slice(0, 12).map((item) => { const row = record(item); return { name: String(row.name ?? row.title ?? row.industry ?? row.group ?? '—'), changePercent: numberFrom(row, ['changePercent', 'percentChange', 'change'], 0) ?? 0, value: numberFrom(row, ['value', 'marketValue', 'tradeValue']), symbolCount: numberFrom(row, ['symbolCount', 'count', 'symbolsCount']) }; });
+  return source.slice(0, 12).map((item) => { const row = record(item); return { name: String(row.name ?? row.title ?? row.industryName ?? row.industry ?? row.group ?? '—'), changePercent: numberFrom(row, ['changePercent', 'percentChange', 'change'], 0) ?? 0, value: numberFrom(row, ['value', 'marketValue', 'tradeValue']), symbolCount: numberFrom(row, ['symbolCount', 'count', 'symbolsCount']) }; });
 };
 export async function getDashboardIndustries(): Promise<DashboardIndustry[]> {
   try { const response = await apiFetch('/market/industries'); return normalizeIndustries(response).sort((a, b) => b.changePercent - a.changePercent); } catch { return []; }
