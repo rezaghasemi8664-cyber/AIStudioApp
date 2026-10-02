@@ -3,6 +3,7 @@
 const cron = require('node-cron');
 const prisma = require('../config/prisma.cjs');
 const brsService = require('../services/brs.service.cjs');
+const marketSnapshotService = require('../services/marketSnapshot.service.cjs');
 
 const MARKET_TZ = 'Asia/Tehran';
 // Stricter real-market filters: prefer fewer, higher-conviction opportunities.
@@ -189,6 +190,13 @@ async function updateSymbolsAndMovers() {
       legalSellVolume: int(item.instSellVolume, 0)
     };
   }).filter(x => x.symbol);
+
+  // Build a variable-size, versioned full snapshot. The previous active
+  // snapshot remains untouched until the new snapshot is stored, verified,
+  // derived, and atomically activated.
+  const published = await marketSnapshotService.publishMarketSnapshot(symbols);
+  console.log('[MARKET SNAPSHOT] activated', JSON.stringify({ snapshotId: published.snapshotId, symbolCount: published.symbolCount }));
+  return symbols;
 
   for (const item of symbols) {
     const { open, high, low, yesterday, ...dbItem } = item;
