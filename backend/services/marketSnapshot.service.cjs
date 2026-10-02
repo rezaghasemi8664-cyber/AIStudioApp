@@ -177,7 +177,62 @@ async function verifyPreparedSnapshot(id, expectedCount) {
   return parsed;
 }
 
+function getHealthThreshold(name, fallback) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+async function validateSnapshotHealth(symbols) {
+  const unique = new Set(symbols.map(s => String(s?.symbol || '').trim()).filter(Boolean));
+  const duplicateCount = Math.max(0, symbols.length - unique.size);
+  if (!symbols.length || duplicateCount > 0) {
+    throw new Error('BRS snapshot health check failed: empty=' + (symbols.length === 0) + ', duplicateCount=' + duplicateCount);
+  }
+
+  const active = await getActiveSnapshot();
+  if (!active) {
+    return {
+      mode: 'BOOTSTRAP', accepted: true, previousCount: 0, newCount: symbols.length,
+      intersectionCount: 0, countRatio: null, overlapRatio: null, overlapNewRatio: null, duplicateCount
+    };
+  }
+
+  let previousSymbols;
+  try { previousSymbols = JSON.parse(active.symbolsJson); }
+  catch { throw new Error('BRS snapshot health check failed: active snapshot payload is invalid'); }
+  if (!Array.isArray(previousSymbols) || !previousSymbols.length) {
+    throw new Error('BRS snapshot health check failed: active snapshot has no symbols');
+  }
+
+  const previousSet = new Set(previousSymbols.map(s => String(s?.symbol || '').trim()).filter(Boolean));
+  const newSet = unique;
+  const intersectionCount = [...newSet].filter(symbol => previousSet.has(symbol)).length;
+  const previousCount = previousSet.size;
+  const newCount = newSet.size;
+  const countRatio = previousCount ? newCount / previousCount : null;
+  const overlapRatio = previousCount ? intersectionCount / previousCount : null;
+  const overlapNewRatio = newCount ? intersectionCount / newCount : null;
+
+  const minCountRatio = getHealthThreshold('MARKET_SNAPSHOT_MIN_COUNT_RATIO', 0.90);
+  const minOverlapRatio = getHealthThreshold('MARKET_SNAPSHOT_MIN_OVERLAP_RATIO', 0.90);
+  const maxCountRatio = getHealthThreshold('MARKET_SNAPSHOT_MAX_COUNT_RATIO', 1.10);
+
+  const healthy = countRatio >= minCountRatio && countRatio <= maxCountRatio &&
+    overlapRatio >= minOverlapRatio && overlapNewRatio >= minOverlapRatio;
+
+  const health = {
+    mode: 'COMPARE_ACTIVE', accepted: healthy, previousCount, newCount, intersectionCount,
+    countRatio, overlapRatio, overlapNewRatio, duplicateCount,
+    thresholds: { minCountRatio, maxCountRatio, minOverlapRatio }
+  };
+
+  if (!healthy) {
+    throw new Error('BRS snapshot health check failed: ' + JSON.stringify(health));
+  }
+  return health;
+}
 async function publishMarketSnapshot(symbols) {
+  const health = await validateSnapshotHealth(symbols);
   const id = await createPreparedSnapshot(symbols);
   const verifiedSymbols = await verifyPreparedSnapshot(id, symbols.length);
   const derived = buildDerived(verifiedSymbols, new Date());
@@ -243,7 +298,7 @@ async function publishMarketSnapshot(symbols) {
     \`;
   });
 
-  return { snapshotId:id, symbolCount:verifiedSymbols.length, derived:derivedCheck };
+  return { snapshotId:id, symbolCount:verifiedSymbols.length, health, derived:derivedCheck };
 }
 
 async function getActiveSnapshot() {
