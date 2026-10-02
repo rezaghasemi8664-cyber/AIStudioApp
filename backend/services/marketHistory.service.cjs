@@ -316,8 +316,8 @@ async function fetchSymbolDetail(symbolName) {
 }
 
 async function getLatestMarketHistory() {
-  const record = await prisma.marketHistory.findFirst({
-    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+  const record = await prisma.marketCurrent.findFirst({
+    orderBy: [{ marketDate: "desc" }, { updatedAt: "desc" }],
   });
 
   if (!record) return null;
@@ -389,8 +389,8 @@ async function saveMarketDaily(records) {
 }
 
 async function getMarketHistory(limit = 30) {
-  const records = await prisma.marketHistory.findMany({
-    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+  const records = await prisma.marketCurrent.findMany({
+    orderBy: [{ marketDate: "desc" }, { updatedAt: "desc" }],
     take: limit,
   });
 
@@ -546,7 +546,7 @@ function normalizeMarketSnapshot(input) {
 }
 
 /**
- * ذخیره snapshot در dbo.MarketHistory.jsonData
+ * ذخیره snapshot در dbo.MarketCurrent (رکورد یکتا برای هر روز معاملاتی)
  * - fallback را دوباره ذخیره نمی‌کند (جلوگیری از کپی‌های کهنه)
  */
 async function saveMarketSnapshot(data) {
@@ -568,8 +568,9 @@ async function saveMarketSnapshot(data) {
     return null;
   }
 
-  // MarketHistory is intentionally one successful snapshot per trading day.
-  // BRS returns the trading date in Jalali format (e.g. 1405-06-30).
+  // MarketCurrent is the canonical market-index snapshot table.
+  // It has a database-level unique constraint on marketDate, so there can be
+  // only one successful index snapshot for each trading day.
   // A failed fetch never reaches this function, so the previous successful
   // snapshot remains untouched.
   const marketDate = jalaliToGregorianDate(snapshot.date);
@@ -581,26 +582,38 @@ async function saveMarketSnapshot(data) {
     return null;
   }
 
-  const existing = await prisma.marketHistory.findFirst({
+  const record = await prisma.marketCurrent.upsert({
     where: { marketDate },
-    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+    create: {
+      marketDate,
+      marketStatus: snapshot.isMarketOpen === false ? "CLOSED" : "OPEN",
+      overallIndex: snapshot.index,
+      overallChange: snapshot.indexChange,
+      equalIndex: snapshot.indexEqualWeight,
+      equalChange: snapshot.indexEqualWeightChange,
+      totalTrades: snapshot.tradeCount,
+      totalVolume: snapshot.tradeVolume,
+      totalValue: snapshot.tradeValue,
+      updatedAt: new Date(),
+      source: "brs-index-cron",
+      isStale: false,
+      dataJson: JSON.stringify(snapshot),
+    },
+    update: {
+      marketStatus: snapshot.isMarketOpen === false ? "CLOSED" : "OPEN",
+      overallIndex: snapshot.index,
+      overallChange: snapshot.indexChange,
+      equalIndex: snapshot.indexEqualWeight,
+      equalChange: snapshot.indexEqualWeightChange,
+      totalTrades: snapshot.tradeCount,
+      totalVolume: snapshot.tradeVolume,
+      totalValue: snapshot.tradeValue,
+      updatedAt: new Date(),
+      source: "brs-index-cron",
+      isStale: false,
+      dataJson: JSON.stringify(snapshot),
+    },
   });
-
-  const record = existing
-    ? await prisma.marketHistory.update({
-        where: { id: existing.id },
-        data: {
-          jsonData: JSON.stringify(snapshot),
-          updatedAt: new Date(),
-        },
-      })
-    : await prisma.marketHistory.create({
-        data: {
-          jsonData: JSON.stringify(snapshot),
-          marketDate,
-          updatedAt: new Date(),
-        },
-      });
 
   console.log(
     `[MARKET][SNAPSHOT] Saved id=${record.id} index=${snapshot.index} at ${
