@@ -47,33 +47,51 @@ async function getHistory(inputRange) {
     throw error;
   }
 
-  const model = getModel();
-  const latest = await model.findFirst({
-    orderBy: { summaryDate: 'desc' },
-    select: { summaryDate: true }
-  });
+  const latestModel = prisma?.MarketCurrent || prisma?.marketCurrent;
+  const summaryModel = getModel();
 
-  if (!latest?.summaryDate) {
-    return { range, available: false, points: [], generatedAt: null };
+  const latest = latestModel
+    ? await latestModel.findFirst({ orderBy: { marketDate: 'desc' }, select: { marketDate: true } })
+    : await summaryModel.findFirst({ orderBy: { summaryDate: 'desc' }, select: { summaryDate: true } });
+
+  if (!latest) return { range, available: false, points: [], generatedAt: null };
+
+  const latestDate = new Date(latest.marketDate || latest.summaryDate);
+  const startDate = startDateFor(range, latestDate);
+
+  let rows = [];
+  if (latestModel) {
+    rows = await latestModel.findMany({
+      where: { marketDate: { gte: startDate, lte: latestDate } },
+      orderBy: { marketDate: 'asc' },
+      select: {
+        marketDate: true,
+        overallIndex: true,
+        equalIndex: true,
+        totalValue: true,
+        totalVolume: true,
+        totalTrades: true
+      }
+    });
   }
 
-  const latestDate = new Date(latest.summaryDate);
-  const startDate = startDateFor(range, latestDate);
-  const rows = await model.findMany({
-    where: { summaryDate: { gte: startDate, lte: latestDate } },
-    orderBy: { summaryDate: 'asc' },
-    select: {
-      summaryDate: true,
-      overallIndex: true,
-      equalIndex: true,
-      totalValue: true,
-      totalVolume: true,
-      totalTrades: true
-    }
-  });
+  if (!rows.length) {
+    rows = await summaryModel.findMany({
+      where: { summaryDate: { gte: startDate, lte: latestDate } },
+      orderBy: { summaryDate: 'asc' },
+      select: {
+        summaryDate: true,
+        overallIndex: true,
+        equalIndex: true,
+        totalValue: true,
+        totalVolume: true,
+        totalTrades: true
+      }
+    });
+  }
 
   const points = rows.map((row) => ({
-    timestamp: new Date(row.summaryDate).toISOString(),
+    timestamp: new Date(row.marketDate || row.summaryDate).toISOString(),
     index: toNumber(row.overallIndex),
     equalWeightedIndex: toNumber(row.equalIndex),
     totalValue: toNumber(row.totalValue),
