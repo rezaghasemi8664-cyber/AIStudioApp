@@ -910,6 +910,8 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     rawData: source.rawData,
     ontology_version: source.ontology_version,
     risk_level: source.risk_level,
+    compositeScore: toNullableNum(source.compositeScore ?? source.finalScore ?? source.scoreBreakdown?.compositeScore),
+    decisionBasis: historySummaryText(source.decisionBasis) || undefined,
     marketMetrics: mergedMetrics,
     // Preserve deterministic analysis metadata from the backend
     dataQuality: source.dataQuality,
@@ -1394,14 +1396,20 @@ function CandleChart({
             return (
               <g key={`level-${level.tone}-${level.price}-${index}`}>
                 <line x1={left} x2={left + plotWidth + 6} y1={y} y2={y} stroke={style.stroke} strokeWidth={level.tone === 'entry' ? 2.2 : 1.8} strokeDasharray={style.dash} opacity="0.9" />
-                <rect x={left + plotWidth + 10} y={y - 10} width={right - 22} height="20" rx="5" fill={style.stroke} opacity="0.96" />
-                <text x={left + plotWidth + 16} y={y + 3} fontSize="10" fontWeight="700" fill="#ffffff">{level.label}: {faNumber(Math.round(level.price).toLocaleString('en-US'))}</text>
+                <rect x={left + plotWidth + 8} y={y - 11} width={right - 16} height="22" rx="6" fill={isDark ? '#020617' : '#ffffff'} stroke={style.stroke} strokeWidth="1.5" />
+                <text x={left + plotWidth + right - 22} y={y + 3.5} textAnchor="end" fontSize="10" fontWeight="800" fill={isDark ? '#f8fafc' : '#0f172a'}>{faNumber(Math.round(level.price).toLocaleString('en-US'))} — {level.label}</text>
               </g>
             );
           })}
-          {candles.length > 0 && (
-            <text x={left + plotWidth} y={height - 12} textAnchor="end" fontSize="10" fill={isDark ? '#94a3b8' : '#64748b'}>{candles[candles.length - 1].date}</text>
-          )}
+          {candles.map((candle, index) => {
+            const step = candles.length <= 12 ? 1 : Math.ceil(candles.length / 12);
+            if (index % step !== 0 && index !== candles.length - 1) return null;
+            return (
+              <text key={`date-${index}-${candle.date}`} x={xFor(index)} y={height - 12} textAnchor="middle" fontSize="9" fill={isDark ? '#cbd5e1' : '#475569'}>
+                {candle.date}
+              </text>
+            );
+          })}
         </svg>
       </div>
     </div>
@@ -2156,7 +2164,7 @@ const clearCurrentAnalysis = () => {
 
   const hasAdjustedDailyDisplayData = adjustedDailyCandles.length > 0 || !!adjustedCandleToShow;
   const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
-  const theme = 'light';
+  const theme = typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light';
 
   const chartData = useMemo<OHLCPoint[]>(() => {
     // Candle fields may arrive either as a single OHLCPoint or as arrays
@@ -2544,7 +2552,7 @@ const clearCurrentAnalysis = () => {
                   <div className="text-[12px] font-extrabold">
                     {new Date(item.date).toLocaleDateString('fa-IR-u-ca-persian', { timeZone: 'Asia/Tehran' })}
                   </div>
-                  <div className="mt-1 text-[11px] font-medium text-slate-500">
+                  <div className="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-300">
                     {new Date(item.createdAt).toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                   </div>
                 </button>
@@ -2746,43 +2754,7 @@ const clearCurrentAnalysis = () => {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-                  <SectionHeader
-                    title="نقاط ورود، خروج و حد ضرر"
-                    subtitle="سطوح معاملاتی در کنار منطق تکنیکال قابل مشاهده هستند."
-                  />
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                      <div className="text-[12px] font-bold text-emerald-700">نقاط ورود</div>
-                      <div className="mt-2 space-y-2 text-[14px] leading-7 text-slate-800">
-                        {entryPoints.length ? entryPoints.map((p, i) => (
-                          <div key={`entry-summary-${i}`}>
-                            <span className="font-extrabold">{formatNumber(p?.price)}</span>
-                            <div className="text-[12px] text-slate-600">{renderableText(p?.reason)}</div>
-                          </div>
-                        )) : '—'}
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                      <div className="text-[12px] font-bold text-amber-700">حد ضرر تکنیکال</div>
-                      <div className="mt-2 text-[22px] font-black text-amber-800">{formatNumber(stopLoss)}</div>
-                      <div className="mt-2 text-[12px] font-medium leading-6 text-slate-700">{stopLossBasis}</div>
-                    </div>
-                    <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-                      <div className="text-[12px] font-bold text-rose-700">نقاط خروج</div>
-                      <div className="mt-2 space-y-2 text-[14px] leading-7 text-slate-800">
-                        {exitPoints.length ? exitPoints.map((p, i) => (
-                          <div key={`exit-summary-${i}`}>
-                            <span className="font-extrabold">{formatNumber(p?.price)}</span>
-                            <div className="text-[12px] text-slate-600">{renderableText(p?.reason)}</div>
-                          </div>
-                        )) : '—'}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                     <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
                       <SectionHeader title="جزئیات جریان نقدینگی حقیقی" tone="emerald" />
                       <div className="divide-y divide-emerald-100">
@@ -3108,10 +3080,10 @@ const clearCurrentAnalysis = () => {
                       fetchAnalysisDetail(item.id);
                     }
                   }}
-                  className="flex cursor-pointer justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-blue-300 hover:bg-blue-50/40"
+                  className="flex cursor-pointer justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-900 transition hover:border-blue-300 hover:bg-blue-50/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:border-blue-500 dark:hover:bg-slate-700/60"
                 >
                   <div className="min-w-0">
-                    <div className="text-[15px] font-extrabold text-blue-700">
+                    <div className="text-[15px] font-extrabold text-blue-700 dark:text-blue-300">
                       {item.symbol}
                     </div>
 
@@ -3136,16 +3108,16 @@ const clearCurrentAnalysis = () => {
                             : 'داده در دسترس نیست'}
                       </span>
                       {item.source ? (
-                        <span className="text-[10px] font-semibold text-slate-500">
+                        <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-300">
                           منبع: {historySummaryText(item.source)}
                         </span>
                       ) : null}
                       {item.stale ? (
-                        <span className="text-[10px] font-semibold text-amber-600">قدیمی</span>
+                        <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">قدیمی</span>
                       ) : null}
                     </div>
 
-                    <div className="mt-2 line-clamp-2 text-[13px] font-medium leading-7 text-slate-800">
+                    <div className="mt-2 line-clamp-2 text-[13px] font-medium leading-7 text-slate-800 dark:text-slate-100">
                       {historySummaryText(item.result?.summary) || 'تحلیل ذخیره شده'}
                     </div>
                   </div>
