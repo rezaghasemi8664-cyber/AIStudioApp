@@ -1,4 +1,4 @@
-﻿"use strict";
+"use strict";
 
 const prisma = require("../config/prisma.cjs");
 const env = require("../config/env.cjs");
@@ -591,6 +591,9 @@ async function saveMarketSnapshot(data) {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
   }).formatToParts(new Date());
 
   const tehranDateValues = {};
@@ -616,6 +619,20 @@ async function saveMarketSnapshot(data) {
     console.warn(
       "[MARKET][SNAPSHOT] Skip: current Tehran date is outside the trading calendar:",
       tehranDateValues.weekday
+    );
+    return null;
+  }
+
+  // A fetch may start before the 12:30 close and finish after it.
+  // Never persist a snapshot once the Tehran market session has closed.
+  const currentTehranMinutes =
+    Number(tehranDateValues.hour || 0) * 60 +
+    Number(tehranDateValues.minute || 0);
+
+  if (currentTehranMinutes < 9 * 60 || currentTehranMinutes >= 12 * 60 + 30) {
+    console.warn(
+      "[MARKET][SNAPSHOT] Skip: current Tehran time is outside the market session:",
+      tehranDateValues.hour + ":" + tehranDateValues.minute
     );
     return null;
   }
