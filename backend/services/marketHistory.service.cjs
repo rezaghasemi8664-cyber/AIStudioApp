@@ -587,6 +587,7 @@ async function saveMarketSnapshot(data) {
   // that day's canonical row.
   const tehranParts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Tehran",
+    weekday: "short",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -606,6 +607,18 @@ async function saveMarketSnapshot(data) {
       Number(tehranDateValues.day)
     )
   );
+
+  const isTradingDay = ["Sat", "Sun", "Mon", "Tue", "Wed"].includes(
+    tehranDateValues.weekday
+  );
+
+  if (!isTradingDay) {
+    console.warn(
+      "[MARKET][SNAPSHOT] Skip: current Tehran date is outside the trading calendar:",
+      tehranDateValues.weekday
+    );
+    return null;
+  }
 
   if (marketDate.getTime() !== currentTehranDate.getTime()) {
     console.warn(
