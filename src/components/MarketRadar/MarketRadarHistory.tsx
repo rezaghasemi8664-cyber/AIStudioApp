@@ -16,7 +16,7 @@ const metrics: Array<{ value: Metric; label: string; key: keyof MarketRadarHisto
 
 const fa = (value: number | null | undefined, digits = 0) => value === null || value === undefined || !Number.isFinite(value) ? '—' : new Intl.NumberFormat('fa-IR', { maximumFractionDigits: digits }).format(value);
 const compactFa = (value: number | null | undefined) => value === null || value === undefined || !Number.isFinite(value) ? '—' : new Intl.NumberFormat('fa-IR', { notation: 'compact', maximumFractionDigits: 2 }).format(value);
-const dateFa = (value: string) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date); };
+const dateFa = (value: string) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('fa-IR', { calendar: 'persian', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date); };
 const valueIsValid = (value: number | null | undefined): value is number => value !== null && value !== undefined && Number.isFinite(value);
 
 function percentChange(first: number | null | undefined, last: number | null | undefined) {
@@ -103,13 +103,13 @@ const MarketRadarHistory: React.FC = () => {
     {loading ? <div className="mt-5 h-72 animate-pulse rounded-2xl bg-white/[0.03]" /> : error ? <div className="mt-5 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-8 text-center text-sm text-rose-300">دریافت تاریخچه انجام نشد.</div> : !data?.available || !data.points.length ? <div className="mt-5 rounded-2xl border border-white/5 bg-white/[0.02] p-10 text-center text-sm text-slate-500">داده تاریخی موجود نیست.</div> : <>
       <div className="mt-5 overflow-x-auto rounded-2xl border border-white/5 bg-black/5 p-2">
         <div className="relative" style={{ minWidth: `${chartWidth}px` }}>
-          <svg viewBox={`0 0 ${chartWidth} 270`} className="h-72 w-full text-sky-400" role="img" aria-label={`نمودار تاریخی ${selectedMetric.label}`} onMouseLeave={() => { if (!hovered) setHovered(null); }}>
+          <svg viewBox={`0 0 ${chartWidth} 270`} className="h-72 w-full text-sky-400" role="img" aria-label={`نمودار تاریخی ${selectedMetric.label}`} onMouseLeave={() => setHovered(null)}>
             <ChartLine width={chartWidth} values={values} secondaryValues={metric === 'index' && compareIndex ? equalValues : undefined} onPoint={(index, x, y) => setHovered({ index, x, y })} />
             {hovered && hoveredPoint && <g pointerEvents="none">
               <line x1={hovered.x} x2={hovered.x} y1="25" y2="245" stroke="currentColor" strokeOpacity="0.2" strokeDasharray="4 4" />
               <circle cx={hovered.x} cy={hovered.y} r="7" fill="currentColor" />
               <rect x={Math.min(Math.max(hovered.x - 112, 8), chartWidth - 232)} y={Math.max(hovered.y - 88, 8)} width="224" height={metric === 'index' && compareIndex ? 76 : 58} rx="12" fill="var(--color-surface)" stroke="currentColor" strokeOpacity="0.25" />
-              <text x={Math.min(Math.max(hovered.x, 120), chartWidth - 120)} y={Math.max(hovered.y - 61, 25)} textAnchor="middle" className="fill-[var(--color-text-primary)] text-[14px] font-black">تاریخ: {dateFa(hoveredPoint.timestamp)}</text>
+              <text x={Math.min(Math.max(hovered.x, 120), chartWidth - 120)} y={Math.max(hovered.y - 61, 25)} textAnchor="middle" className="fill-[var(--color-text-primary)] text-[14px] font-black" direction="rtl">تاریخ: {dateFa(hoveredPoint.timestamp)}</text>
               <text x={Math.min(Math.max(hovered.x, 120), 640)} y={Math.max(hovered.y - 41, 45)} textAnchor="middle" className="fill-sky-500 text-[14px] font-black dark:fill-sky-300">{selectedMetric.label}: {valueLabel(hoveredValue)}</text>
               {metric === 'index' && compareIndex && <text x={Math.min(Math.max(hovered.x, 120), 640)} y={Math.max(hovered.y - 21, 65)} textAnchor="middle" className="fill-violet-500 text-[14px] font-black dark:fill-violet-300">هم‌وزن: {fa(hoveredEqual, 2)}</text>}
             </g>}
