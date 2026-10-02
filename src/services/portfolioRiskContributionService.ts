@@ -51,9 +51,10 @@ async function getQuotes(symbol: string) {
 
 export async function getPortfolioRiskContribution(): Promise<PortfolioRiskContributionResult> {
   const portfolio = await portfolioService.getPortfolio();
-  if (!portfolio.length) return { portfolioVolatilityPercent: null, totalContributionPercent: null, rows: [] };
+  const groupedPortfolio = portfolioService.aggregatePortfolioItems(portfolio);
+  if (!groupedPortfolio.length) return { portfolioVolatilityPercent: null, totalContributionPercent: null, rows: [] };
 
-  const loaded = await Promise.all(portfolio.map(async item => ({ item, quotes: await getQuotes(item.symbol).catch(() => []) })));
+  const loaded = await Promise.all(groupedPortfolio.map(async item => ({ item, quotes: await getQuotes(item.symbol).catch(() => []) })));
   const returns = new Map<string, Map<string, number>>();
   loaded.forEach(({ item, quotes }) => {
     const entry = normalizeDate(item.entryDate);
