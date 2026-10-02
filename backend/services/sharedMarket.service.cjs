@@ -39,21 +39,41 @@ function isMarketAnalyticsEligible(row) {
   return !placeholderPrice;
 }
 
-function isTradingCalendarDay(date = new Date()) {
-  const weekday = new Intl.DateTimeFormat('en-US', {
+function getTehranMarketWindow(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Tehran',
-    weekday: 'short'
-  }).format(date);
-  return ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'].includes(weekday);
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const weekday = values.weekday;
+  const hour = Number(values.hour || 0);
+  const minute = Number(values.minute || 0);
+  const minutesOfDay = hour * 60 + minute;
+  const isTradingDay = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'].includes(weekday);
+  const isWithinSession =
+    minutesOfDay >= 9 * 60 && minutesOfDay < 12 * 60 + 30;
+
+  return {
+    isTradingDay,
+    isWithinSession,
+    isOpen: isTradingDay && isWithinSession
+  };
+}
+
+function isTradingCalendarDay(date = new Date()) {
+  return getTehranMarketWindow(date).isTradingDay;
 }
 
 function normalizeMarketCurrent(row) {
   if (!row) return null;
-  const calendarOpen = isTradingCalendarDay();
+  const marketWindow = getTehranMarketWindow();
   return {
     id: row.id,
     marketDate: row.marketDate,
-    marketStatus: calendarOpen ? row.marketStatus : 'CLOSED',
+    marketStatus: marketWindow.isOpen && row.marketStatus === 'OPEN' ? 'OPEN' : 'CLOSED',
     overallIndex: decimalToNumber(row.overallIndex),
     overallChange: decimalToNumber(row.overallChange),
     equalIndex: decimalToNumber(row.equalIndex),
