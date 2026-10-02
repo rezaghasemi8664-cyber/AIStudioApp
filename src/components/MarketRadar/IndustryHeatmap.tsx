@@ -83,15 +83,13 @@ const IndustryHeatmap: React.FC<{ rows: MarketRadarSector[] }> = ({ rows }) => {
                   <span className={`min-w-0 whitespace-normal break-words text-base font-black leading-6 ${change > 0 ? "text-emerald-50" : change < 0 ? "text-rose-50" : "text-white"}`}>{row.name}</span>
                   <span className="shrink-0 rounded-lg bg-black/10 px-2.5 py-1.5 text-sm font-black tabular-nums text-white">{signedPercent(row.changePercent)}</span>
                 </div>
-                <div className="mt-auto flex items-center justify-between gap-3 border-t border-white/15 pt-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 whitespace-nowrap text-sm font-black text-white">
+                <div className="mt-auto border-t border-white/15 pt-2">
+                  <div className="flex flex-col gap-1 whitespace-nowrap text-sm font-black text-white">
+                    <div className="flex items-center gap-2">
                       <span className="text-lg leading-none tabular-nums">{fa(row.symbols)}</span>
                       <span>مجموع نماد</span>
                     </div>
-                  </div>
-                  <div className="min-w-0 flex-1 text-left">
-                    <div className="flex flex-col items-end gap-1 whitespace-nowrap text-sm font-black text-white">
+                    <div className="flex items-center justify-between gap-2 text-sm">
                       <span className="leading-5">ارزش معاملات</span>
                       <span className="tabular-nums text-base leading-5">{fa(row.value)}</span>
                     </div>
