@@ -439,18 +439,10 @@ async function analyzeStock(params = {}) {
   });
   const marketData = buildMarketData(data);
   const warning = qualityWarning(data.dataQuality);
-  const technicalRisk = Array.isArray(result.riskWarnings) && result.riskWarnings.length > 1 ? 'زیاد' : 'متوسط';
-  const decision = combineAnalysisDecision({
-    technicalScore: num(result.score) ?? 0,
-    fundamentalScore,
-    technicalTrend: result.trend || 'خنثی',
-    sentiment: deriveSentiment(marketData),
-    technicalRisk,
-    fundamentalAvailable,
-  });
-  const signals = buildSignals({ ...result, currentPrice: marketData.currentPrice, recommendation: decision.recommendationFa }, data.candles);
-  // Keep the canonical CODAL Fundamental object intact all the way to the API.
-  // Scalar aliases below are derived from this same object for legacy consumers.
+
+  // Resolve the canonical Fundamental result before composing the final decision.
+  // These values used to be declared after combineAnalysisDecision(), which caused
+  // a Temporal Dead Zone ReferenceError at runtime and aborted deterministic analysis.
   const fundamental = (
     data.fundamentalAnalysis &&
     typeof data.fundamentalAnalysis === 'object'
@@ -470,6 +462,17 @@ async function analyzeStock(params = {}) {
     fundamental.available === true &&
     fundamental.scoreStatus === 'calculated' &&
     fundamentalScore !== null;
+
+  const technicalRisk = Array.isArray(result.riskWarnings) && result.riskWarnings.length > 1 ? 'زیاد' : 'متوسط';
+  const decision = combineAnalysisDecision({
+    technicalScore: num(result.score) ?? 0,
+    fundamentalScore,
+    technicalTrend: result.trend || 'خنثی',
+    sentiment: deriveSentiment(marketData),
+    technicalRisk,
+    fundamentalAvailable,
+  });
+  const signals = buildSignals({ ...result, currentPrice: marketData.currentPrice, recommendation: decision.recommendationFa }, data.candles);
   const technicalScore = num(result.score) ?? 0;
   const trendLabels = deriveTrendLabels(data.candles, result.indicators || {});
   const sentiment = deriveSentiment(marketData);
