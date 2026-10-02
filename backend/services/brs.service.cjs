@@ -1,6 +1,7 @@
 ﻿'use strict';
 
 var endpoints = require('../config/defaultEndpoints.cjs');
+var prisma = require('../config/prisma.cjs');
 
 var cache = {};
 var lastKnownGoodMarketIndex = null;
@@ -1275,83 +1276,59 @@ function validateMarketSummaryPayload(summaryData) {
 }
 
 async function getMarketIndex() {
-  var cacheKey = 'market_index';
-  var cacheEntry = getCacheEntry(cacheKey);
+  // Canonical architecture: BRS Index is fetched only by market.cron.cjs.
+  // All consumers of this service must read the shared MarketCurrent snapshot.
+  try {
+    var tehran = getTehranDateParts(new Date());
+    var marketDate = new Date(Date.UTC(tehran.year, tehran.month - 1, tehran.day));
 
-  if (cacheEntry) {
-    var cacheMeta = buildMeta('market-index', {
-      source: 'cache',
-      cacheHit: true,
-      cacheKey: cacheKey,
-      ageMs: cacheEntry.ageMs,
-      ttlMs: cacheEntry.ttl,
-      expiresAt: cacheEntry.expiresAt,
-      fetchedAt: cacheEntry.fetchedAt,
-      baseSource: 'brs-live',
-      marketWindow: cacheEntry.data && cacheEntry.data._marketWindow ? cacheEntry.data._marketWindow : getLocalMarketWindowStatus(new Date())
+    var record = await prisma.marketCurrent.findUnique({
+      where: { marketDate: marketDate }
     });
 
-    return buildEnvelope(cacheEntry.data, cacheMeta);
-  }
-
-  ensureBRSConfig();
-
-  var indexUrl = buildPublicEndpointUrl(endpoints.BRS_INDEX, {
-    includeCountParam: false,
-    includeTypeParam: true,
-    removeParams: ['l18', 'symbol', 'count']
-  });
-
-  try {
-    var response = await fetchBRS(indexUrl, 'Market Index');
-    var raw = getPayloadBody(response.payload);
-    var localWindow = getLocalMarketWindowStatus(new Date());
-
-    if (!hasMeaningfulIndexPayload(raw)) {
-      throw new Error('BRS Market Index returned empty payload');
+    if (!record) {
+      return buildEnvelope(null, buildMeta('market-index', {
+        source: 'shared-db',
+        cacheHit: false,
+        cacheKey: 'market_current',
+        ageMs: null,
+        ttlMs: null,
+        fetchedAt: null,
+        marketWindow: getLocalMarketWindowStatus(new Date())
+      }));
     }
 
-    var result = mapMarketIndexResponse(raw, localWindow);
-    setCache(cacheKey, result, CACHE_TTL.index, { fetchedAt: response.transportMeta.fetchedAt });
-
-    lastKnownGoodMarketIndex = {
-      data: clone(result),
-      fetchedAt: response.transportMeta.fetchedAt,
-      source: 'brs-live'
+    var payload = {
+      index: Number(record.overallIndex),
+      indexChange: Number(record.overallChange),
+      indexEqualWeight: Number(record.equalIndex),
+      indexEqualWeightChange: Number(record.equalChange),
+      tradeCount: record.totalTrades == null ? null : Number(record.totalTrades),
+      tradeVolume: record.totalVolume == null ? null : Number(record.totalVolume),
+      tradeValue: record.totalValue == null ? null : Number(record.totalValue),
+      state: record.marketStatus || '',
+      isMarketOpen: String(record.marketStatus || '').toUpperCase() === 'OPEN',
+      date: record.marketDate,
+      lastUpdate: record.updatedAt,
+      source: record.source || 'shared-db',
+      isStale: record.isStale === true
     };
 
-    var liveMeta = buildMeta('market-index', {
-      source: 'live',
+    var fetchedAt = record.updatedAt || new Date();
+    var ageMs = Date.now() - new Date(fetchedAt).getTime();
+
+    return buildEnvelope(payload, buildMeta('market-index', {
+      source: 'shared-db',
       cacheHit: false,
-      cacheKey: cacheKey,
-      ageMs: 0,
-      ttlMs: CACHE_TTL.index,
-      fetchedAt: response.transportMeta.fetchedAt,
-      endpoint: response.transportMeta.endpoint,
-      elapsedMs: response.transportMeta.elapsedMs,
-      marketWindow: localWindow
-    });
-
-    return buildEnvelope(result, liveMeta, { raw: raw });
+      cacheKey: 'market_current',
+      ageMs: ageMs,
+      ttlMs: null,
+      fetchedAt: fetchedAt,
+      isStale: record.isStale === true,
+      marketWindow: getLocalMarketWindowStatus(new Date())
+    }));
   } catch (error) {
-    if (lastKnownGoodMarketIndex && lastKnownGoodMarketIndex.data) {
-      var fallbackAgeMs = Date.now() - new Date(lastKnownGoodMarketIndex.fetchedAt).getTime();
-      var fallbackMeta = buildMeta('market-index', {
-        source: 'fallback-last-known-good',
-        cacheHit: false,
-        cacheKey: cacheKey,
-        ageMs: fallbackAgeMs,
-        ttlMs: CACHE_TTL.index,
-        fetchedAt: lastKnownGoodMarketIndex.fetchedAt,
-        fallbackUsed: true,
-        fallbackReason: error.message,
-        baseSource: lastKnownGoodMarketIndex.source || 'brs-live',
-        marketWindow: lastKnownGoodMarketIndex.data && lastKnownGoodMarketIndex.data._marketWindow ? lastKnownGoodMarketIndex.data._marketWindow : getLocalMarketWindowStatus(new Date())
-      });
-
-      return buildEnvelope(lastKnownGoodMarketIndex.data, fallbackMeta);
-    }
-
+    console.error('[BRS SERVICE] Shared market index read failed:', error.message);
     throw error;
   }
 }
@@ -1960,32 +1937,16 @@ async function isMarketOpen() {
 var marketIndexRefreshRunning = false;
 
 async function refreshMarketIndexInBackground() {
-  if (marketIndexRefreshRunning) return null;
-  marketIndexRefreshRunning = true;
+  // Legacy compatibility only. Upstream BRS refresh is exclusively owned by
+  // backend/cron/market.cron.cjs. This function now performs a DB read and
+  // never triggers a second BRS Index request or writes a snapshot.
   try {
-    // Force a fresh upstream attempt by clearing only the market-index cache.
-    delete cache.market_index;
-    const result = await getMarketIndex();
-    const data = result && result.data ? result.data : result;
-    if (data && typeof data === 'object') {
-      try {
-        var historyService = require('./marketHistory.service.cjs');
-        if (historyService && typeof historyService.saveMarketSnapshot === 'function') {
-          await historyService.saveMarketSnapshot(data);
-        }
-      } catch (persistError) {
-        console.warn('[BRS SERVICE] Background market index persistence skipped:', persistError.message);
-      }
-    }
-    return result;
+    return await getMarketIndex();
   } catch (error) {
-    console.warn('[BRS SERVICE] Background market index refresh failed:', error.message);
+    console.warn('[BRS SERVICE] Shared market index read failed:', error.message);
     return null;
-  } finally {
-    marketIndexRefreshRunning = false;
   }
 }
-
 module.exports = {
   getMarketIndex: getMarketIndex,
   refreshMarketIndexInBackground: refreshMarketIndexInBackground,
