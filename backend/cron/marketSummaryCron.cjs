@@ -14,6 +14,7 @@
 const cron = require('node-cron');
 const prisma = require('../config/prisma.cjs');
 const dailyMarketSummaryService = require('../services/dailyMarketSummary.service.cjs');
+const marketSummaryService = require('../services/marketSummary.service.cjs');
 
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
 const TRADING_DAYS = '0,1,2,3,6';
