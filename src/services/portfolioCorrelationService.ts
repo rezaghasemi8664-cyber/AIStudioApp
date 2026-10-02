@@ -26,8 +26,9 @@ function correlation(a: number[], b: number[]) {
 
 export async function getPortfolioCorrelation(): Promise<PortfolioCorrelationResult> {
   const portfolio = await portfolioService.getPortfolio();
-  if (portfolio.length < 2) return { symbols: portfolio.map(x => x.symbol), pairs: [], averageAbsoluteCorrelation: null, highCorrelationPairs: [] };
-  const rows = await Promise.all(portfolio.map(async item => ({ item, quotes: await quotes(item.symbol).catch(() => []) })));
+  const groupedPortfolio = portfolioService.aggregatePortfolioItems(portfolio);
+  if (groupedPortfolio.length < 2) return { symbols: groupedPortfolio.map(x => x.symbol), pairs: [], averageAbsoluteCorrelation: null, highCorrelationPairs: [] };
+  const rows = await Promise.all(groupedPortfolio.map(async item => ({ item, quotes: await quotes(item.symbol).catch(() => []) })));
   const returns = new Map<string, Map<string, number>>();
   rows.forEach(({ item, quotes: qs }) => {
     const entry = date(item.entryDate); const active = qs.filter(q => !entry || q.date >= entry); const map = new Map<string, number>();
@@ -35,13 +36,13 @@ export async function getPortfolioCorrelation(): Promise<PortfolioCorrelationRes
     returns.set(item.symbol, map);
   });
   const pairs: CorrelationPair[] = [];
-  for (let i = 0; i < portfolio.length; i += 1) for (let j = i + 1; j < portfolio.length; j += 1) {
-    const left = portfolio[i].symbol; const right = portfolio[j].symbol; const a = returns.get(left) ?? new Map(); const b = returns.get(right) ?? new Map();
+  for (let i = 0; i < groupedPortfolio.length; i += 1) for (let j = i + 1; j < groupedPortfolio.length; j += 1) {
+    const left = groupedPortfolio[i].symbol; const right = groupedPortfolio[j].symbol; const a = returns.get(left) ?? new Map(); const b = returns.get(right) ?? new Map();
     const xs: number[] = []; const ys: number[] = [];
     a.forEach((value, key) => { const other = b.get(key); if (other != null) { xs.push(value); ys.push(other); } });
     const value = correlation(xs, ys); if (value != null) pairs.push({ left, right, correlation: value, observations: xs.length });
   }
   pairs.sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation));
   const averageAbsoluteCorrelation = pairs.length ? pairs.reduce((s, p) => s + Math.abs(p.correlation), 0) / pairs.length : null;
-  return { symbols: portfolio.map(x => x.symbol), pairs, averageAbsoluteCorrelation, highCorrelationPairs: pairs.filter(p => Math.abs(p.correlation) >= 0.7) };
+  return { symbols: groupedPortfolio.map(x => x.symbol), pairs, averageAbsoluteCorrelation, highCorrelationPairs: pairs.filter(p => Math.abs(p.correlation) >= 0.7) };
 }
