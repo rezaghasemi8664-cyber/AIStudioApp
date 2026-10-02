@@ -28,7 +28,7 @@ import * as storageServiceModule from './services/storageService';
 import * as apiEndpointServiceModule from './services/apiEndpointService';
 import * as gapgptServiceModule from './services/gapgptService';
 import * as socketServiceModule from './services/socketService';
-import { recordSiteVisit, sendSiteHeartbeat } from './services/siteAnalyticsService';
+import { getTodaySiteAnalytics, recordSiteVisit, sendSiteHeartbeat } from './services/siteAnalyticsService';
 import { globalSettings } from './services/settingsService';
 
 import { useNotification } from './components/NotificationSystem';
@@ -367,7 +367,7 @@ const BackgroundTabLoader: React.FC<{
       { key: 'dailyFilters', node: <DailyFilters /> },
       { key: 'profile', node: <UserProfile currentUser={currentUser} onProfileUpdate={onProfileUpdate} onPasswordChange={onPasswordChange} /> },
       ...(currentUser.isAdmin ? [
-        { key: 'users' as Tab, node: <UserManagement isOnline={isOnline} onMessageUpdate={() => undefined} onlineCount={0} /> },
+        { key: 'users' as Tab, node: <UserManagement isOnline={isOnline} onMessageUpdate={() => undefined} onlineCount={onlineUserCount} /> },
         { key: 'notifications' as Tab, node: <NotificationsManagement isOnline={isOnline} /> },
       ] : []),
     ],
@@ -782,7 +782,15 @@ const App: React.FC = () => {
         const user = getCurrentSessionUser();
         if (!user) return;
         if (typeof authService.updateUserPresence === 'function') authService.updateUserPresence(user.id);
-        if (user.isAdmin && typeof authService.getOnlineUserCount === 'function') setOnlineUserCount(authService.getOnlineUserCount());
+        if (user.isAdmin) {
+          void getTodaySiteAnalytics()
+            .then((stats) => {
+              if (stats && Number.isFinite(stats.onlineCount)) setOnlineUserCount(stats.onlineCount);
+            })
+            .catch(() => {
+              // Keep the last known online count if analytics is temporarily unavailable.
+            });
+        }
       } catch {
         //
       }
