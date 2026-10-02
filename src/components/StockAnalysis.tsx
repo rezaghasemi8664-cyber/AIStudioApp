@@ -2482,7 +2482,7 @@ const clearCurrentAnalysis = () => {
                   <SectionHeader
                     title="امتیاز نهایی ترکیبی"
                     subtitle={analysisData.decisionBasis || "جمع‌بندی نتیجه تحلیل تکنیکال و بنیادی"}
-                    tone="violet"
+                    tone="blue"
                   />
                   <div className="text-[30px] font-black leading-none text-violet-800">
                     {faNumber(analysisData.compositeScore ?? null)}
