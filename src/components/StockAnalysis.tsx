@@ -910,7 +910,7 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     rawData: source.rawData,
     ontology_version: source.ontology_version,
     risk_level: source.risk_level,
-    compositeScore: toNullableNum(source.compositeScore ?? source.finalScore ?? source.scoreBreakdown?.compositeScore),
+    compositeScore: toNullableNum(source.compositeScore ?? source.finalScore ?? source.scoreBreakdown?.compositeScore) ?? undefined,
     decisionBasis: historySummaryText(source.decisionBasis) || undefined,
     marketMetrics: mergedMetrics,
     // Preserve deterministic analysis metadata from the backend
