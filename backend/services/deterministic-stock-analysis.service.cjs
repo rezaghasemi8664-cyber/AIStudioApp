@@ -273,6 +273,117 @@ function buildSignals(result, candles) {
   };
 }
 
+
+function formatPrice(value) {
+  const n = num(value);
+  return n === null ? 'نامشخص' : n.toLocaleString('fa-IR', { maximumFractionDigits: 2 });
+}
+
+function formatNumber(value, digits = 2) {
+  const n = num(value);
+  return n === null ? 'نامشخص' : n.toLocaleString('fa-IR', { maximumFractionDigits: digits });
+}
+
+function buildAdvancedTechnicalExplanation(result, candles) {
+  const indicators = result?.indicators || {};
+  const current = num(result?.currentPrice) ?? num(candles?.[candles.length - 1]?.close);
+  const lines = ['تحلیل نمودار نماد با استفاده از ابزارهای پیشرفته تکنیکال'];
+
+  if (current !== null) lines.push(\`قیمت فعلی: \${formatPrice(current)}.\`);
+
+  const movingParts = [];
+  for (const [label, value] of [['SMA20', indicators.sma20], ['SMA50', indicators.sma50], ['EMA20', indicators.ema20], ['EMA50', indicators.ema50]]) {
+    const n = num(value);
+    if (n !== null) movingParts.push(\`\${label}=\${formatPrice(n)}\${current !== null ? (current > n ? '؛ قیمت بالاتر از میانگین است' : '؛ قیمت پایین‌تر از میانگین است') : ''}\`);
+  }
+  if (movingParts.length) lines.push(\`میانگین‌های متحرک: \${movingParts.join('؛ ')}.\`);
+
+  const rsi = num(indicators.rsi);
+  if (rsi !== null) {
+    const state = rsi >= 70 ? 'اشباع خرید' : rsi <= 30 ? 'اشباع فروش' : rsi >= 50 ? 'متمایل به قدرت خرید' : 'متمایل به قدرت فروش';
+    lines.push(\`RSI(14): \${formatNumber(rsi)}؛ وضعیت: \${state}.\`);
+  }
+
+  if (indicators.macd) {
+    const m = indicators.macd;
+    const parts = [];
+    if (num(m.line) !== null) parts.push(\`خط MACD=\${formatNumber(m.line)}\`);
+    if (num(m.signal) !== null) parts.push(\`خط سیگنال=\${formatNumber(m.signal)}\`);
+    if (num(m.histogram) !== null) parts.push(\`هیستوگرام=\${formatNumber(m.histogram)}\`);
+    if (m.crossover && m.crossover !== 'نامشخص') parts.push(\`کراس=\${m.crossover}\`);
+    if (parts.length) lines.push(\`MACD: \${parts.join('؛ ')}.\`);
+  }
+
+  if (indicators.bollinger) {
+    const bb = indicators.bollinger;
+    const parts = [];
+    if (num(bb.upper) !== null) parts.push(\`باند بالا=\${formatPrice(bb.upper)}\`);
+    if (num(bb.middle) !== null) parts.push(\`باند میانی=\${formatPrice(bb.middle)}\`);
+    if (num(bb.lower) !== null) parts.push(\`باند پایین=\${formatPrice(bb.lower)}\`);
+    if (indicators.bollingerPosition) parts.push(\`موقعیت قیمت: \${indicators.bollingerPosition}\`);
+    if (parts.length) lines.push(\`بولینگر: \${parts.join('؛ ')}.\`);
+  }
+
+  const atr = num(indicators.atr14);
+  if (atr !== null) {
+    const pct = current && current > 0 ? (atr / current) * 100 : null;
+    lines.push(\`ATR(14): \${formatPrice(atr)}\${pct !== null ? \`؛ حدود \${formatNumber(pct)}٪ از قیمت فعلی\` : ''}؛ معیار سنجش دامنه نوسان و فاصله‌گذاری منطقی حد ضرر و اهداف.\`);
+  }
+
+  if (indicators.volume) {
+    const v = indicators.volume;
+    lines.push(\`حجم معاملات: \${formatNumber(v.current, 0)}؛ میانگین ۲۰ روزه: \${formatNumber(v.average, 0)}؛ وضعیت حجم: \${v.status || 'نامشخص'}.\`);
+  }
+
+  const support = num(result?.supportResistance?.support);
+  const resistance = num(result?.supportResistance?.resistance);
+  if (support !== null || resistance !== null) {
+    lines.push(\`حمایت و مقاومت: حمایت اصلی \${formatPrice(support)}؛ مقاومت اصلی \${formatPrice(resistance)}.\`);
+  }
+
+  if (Array.isArray(result?.reasons) && result.reasons.length) lines.push(\`نتیجه ابزارهای تکنیکال: \${result.reasons.join('؛ ')}.\`);
+  if (Array.isArray(result?.riskWarnings) && result.riskWarnings.length) lines.push(\`هشدارهای تکنیکال: \${result.riskWarnings.join('؛ ')}\`);
+  lines.push(\`امتیاز تکنیکال: \${formatNumber(result?.score, 0)} از ۱۰۰؛ روند تکنیکال: \${result?.trend || 'خنثی'}؛ کیفیت اندیکاتورها: \${result?.indicatorQuality || 'نامشخص'}.\`);
+  return lines.join('\\n');
+}
+
+function combineAnalysisDecision({ technicalScore, fundamentalScore, technicalTrend, sentiment, technicalRisk, fundamentalAvailable }) {
+  const hasFundamental = num(fundamentalScore) !== null && fundamentalAvailable === true;
+  const tech = Math.max(0, Math.min(100, num(technicalScore) ?? 50));
+  const fund = hasFundamental ? Math.max(0, Math.min(100, num(fundamentalScore))) : null;
+  const compositeScore = fund === null ? tech : (tech * 0.65) + (fund * 0.35);
+
+  let recommendationFa = 'نگهداری';
+  if (compositeScore >= 75) recommendationFa = 'خرید قوی';
+  else if (compositeScore >= 60) recommendationFa = 'خرید';
+  else if (compositeScore <= 25) recommendationFa = 'فروش قوی';
+  else if (compositeScore <= 40) recommendationFa = 'فروش';
+
+  const warnings = [];
+  if (technicalRisk === 'زیاد') warnings.push('ریسک تکنیکال بالا است.');
+  if (fund !== null && fund < 40) warnings.push('امتیاز بنیادی پایین است.');
+  if (fund === null) warnings.push('امتیاز بنیادی عددی معتبر در دسترس نیست؛ جمع‌بندی فعلی بر مبنای تحلیل تکنیکال انجام شده است.');
+  if (technicalTrend === 'نزولی') warnings.push('روند تکنیکال نزولی است.');
+  if (sentiment === 'منفی') warnings.push('احساس بازار منفی است.');
+
+  const riskLevel = warnings.length >= 3 || compositeScore < 30 ? 'زیاد' : warnings.length === 0 && compositeScore >= 65 ? 'کم' : 'متوسط';
+  let compositeTrend = technicalTrend || 'خنثی';
+  if (technicalTrend === 'صعودی' && sentiment === 'مثبت') compositeTrend = 'صعودی';
+  else if (technicalTrend === 'نزولی' && sentiment === 'منفی') compositeTrend = 'نزولی';
+  else if (technicalTrend === 'خنثی') compositeTrend = sentiment || 'خنثی';
+
+  return {
+    hasFundamental,
+    compositeScore,
+    recommendationFa,
+    recommendation: ['خرید', 'خرید قوی'].includes(recommendationFa) ? 'BUY' : ['فروش', 'فروش قوی'].includes(recommendationFa) ? 'SELL' : 'HOLD',
+    riskLevel,
+    compositeTrend,
+    decisionBasis: hasFundamental ? 'جمع‌بندی ترکیبی ۶۵٪ تکنیکال و ۳۵٪ بنیادی' : 'جمع‌بندی تکنیکال؛ امتیاز بنیادی عددی معتبر در دسترس نبود',
+    riskWarnings: warnings
+  };
+}
+
 async function analyzeStock(params = {}) {
   const symbol = String(params.symbol || params.stock || '').trim();
   if (!symbol) throw Object.assign(new Error('نماد سهم برای تحلیل مشخص نیست.'), { statusCode: 400, code: 'SYMBOL_REQUIRED' });
@@ -315,7 +426,7 @@ async function analyzeStock(params = {}) {
     rsiPeriod: params.rsiPeriod === undefined ? undefined : Number(params.rsiPeriod),
   });
   const marketData = buildMarketData(data);
-  const signals = buildSignals({ ...result, currentPrice: marketData.currentPrice }, data.candles);
+  const signals = buildSignals({ ...result, currentPrice: marketData.currentPrice, recommendation: decision.recommendationFa }, data.candles);
   const warning = qualityWarning(data.dataQuality);
   // Keep the canonical CODAL Fundamental object intact all the way to the API.
   // Scalar aliases below are derived from this same object for legacy consumers.
@@ -339,18 +450,33 @@ async function analyzeStock(params = {}) {
     fundamental.scoreStatus === 'calculated' &&
     fundamentalScore !== null;
   const technicalScore = num(result.score) ?? 0;
-  const recommendationFa = result.recommendation || 'نگهداری';
-  const recommendation = recommendationFa === 'خرید' ? 'BUY' : recommendationFa === 'فروش' ? 'SELL' : 'HOLD';
   const trendLabels = deriveTrendLabels(data.candles, result.indicators || {});
   const sentiment = deriveSentiment(marketData);
-  const summary = [`روند سهم ${result.trend || 'خنثی'} است و امتیاز تکنیکال ${technicalScore} از ۱۰۰ ثبت شده است.`, `سیگنال موتور تکنیکال: ${recommendationFa}.`, `روند کوتاه‌مدت: ${trendLabels.shortTermTrend}؛ میان‌مدت: ${trendLabels.mediumTermTrend}.`, `روند احساس بازار: ${sentiment}.`];
+  const technicalRisk = Array.isArray(result.riskWarnings) && result.riskWarnings.length > 1 ? 'زیاد' : 'متوسط';
+  const decision = combineAnalysisDecision({
+    technicalScore,
+    fundamentalScore,
+    technicalTrend: result.trend || 'خنثی',
+    sentiment,
+    technicalRisk,
+    fundamentalAvailable,
+  });
+  const advancedTechnicalExplanation = buildAdvancedTechnicalExplanation(result, data.candles);
+  const summary = [
+    \`جمع‌بندی نهایی نماد بر اساس \${decision.decisionBasis} انجام شد.\`,
+    \`پیشنهاد نهایی: \${decision.recommendationFa}؛ امتیاز ترکیبی: \${formatNumber(decision.compositeScore, 0)} از ۱۰۰.\`,
+    \`امتیاز تکنیکال: \${formatNumber(technicalScore, 0)}؛ امتیاز بنیادی: \${fundamentalScore !== null ? formatNumber(fundamentalScore, 0) : 'نامشخص'}.\`,
+    \`روند تکنیکال: \${result.trend || 'خنثی'}؛ احساس بازار: \${sentiment}؛ روند جمع‌بندی: \${decision.compositeTrend}.\`,
+    \`سطوح کلیدی، نقاط ورود و خروج بر پایه ساختار نمودار و نتیجه جمع‌بندی نهایی تعیین شده‌اند.\`
+  ];
+  if (decision.riskWarnings.length) summary.push(\`ریسک: \${decision.riskLevel}؛ \${decision.riskWarnings.join(' ')}\`);
   if (warning) summary.push(warning);
 
   return {
     success: true,
     symbol: data.symbol,
-    recommendation,
-    recommendationFa,
+    recommendation: decision.recommendation,
+    recommendationFa: decision.recommendationFa,
     sentiment,
     shortTermTrend: trendLabels.shortTermTrend,
     mediumTermTrend: trendLabels.mediumTermTrend,
@@ -359,11 +485,14 @@ async function analyzeStock(params = {}) {
     currentPrice: marketData.currentPrice,
     closingPrice: marketData.closingPrice,
     score: technicalScore,
-    confidence: Math.max(0, Math.min(100, technicalScore)),
-    trend: result.trend || 'خنثی',
-    riskLevel: Array.isArray(result.riskWarnings) && result.riskWarnings.length > 1 ? 'زیاد' : 'متوسط',
+    confidence: Math.max(0, Math.min(100, decision.compositeScore)),
+    trend: decision.compositeTrend,
+    riskLevel: decision.riskLevel,
     summary: summary.join(' '),
-    technicalAnalysis: summary.join(' '),
+    technicalAnalysis: advancedTechnicalExplanation,
+    technicalExplanation: advancedTechnicalExplanation,
+    compositeScore: decision.compositeScore,
+    decisionBasis: decision.decisionBasis,
     // Canonical Fundamental payload. Do not flatten this object to a string:
     // the frontend and history layer use score/status/reason from this exact result.
     fundamentalAnalysis: fundamental,
@@ -383,7 +512,7 @@ async function analyzeStock(params = {}) {
     adjustedDailyCandle: marketData.adjustedDailyCandle,
     indicators: result.indicators,
     supportResistance: result.supportResistance,
-    riskWarnings: result.riskWarnings || [],
+    riskWarnings: [...(result.riskWarnings || []), ...decision.riskWarnings],
     dataQualityWarnings: warning ? [warning] : [],
     reasons: result.reasons || [],
     scoreBreakdown: result.scoreBreakdown || [],
