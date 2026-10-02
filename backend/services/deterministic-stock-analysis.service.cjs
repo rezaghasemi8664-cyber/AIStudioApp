@@ -268,7 +268,19 @@ function buildSignals(result, candles) {
   return {
     entryPoints: levels.entryPoints,
     exitPoints,
-    stopLoss: support !== null && support > 0 ? Math.round(support * 0.97) : Math.round((num(result.currentPrice) || 0) * 0.93),
+    stopLoss: (() => {
+      const current = num(result.currentPrice);
+      const atr = num(result.indicators?.atr14);
+      const support = first(result.supportResistance?.support);
+      const technicalFloor = support !== null && support > 0 ? support : null;
+      if (current === null) return null;
+      // Technical stop: prefer structural support, then ATR volatility.
+      const atrStop = atr !== null && atr > 0 ? current - (atr * 1.5) : null;
+      const candidate = technicalFloor !== null
+        ? Math.min(technicalFloor * 0.98, atrStop ?? technicalFloor * 0.98)
+        : (atrStop ?? current * 0.93);
+      return Math.max(0, Math.round(candidate));
+    })(),
     targets: levels.targets,
   };
 }
@@ -426,8 +438,17 @@ async function analyzeStock(params = {}) {
     rsiPeriod: params.rsiPeriod === undefined ? undefined : Number(params.rsiPeriod),
   });
   const marketData = buildMarketData(data);
-  const signals = buildSignals({ ...result, currentPrice: marketData.currentPrice, recommendation: decision.recommendationFa }, data.candles);
   const warning = qualityWarning(data.dataQuality);
+  const technicalRisk = Array.isArray(result.riskWarnings) && result.riskWarnings.length > 1 ? 'زیاد' : 'متوسط';
+  const decision = combineAnalysisDecision({
+    technicalScore: num(result.score) ?? 0,
+    fundamentalScore,
+    technicalTrend: result.trend || 'خنثی',
+    sentiment: deriveSentiment(marketData),
+    technicalRisk,
+    fundamentalAvailable,
+  });
+  const signals = buildSignals({ ...result, currentPrice: marketData.currentPrice, recommendation: decision.recommendationFa }, data.candles);
   // Keep the canonical CODAL Fundamental object intact all the way to the API.
   // Scalar aliases below are derived from this same object for legacy consumers.
   const fundamental = (
@@ -452,15 +473,6 @@ async function analyzeStock(params = {}) {
   const technicalScore = num(result.score) ?? 0;
   const trendLabels = deriveTrendLabels(data.candles, result.indicators || {});
   const sentiment = deriveSentiment(marketData);
-  const technicalRisk = Array.isArray(result.riskWarnings) && result.riskWarnings.length > 1 ? 'زیاد' : 'متوسط';
-  const decision = combineAnalysisDecision({
-    technicalScore,
-    fundamentalScore,
-    technicalTrend: result.trend || 'خنثی',
-    sentiment,
-    technicalRisk,
-    fundamentalAvailable,
-  });
   const advancedTechnicalExplanation = buildAdvancedTechnicalExplanation(result, data.candles);
   const summary = [
     \`جمع‌بندی نهایی نماد بر اساس \${decision.decisionBasis} انجام شد.\`,
