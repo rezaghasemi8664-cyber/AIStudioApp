@@ -1247,16 +1247,16 @@ function buildChartLevels(
   )).slice(0, 3);
 
   const levels: ChartLevel[] = [
-    ...supports.map((price, i) => ({ price, label: i === 0 ? 'حمایت' : \`حمایت \${i + 1}\`, tone: 'support' as const })),
-    ...resistances.map((price, i) => ({ price, label: i === 0 ? 'مقاومت' : \`مقاومت \${i + 1}\`, tone: 'resistance' as const })),
-    ...entryPoints.slice(0, 3).map((p, i) => ({ price: p.price, label: i === 0 ? 'ورود' : \`ورود \${i + 1}\`, tone: 'entry' as const })),
-    ...exitPoints.slice(0, 3).map((p, i) => ({ price: p.price, label: i === 0 ? 'خروج' : \`خروج \${i + 1}\`, tone: 'target' as const })),
+    ...supports.map((price, i) => ({ price, label: i === 0 ? 'حمایت' : `حمایت ${i + 1}`, tone: 'support' as const })),
+    ...resistances.map((price, i) => ({ price, label: i === 0 ? 'مقاومت' : `مقاومت ${i + 1}`, tone: 'resistance' as const })),
+    ...entryPoints.slice(0, 3).map((p, i) => ({ price: p.price, label: i === 0 ? 'ورود' : `ورود ${i + 1}`, tone: 'entry' as const })),
+    ...exitPoints.slice(0, 3).map((p, i) => ({ price: p.price, label: i === 0 ? 'خروج' : `خروج ${i + 1}`, tone: 'target' as const })),
   ];
 
   if (Array.isArray(targets)) {
     levels.push(...targets.slice(0, 3).map((price, i) => ({
       price,
-      label: i === 0 ? 'هدف خروج' : \`هدف خروج \${i + 1}\`,
+      label: i === 0 ? 'هدف خروج' : `هدف خروج ${i + 1}`,
       tone: 'target' as const,
     })));
   } else if (targets && typeof targets === 'object') {
@@ -1272,7 +1272,7 @@ function buildChartLevels(
 
   const seen = new Set<string>();
   return levels.filter((level) => {
-    const key = \`\${level.tone}:\${level.price}\`;
+    const key = `${level.tone}:${level.price}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -1356,13 +1356,13 @@ function CandleChart({
         </div>
       </div>
       <div className="overflow-x-auto">
-        <svg viewBox={\`0 0 \${width} \${height}\`} className="h-auto min-w-[760px] w-full" role="img" aria-label="نمودار کندلی با خطوط حمایت، مقاومت، نقاط ورود، اهداف خروج و حد ضرر">
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-auto min-w-[760px] w-full" role="img" aria-label="نمودار کندلی با خطوط حمایت، مقاومت، نقاط ورود، اهداف خروج و حد ضرر">
           <rect x="0" y="0" width={width} height={height} rx="12" fill={isDark ? '#0f172a' : '#ffffff'} />
           {Array.from({ length: gridCount + 1 }, (_, i) => {
             const y = top + (i / gridCount) * plotHeight;
             const price = maxPrice - (i / gridCount) * priceRange;
             return (
-              <g key={\`grid-\${i}\`}>
+              <g key={`grid-${i}`}>
                 <line x1={left} x2={left + plotWidth} y1={y} y2={y} stroke={isDark ? '#334155' : '#e2e8f0'} strokeWidth="1" />
                 <text x={left - 8} y={y + 4} textAnchor="end" fontSize="10" fill={isDark ? '#cbd5e1' : '#64748b'}>{formatNumber(Math.round(price))}</text>
               </g>
@@ -1381,7 +1381,7 @@ function CandleChart({
             const stroke = bullish ? '#059669' : '#dc2626';
             const fill = bullish ? '#10b981' : '#ef4444';
             return (
-              <g key={\`candle-\${index}-\${candle.date}\`}>
+              <g key={`candle-${index}-${candle.date}`}>
                 <line x1={x} x2={x} y1={yFor(high)} y2={yFor(low)} stroke={stroke} strokeWidth="1.5" />
                 <rect x={x - candleWidth / 2} y={bodyTop} width={candleWidth} height={bodyHeight} rx="1" fill={fill} stroke={stroke} strokeWidth="1" />
               </g>
@@ -1392,7 +1392,7 @@ function CandleChart({
             if (y < top - 2 || y > top + plotHeight + 2) return null;
             const style = levelStyle[level.tone];
             return (
-              <g key={\`level-\${level.tone}-\${level.price}-\${index}\`}>
+              <g key={`level-${level.tone}-${level.price}-${index}`}>
                 <line x1={left} x2={left + plotWidth + 6} y1={y} y2={y} stroke={style.stroke} strokeWidth={level.tone === 'entry' ? 2.2 : 1.8} strokeDasharray={style.dash} opacity="0.9" />
                 <rect x={left + plotWidth + 10} y={y - 10} width={right - 22} height="20" rx="5" fill={style.stroke} opacity="0.96" />
                 <text x={left + plotWidth + 16} y={y + 3} fontSize="10" fontWeight="700" fill="#ffffff">{level.label}: {faNumber(Math.round(level.price).toLocaleString('en-US'))}</text>
