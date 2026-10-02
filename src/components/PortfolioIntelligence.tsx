@@ -40,8 +40,9 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
     setLoading(true); setError(null);
     try {
       const portfolio = await portfolioService.refreshPortfolioQuotes();
-      const next = portfolio.map(item => {
-        const cost = item.entryPrice * item.quantity;
+      const groupedPortfolio = portfolioService.aggregatePortfolioItems(portfolio);
+      const next = groupedPortfolio.map(item => {
+        const cost = item.totalCost;
         const value = item.currentPrice == null ? null : item.currentPrice * item.quantity;
         const pnl = value == null ? null : value - cost;
         const pnlPercent = pnl == null || cost <= 0 ? null : (pnl / cost) * 100;
@@ -50,7 +51,7 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
           symbol: item.symbol,
           name: item.name,
           quantity: item.quantity,
-          entryPrice: item.entryPrice,
+          entryPrice: item.averageEntryPrice,
           currentPrice: item.currentPrice ?? null,
           changePercent: item.changePercent ?? null,
           value,
