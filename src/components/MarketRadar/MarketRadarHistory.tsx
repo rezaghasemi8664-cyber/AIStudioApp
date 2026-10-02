@@ -56,6 +56,7 @@ const MarketRadarHistory: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [hovered, setHovered] = useState<{ index: number; x: number; y: number } | null>(null);
+  const chartWidth = Math.max(760, (data?.points.length ?? 0) * 14);
 
   useEffect(() => {
     let active = true;
@@ -101,15 +102,15 @@ const MarketRadarHistory: React.FC = () => {
 
     {loading ? <div className="mt-5 h-72 animate-pulse rounded-2xl bg-white/[0.03]" /> : error ? <div className="mt-5 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-8 text-center text-sm text-rose-300">دریافت تاریخچه انجام نشد.</div> : !data?.available || !data.points.length ? <div className="mt-5 rounded-2xl border border-white/5 bg-white/[0.02] p-10 text-center text-sm text-slate-500">داده تاریخی موجود نیست.</div> : <>
       <div className="mt-5 overflow-x-auto rounded-2xl border border-white/5 bg-black/5 p-2">
-        <div className="relative min-w-[680px]">
-          <svg viewBox={`0 0 760 270`} className="h-72 w-full text-sky-400" role="img" aria-label={`نمودار تاریخی ${selectedMetric.label}`} onMouseLeave={() => { if (!hovered) setHovered(null); }}>
-            <ChartLine values={values} secondaryValues={metric === 'index' && compareIndex ? equalValues : undefined} onPoint={(index, x, y) => setHovered({ index, x, y })} />
+        <div className="relative" style={{ minWidth: `${chartWidth}px` }}>
+          <svg viewBox={`0 0 ${chartWidth} 270`} className="h-72 w-full text-sky-400" role="img" aria-label={`نمودار تاریخی ${selectedMetric.label}`} onMouseLeave={() => { if (!hovered) setHovered(null); }}>
+            <ChartLine width={chartWidth} values={values} secondaryValues={metric === 'index' && compareIndex ? equalValues : undefined} onPoint={(index, x, y) => setHovered({ index, x, y })} />
             {hovered && hoveredPoint && <g pointerEvents="none">
               <line x1={hovered.x} x2={hovered.x} y1="25" y2="245" stroke="currentColor" strokeOpacity="0.2" strokeDasharray="4 4" />
               <circle cx={hovered.x} cy={hovered.y} r="7" fill="currentColor" />
-              <rect x={Math.min(Math.max(hovered.x - 112, 8), 544)} y={Math.max(hovered.y - 88, 8)} width="224" height={metric === 'index' && compareIndex ? 76 : 58} rx="12" fill="var(--color-surface)" stroke="currentColor" strokeOpacity="0.25" />
-              <text x={Math.min(Math.max(hovered.x, 120), 640)} y={Math.max(hovered.y - 61, 25)} textAnchor="middle" className="fill-[var(--color-text-primary)] text-[14px] font-black">{dateFa(hoveredPoint.timestamp)}</text>
-              <text x={Math.min(Math.max(hovered.x, 120), 640)} y={Math.max(hovered.y - 41, 45)} textAnchor="middle" className="fill-sky-500 text-[14px] font-black dark:fill-sky-300">شاخص کل: {valueLabel(hoveredValue)}</text>
+              <rect x={Math.min(Math.max(hovered.x - 112, 8), chartWidth - 232)} y={Math.max(hovered.y - 88, 8)} width="224" height={metric === 'index' && compareIndex ? 76 : 58} rx="12" fill="var(--color-surface)" stroke="currentColor" strokeOpacity="0.25" />
+              <text x={Math.min(Math.max(hovered.x, 120), chartWidth - 120)} y={Math.max(hovered.y - 61, 25)} textAnchor="middle" className="fill-[var(--color-text-primary)] text-[14px] font-black">تاریخ: {dateFa(hoveredPoint.timestamp)}</text>
+              <text x={Math.min(Math.max(hovered.x, 120), 640)} y={Math.max(hovered.y - 41, 45)} textAnchor="middle" className="fill-sky-500 text-[14px] font-black dark:fill-sky-300">{selectedMetric.label}: {valueLabel(hoveredValue)}</text>
               {metric === 'index' && compareIndex && <text x={Math.min(Math.max(hovered.x, 120), 640)} y={Math.max(hovered.y - 21, 65)} textAnchor="middle" className="fill-violet-500 text-[14px] font-black dark:fill-violet-300">هم‌وزن: {fa(hoveredEqual, 2)}</text>}
             </g>}
           </svg>
