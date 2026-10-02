@@ -479,14 +479,17 @@ async function runMarketWorker() {
     calendarOpen &&
     marketCurrent?.marketStatus === 'OPEN' &&
     marketCurrent?.isStale !== true;
-  const existingMarketCurrent = await prisma.marketCurrent.findFirst({
-    orderBy: { updatedAt: 'desc' },
-    select: { id: true, updatedAt: true }
-  }).catch(() => null);
-
-  // Full BRS snapshots are refreshed only during the Tehran trading session.
-  // Outside the session the last verified active snapshot remains untouched.
-  if (!effectiveOpen) return { status: 'skipped', reason: 'market-closed' };
+  // Normal BRS snapshots are refreshed only during the Tehran trading session.
+  // Exception: if the shared snapshot database is completely empty, bootstrap
+  // from the latest BRS AllSymbols even while the market is closed.
+  // This is only a recovery path; an existing active snapshot is never replaced
+  // outside market hours.
+  const activeSnapshot = await marketSnapshotService.getActiveSnapshot();
+  const needsBootstrap = !activeSnapshot;
+  if (!effectiveOpen && !needsBootstrap) return { status: 'skipped', reason: 'market-closed' };
+  if (needsBootstrap) {
+    console.log('[MARKET WORKER] No active market snapshot; bootstrapping latest BRS data.');
+  }
 
   // MarketCurrent is written only by market.cron.cjs after a successful BRS index snapshot.
   const symbols = await updateSymbolsAndMovers();
