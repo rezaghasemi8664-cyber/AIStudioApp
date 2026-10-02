@@ -100,8 +100,10 @@ export async function getPortfolioRisk(): Promise<PortfolioRiskResult> {
   const totalReturn = sorted.length > 1 && sorted[0][1] > 0 ? ((sorted[sorted.length - 1][1] / sorted[0][1]) - 1) * 100 : null;
   const returnToRisk = totalReturn != null && risk.volatilityPercent && risk.volatilityPercent > 0 ? totalReturn / risk.volatilityPercent : null;
 
-  const holdingRisks = await Promise.all(rows.map(async ({ item, quotes }) => {
-    const entryDate = normalizeDate(item.entryDate);
+  const groupedPortfolio = portfolioService.aggregatePortfolioItems(portfolio);
+  const holdingRisks = await Promise.all(groupedPortfolio.map(async item => {
+    const quotes = await getQuotes(item.symbol).catch(() => []);
+    const entryDate = normalizeDate(item.firstEntryDate || item.entryDate);
     const active = quotes.filter(q => !entryDate || q.date >= entryDate);
     const returns = active.slice(1).map((q, i) => active[i].close > 0 ? ((q.close / active[i].close) - 1) * 100 : null).filter((x): x is number => x != null);
     const r = riskFromReturns(returns);
