@@ -130,18 +130,19 @@ router.get('/stock-data/:symbol', authMiddleware, async function (req, res) {
 router.post('/stock', authMiddleware, async function (req, res) {
   try {
     if (!deterministicStockService) {
+      const loadError = deterministicStockServiceLoadError || {};
       return res.status(503).json({
         success: false,
         message: 'موتور تحلیل قطعی سهم در دسترس نیست.',
         code: 'STOCK_ANALYSIS_UNAVAILABLE',
         deterministic: true,
-        engineLoadError: process.env.NODE_ENV === 'production'
-          ? {
-              name: deterministicStockServiceLoadError?.name || 'MODULE_LOAD_ERROR',
-              message: deterministicStockServiceLoadError?.message || 'ماژول موتور تحلیل بارگذاری نشد.',
-              code: deterministicStockServiceLoadError?.code || null,
-            }
-          : deterministicStockServiceLoadError,
+        engineLoadError: {
+          name: loadError.name || 'MODULE_LOAD_ERROR',
+          message: loadError.message || 'ماژول موتور تحلیل بارگذاری نشد.',
+          code: loadError.code || null,
+          stack: loadError.stack || null,
+          requireTarget: '../services/deterministic-stock-analysis.service.cjs',
+        },
         requestId: req.requestId,
       });
     }
