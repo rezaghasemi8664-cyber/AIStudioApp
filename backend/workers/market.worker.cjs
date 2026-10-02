@@ -514,7 +514,7 @@ async function runMarketWorker() {
     console.log('[MARKET WORKER] Market is closed, but shared market data is empty; running bootstrap refresh.');
   }
 
-  await runJob('market-current', updateMarketCurrent);
+  // MarketCurrent is written only by market.cron.cjs after a successful BRS index snapshot.
   const symbols = await updateSymbolsAndMovers();
   await runJob('market-daily', () => updateMarketDaily(symbols));
   await runJob('industries', () => updateIndustries(symbols));
@@ -534,8 +534,18 @@ function startMarketWorker() {
   }
 
   // Market index polling is owned exclusively by market.cron.cjs (every 2 minutes).
-  // This worker must not create a second 1-minute BRS index polling path.
-  console.log('[MARKET WORKER] Central market worker started without 1-minute index polling');
+  // This worker keeps symbol/mover analytics alive without writing the index.
+  runMarketWorker().catch((error) => {
+    console.error('[MARKET WORKER] Initial analytics refresh failed:', error?.message || error);
+  });
+
+  cron.schedule('*/2 * * * *', () => {
+    runMarketWorker().catch((error) => {
+      console.error('[MARKET WORKER] Scheduled analytics refresh failed:', error?.message || error);
+    });
+  });
+
+  console.log('[MARKET WORKER] Analytics worker started every 2 minutes; index polling remains in market.cron.cjs');
 }
 
 module.exports = { runMarketWorker, startMarketWorker, updateMarketCurrent, updateSymbolsAndMovers, updateIndustries, updateMarketDaily, updateScalpingOpportunities };
