@@ -1947,6 +1947,8 @@ const clearCurrentAnalysis = () => {
   const exitPoints = analysisData?.signals?.exitPoints ?? [];
   const targets = analysisData?.signals?.targets ?? analysisData?.targets ?? {};
   const stopLoss = analysisData?.signals?.stopLoss ?? analysisData?.stopLoss;
+  const stopLossBasis = 'حد ضرر از سطوح تکنیکال موجود در تحلیل نمودار و نوسان‌سنجی محاسبه شده است.';
+  const technicalLevels = analysisData?.signals?.technicalLevels;
 
   const recommendationTone = getRecommendationTone(
     typeof analysisData?.recommendation === 'string' ? analysisData.recommendation : undefined
@@ -2563,7 +2565,43 @@ const clearCurrentAnalysis = () => {
                 </div>
 
                 {(marketDataResolved.realBreakdown || marketDataResolved.legalBreakdown) && (
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                  <SectionHeader
+                    title="نقاط ورود، خروج و حد ضرر"
+                    subtitle="سطوح معاملاتی در کنار منطق تکنیکال قابل مشاهده هستند."
+                  />
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                      <div className="text-[12px] font-bold text-emerald-700">نقاط ورود</div>
+                      <div className="mt-2 space-y-2 text-[14px] leading-7 text-slate-800">
+                        {entryPoints.length ? entryPoints.map((p, i) => (
+                          <div key={`entry-summary-${i}`}>
+                            <span className="font-extrabold">{formatNumber(p?.price)}</span>
+                            <div className="text-[12px] text-slate-600">{renderableText(p?.reason)}</div>
+                          </div>
+                        )) : '—'}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                      <div className="text-[12px] font-bold text-amber-700">حد ضرر تکنیکال</div>
+                      <div className="mt-2 text-[22px] font-black text-amber-800">{formatNumber(stopLoss)}</div>
+                      <div className="mt-2 text-[12px] font-medium leading-6 text-slate-700">{stopLossBasis}</div>
+                    </div>
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+                      <div className="text-[12px] font-bold text-rose-700">نقاط خروج</div>
+                      <div className="mt-2 space-y-2 text-[14px] leading-7 text-slate-800">
+                        {exitPoints.length ? exitPoints.map((p, i) => (
+                          <div key={`exit-summary-${i}`}>
+                            <span className="font-extrabold">{formatNumber(p?.price)}</span>
+                            <div className="text-[12px] text-slate-600">{renderableText(p?.reason)}</div>
+                          </div>
+                        )) : '—'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                     <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
                       <SectionHeader title="جزئیات جریان نقدینگی حقیقی" tone="emerald" />
                       <div className="divide-y divide-emerald-100">
