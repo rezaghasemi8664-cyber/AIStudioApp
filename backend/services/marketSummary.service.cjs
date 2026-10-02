@@ -800,19 +800,29 @@ async function rebuildExistingTechnicalSummaries({ limit = SUMMARY_RETENTION_COU
 }
 
 exports.findOrGenerateLatest = async () => {
-  const ensured = await ensureRecentTradingDaySummaries(7);
+  // The latest endpoint is read-only. Daily summaries are generated exclusively
+  // by the scheduled marketSummaryCron, including its retry/recovery runs.
   const model = getMarketSummaryModel();
-  const latest = await model.findFirst({ orderBy: [{ summaryDate: 'desc' }, { id: 'desc' }] });
+  const latest = await model.findFirst({
+    orderBy: [{ summaryDate: 'desc' }, { id: 'desc' }]
+  });
+
   if (!latest) {
-    return { data: null, sourceType: 'none', generated: false, cached: false, reason: 'NO_DAILY_SUMMARY_AVAILABLE', ensured };
+    return {
+      data: null,
+      sourceType: 'none',
+      generated: false,
+      cached: false,
+      reason: 'NO_DAILY_SUMMARY_AVAILABLE'
+    };
   }
+
   return {
     data: normalizeSummaryRecord(latest),
     sourceType: 'db_daily_summary',
-    generated: ensured.some(x => x.status === 'created'),
+    generated: false,
     cached: true,
-    reason: ensured.length ? 'RECENT_TRADING_DAY_SUMMARIES_ENSURED' : 'DAILY_SUMMARY_FROM_DATABASE',
-    ensured
+    reason: 'DAILY_SUMMARY_FROM_DATABASE'
   };
 };
 exports.findHistory = async ({ page = 1, limit = 10 }) => {
