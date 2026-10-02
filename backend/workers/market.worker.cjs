@@ -484,19 +484,14 @@ async function runMarketWorker() {
     select: { id: true, updatedAt: true }
   }).catch(() => null);
 
-  // The shared database must be bootstrapped even when the market is closed.
-  // Otherwise a fresh deployment can remain empty forever until the next
-  // trading session, causing /api/v1/market/index to return NO_SHARED_MARKET_DATA.
-  const needsBootstrap = !existingMarketCurrent;
-  if (!effectiveOpen) {
-    if (!needsBootstrap) return { status: 'skipped', reason: 'market-closed' };
-    console.log('[MARKET WORKER] Market is closed, but shared market data is empty; running bootstrap refresh.');
-  }
+  // Full BRS snapshots are refreshed only during the Tehran trading session.
+  // Outside the session the last verified active snapshot remains untouched.
+  if (!effectiveOpen) return { status: 'skipped', reason: 'market-closed' };
 
   // MarketCurrent is written only by market.cron.cjs after a successful BRS index snapshot.
   const symbols = await updateSymbolsAndMovers();
   await runJob('market-daily', () => updateMarketDaily(symbols));
-  await runJob('industries', () => updateIndustries(symbols));
+  // Industries are already computed once from the same verified snapshot.
   await runJob('scalping-opportunities', () => updateScalpingOpportunities(symbols, effectiveOpen));
   return { status: 'success', symbols: symbols.length };
 }
