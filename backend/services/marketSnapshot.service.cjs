@@ -148,21 +148,21 @@ async function createPreparedSnapshot(symbols) {
     throw new Error('BRS snapshot failed completeness validation: empty or duplicate symbols');
   }
   const now = new Date();
-  const result = await prisma.$queryRaw\`
+  const result = await prisma.$queryRaw`
     INSERT INTO [dbo].[MarketSnapshot] ([status],[symbolCount],[symbolsJson],[source],[createdAt])
     OUTPUT INSERTED.[id]
-    VALUES ('PREPARED', \${symbols.length}, \${JSON.stringify(symbols)}, 'brs-central-worker', \${now})
-  \`;
+    VALUES ('PREPARED', ${symbols.length}, ${JSON.stringify(symbols)}, 'brs-central-worker', ${now})
+  `;
   const id = Number(result?.[0]?.id);
   if (!Number.isInteger(id)) throw new Error('MarketSnapshot insert failed');
   return id;
 }
 
 async function verifyPreparedSnapshot(id, expectedCount) {
-  const rows = await prisma.$queryRaw\`
+  const rows = await prisma.$queryRaw`
     SELECT [id],[status],[symbolCount],[symbolsJson]
-    FROM [dbo].[MarketSnapshot] WHERE [id]=\${id}
-  \`;
+    FROM [dbo].[MarketSnapshot] WHERE [id]=${id}
+  `;
   const row = rows?.[0];
   if (!row || row.status !== 'PREPARED' || Number(row.symbolCount) !== expectedCount) {
     throw new Error('MarketSnapshot verification failed');
@@ -237,16 +237,16 @@ async function publishMarketSnapshot(symbols) {
   const verifiedSymbols = await verifyPreparedSnapshot(id, symbols.length);
   const derived = buildDerived(verifiedSymbols, new Date());
 
-  await prisma.$executeRaw\`
+  await prisma.$executeRaw`
     UPDATE [dbo].[MarketSnapshot]
-    SET [derivedJson]=\${JSON.stringify(derived)}, [status]='VERIFIED', [verifiedAt]=SYSDATETIME()
-    WHERE [id]=\${id} AND [status]='PREPARED'
-  \`;
+    SET [derivedJson]=${JSON.stringify(derived)}, [status]='VERIFIED', [verifiedAt]=SYSDATETIME()
+    WHERE [id]=${id} AND [status]='PREPARED'
+  `;
 
-  const verified = await prisma.$queryRaw\`
+  const verified = await prisma.$queryRaw`
     SELECT [id],[status],[symbolCount],[symbolsJson],[derivedJson]
-    FROM [dbo].[MarketSnapshot] WHERE [id]=\${id}
-  \`;
+    FROM [dbo].[MarketSnapshot] WHERE [id]=${id}
+  `;
   const row = verified?.[0];
   if (!row || row.status !== 'VERIFIED' || Number(row.symbolCount) !== verifiedSymbols.length || !row.derivedJson) {
     throw new Error('MarketSnapshot derived-result verification failed');
@@ -259,7 +259,7 @@ async function publishMarketSnapshot(symbols) {
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw\`DELETE FROM [dbo].[MarketSnapshot] WHERE [status]='ACTIVE'\`;
+    await tx.$executeRaw`DELETE FROM [dbo].[MarketSnapshot] WHERE [status]='ACTIVE'`;
 
     await tx.marketSymbolCurrent.deleteMany({});
     const dbRows = verifiedSymbols.map((item) => ({
@@ -291,21 +291,21 @@ async function publishMarketSnapshot(symbols) {
       source:r.source,isStale:false
     }))});
 
-    await tx.$executeRaw\`
+    await tx.$executeRaw`
       UPDATE [dbo].[MarketSnapshot]
       SET [status]='ACTIVE', [activatedAt]=SYSDATETIME()
-      WHERE [id]=\${id} AND [status]='VERIFIED'
-    \`;
+      WHERE [id]=${id} AND [status]='VERIFIED'
+    `;
   });
 
   return { snapshotId:id, symbolCount:verifiedSymbols.length, health, derived:derivedCheck };
 }
 
 async function getActiveSnapshot() {
-  const rows = await prisma.$queryRaw\`
+  const rows = await prisma.$queryRaw`
     SELECT TOP 1 [id],[status],[symbolCount],[symbolsJson],[derivedJson],[source],[createdAt],[verifiedAt],[activatedAt]
     FROM [dbo].[MarketSnapshot] WHERE [status]='ACTIVE' ORDER BY [activatedAt] DESC, [id] DESC
-  \`;
+  `;
   return rows?.[0] || null;
 }
 
