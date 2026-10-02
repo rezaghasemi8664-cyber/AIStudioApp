@@ -46,6 +46,10 @@ function createVisitorId() {
 }
 
 function recordVisit({ visitorId, user }) {
+  if (!user || !(user.userId || user.id)) {
+    return { visitorId: visitorId || null, timestamp: new Date().toISOString(), ignored: true };
+  }
+
   const store = readStore();
   cleanupOldDays(store);
   const day = todayKey();
@@ -75,6 +79,10 @@ function recordVisit({ visitorId, user }) {
 }
 
 function heartbeat({ visitorId, user }) {
+  if (!user || !(user.userId || user.id)) {
+    return { visitorId: visitorId || null, lastSeenAt: new Date().toISOString(), ignored: true };
+  }
+
   const store = readStore();
   cleanupOldDays(store);
   const day = todayKey();
@@ -98,14 +106,17 @@ function getTodayStats() {
   const current = store.days[day] || { total: 0, unique: 0, visitors: {}, events: [], online: {} };
   const cutoff = Date.now() - ONLINE_TTL_MS;
   const online = Object.values(current.online || {}).filter(item => Date.parse(item.lastSeenAt) >= cutoff);
-  const visits = (Array.isArray(current.events) ? current.events : Object.values(current.visitors || {}).map(item => ({ ...item, visitedAt: item.lastVisitAt })))
+  const authenticatedVisits = (Array.isArray(current.events) ? current.events : Object.values(current.visitors || {}).map(item => ({ ...item, visitedAt: item.lastVisitAt })))
+    .filter(item => item && (item.userId || item.id && current.visitors?.[item.id]?.userId))
     .map(item => ({ id: item.id || item.visitorId, username: item.username || null, userId: item.userId || null, visitedAt: item.visitedAt }))
+    .filter(item => item.userId)
     .sort((a, b) => Date.parse(b.visitedAt) - Date.parse(a.visitedAt));
 
+  const uniqueVisitorIds = new Set(authenticatedVisits.map(item => String(item.id || item.userId)));
   return {
     date: day,
-    totalVisits: Number(current.total || 0),
-    uniqueVisitors: Number(current.unique || 0),
+    totalVisits: authenticatedVisits.length,
+    uniqueVisitors: uniqueVisitorIds.size,
     onlineCount: online.filter(item => item.userId).length,
     onlineUsers: online
       .filter(item => item.userId)
