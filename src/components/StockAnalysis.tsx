@@ -3014,14 +3014,6 @@ const clearCurrentAnalysis = () => {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200 p-4">
-                    <SectionHeader title="مصرف" subtitle="جمع‌بندی توکن‌های مصرفی برای این درخواست" />
-                    <div className="divide-y divide-slate-100">
-                      <DetailRow label="توکن ورودی" value={faNumber(analysisData.usage?.prompt_tokens)} />
-                      <DetailRow label="توکن خروجی" value={faNumber(analysisData.usage?.completion_tokens)} />
-                      <DetailRow label="جمع توکن" value={faNumber(analysisData.usage?.total_tokens)} />
-                    </div>
-                  </div>
                 </div>
               </div>
             ) : analysisResult ? (
