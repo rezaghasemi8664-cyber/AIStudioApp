@@ -2564,8 +2564,7 @@ const clearCurrentAnalysis = () => {
                   </div>
                 </div>
 
-                {(marketDataResolved.realBreakdown || marketDataResolved.legalBreakdown) && (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
                   <SectionHeader
                     title="نقاط ورود، خروج و حد ضرر"
                     subtitle="سطوح معاملاتی در کنار منطق تکنیکال قابل مشاهده هستند."
