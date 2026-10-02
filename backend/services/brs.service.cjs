@@ -1412,7 +1412,7 @@ async function getSymbolData(symbol) {
   }
 
   var cacheKey = 'symbol_' + symbolClean;
-  var cacheEntry = getCacheEntry(cacheKey);
+  var cacheEntry = forceFresh ? null : getCacheEntry(cacheKey);
 
   if (cacheEntry) {
     var cacheMeta = buildMeta('symbol', {
