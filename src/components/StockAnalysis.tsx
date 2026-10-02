@@ -1193,35 +1193,217 @@ function DetailRow({
   );
 }
 
-/**
- * Fallback local chart
- * اگر در پروژه‌ات CandleChart واقعی داری، این کامپوننت را حذف کن
- * و import واقعی را جایگزین کن.
- */
+type ChartLevel = {
+  price: number;
+  label: string;
+  tone: 'support' | 'resistance' | 'entry' | 'target' | 'stop';
+};
+
+function collectChartPrices(input: unknown, aliases: string[]): number[] {
+  if (input === undefined || input === null) return [];
+  if (Array.isArray(input)) return input.flatMap((item) => collectChartPrices(item, aliases));
+  if (typeof input === 'number' && Number.isFinite(input)) return [input];
+  if (typeof input === 'string') {
+    const n = toNum(input);
+    return n === undefined ? [] : [n];
+  }
+  if (typeof input === 'object') {
+    const item = input as Record<string, unknown>;
+    for (const key of aliases) {
+      if (key in item) {
+        const found = collectChartPrices(item[key], aliases);
+        if (found.length) return found;
+      }
+    }
+    const direct = toNum(item.price ?? item.value ?? item.level ?? item.levelPrice);
+    return direct === undefined ? [] : [direct];
+  }
+  return [];
+}
+
+function uniquePrices(values: number[]): number[] {
+  return Array.from(new Set(values.filter((v) => Number.isFinite(v) && v > 0)));
+}
+
+function buildChartLevels(
+  supportResistance: unknown,
+  entryPoints: AnalysisPoint[],
+  exitPoints: AnalysisPoint[],
+  targets: number[] | Record<string, number>,
+  stopLoss: number | null | undefined,
+): ChartLevel[] {
+  const sr = supportResistance && typeof supportResistance === 'object'
+    ? supportResistance as Record<string, unknown>
+    : {};
+
+  const supports = uniquePrices(collectChartPrices(
+    sr.support ?? sr.supports ?? sr.supportLevels ?? sr.supportLevel ?? sr.supportsLevels,
+    ['price', 'value', 'level', 'levelPrice']
+  )).slice(0, 3);
+
+  const resistances = uniquePrices(collectChartPrices(
+    sr.resistance ?? sr.resistances ?? sr.resistanceLevels ?? sr.resistanceLevel ?? sr.resistancesLevels,
+    ['price', 'value', 'level', 'levelPrice']
+  )).slice(0, 3);
+
+  const levels: ChartLevel[] = [
+    ...supports.map((price, i) => ({ price, label: i === 0 ? 'حمایت' : \`حمایت \${i + 1}\`, tone: 'support' as const })),
+    ...resistances.map((price, i) => ({ price, label: i === 0 ? 'مقاومت' : \`مقاومت \${i + 1}\`, tone: 'resistance' as const })),
+    ...entryPoints.slice(0, 3).map((p, i) => ({ price: p.price, label: i === 0 ? 'ورود' : \`ورود \${i + 1}\`, tone: 'entry' as const })),
+    ...exitPoints.slice(0, 3).map((p, i) => ({ price: p.price, label: i === 0 ? 'خروج' : \`خروج \${i + 1}\`, tone: 'target' as const })),
+  ];
+
+  if (Array.isArray(targets)) {
+    levels.push(...targets.slice(0, 3).map((price, i) => ({
+      price,
+      label: i === 0 ? 'هدف خروج' : \`هدف خروج \${i + 1}\`,
+      tone: 'target' as const,
+    })));
+  } else if (targets && typeof targets === 'object') {
+    levels.push(...Object.entries(targets).slice(0, 3).map(([label, price]) => ({
+      price,
+      label: label || 'هدف خروج',
+      tone: 'target' as const,
+    })));
+  }
+
+  const sl = toNum(stopLoss);
+  if (sl !== undefined) levels.push({ price: sl, label: 'حد ضرر', tone: 'stop' });
+
+  const seen = new Set<string>();
+  return levels.filter((level) => {
+    const key = \`\${level.tone}:\${level.price}\`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function CandleChart({
   data,
+  theme,
+  supportResistance,
+  entryPoints = [],
+  exitPoints = [],
+  targets = {},
+  stopLoss,
 }: {
   data: OHLCPoint[];
   theme?: string;
+  supportResistance?: unknown;
+  entryPoints?: AnalysisPoint[];
+  exitPoints?: AnalysisPoint[];
+  targets?: number[] | Record<string, number>;
+  stopLoss?: number | null;
 }) {
-  const latest = data[data.length - 1];
+  const candles = data.filter(
+    (item) =>
+      Number.isFinite(Number(item.open)) &&
+      Number.isFinite(Number(item.high)) &&
+      Number.isFinite(Number(item.low)) &&
+      Number.isFinite(Number(item.close))
+  );
+
+  const levels = buildChartLevels(supportResistance, entryPoints, exitPoints, targets, stopLoss);
+
+  if (!candles.length) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-[13px] font-medium text-slate-500">
+        داده‌ای برای نمایش نمودار موجود نیست.
+      </div>
+    );
+  }
+
+  const width = 1100;
+  const height = 500;
+  const left = 58;
+  const right = 170;
+  const top = 24;
+  const bottom = 42;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const allValues = [...candles.flatMap((c) => [Number(c.high), Number(c.low)]), ...levels.map((l) => l.price)].filter(Number.isFinite);
+  const rawMin = Math.min(...allValues);
+  const rawMax = Math.max(...allValues);
+  const padding = Math.max((rawMax - rawMin) * 0.08, rawMax * 0.005, 1);
+  const minPrice = rawMin - padding;
+  const maxPrice = rawMax + padding;
+  const priceRange = Math.max(maxPrice - minPrice, 1);
+  const xFor = (index: number) => left + ((index + 0.5) / candles.length) * plotWidth;
+  const yFor = (price: number) => top + ((maxPrice - price) / priceRange) * plotHeight;
+  const candleWidth = Math.max(4, Math.min(16, (plotWidth / candles.length) * 0.62));
+  const gridCount = 5;
+  const isDark = theme === 'dark';
+
+  const levelStyle: Record<ChartLevel['tone'], { stroke: string; dash: string }> = {
+    support: { stroke: '#059669', dash: '8 5' },
+    resistance: { stroke: '#dc2626', dash: '8 5' },
+    entry: { stroke: '#2563eb', dash: '4 4' },
+    target: { stroke: '#7c3aed', dash: '10 5' },
+    stop: { stroke: '#d97706', dash: '3 5' },
+  };
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-      <div className="mb-2 text-[12px] font-semibold text-slate-500">
-        تعداد کندل: {faNumber(data.length)}
-      </div>
-
-      {latest ? (
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-          <MetricCard label="باز" value={formatNumber(latest.open)} tone="slate" />
-          <MetricCard label="بسته" value={formatNumber(latest.close)} tone="blue" />
-          <MetricCard label="بیشینه" value={formatNumber(latest.high)} tone="emerald" />
-          <MetricCard label="کمینه" value={formatNumber(latest.low)} tone="rose" />
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="text-[12px] font-semibold text-slate-500">نمودار کندلی + سطوح تکنیکال</div>
+        <div className="flex flex-wrap gap-2 text-[10px] font-bold">
+          <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">حمایت</span>
+          <span className="rounded-full bg-rose-50 px-2 py-1 text-rose-700">مقاومت</span>
+          <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700">ورود</span>
+          <span className="rounded-full bg-violet-50 px-2 py-1 text-violet-700">هدف خروج</span>
+          <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-700">حد ضرر</span>
         </div>
-      ) : (
-        <div className="text-[13px] font-medium text-slate-500">داده‌ای برای نمایش نمودار موجود نیست.</div>
-      )}
+      </div>
+      <div className="overflow-x-auto">
+        <svg viewBox={\`0 0 \${width} \${height}\`} className="h-auto min-w-[760px] w-full" role="img" aria-label="نمودار کندلی با خطوط حمایت، مقاومت، نقاط ورود، اهداف خروج و حد ضرر">
+          <rect x="0" y="0" width={width} height={height} rx="12" fill={isDark ? '#0f172a' : '#ffffff'} />
+          {Array.from({ length: gridCount + 1 }, (_, i) => {
+            const y = top + (i / gridCount) * plotHeight;
+            const price = maxPrice - (i / gridCount) * priceRange;
+            return (
+              <g key={\`grid-\${i}\`}>
+                <line x1={left} x2={left + plotWidth} y1={y} y2={y} stroke={isDark ? '#334155' : '#e2e8f0'} strokeWidth="1" />
+                <text x={left - 8} y={y + 4} textAnchor="end" fontSize="10" fill={isDark ? '#cbd5e1' : '#64748b'}>{formatNumber(Math.round(price))}</text>
+              </g>
+            );
+          })}
+          {candles.map((candle, index) => {
+            const x = xFor(index);
+            const open = Number(candle.open);
+            const high = Number(candle.high);
+            const low = Number(candle.low);
+            const close = Number(candle.close);
+            const bullish = close >= open;
+            const bodyTop = yFor(Math.max(open, close));
+            const bodyBottom = yFor(Math.min(open, close));
+            const bodyHeight = Math.max(1.5, bodyBottom - bodyTop);
+            const stroke = bullish ? '#059669' : '#dc2626';
+            const fill = bullish ? '#10b981' : '#ef4444';
+            return (
+              <g key={\`candle-\${index}-\${candle.date}\`}>
+                <line x1={x} x2={x} y1={yFor(high)} y2={yFor(low)} stroke={stroke} strokeWidth="1.5" />
+                <rect x={x - candleWidth / 2} y={bodyTop} width={candleWidth} height={bodyHeight} rx="1" fill={fill} stroke={stroke} strokeWidth="1" />
+              </g>
+            );
+          })}
+          {levels.map((level, index) => {
+            const y = yFor(level.price);
+            if (y < top - 2 || y > top + plotHeight + 2) return null;
+            const style = levelStyle[level.tone];
+            return (
+              <g key={\`level-\${level.tone}-\${level.price}-\${index}\`}>
+                <line x1={left} x2={left + plotWidth + 6} y1={y} y2={y} stroke={style.stroke} strokeWidth={level.tone === 'entry' ? 2.2 : 1.8} strokeDasharray={style.dash} opacity="0.9" />
+                <rect x={left + plotWidth + 10} y={y - 10} width={right - 22} height="20" rx="5" fill={style.stroke} opacity="0.96" />
+                <text x={left + plotWidth + 16} y={y + 3} fontSize="10" fontWeight="700" fill="#ffffff">{level.label}: {faNumber(Math.round(level.price).toLocaleString('en-US'))}</text>
+              </g>
+            );
+          })}
+          {candles.length > 0 && (
+            <text x={left + plotWidth} y={height - 12} textAnchor="end" fontSize="10" fill={isDark ? '#94a3b8' : '#64748b'}>{candles[candles.length - 1].date}</text>
+          )}
+        </svg>
+      </div>
     </div>
   );
 }
@@ -2663,7 +2845,15 @@ const clearCurrentAnalysis = () => {
                         })()}
 
                         <div className="p-2">
-                          <CandleChart data={chartData} theme={theme} />
+                          <CandleChart
+                            data={chartData}
+                            theme={theme}
+                            supportResistance={analysisData?.supportResistance}
+                            entryPoints={entryPoints}
+                            exitPoints={exitPoints}
+                            targets={targets}
+                            stopLoss={stopLoss}
+                          />
                         </div>
                       </>
                     )}
