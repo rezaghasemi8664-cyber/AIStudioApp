@@ -367,7 +367,7 @@ const BackgroundTabLoader: React.FC<{
       { key: 'dailyFilters', node: <DailyFilters /> },
       { key: 'profile', node: <UserProfile currentUser={currentUser} onProfileUpdate={onProfileUpdate} onPasswordChange={onPasswordChange} /> },
       ...(currentUser.isAdmin ? [
-        { key: 'users' as Tab, node: <UserManagement isOnline={isOnline} onMessageUpdate={() => undefined} onlineCount={onlineUserCount} /> },
+        { key: 'users' as Tab, node: <UserManagement isOnline={isOnline} onMessageUpdate={() => undefined} onlineCount={0} /> },
         { key: 'notifications' as Tab, node: <NotificationsManagement isOnline={isOnline} /> },
       ] : []),
     ],
