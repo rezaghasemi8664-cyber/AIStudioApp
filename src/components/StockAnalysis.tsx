@@ -2977,7 +2977,7 @@ const clearCurrentAnalysis = () => {
                       title="توضیحات تکنیکال"
                       subtitle="برداشت تحلیلی از ساختار نمودار، روند، حمایت و مقاومت"
                     />
-                    <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 text-[15px] font-medium leading-9 text-slate-800">
+                    <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 text-[15px] font-medium leading-9 text-slate-800 whitespace-pre-wrap break-words">
                       {historySummaryText(analysisData.technicalExplanation) ||
                         historySummaryText(analysisData.technicalAnalysis) ||
                         historySummaryText(analysisData.explanations?.technical) ||
