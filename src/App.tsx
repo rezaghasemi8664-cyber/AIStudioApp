@@ -518,6 +518,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
     let mounted = true;
+    if (!currentUser) return () => { mounted = false; };
+
     const visit = async () => {
       try { await recordSiteVisit(); } catch (error) { console.warn('[SiteAnalytics] visit failed:', error); }
     };
@@ -529,7 +531,7 @@ const App: React.FC = () => {
     void heartbeat();
     const timer = window.setInterval(heartbeat, TIMING.PRESENCE_INTERVAL);
     return () => { mounted = false; window.clearInterval(timer); };
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     const handleGlobalUnauthorized = () => {
