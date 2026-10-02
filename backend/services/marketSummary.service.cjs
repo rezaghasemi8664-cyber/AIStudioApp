@@ -378,22 +378,21 @@ async function getHistoricalIndexSeries(referenceDate, limit = 60) {
 
   try {
     const rows = await model.findMany({
-      orderBy: { createdAt: 'desc' },
+      where: { marketDate: { not: null } },
+      orderBy: [{ marketDate: 'desc' }, { updatedAt: 'desc' }],
       take: 3000,
-      select: { id: true, jsonData: true, createdAt: true }
+      select: { id: true, jsonData: true, marketDate: true, updatedAt: true, createdAt: true }
     });
     const byDay = new Map();
     for (const row of rows) {
-      const day = toDateOnlyISO(row.createdAt);
+      const day = toDateOnlyISO(row.marketDate);
       if (!day || day === targetDay) continue;
       const candidate = extractMarketDataCandidate(parseJsonSafe(row.jsonData));
       if (!candidate || isLikelySyntheticMarketData(candidate)) continue;
       const index = pickValue(candidate, FIELD_KEYS.index);
       if (index === null) continue;
-      const previous = byDay.get(day);
-      if (!previous || new Date(row.createdAt).getTime() > new Date(previous.createdAt).getTime()) {
-        byDay.set(day, { date: day, createdAt: row.createdAt, index });
-      }
+      const snapshotAt = row.updatedAt || row.createdAt;
+      byDay.set(day, { date: day, createdAt: snapshotAt, updatedAt: row.updatedAt, index });
     }
     return [...byDay.values()]
       .sort((a, b) => String(a.date).localeCompare(String(b.date)))
@@ -648,10 +647,14 @@ async function buildMergedMarketDataForDay(referenceDate, { take = 1500 } = {}) 
   const model = getMarketHistoryModel();
   if (!model) return { merged: null, rowsUsed: 0, inspected: 0 };
   const target = toDateOnlyISO(referenceDate);
-  const rows = await model.findMany({ orderBy: { createdAt: 'desc' }, take });
+  const rows = await model.findMany({
+    where: { marketDate: target ? new Date(target + 'T00:00:00.000Z') : undefined },
+    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+    take,
+  });
   let merged = null, rowsUsed = 0;
   for (const row of rows) {
-    if (!row?.createdAt || toDateOnlyISO(row.createdAt) !== target) continue;
+    if (!row?.marketDate || toDateOnlyISO(row.marketDate) !== target) continue;
     const candidate = extractMarketDataCandidate(parseJsonSafe(row.jsonData));
     if (!candidate || isLikelySyntheticMarketData(candidate)) continue;
     merged = merged ? deepMergePreferDefined(merged, candidate) : { ...candidate };
