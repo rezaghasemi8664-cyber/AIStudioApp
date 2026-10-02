@@ -533,19 +533,9 @@ function startMarketWorker() {
     return;
   }
 
-  // Run immediately after backend startup so a fresh/empty shared database
-  // is populated without waiting for the first one-minute cron tick.
-  runMarketWorker().catch((error) => {
-    console.error('[MARKET WORKER] Initial refresh failed:', error?.message || error);
-  });
-
-  cron.schedule('*/1 * * * *', () => {
-    runMarketWorker().catch((error) => {
-      console.error('[MARKET WORKER] Scheduled refresh failed:', error?.message || error);
-    });
-  });
-
-  console.log('[MARKET WORKER] Central market worker started (immediate bootstrap + every minute)');
+  // Market index polling is owned exclusively by market.cron.cjs (every 2 minutes).
+  // This worker must not create a second 1-minute BRS index polling path.
+  console.log('[MARKET WORKER] Central market worker started without 1-minute index polling');
 }
 
 module.exports = { runMarketWorker, startMarketWorker, updateMarketCurrent, updateSymbolsAndMovers, updateIndustries, updateMarketDaily, updateScalpingOpportunities };
