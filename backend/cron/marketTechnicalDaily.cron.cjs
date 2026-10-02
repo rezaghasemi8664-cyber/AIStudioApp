@@ -31,34 +31,26 @@ async function pruneOldTechnicalDailyRecords() {
 }
 
 async function backfillMarketTechnicalDaily() {
-  const rows = await prisma.marketHistory.findMany({
-    orderBy: { createdAt: 'desc' },
-    select: { id: true, createdAt: true, jsonData: true }
+  const rows = await prisma.marketCurrent.findMany({
+    orderBy: [{ marketDate: 'desc' }, { updatedAt: 'desc' }]
   });
 
   const byDay = new Map();
 
   for (const row of rows) {
-    const key = dayKey(row.createdAt);
-    if (!tradingWeekday(row.createdAt) || byDay.has(key)) continue;
+    const key = dayKey(row.marketDate);
+    if (!tradingWeekday(row.marketDate) || byDay.has(key)) continue;
 
-    let raw;
-    try {
-      raw = JSON.parse(row.jsonData || '{}');
-    } catch {
-      continue;
-    }
-
-    const index = n(raw.index ?? raw.marketIndex ?? raw.indexValue ?? raw.lastIndex);
+    const index = n(row.overallIndex);
     if (!(index > 0)) continue;
 
     byDay.set(key, {
-      marketDate: dayValue(row.createdAt),
+      marketDate: dayValue(row.marketDate),
       overallIndex: index,
-      overallChange: n(raw.index_change ?? raw.indexChange ?? raw.changeValue),
-      equalIndex: n(raw.indexEqualWeight ?? raw.index_equalWeight ?? raw.equalWeightedIndex),
-      equalChange: n(raw.indexEqualWeightChange ?? raw.index_equalWeight_change ?? raw.equalWeightedChangeValue),
-      source: String(raw.source || 'market-history').slice(0, 50)
+      overallChange: n(row.overallChange),
+      equalIndex: n(row.equalIndex),
+      equalChange: n(row.equalChange),
+      source: String(row.source || 'market-current').slice(0, 50)
     });
   }
 
