@@ -518,17 +518,21 @@ const App: React.FC = () => {
 
   useEffect(() => {
     let mounted = true;
-    if (!currentUser) return () => { mounted = false; };
 
     const visit = async () => {
+      if (!mounted || !currentUser) return;
       try { await recordSiteVisit(); } catch (error) { console.warn('[SiteAnalytics] visit failed:', error); }
     };
     const heartbeat = async () => {
-      if (!mounted) return;
+      if (!mounted || !currentUser) return;
       try { await sendSiteHeartbeat(); } catch (error) { console.warn('[SiteAnalytics] heartbeat failed:', error); }
     };
-    void visit();
-    void heartbeat();
+
+    if (currentUser) {
+      void visit();
+      void heartbeat();
+    }
+
     const timer = window.setInterval(heartbeat, TIMING.PRESENCE_INTERVAL);
     return () => { mounted = false; window.clearInterval(timer); };
   }, [currentUser]);
