@@ -1339,7 +1339,7 @@ async function getMarketSummary(options) {
   var opts = options || {};
   var requestedDate = opts.date ? String(opts.date).trim() : '';
   var cacheKey = 'market_summary_' + (requestedDate || 'today');
-  var cacheEntry = getCacheEntry(cacheKey);
+  var cacheEntry = forceFresh ? null : getCacheEntry(cacheKey);
 
   if (cacheEntry) {
     return {
@@ -1733,7 +1733,9 @@ async function getAdjustedDailyCandlestick(symbol, limit) {
   });
 }
 
-function getAllSymbols() {
+function getAllSymbols(options) {
+  var opts = options || {};
+  var forceFresh = opts.forceFresh === true;
   var cacheKey = 'all_symbols';
   var cacheEntry = getCacheEntry(cacheKey);
 
@@ -1966,4 +1968,3 @@ module.exports = {
   _getLocalMarketWindowStatus: getLocalMarketWindowStatus,
   _isClosedState: isClosedState
 };
-
