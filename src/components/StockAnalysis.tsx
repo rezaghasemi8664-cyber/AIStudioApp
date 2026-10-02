@@ -912,6 +912,21 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     risk_level: source.risk_level,
     compositeScore: toNullableNum(source.compositeScore ?? source.finalScore ?? source.scoreBreakdown?.compositeScore) ?? undefined,
     decisionBasis: historySummaryText(source.decisionBasis) || undefined,
+    // Use the canonical deterministic technical explanation when available.
+    // Without this normalization the UI falls back to the legacy one-line
+    // technicalAnalysis field, which makes the formatted explanation appear
+    // collapsed into a single paragraph.
+    technicalExplanation:
+      historySummaryText(
+        source.technicalExplanation ??
+          source.technicalAnalysis ??
+          source.detailedTechnicalExplanation ??
+          source.technicalReason ??
+          explanations.technical ??
+          (source.deterministic === true && Array.isArray(source.reasons)
+            ? source.reasons.join('\\n')
+            : '')
+      ) || undefined,
     marketMetrics: mergedMetrics,
     // Preserve deterministic analysis metadata from the backend
     dataQuality: source.dataQuality,
