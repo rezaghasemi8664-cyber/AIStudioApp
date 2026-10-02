@@ -150,46 +150,6 @@ function scoreSymbol(item) {
   };
 }
 
-async function updateMarketCurrent() {
-  const response = await brsService.getMarketIndex();
-  const market = unwrap(response) || {};
-  const marketDate = sqlDate(tehranDateKey());
-  const open = isTradingCalendarDay() && market.isMarketOpen === true;
-
-  await prisma.marketCurrent.upsert({
-    where: { marketDate },
-    create: {
-      marketDate,
-      marketStatus: open ? 'OPEN' : 'CLOSED',
-      overallIndex: num(market.index),
-      overallChange: num(market.indexChange ?? market.index_change),
-      equalIndex: num(market.indexEqualWeight ?? market.index_equalWeight),
-      equalChange: num(market.indexEqualWeightChange ?? market.index_equalWeight_change),
-      totalTrades: int(market.tradeCount),
-      totalVolume: int(market.tradeVolume),
-      totalValue: num(market.tradeValue),
-      updatedAt: new Date(),
-      source: 'brs-central-worker',
-      isStale: false,
-      dataJson: JSON.stringify(market)
-    },
-    update: {
-      marketStatus: open ? 'OPEN' : 'CLOSED',
-      overallIndex: num(market.index),
-      overallChange: num(market.indexChange ?? market.index_change),
-      equalIndex: num(market.indexEqualWeight ?? market.index_equalWeight),
-      equalChange: num(market.indexEqualWeightChange ?? market.index_equalWeight_change),
-      totalTrades: int(market.tradeCount),
-      totalVolume: int(market.tradeVolume),
-      totalValue: num(market.tradeValue),
-      updatedAt: new Date(),
-      source: 'brs-central-worker',
-      isStale: false,
-      dataJson: JSON.stringify(market)
-    }
-  });
-}
-
 async function updateSymbolsAndMovers() {
   const response = await brsService.getAllSymbols();
   const rows = unwrap(response);
@@ -497,9 +457,20 @@ async function runJob(name, fn) {
 }
 
 async function runMarketWorker() {
-  const status = await brsService.getMarketStatus().catch(() => ({ isOpen: false }));
   const calendarOpen = isTradingCalendarDay();
-  const effectiveOpen = calendarOpen && status?.isOpen === true;
+  const todayMarketDate = sqlDate(tehranDateKey());
+
+  // The canonical market index snapshot is written only by market.cron.cjs.
+  // This worker must never call BRS for the index/status path.
+  const marketCurrent = await prisma.marketCurrent.findUnique({
+    where: { marketDate: todayMarketDate },
+    select: { marketStatus: true, updatedAt: true, isStale: true }
+  }).catch(() => null);
+
+  const effectiveOpen =
+    calendarOpen &&
+    marketCurrent?.marketStatus === 'OPEN' &&
+    marketCurrent?.isStale !== true;
   const existingMarketCurrent = await prisma.marketCurrent.findFirst({
     orderBy: { updatedAt: 'desc' },
     select: { id: true, updatedAt: true }
@@ -548,4 +519,4 @@ function startMarketWorker() {
   console.log('[MARKET WORKER] Analytics worker started every 2 minutes; index polling remains in market.cron.cjs');
 }
 
-module.exports = { runMarketWorker, startMarketWorker, updateMarketCurrent, updateSymbolsAndMovers, updateIndustries, updateMarketDaily, updateScalpingOpportunities };
+module.exports = { runMarketWorker, startMarketWorker, updateSymbolsAndMovers, updateIndustries, updateMarketDaily, updateScalpingOpportunities };
