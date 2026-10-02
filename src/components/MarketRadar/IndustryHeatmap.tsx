@@ -85,8 +85,10 @@ const IndustryHeatmap: React.FC<{ rows: MarketRadarSector[] }> = ({ rows }) => {
                 </div>
                 <div className="mt-auto flex items-center justify-between gap-3 border-t border-white/15 pt-2">
                   <div className="min-w-0">
-                    <div className="text-sm font-black text-white">مجموع نماد</div>
-                    <div className="mt-0.5 text-lg font-black leading-none tabular-nums text-white">{fa(row.symbols)}</div>
+                    <div className="flex items-center gap-2 whitespace-nowrap text-sm font-black text-white">
+                      <span className="text-lg leading-none tabular-nums">{fa(row.symbols)}</span>
+                      <span>مجموع نماد</span>
+                    </div>
                   </div>
                   <div className="min-w-0 flex-1 text-left">
                     <div className="flex flex-col items-end gap-1 whitespace-nowrap text-sm font-black text-white">
