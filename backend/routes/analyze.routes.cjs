@@ -33,10 +33,17 @@ try {
 }
 
 let deterministicStockService = null;
+let deterministicStockServiceLoadError = null;
 try {
   deterministicStockService = require('../services/deterministic-stock-analysis.service.cjs');
 } catch (error) {
-  console.error('[ANALYZE-ROUTES] Deterministic stock service load failed:', error.message);
+  deterministicStockServiceLoadError = {
+    name: error?.name || 'Error',
+    message: error?.message || 'Unknown module load error',
+    code: error?.code || null,
+    stack: error?.stack || null,
+  };
+  console.error('[ANALYZE-ROUTES] Deterministic stock service load failed:', error);
 }
 
 let analysisDataProvider = null;
@@ -95,8 +102,6 @@ router.post('/', authMiddleware, function (req, res) {
   return res.status(503).json({ success: false, message: 'سرویس تحلیل در دسترس نیست.', code: 'ANALYZE_SERVICE_UNAVAILABLE', requestId: req.requestId });
 });
 
-// Expose the same deterministic data boundary used by /stock analysis.
-// This prevents the frontend from depending on an unmounted /analysis-data route.
 router.get('/stock-data/:symbol', authMiddleware, async function (req, res) {
   try {
     if (!analysisDataProvider || typeof analysisDataProvider.getMarketData !== 'function') {
@@ -112,7 +117,7 @@ router.get('/stock-data/:symbol', authMiddleware, async function (req, res) {
     const data = await analysisDataProvider.getMarketData(symbol, { historyCount });
     return res.json({ success: true, data });
   } catch (error) {
-    console.error('[ANALYZE-ROUTES] Stock data error:', error.message);
+    console.error('[ANALYZE-ROUTES] Stock data error:', error);
     return res.status(Number(error.statusCode) >= 400 ? Number(error.statusCode) : 500).json({
       success: false,
       message: error.message || 'خطا در دریافت داده تحلیل',
@@ -124,34 +129,64 @@ router.get('/stock-data/:symbol', authMiddleware, async function (req, res) {
 
 router.post('/stock', authMiddleware, async function (req, res) {
   try {
-    if (deterministicStockService && typeof deterministicStockService.analyzeStock === 'function') {
-      const body = req.body || {};
-      const result = await deterministicStockService.analyzeStock({
-        symbol: body.symbol || body.stock || body.stockSymbol || body.ticker,
-        dailyCount: body.dailyCount,
-        historyCount: body.historyCount,
-        lookback: body.lookback,
-        rsiPeriod: body.rsiPeriod,
-      });
-
-      return res.json({
-        success: true,
-        data: result,
+    if (!deterministicStockService) {
+      return res.status(503).json({
+        success: false,
+        message: 'موتور تحلیل قطعی سهم در دسترس نیست.',
+        code: 'STOCK_ANALYSIS_UNAVAILABLE',
         deterministic: true,
-        engine: result.engine,
-        dataQuality: result.dataQuality,
+        engineLoadError: process.env.NODE_ENV === 'production'
+          ? {
+              name: deterministicStockServiceLoadError?.name || 'MODULE_LOAD_ERROR',
+              message: deterministicStockServiceLoadError?.message || 'ماژول موتور تحلیل بارگذاری نشد.',
+              code: deterministicStockServiceLoadError?.code || null,
+            }
+          : deterministicStockServiceLoadError,
+        requestId: req.requestId,
       });
     }
 
-    return res.status(503).json({
-      success: false,
-      message: 'موتور تحلیل قطعی سهم در دسترس نیست.',
-      code: 'STOCK_ANALYSIS_UNAVAILABLE',
+    if (typeof deterministicStockService.analyzeStock !== 'function') {
+      return res.status(503).json({
+        success: false,
+        message: 'تابع تحلیل قطعی سهم در سرویس موجود نیست.',
+        code: 'STOCK_ANALYSIS_FUNCTION_UNAVAILABLE',
+        deterministic: true,
+        exportedKeys: Object.keys(deterministicStockService),
+        requestId: req.requestId,
+      });
+    }
+
+    const body = req.body || {};
+    const symbol = body.symbol || body.stock || body.stockSymbol || body.ticker;
+
+    if (!String(symbol || '').trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'نماد سهم الزامی است.',
+        code: 'SYMBOL_REQUIRED',
+        deterministic: true,
+        requestId: req.requestId,
+      });
+    }
+
+    const result = await deterministicStockService.analyzeStock({
+      symbol,
+      dailyCount: body.dailyCount,
+      historyCount: body.historyCount,
+      lookback: body.lookback,
+      rsiPeriod: body.rsiPeriod,
+    });
+
+    return res.json({
+      success: true,
+      data: result,
       deterministic: true,
-      requestId: req.requestId
+      engine: result.engine,
+      dataQuality: result.dataQuality,
     });
   } catch (error) {
-    console.error('[ANALYZE-ROUTES] Deterministic stock analysis error:', error.message);
+    console.error('[ANALYZE-ROUTES] Deterministic stock analysis error:', error);
     return res.status(Number(error.statusCode) >= 400 ? Number(error.statusCode) : 500).json({
       success: false,
       message: error.message || 'خطا در تحلیل تکنیکال سهم',
@@ -159,6 +194,8 @@ router.post('/stock', authMiddleware, async function (req, res) {
       dataQuality: error.dataQuality,
       source: error.source,
       requestId: req.requestId,
+      errorName: error.name,
+      errorStack: process.env.NODE_ENV === 'production' ? undefined : error.stack,
     });
   }
 });
