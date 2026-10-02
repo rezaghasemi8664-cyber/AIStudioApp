@@ -152,7 +152,7 @@ function scoreSymbol(item) {
 }
 
 async function updateSymbolsAndMovers() {
-  const response = await brsService.getAllSymbols();
+  const response = await brsService.getAllSymbols({ forceFresh: true });
   const rows = unwrap(response);
   if (!Array.isArray(rows) || !rows.length) throw new Error('BRS AllSymbols returned no symbols');
 
