@@ -235,7 +235,7 @@ const ProfessionalScreener: React.FC = () => {
         {loading ? <div className="py-16 text-center text-sm text-slate-500">در حال دریافت داده بازار…</div> : error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-8 text-center text-sm text-rose-300">{error}<button onClick={() => void load(true)} className="mr-3 rounded-xl bg-white/10 px-3 py-2">تلاش مجدد</button></div> : dataStatus === 'UNAVAILABLE' ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-10 text-center text-sm text-rose-300">داده واقعی غربالگر در حال حاضر از منبع بازار در دسترس نیست؛ هیچ مقدار ساختگی نمایش داده نمی‌شود.</div> : !rows.length ? <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-10 text-center text-sm text-slate-500">با معیارهای فعلی نمادی پیدا نشد.</div> : (
           <div className="overflow-x-auto rounded-2xl border border-white/5">
             <table className="min-w-[1150px] w-full text-xs text-right">
-              <thead className="bg-white/[0.03] text-slate-500"><tr>{['#','نماد','قدرت خرید','آخرین','پایانی','تغییر','حجم','ارزش','حجم/ماه','P/E','خرید حقیقی','فروش حقیقی'].map((heading) => <th key={heading} className="px-3 py-3 font-bold">{heading}</th>)}</tr></thead>
+              <thead className="bg-white/[0.03] text-slate-500"><tr>{['#','نماد','قدرت خرید','آخرین','پایانی','تغییر','حجم','ارزش','حجم ماه','P/E','خرید حقیقی','فروش حقیقی'].map((heading) => <th key={heading} className="px-3 py-3 font-bold">{heading}</th>)}</tr></thead>
               <tbody>{rows.map((row, index) => <tr key={row.symbol} className="border-t border-white/5 hover:bg-white/[0.025]">
                 <td className="px-3 py-3 text-slate-500">{fmt(index + 1)}</td>
                 <td className="px-3 py-3 font-black text-slate-200">{row.symbol}</td>
@@ -245,7 +245,7 @@ const ProfessionalScreener: React.FC = () => {
                 <td className={`px-3 py-3 font-black ${tone(row.lastChangePercent)}`}>{pct(row.lastChangePercent)}</td>
                 <td className="px-3 py-3 tabular-nums text-slate-300">{fmt(row.volume)}</td>
                 <td className="px-3 py-3 tabular-nums text-slate-300">{fmt(row.value)}</td>
-                <td className="px-3 py-3 font-bold text-violet-300">{row.volumeRatio1m ? `${fmt(row.volumeRatio1m, 2)}×` : '—'}</td>
+                <td className="px-3 py-3 font-bold text-violet-300">{row.volumeAvg1m ? fmt(row.volumeAvg1m) : '—'}</td>
                 <td className="px-3 py-3">{row.pe ? fmt(row.pe, 2) : '—'}</td>
                 <td className="px-3 py-3 text-emerald-300">{fmt(row.realBuyVolume)}</td>
                 <td className="px-3 py-3 text-rose-300">{fmt(row.realSellVolume)}</td>
