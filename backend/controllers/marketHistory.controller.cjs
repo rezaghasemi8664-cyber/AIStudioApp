@@ -177,7 +177,7 @@ function calcChangePercent(value, change) {
 }
 
 function deriveIsMarketOpen(raw) {
-  // The Tehran regular session is Sunday through Thursday, 09:00–12:30.
+  // Tehran exchange trading days are Saturday through Wednesday, with the regular session from 09:00 to 12:30.
   // Outside that window the market must be reported as closed, even if an
   // upstream/cached payload incorrectly says "open".
   try {
@@ -194,8 +194,8 @@ function deriveIsMarketOpen(raw) {
     const hour = Number(values.hour);
     const minute = Number(values.minute);
     const totalMinutes = hour * 60 + minute;
-    const tradingDay = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu'].includes(weekday);
-    const inRegularSession = tradingDay && totalMinutes >= 9 * 60 && totalMinutes < 12 * 60 + 30;
+    const tradingDay = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'].includes(weekday);
+    const inRegularSession = tradingDay && totalMinutes >= 9 * 60 && totalMinutes <= 12 * 60 + 30;
 
     if (!inRegularSession) return false;
   } catch (_error) {
