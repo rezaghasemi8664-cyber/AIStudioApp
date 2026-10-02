@@ -106,17 +106,21 @@ function getTodayStats() {
   const current = store.days[day] || { total: 0, unique: 0, visitors: {}, events: [], online: {} };
   const cutoff = Date.now() - ONLINE_TTL_MS;
   const online = Object.values(current.online || {}).filter(item => Date.parse(item.lastSeenAt) >= cutoff);
-  const authenticatedVisits = (Array.isArray(current.events) ? current.events : Object.values(current.visitors || {}).map(item => ({ ...item, visitedAt: item.lastVisitAt })))
-    .filter(item => item && (item.userId || item.id && current.visitors?.[item.id]?.userId))
-    .map(item => ({ id: item.id || item.visitorId, username: item.username || null, userId: item.userId || null, visitedAt: item.visitedAt }))
-    .filter(item => item.userId)
+  const visits = (Array.isArray(current.events) ? current.events : Object.values(current.visitors || {}).map(item => ({ ...item, visitedAt: item.lastVisitAt })))
+    .map(item => ({
+      id: item.id || item.visitorId,
+      username: item.userId ? (item.username || 'کاربر') : null,
+      userId: item.userId || null,
+      visitedAt: item.visitedAt,
+    }))
     .sort((a, b) => Date.parse(b.visitedAt) - Date.parse(a.visitedAt));
 
-  const uniqueVisitorIds = new Set(authenticatedVisits.map(item => String(item.id || item.userId)));
+  const authenticatedVisits = visits.filter(item => item.userId);
+  const uniqueVisitorIds = new Set(authenticatedVisits.map(item => String(item.userId)));
   return {
     date: day,
-    totalVisits: authenticatedVisits.length,
-    uniqueVisitors: uniqueVisitorIds.size,
+    totalVisits: Number(current.total || visits.length || 0),
+    uniqueVisitors: Number(current.unique || uniqueVisitorIds.size || 0),
     onlineCount: online.filter(item => item.userId).length,
     onlineUsers: online
       .filter(item => item.userId)
