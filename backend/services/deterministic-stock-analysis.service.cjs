@@ -301,61 +301,61 @@ function buildAdvancedTechnicalExplanation(result, candles) {
   const current = num(result?.currentPrice) ?? num(candles?.[candles.length - 1]?.close);
   const lines = ['تحلیل نمودار نماد با استفاده از ابزارهای پیشرفته تکنیکال'];
 
-  if (current !== null) lines.push(\`قیمت فعلی: \${formatPrice(current)}.\`);
+  if (current !== null) lines.push(`قیمت فعلی: ${formatPrice(current)}.`);
 
   const movingParts = [];
   for (const [label, value] of [['SMA20', indicators.sma20], ['SMA50', indicators.sma50], ['EMA20', indicators.ema20], ['EMA50', indicators.ema50]]) {
     const n = num(value);
-    if (n !== null) movingParts.push(\`\${label}=\${formatPrice(n)}\${current !== null ? (current > n ? '؛ قیمت بالاتر از میانگین است' : '؛ قیمت پایین‌تر از میانگین است') : ''}\`);
+    if (n !== null) movingParts.push(`${label}=${formatPrice(n)}${current !== null ? (current > n ? '؛ قیمت بالاتر از میانگین است' : '؛ قیمت پایین‌تر از میانگین است') : ''}`);
   }
-  if (movingParts.length) lines.push(\`میانگین‌های متحرک: \${movingParts.join('؛ ')}.\`);
+  if (movingParts.length) lines.push(`میانگین‌های متحرک: ${movingParts.join('؛ ')}.`);
 
   const rsi = num(indicators.rsi);
   if (rsi !== null) {
     const state = rsi >= 70 ? 'اشباع خرید' : rsi <= 30 ? 'اشباع فروش' : rsi >= 50 ? 'متمایل به قدرت خرید' : 'متمایل به قدرت فروش';
-    lines.push(\`RSI(14): \${formatNumber(rsi)}؛ وضعیت: \${state}.\`);
+    lines.push(`RSI(14): ${formatNumber(rsi)}؛ وضعیت: ${state}.`);
   }
 
   if (indicators.macd) {
     const m = indicators.macd;
     const parts = [];
-    if (num(m.line) !== null) parts.push(\`خط MACD=\${formatNumber(m.line)}\`);
-    if (num(m.signal) !== null) parts.push(\`خط سیگنال=\${formatNumber(m.signal)}\`);
-    if (num(m.histogram) !== null) parts.push(\`هیستوگرام=\${formatNumber(m.histogram)}\`);
-    if (m.crossover && m.crossover !== 'نامشخص') parts.push(\`کراس=\${m.crossover}\`);
-    if (parts.length) lines.push(\`MACD: \${parts.join('؛ ')}.\`);
+    if (num(m.line) !== null) parts.push(`خط MACD=${formatNumber(m.line)}`);
+    if (num(m.signal) !== null) parts.push(`خط سیگنال=${formatNumber(m.signal)}`);
+    if (num(m.histogram) !== null) parts.push(`هیستوگرام=${formatNumber(m.histogram)}`);
+    if (m.crossover && m.crossover !== 'نامشخص') parts.push(`کراس=${m.crossover}`);
+    if (parts.length) lines.push(`MACD: ${parts.join('؛ ')}.`);
   }
 
   if (indicators.bollinger) {
     const bb = indicators.bollinger;
     const parts = [];
-    if (num(bb.upper) !== null) parts.push(\`باند بالا=\${formatPrice(bb.upper)}\`);
-    if (num(bb.middle) !== null) parts.push(\`باند میانی=\${formatPrice(bb.middle)}\`);
-    if (num(bb.lower) !== null) parts.push(\`باند پایین=\${formatPrice(bb.lower)}\`);
-    if (indicators.bollingerPosition) parts.push(\`موقعیت قیمت: \${indicators.bollingerPosition}\`);
-    if (parts.length) lines.push(\`بولینگر: \${parts.join('؛ ')}.\`);
+    if (num(bb.upper) !== null) parts.push(`باند بالا=${formatPrice(bb.upper)}`);
+    if (num(bb.middle) !== null) parts.push(`باند میانی=${formatPrice(bb.middle)}`);
+    if (num(bb.lower) !== null) parts.push(`باند پایین=${formatPrice(bb.lower)}`);
+    if (indicators.bollingerPosition) parts.push(`موقعیت قیمت: ${indicators.bollingerPosition}`);
+    if (parts.length) lines.push(`بولینگر: ${parts.join('؛ ')}.`);
   }
 
   const atr = num(indicators.atr14);
   if (atr !== null) {
     const pct = current && current > 0 ? (atr / current) * 100 : null;
-    lines.push(\`ATR(14): \${formatPrice(atr)}\${pct !== null ? \`؛ حدود \${formatNumber(pct)}٪ از قیمت فعلی\` : ''}؛ معیار سنجش دامنه نوسان و فاصله‌گذاری منطقی حد ضرر و اهداف.\`);
+    lines.push(`ATR(14): ${formatPrice(atr)}${pct !== null ? `؛ حدود ${formatNumber(pct)}٪ از قیمت فعلی` : ''}؛ معیار سنجش دامنه نوسان و فاصله‌گذاری منطقی حد ضرر و اهداف.`);
   }
 
   if (indicators.volume) {
     const v = indicators.volume;
-    lines.push(\`حجم معاملات: \${formatNumber(v.current, 0)}؛ میانگین ۲۰ روزه: \${formatNumber(v.average, 0)}؛ وضعیت حجم: \${v.status || 'نامشخص'}.\`);
+    lines.push(`حجم معاملات: ${formatNumber(v.current, 0)}؛ میانگین ۲۰ روزه: ${formatNumber(v.average, 0)}؛ وضعیت حجم: ${v.status || 'نامشخص'}.`);
   }
 
   const support = num(result?.supportResistance?.support);
   const resistance = num(result?.supportResistance?.resistance);
   if (support !== null || resistance !== null) {
-    lines.push(\`حمایت و مقاومت: حمایت اصلی \${formatPrice(support)}؛ مقاومت اصلی \${formatPrice(resistance)}.\`);
+    lines.push(`حمایت و مقاومت: حمایت اصلی ${formatPrice(support)}؛ مقاومت اصلی ${formatPrice(resistance)}.`);
   }
 
-  if (Array.isArray(result?.reasons) && result.reasons.length) lines.push(\`نتیجه ابزارهای تکنیکال: \${result.reasons.join('؛ ')}.\`);
-  if (Array.isArray(result?.riskWarnings) && result.riskWarnings.length) lines.push(\`هشدارهای تکنیکال: \${result.riskWarnings.join('؛ ')}\`);
-  lines.push(\`امتیاز تکنیکال: \${formatNumber(result?.score, 0)} از ۱۰۰؛ روند تکنیکال: \${result?.trend || 'خنثی'}؛ کیفیت اندیکاتورها: \${result?.indicatorQuality || 'نامشخص'}.\`);
+  if (Array.isArray(result?.reasons) && result.reasons.length) lines.push(`نتیجه ابزارهای تکنیکال: ${result.reasons.join('؛ ')}.`);
+  if (Array.isArray(result?.riskWarnings) && result.riskWarnings.length) lines.push(`هشدارهای تکنیکال: ${result.riskWarnings.join('؛ ')}`);
+  lines.push(`امتیاز تکنیکال: ${formatNumber(result?.score, 0)} از ۱۰۰؛ روند تکنیکال: ${result?.trend || 'خنثی'}؛ کیفیت اندیکاتورها: ${result?.indicatorQuality || 'نامشخص'}.`);
   return lines.join('\\n');
 }
 
@@ -478,13 +478,13 @@ async function analyzeStock(params = {}) {
   const sentiment = deriveSentiment(marketData);
   const advancedTechnicalExplanation = buildAdvancedTechnicalExplanation(result, data.candles);
   const summary = [
-    \`جمع‌بندی نهایی نماد بر اساس \${decision.decisionBasis} انجام شد.\`,
-    \`پیشنهاد نهایی: \${decision.recommendationFa}؛ امتیاز ترکیبی: \${formatNumber(decision.compositeScore, 0)} از ۱۰۰.\`,
-    \`امتیاز تکنیکال: \${formatNumber(technicalScore, 0)}؛ امتیاز بنیادی: \${fundamentalScore !== null ? formatNumber(fundamentalScore, 0) : 'نامشخص'}.\`,
-    \`روند تکنیکال: \${result.trend || 'خنثی'}؛ احساس بازار: \${sentiment}؛ روند جمع‌بندی: \${decision.compositeTrend}.\`,
-    \`سطوح کلیدی، نقاط ورود و خروج بر پایه ساختار نمودار و نتیجه جمع‌بندی نهایی تعیین شده‌اند.\`
+    `جمع‌بندی نهایی نماد بر اساس ${decision.decisionBasis} انجام شد.`,
+    `پیشنهاد نهایی: ${decision.recommendationFa}؛ امتیاز ترکیبی: ${formatNumber(decision.compositeScore, 0)} از ۱۰۰.`,
+    `امتیاز تکنیکال: ${formatNumber(technicalScore, 0)}؛ امتیاز بنیادی: ${fundamentalScore !== null ? formatNumber(fundamentalScore, 0) : 'نامشخص'}.`,
+    `روند تکنیکال: ${result.trend || 'خنثی'}؛ احساس بازار: ${sentiment}؛ روند جمع‌بندی: ${decision.compositeTrend}.`,
+    `سطوح کلیدی، نقاط ورود و خروج بر پایه ساختار نمودار و نتیجه جمع‌بندی نهایی تعیین شده‌اند.`
   ];
-  if (decision.riskWarnings.length) summary.push(\`ریسک: \${decision.riskLevel}؛ \${decision.riskWarnings.join(' ')}\`);
+  if (decision.riskWarnings.length) summary.push(`ریسک: ${decision.riskLevel}؛ ${decision.riskWarnings.join(' ')}`);
   if (warning) summary.push(warning);
 
   return {
