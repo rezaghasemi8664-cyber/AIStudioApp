@@ -582,6 +582,39 @@ async function saveMarketSnapshot(data) {
     return null;
   }
 
+  // The cron calls this function only during the current Tehran trading
+  // session. Never allow a stale BRS response for a previous day to overwrite
+  // that day's canonical row.
+  const tehranParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tehran",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const tehranDateValues = {};
+  for (const part of tehranParts) {
+    if (part.type !== "literal") {
+      tehranDateValues[part.type] = part.value;
+    }
+  }
+
+  const currentTehranDate = new Date(
+    Date.UTC(
+      Number(tehranDateValues.year),
+      Number(tehranDateValues.month) - 1,
+      Number(tehranDateValues.day)
+    )
+  );
+
+  if (marketDate.getTime() !== currentTehranDate.getTime()) {
+    console.warn(
+      "[MARKET][SNAPSHOT] Skip: BRS date does not match current Tehran trading date:",
+      snapshot.date
+    );
+    return null;
+  }
+
   const record = await prisma.marketCurrent.upsert({
     where: { marketDate },
     create: {
