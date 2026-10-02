@@ -1,6 +1,7 @@
 'use strict';
 
 const prisma = require('../config/prisma.cjs');
+const marketSnapshotService = require('./marketSnapshot.service.cjs');
 
 function decimalToNumber(value) {
   if (value == null) return null;
@@ -251,130 +252,26 @@ function getBreadthChangePercent(row) {
 }
 
 async function getBreadth() {
-  const [market, symbols, industriesResult] = await Promise.all([
-    getMarketCurrent(),
-    getSymbols({ limit: 10000 }),
-    getIndustries(100).catch(() => []),
-  ]);
-  // Breadth is derived from MarketSymbolCurrent and must remain available even
-  // if the optional persisted industry snapshot is temporarily unavailable.
-  if (!market && symbols.length === 0) return null;
-  const industries = industriesResult;
-  const valid = symbols
-    .filter((row) => isMarketAnalyticsEligible(row) && !/شاخص|index/i.test(`${row.symbol} ${row.name || ""}`))
-    .map((row) => ({ ...row, radarChangePercent: getBreadthChangePercent(row) }))
-    .filter((row) => row.radarChangePercent !== null);
-
-  const positive = valid.filter((row) => row.radarChangePercent > 0).length;
-  const negative = valid.filter((row) => row.radarChangePercent < 0).length;
-  const neutral = valid.filter((row) => row.radarChangePercent === 0).length;
-  const total = positive + negative + neutral;
-
-  const gainers = valid.filter((row) => row.radarChangePercent > 0)
-    .sort((a, b) => b.radarChangePercent - a.radarChangePercent)
-    .slice(0, 10).map((row) => ({ ...normalizeSymbol(row), changePercent: row.radarChangePercent, lastChangePercent: row.radarChangePercent }));
-  const losers = valid.filter((row) => row.radarChangePercent < 0)
-    .sort((a, b) => a.radarChangePercent - b.radarChangePercent)
-    .slice(0, 10).map((row) => ({ ...normalizeSymbol(row), changePercent: row.radarChangePercent, lastChangePercent: row.radarChangePercent }));
-  const highVolume = [...valid]
-    .sort((a, b) => (Number(b.volume || 0) - Number(a.volume || 0)) || (Number(b.value || 0) - Number(a.value || 0)))
-    .slice(0, 10).map(normalizeSymbol);
-
-  const realFlowRows = valid.filter((row) => Number(row.realBuyVolume || 0) > 0 || Number(row.realSellVolume || 0) > 0);
-  const totalRealBuyVolume = realFlowRows.reduce((sum, row) => sum + Math.max(0, Number(row.realBuyVolume || 0)), 0);
-  const totalRealSellVolume = realFlowRows.reduce((sum, row) => sum + Math.max(0, Number(row.realSellVolume || 0)), 0);
-
-  const sectorStats = new Map();
-  for (const row of valid) {
-    const name = String(row.sector || '').trim() || 'سایر / صنعت نامشخص';
-    const current = sectorStats.get(name) || { symbols: 0, positive: 0, negative: 0, neutral: 0, sumPct: 0, value: 0 };
-    current.symbols += 1;
-    if (row.radarChangePercent > 0) current.positive += 1;
-    else if (row.radarChangePercent < 0) current.negative += 1;
-    else current.neutral += 1;
-    current.sumPct += row.radarChangePercent;
-    current.value += Number(row.value || 0);
-    sectorStats.set(name, current);
-  }
-
-  const persistedByName = new Map(
-    industries
-      .filter((row) => Number.isFinite(Number(row.changePercent)) && Math.abs(Number(row.changePercent)) < 20)
-      .map((row) => [String(row.industryName || '').trim(), row])
-  );
-
-  const sectors = [...sectorStats.entries()]
-    .map(([name, stats]) => {
-      const persisted = persistedByName.get(name);
-      return {
-        name,
-        symbols: stats.symbols,
-        positive: stats.positive,
-        negative: stats.negative,
-        neutral: stats.neutral,
-        changePercent: stats.symbols ? stats.sumPct / stats.symbols : Number(persisted?.changePercent),
-        value: stats.value,
-        rank: Number(persisted?.rank || 0),
-      };
-    })
-    .filter((row) => Number.isFinite(row.changePercent));
-
-  const leaders = [...sectors].sort((a, b) => b.changePercent - a.changePercent).slice(0, 6);
-  const laggards = [...sectors].sort((a, b) => a.changePercent - b.changePercent).slice(0, 6);
-
-  return {
-    available: true,
-    stale: !!market.isStale,
-    source: market.source || 'shared-db',
-    updatedAt: market.updatedAt,
-    positive, negative, neutral, total,
-    positivePercent: total ? (positive / total) * 100 : 0,
-    negativePercent: total ? (negative / total) * 100 : 0,
-    neutralPercent: total ? (neutral / total) * 100 : 0,
-    advanceDeclineRatio: negative ? positive / negative : null,
-    coveragePercent: symbols.length ? (total / symbols.length) * 100 : 0,
-    topGainers: gainers, topLosers: losers, topVolumes: highVolume,
-    realFlow: {
-      available: realFlowRows.length > 0,
-      rowsWithRealFlow: realFlowRows.length,
-      totalRealBuyVolume, totalRealSellVolume,
-      netRealBuyVolume: totalRealBuyVolume - totalRealSellVolume,
-      unit: 'volume'
-    },
-    sectors: { available: sectors.length > 0, leaders, laggards, rows: sectors },
-  };
+  const snapshot = await marketSnapshotService.getActiveDerived();
+  if (!snapshot?.breadth) return null;
+  return snapshot.breadth;
 }
 async function getMovers(category, limit = 10) {
-  const take = Math.max(1, Math.min(Number(limit) || 10, 100));
-  const rows = await prisma.marketMoverCurrent.findMany({
-    where: category ? { category } : undefined,
-    orderBy: [{ rank: 'asc' }, { updatedAt: 'desc' }],
-    take,
-  });
-  return rows.map(normalizeMover);
+  const snapshot = await marketSnapshotService.getActiveDerived();
+  if (!snapshot?.movers) return [];
+  const key = category === 'GAINERS' ? 'gainers' : category === 'LOSERS' ? 'losers' : category === 'VOLUME' ? 'highVolume' : null;
+  if (!key) return [
+    ...snapshot.movers.gainers,
+    ...snapshot.movers.losers,
+    ...snapshot.movers.highVolume
+  ].slice(0, Math.max(1, Math.min(Number(limit) || 10, 100)));
+  return (snapshot.movers[key] || []).slice(0, Math.max(1, Math.min(Number(limit) || 10, 100)));
 }
-
 async function getIndustries(limit = 100) {
-  const take = Math.max(1, Math.min(Number(limit) || 100, 500));
-  const rows = await prisma.marketIndustryCurrent.findMany({
-    orderBy: [{ rank: 'asc' }, { industryName: 'asc' }],
-    take,
-  });
-  return rows
-    .filter((row) => {
-      const change = Number(row.changePercent);
-      if (!Number.isFinite(change)) return false;
-      if (Math.abs(change) >= 20) return false;
-      const name = String(row.industryName || '').trim();
-      // Some ETF industry names are stored with corrupted Unicode. Use
-      // semantic name fragments plus an extreme-move guard rather than
-      // relying on an exact string match.
-      if ((/صندوق/.test(name) || /سرمایه/.test(name)) && Math.abs(change) > 10) return false;
-      return true;
-    })
-    .map(normalizeIndustry);
+  const snapshot = await marketSnapshotService.getActiveDerived();
+  if (!snapshot?.industries) return [];
+  return snapshot.industries.slice(0, Math.max(1, Math.min(Number(limit) || 100, 500)));
 }
-
 async function getScalpingOpportunities({ status = 'ACTIVE', marketDate = null, limit = 50 } = {}) {
   const take = Math.max(1, Math.min(Number(limit) || 50, 200));
   const where = {};
