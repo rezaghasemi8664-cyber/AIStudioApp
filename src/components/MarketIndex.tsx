@@ -109,7 +109,7 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
         const currentDay = weekdayMap[get('weekday')];
         if (!schedule.days.includes(currentDay)) return false;
         const currentTime = `${get("hour")}:${get("minute")}`;
-        return !(currentTime < schedule.startTime || currentTime > schedule.endTime);
+        return !(currentTime < schedule.startTime || currentTime >= schedule.endTime);
     }, []);
 
     const loadData = useCallback(async () => {
