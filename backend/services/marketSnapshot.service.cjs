@@ -233,72 +233,90 @@ async function validateSnapshotHealth(symbols) {
 }
 async function publishMarketSnapshot(symbols) {
   const health = await validateSnapshotHealth(symbols);
-  const id = await createPreparedSnapshot(symbols);
-  const verifiedSymbols = await verifyPreparedSnapshot(id, symbols.length);
-  const derived = buildDerived(verifiedSymbols, new Date());
+  let id = null;
 
-  await prisma.$executeRaw`
-    UPDATE [dbo].[MarketSnapshot]
-    SET [derivedJson]=${JSON.stringify(derived)}, [status]='VERIFIED', [verifiedAt]=SYSDATETIME()
-    WHERE [id]=${id} AND [status]='PREPARED'
-  `;
+  try {
+    id = await createPreparedSnapshot(symbols);
+    const verifiedSymbols = await verifyPreparedSnapshot(id, symbols.length);
+    const derived = buildDerived(verifiedSymbols, new Date());
 
-  const verified = await prisma.$queryRaw`
-    SELECT [id],[status],[symbolCount],[symbolsJson],[derivedJson]
-    FROM [dbo].[MarketSnapshot] WHERE [id]=${id}
-  `;
-  const row = verified?.[0];
-  if (!row || row.status !== 'VERIFIED' || Number(row.symbolCount) !== verifiedSymbols.length || !row.derivedJson) {
-    throw new Error('MarketSnapshot derived-result verification failed');
-  }
-
-  let derivedCheck;
-  try { derivedCheck = JSON.parse(row.derivedJson); } catch { derivedCheck = null; }
-  if (!derivedCheck?.breadth || Number(derivedCheck.snapshotSymbolCount) !== verifiedSymbols.length) {
-    throw new Error('MarketSnapshot derived payload is incomplete');
-  }
-
-  await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`DELETE FROM [dbo].[MarketSnapshot] WHERE [status]='ACTIVE'`;
-
-    await tx.marketSymbolCurrent.deleteMany({});
-    const dbRows = verifiedSymbols.map((item) => ({
-      symbol:item.symbol, name:item.name, insCode:item.insCode,
-      lastPrice:item.lastPrice, closePrice:item.closePrice, change:item.change,
-      changePercent:item.changePercent, closeChangePercent:item.closeChangePercent,
-      volume:item.volume, value:item.value, tradeCount:item.tradeCount, sector:item.sector,
-      realBuyVolume:item.realBuyVolume, realSellVolume:item.realSellVolume,
-      legalBuyVolume:item.legalBuyVolume, legalSellVolume:item.legalSellVolume,
-      source:'brs-central-worker', isStale:false, dataJson:JSON.stringify(item)
-    }));
-    await tx.marketSymbolCurrent.createMany({data:dbRows});
-
-    await tx.marketMoverCurrent.deleteMany({});
-    const movers = [
-      ...derivedCheck.movers.gainers.map((r,i)=>({category:'GAINERS',r,i})),
-      ...derivedCheck.movers.losers.map((r,i)=>({category:'LOSERS',r,i})),
-      ...derivedCheck.movers.highVolume.map((r,i)=>({category:'VOLUME',r,i}))
-    ];
-    if (movers.length) await tx.marketMoverCurrent.createMany({data:movers.map(({category,r,i})=>({
-      category,symbol:r.symbol,price:r.lastPrice,changePercent:r.changePercent,
-      volume:r.volume,value:r.value,rank:i+1,updatedAt:new Date()
-    }))});
-
-    await tx.marketIndustryCurrent.deleteMany({});
-    if (derivedCheck.industries.length) await tx.marketIndustryCurrent.createMany({data:derivedCheck.industries.map(r=>({
-      industryCode:r.industryCode,industryName:r.industryName,symbolCount:r.symbolCount,
-      changePercent:r.changePercent,value:r.value,rank:r.rank,updatedAt:new Date(),
-      source:r.source,isStale:false
-    }))});
-
-    await tx.$executeRaw`
+    await prisma.$executeRaw`
       UPDATE [dbo].[MarketSnapshot]
-      SET [status]='ACTIVE', [activatedAt]=SYSDATETIME()
-      WHERE [id]=${id} AND [status]='VERIFIED'
+      SET [derivedJson]=${JSON.stringify(derived)}, [status]='VERIFIED', [verifiedAt]=SYSDATETIME()
+      WHERE [id]=${id} AND [status]='PREPARED'
     `;
-  });
 
-  return { snapshotId:id, symbolCount:verifiedSymbols.length, health, derived:derivedCheck };
+    const verified = await prisma.$queryRaw`
+      SELECT [id],[status],[symbolCount],[symbolsJson],[derivedJson]
+      FROM [dbo].[MarketSnapshot] WHERE [id]=${id}
+    `;
+    const row = verified?.[0];
+    if (!row || row.status !== 'VERIFIED' || Number(row.symbolCount) !== verifiedSymbols.length || !row.derivedJson) {
+      throw new Error('MarketSnapshot derived-result verification failed');
+    }
+
+    let derivedCheck;
+    try { derivedCheck = JSON.parse(row.derivedJson); } catch { derivedCheck = null; }
+    if (!derivedCheck?.breadth || Number(derivedCheck.snapshotSymbolCount) !== verifiedSymbols.length) {
+      throw new Error('MarketSnapshot derived payload is incomplete');
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        DELETE FROM [dbo].[MarketSnapshot] WHERE [status]='ACTIVE'
+      `;
+
+      await tx.marketSymbolCurrent.deleteMany({});
+      const dbRows = verifiedSymbols.map((item) => ({
+        symbol:item.symbol, name:item.name, insCode:item.insCode,
+        lastPrice:item.lastPrice, closePrice:item.closePrice, change:item.change,
+        changePercent:item.changePercent, closeChangePercent:item.closeChangePercent,
+        volume:item.volume, value:item.value, tradeCount:item.tradeCount, sector:item.sector,
+        realBuyVolume:item.realBuyVolume, realSellVolume:item.realSellVolume,
+        legalBuyVolume:item.legalBuyVolume, legalSellVolume:item.legalSellVolume,
+        source:'brs-central-worker', isStale:false, dataJson:JSON.stringify(item)
+      }));
+      await tx.marketSymbolCurrent.createMany({data:dbRows});
+
+      await tx.marketMoverCurrent.deleteMany({});
+      const movers = [
+        ...derivedCheck.movers.gainers.map((r,i)=>({category:'GAINERS',r,i})),
+        ...derivedCheck.movers.losers.map((r,i)=>({category:'LOSERS',r,i})),
+        ...derivedCheck.movers.highVolume.map((r,i)=>({category:'VOLUME',r,i}))
+      ];
+      if (movers.length) await tx.marketMoverCurrent.createMany({data:movers.map(({category,r,i})=>({
+        category,symbol:r.symbol,price:r.lastPrice,changePercent:r.changePercent,
+        volume:r.volume,value:r.value,rank:i+1,updatedAt:new Date()
+      }))});
+
+      await tx.marketIndustryCurrent.deleteMany({});
+      if (derivedCheck.industries.length) await tx.marketIndustryCurrent.createMany({data:derivedCheck.industries.map(r=>({
+        industryCode:r.industryCode,industryName:r.industryName,symbolCount:r.symbolCount,
+        changePercent:r.changePercent,value:r.value,rank:r.rank,updatedAt:new Date(),
+        source:r.source,isStale:false
+      }))});
+
+      await tx.$executeRaw`
+        UPDATE [dbo].[MarketSnapshot]
+        SET [status]='ACTIVE', [activatedAt]=SYSDATETIME()
+        WHERE [id]=${id} AND [status]='VERIFIED'
+      `;
+    });
+
+    return { snapshotId:id, symbolCount:verifiedSymbols.length, health, derived:derivedCheck };
+  } catch (error) {
+    if (id !== null) {
+      try {
+        await prisma.$executeRaw`
+          DELETE FROM [dbo].[MarketSnapshot]
+          WHERE [id]=${id} AND [status] IN ('PREPARED','VERIFIED')
+        `;
+      } catch (cleanupError) {
+        console.warn('[MARKET SNAPSHOT] failed to clean incomplete snapshot ' + id + ': ' + cleanupError.message);
+      }
+    }
+    throw error;
+  }
 }
 
 async function getActiveSnapshot() {
