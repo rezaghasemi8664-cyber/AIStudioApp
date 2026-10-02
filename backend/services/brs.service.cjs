@@ -1307,7 +1307,9 @@ async function getMarketIndex() {
       tradeVolume: record.totalVolume == null ? null : Number(record.totalVolume),
       tradeValue: record.totalValue == null ? null : Number(record.totalValue),
       state: record.marketStatus || '',
-      isMarketOpen: String(record.marketStatus || '').toUpperCase() === 'OPEN',
+      isMarketOpen:
+        getLocalMarketWindowStatus(new Date()).isOpenBySchedule &&
+        String(record.marketStatus || '').toUpperCase() === 'OPEN',
       date: record.marketDate,
       lastUpdate: record.updatedAt,
       source: record.source || 'shared-db',
