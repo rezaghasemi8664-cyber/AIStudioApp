@@ -2,6 +2,7 @@
 
 const axios = require('axios');
 const prisma = require('../config/prisma.cjs');
+const marketSummaryService = require('./marketSummary.service.cjs');
 
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
 const INTERNAL_PORT = Number(process.env.PORT || 3001);
@@ -223,7 +224,7 @@ async function generateDailyMarketSummary(options = {}) {
     id: record.id,
     data: record,
     sourceType: 'daily-live-analysis',
-    reason: existing ? 'UPDATED_EXISTING_DAY' : 'CREATED_AT_SCHEDULED_RUN'
+    reason: 'CREATED_AT_SCHEDULED_RUN'
   };
 }
 
