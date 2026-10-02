@@ -12,6 +12,53 @@ function resolveSymbol(item: { symbol?: string; stockSymbol?: string; ticker?: s
 function normalize(item: ApiPortfolioItem): PortfolioApiItem { const symbol = resolveSymbol(item); return { id: String(item.id), symbol, name: item.name || symbol, quantity: Number(item.quantity), entryPrice: Number(item.buyPrice), entryDate: item.entryDate, currentPrice: item.currentPrice == null ? null : Number(item.currentPrice), changePercent: item.changePercent == null ? null : Number(item.changePercent), dataStatus: item.dataStatus, source: item.source, fetchedAt: item.fetchedAt, stale: item.stale === true }; }
 function unwrap<T>(response: any): T { return (response?.data?.data ?? response?.data ?? response) as T; }
 
+export interface AggregatedPortfolioItem extends PortfolioApiItem {
+  totalCost: number;
+  averageEntryPrice: number;
+  firstEntryDate: string;
+}
+
+export function aggregatePortfolioItems(items: PortfolioApiItem[]): AggregatedPortfolioItem[] {
+  const grouped = new Map<string, AggregatedPortfolioItem>();
+
+  items.forEach(item => {
+    const symbol = resolveSymbol(item);
+    if (!symbol) return;
+
+    const quantity = Number(item.quantity);
+    const entryPrice = Number(item.entryPrice);
+    if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(entryPrice) || entryPrice <= 0) return;
+
+    const cost = entryPrice * quantity;
+    const existing = grouped.get(symbol);
+
+    if (existing) {
+      existing.quantity += quantity;
+      existing.totalCost += cost;
+      existing.averageEntryPrice = existing.totalCost / existing.quantity;
+      if (item.entryDate && (!existing.firstEntryDate || item.entryDate < existing.firstEntryDate)) {
+        existing.firstEntryDate = item.entryDate;
+        existing.entryDate = item.entryDate;
+      }
+      if (existing.currentPrice == null && item.currentPrice != null) existing.currentPrice = item.currentPrice;
+      if (existing.changePercent == null && item.changePercent != null) existing.changePercent = item.changePercent;
+      if (!existing.name && item.name) existing.name = item.name;
+    } else {
+      grouped.set(symbol, {
+        ...item,
+        symbol,
+        quantity,
+        entryPrice,
+        totalCost: cost,
+        averageEntryPrice: entryPrice,
+        firstEntryDate: item.entryDate || '',
+      });
+    }
+  });
+
+  return Array.from(grouped.values());
+}
+
 export async function getPortfolio(): Promise<PortfolioApiItem[]> {
   const response = await api.get('/portfolio');
   const data = unwrap<{ items?: ApiPortfolioItem[] }>(response);
