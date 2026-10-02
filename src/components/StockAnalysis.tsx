@@ -1433,20 +1433,41 @@ const MarketSummaryContent = ({ content }: { content: string }) => {
 
   if (!paragraphs.length) {
     return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-right text-[13px] font-medium text-amber-700">
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-right text-[15px] font-medium leading-8 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
         محتوای خلاصه بازار در دسترس نیست.
       </div>
     );
   }
 
+  const getSectionParts = (line: string) => {
+    const match = line.match(/^([۰-۹\d]+[)\.]\s*)(.*)$/);
+    if (!match) return { heading: '', body: line };
+    const colonIndex = match[2].indexOf(':');
+    if (colonIndex < 0) return { heading: match[1].trim(), body: match[2] };
+    return {
+      heading: `${match[1].trim()} ${match[2].slice(0, colonIndex).trim()}`,
+      body: match[2].slice(colonIndex + 1).trim(),
+    };
+  };
+
+  const renderSectionText = (line: string, className: string) => {
+    const { heading, body } = getSectionParts(line);
+    return (
+      <div className={className}>
+        {heading ? <span className="font-extrabold">{heading}: </span> : null}
+        <span className="font-medium">{body}</span>
+      </div>
+    );
+  };
+
   const renderMetricLine = (line: string) => {
     const parts = line.split('؛').map((part) => part.trim()).filter(Boolean);
     return (
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {parts.map((part, index) => (
           <div
             key={`metric-${index}`}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-right text-[13px] font-semibold leading-7 text-slate-800 shadow-sm"
+            className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-right text-[15px] font-semibold leading-8 text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
           >
             {part}
           </div>
@@ -1456,7 +1477,7 @@ const MarketSummaryContent = ({ content }: { content: string }) => {
   };
 
   return (
-    <div className="space-y-4 text-right">
+    <div className="space-y-4 text-right text-[15px] leading-8 text-slate-800 dark:text-slate-100">
       {paragraphs.map((line, index) => {
         const isTitle = index === 0 && line.includes('تحلیل تکنیکال');
         const isMetrics = line.includes('SMA5:') || line.includes('SMA10:') || line.includes('EMA5:');
@@ -1470,8 +1491,10 @@ const MarketSummaryContent = ({ content }: { content: string }) => {
 
         if (isTitle) {
           return (
-            <div key={`summary-${index}`} className="rounded-xl border border-blue-200 bg-gradient-to-l from-blue-50 to-slate-50 p-4">
-              <h3 className="text-base font-extrabold text-blue-950">{line}</h3>
+            <div key={`summary-${index}`} className="rounded-xl border border-blue-200 bg-gradient-to-l from-blue-50 to-slate-50 p-5 dark:border-blue-800 dark:from-blue-950/50 dark:to-slate-900">
+              <h3 className="text-[17px] font-extrabold leading-8 text-blue-950 dark:text-blue-100">
+                {line}
+              </h3>
             </div>
           );
         }
@@ -1479,7 +1502,7 @@ const MarketSummaryContent = ({ content }: { content: string }) => {
         if (isMetrics) {
           return (
             <section key={`summary-${index}`} className="space-y-2">
-              <h4 className="text-[13px] font-extrabold text-slate-700">شاخص‌های تکنیکال</h4>
+              <h4 className="text-[15px] font-extrabold text-slate-800 dark:text-slate-100">شاخص‌های تکنیکال</h4>
               {renderMetricLine(line)}
             </section>
           );
@@ -1487,16 +1510,16 @@ const MarketSummaryContent = ({ content }: { content: string }) => {
 
         if (isRange) {
           return (
-            <div key={`summary-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-[13px] font-medium leading-8 text-slate-800">
-              {line}
+            <div key={`summary-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-[15px] leading-8 text-slate-800 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100">
+              {renderSectionText(line, '')}
             </div>
           );
         }
 
         if (isOutlook) {
           return (
-            <div key={`summary-${index}`} className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-[13px] font-semibold leading-8 text-emerald-900">
-              {line}
+            <div key={`summary-${index}`} className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-[15px] leading-8 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
+              {renderSectionText(line, '')}
             </div>
           );
         }
@@ -1506,12 +1529,12 @@ const MarketSummaryContent = ({ content }: { content: string }) => {
           const signals = signalText.split('؛').map((part) => part.trim()).filter(Boolean);
           return (
             <section key={`summary-${index}`} className="space-y-2">
-              <h4 className="text-[13px] font-extrabold text-slate-700">سیگنال‌های اصلی</h4>
+              <h4 className="text-[15px] font-extrabold text-slate-800 dark:text-slate-100">سیگنال‌های اصلی</h4>
               <div className="flex flex-wrap gap-2">
                 {signals.map((signal, signalIndex) => (
                   <span
                     key={`signal-${signalIndex}`}
-                    className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-[12px] font-bold text-indigo-800"
+                    className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-[14px] font-bold leading-7 text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200"
                   >
                     {signal}
                   </span>
@@ -1523,15 +1546,15 @@ const MarketSummaryContent = ({ content }: { content: string }) => {
 
         if (isDataCount || isRisk) {
           return (
-            <div key={`summary-${index}`} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-[13px] font-medium leading-8 text-slate-700">
-              {line}
+            <div key={`summary-${index}`} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-[15px] leading-8 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+              {renderSectionText(line, '')}
             </div>
           );
         }
 
         return (
-          <p key={`summary-${index}`} className="text-[13px] font-medium leading-8 text-slate-700">
-            {line}
+          <p key={`summary-${index}`} className="text-[15px] leading-8 text-slate-800 dark:text-slate-100">
+            {renderSectionText(line, '')}
           </p>
         );
       })}
