@@ -649,7 +649,7 @@ function isTradingWorkday(dayOfWeek) {
 }
 
 function isWithinTradingWindow(minutesOfDay) {
-  return minutesOfDay >= MARKET_OPEN_MINUTE && minutesOfDay <= MARKET_CLOSE_MINUTE;
+  return minutesOfDay >= MARKET_OPEN_MINUTE && minutesOfDay < MARKET_CLOSE_MINUTE;
 }
 
 function getLocalMarketWindowStatus(now) {
