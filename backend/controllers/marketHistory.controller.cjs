@@ -195,7 +195,7 @@ function deriveIsMarketOpen(raw) {
     const minute = Number(values.minute);
     const totalMinutes = hour * 60 + minute;
     const tradingDay = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'].includes(weekday);
-    const inRegularSession = tradingDay && totalMinutes >= 9 * 60 && totalMinutes <= 12 * 60 + 30;
+    const inRegularSession = tradingDay && totalMinutes >= 9 * 60 && totalMinutes < 12 * 60 + 30;
 
     if (!inRegularSession) return false;
   } catch (_error) {
