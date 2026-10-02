@@ -23,8 +23,8 @@ function percentChange(first: number | null | undefined, last: number | null | u
   return valueIsValid(first) && valueIsValid(last) && first !== 0 ? ((last - first) / Math.abs(first)) * 100 : null;
 }
 
-type ChartLineProps = { values: Array<number | null>; secondaryValues?: Array<number | null>; width?: number; height?: number; padding?: number; onPoint?: (index: number, x: number, y: number) => void };
-function ChartLine({ values, secondaryValues, width = 760, height = 270, padding = 42, onPoint }: ChartLineProps) {
+type ChartLineProps = { values: Array<number | null>; secondaryValues?: Array<number | null>; width?: number; height?: number; padding?: number; onPoint?: (index: number, x: number, y: number) => void; pointDates?: string[]; pointLabel?: string };
+function ChartLine({ values, secondaryValues, width = 760, height = 270, padding = 42, onPoint, pointDates = [], pointLabel = 'مقدار' }: ChartLineProps) {
   const all = [...values, ...(secondaryValues ?? [])];
   const valid = all.map((value, index) => ({ value, index })).filter((item): item is { value: number; index: number } => valueIsValid(item.value));
   if (!valid.length) return null;
@@ -44,7 +44,13 @@ function ChartLine({ values, secondaryValues, width = 760, height = 270, padding
     <polyline points={buildPoints(values)} fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
     {singlePoint && (() => { const point = toPoint(valid[0].value, valid[0].index); return <circle cx={point.x} cy={point.y} r="7" fill="currentColor" stroke="var(--color-surface)" strokeWidth="3" />; })()}
     {secondaryValues && <polyline points={buildPoints(secondaryValues)} fill="none" stroke="currentColor" strokeOpacity="0.45" strokeWidth="3" strokeDasharray="7 5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
-    {values.map((value, index) => valueIsValid(value) ? (() => { const point = toPoint(value, index); return <circle key={`p-${index}`} cx={point.x} cy={point.y} r="6" fill="currentColor" stroke="var(--color-surface)" strokeWidth="2" className="cursor-pointer" onMouseEnter={() => onPoint?.(index, point.x, point.y)} onClick={() => onPoint?.(index, point.x, point.y)} onFocus={() => onPoint?.(index, point.x, point.y)} tabIndex={0} aria-label={`نقطه ${index + 1}`} />; })() : null)}
+    {values.map((value, index) => valueIsValid(value) ? (() => {
+      const point = toPoint(value, index);
+      const pointDate = pointDates[index] ?? '—';
+      return <circle key={`p-${index}`} cx={point.x} cy={point.y} r="6" fill="currentColor" stroke="var(--color-surface)" strokeWidth="2" className="cursor-pointer" onMouseEnter={() => onPoint?.(index, point.x, point.y)} onClick={() => onPoint?.(index, point.x, point.y)} onFocus={() => onPoint?.(index, point.x, point.y)} tabIndex={0} aria-label={`تاریخ ${pointDate}، ${value}`}>
+        <title>{`تاریخ: ${pointDate} — ${pointLabel}: ${value}`}</title>
+      </circle>;
+    })() : null)}
   </>;
 }
 
@@ -104,7 +110,7 @@ const MarketRadarHistory: React.FC = () => {
       <div className="mt-5 overflow-x-auto rounded-2xl border border-white/5 bg-black/5 p-2">
         <div className="relative" style={{ minWidth: `${chartWidth}px` }}>
           <svg viewBox={`0 0 ${chartWidth} 270`} className="h-72 w-full text-sky-400" role="img" aria-label={`نمودار تاریخی ${selectedMetric.label}`} onMouseLeave={() => setHovered(null)}>
-            <ChartLine width={chartWidth} values={values} secondaryValues={metric === 'index' && compareIndex ? equalValues : undefined} onPoint={(index, x, y) => setHovered({ index, x, y })} />
+            <ChartLine width={chartWidth} values={values} secondaryValues={metric === 'index' && compareIndex ? equalValues : undefined} pointDates={data.points.map((point) => dateFa(point.timestamp))} pointLabel={selectedMetric.label} onPoint={(index, x, y) => setHovered({ index, x, y })} />
             {hovered && hoveredPoint && <g pointerEvents="none">
               <line x1={hovered.x} x2={hovered.x} y1="25" y2="245" stroke="currentColor" strokeOpacity="0.2" strokeDasharray="4 4" />
               <circle cx={hovered.x} cy={hovered.y} r="7" fill="currentColor" />
