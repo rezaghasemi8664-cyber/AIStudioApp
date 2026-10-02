@@ -402,6 +402,74 @@ async function getHistoricalIndexSeries(referenceDate, limit = 60) {
   }
 }
 
+
+function calculateMarketRisk(closes) {
+  if (!Array.isArray(closes) || closes.length < 21) return null;
+
+  const prices = closes.filter(Number.isFinite);
+  if (prices.length < 21) return null;
+
+  const returns = [];
+  for (let i = 1; i < prices.length; i += 1) {
+    if (prices[i - 1] !== 0) returns.push(((prices[i] - prices[i - 1]) / prices[i - 1]) * 100);
+  }
+  if (returns.length < 20) return null;
+
+  const window20 = prices.slice(-21);
+  const returns20 = returns.slice(-20);
+  const mean20 = returns20.reduce((sum, value) => sum + value, 0) / returns20.length;
+  const variance20 = returns20.reduce((sum, value) => sum + ((value - mean20) ** 2), 0) / returns20.length;
+  const volatility20 = Math.sqrt(Math.max(0, variance20));
+
+  let peak = window20[0];
+  let maxDrawdown = 0;
+  for (const price of window20) {
+    if (price > peak) peak = price;
+    if (peak > 0) maxDrawdown = Math.max(maxDrawdown, ((peak - price) / peak) * 100);
+  }
+
+  const recentReturns = returns.slice(-5);
+  const recentVolatility5 = recentReturns.length === 5
+    ? recentReturns.reduce((sum, value) => sum + Math.abs(value), 0) / recentReturns.length
+    : null;
+
+  // Transparent reference ceilings: 5% daily volatility, 15% 20-session
+  // drawdown, and 5% average absolute daily move over the last 5 sessions
+  // each map to 100 for that component.
+  const volatilityScore = Math.min(100, (volatility20 / 5) * 100);
+  const drawdownScore = Math.min(100, (maxDrawdown / 15) * 100);
+  const recentMovementScore = recentVolatility5 === null
+    ? volatilityScore
+    : Math.min(100, (recentVolatility5 / 5) * 100);
+  const score = Math.round(
+    (volatilityScore * 0.60) +
+    (drawdownScore * 0.25) +
+    (recentMovementScore * 0.15)
+  );
+
+  const level = score >= 80
+    ? 'بسیار بالا'
+    : score >= 60
+      ? 'بالا'
+      : score >= 30
+        ? 'متوسط'
+        : 'پایین';
+
+  return {
+    score,
+    level,
+    observations: prices.length,
+    volatility20,
+    maxDrawdown20: maxDrawdown,
+    recentVolatility5,
+    components: {
+      volatility: volatilityScore,
+      drawdown: drawdownScore,
+      recentMovement: recentMovementScore
+    }
+  };
+}
+
 async function buildTechnicalMarketAnalysis(currentMarketData, fallbackDate = new Date()) {
   const historical = await getHistoricalIndexSeries(fallbackDate, 60);
   const history = historical.map(r => ({ index: r.index, equal: null }));
@@ -418,6 +486,7 @@ async function buildTechnicalMarketAnalysis(currentMarketData, fallbackDate = ne
   }
   const latest = closes[closes.length - 1];
   const previous = closes[closes.length - 2];
+  const risk = calculateMarketRisk(closes);
   const sma5 = technicalSma(closes, 5);
   const sma10 = technicalSma(closes, 10);
   const ema5 = technicalEma(closes, 5);
@@ -466,7 +535,8 @@ async function buildTechnicalMarketAnalysis(currentMarketData, fallbackDate = ne
   return {
     available: true,
     text: technicalText,
-    indicators: { observations: closes.length, sma5, sma10, ema5, ema10, rsi14, ema12, ema26, macd, momentum, support, resistance }
+    indicators: { observations: closes.length, sma5, sma10, ema5, ema10, rsi14, ema12, ema26, macd, momentum, support, resistance },
+    risk
   };
 }
 
@@ -504,11 +574,8 @@ function buildDeterministicSummary(data) {
           ? `خروج خالص پول حقیقی ${fa(Math.abs(flow.net))} است.`
           : 'جریان خالص پول حقیقی متعادل است.';
   const breadthRatio = breadth.negative ? breadth.positive / breadth.negative : null;
-  // Do not infer a risk level from market direction alone. A risk label is
-  // only valid when an independent, validated volatility/risk metric exists.
-  const volatility = pickValue(data, ['volatility', 'volatilityPercent', 'marketVolatility', 'riskScore']);
-  const risk = volatility === null ? 'قابل محاسبه نیست' : volatility;
   const technical = data.__technicalAnalysis;
+  const risk = data.__riskAnalysis || technical?.risk || null;
 
   return [
     `۱) وضعیت کلی بازار: بازار ${state} است؛ برآیند شاخص کل ${direction(overallChange)}، شاخص هم‌وزن ${direction(equalChange)} و پهنای بازار ${breadth.positive > breadth.negative ? 'مثبت' : breadth.negative > breadth.positive ? 'منفی' : 'متعادل'} است؛ سوگیری ترکیبی داده‌ها «${bias}» است.`,
@@ -518,7 +585,7 @@ function buildDeterministicSummary(data) {
     `۵) جریان پول حقیقی: ${flowText}${flow.buy !== null || flow.sell !== null ? (flow.unit === 'volume' ? ` حجم خرید حقیقی ${fa(flow.buy, 0)} و حجم فروش حقیقی ${fa(flow.sell, 0)} است.` : ` ارزش خرید حقیقی ${fa(flow.buy)} و ارزش فروش حقیقی ${fa(flow.sell)} است.`) : ''}`,
     `۶) چرخش صنایع: گروه‌های با تغییر مثبت‌تر: ${leaders}؛ گروه‌های با تغییر منفی‌تر: ${laggards}.`,
     `۷) مومنتوم و روند: وضعیت جلسه بر اساس دو شاخص «${bias}» است؛ شاخص کل ${direction(overallChange)} و هم‌وزن ${direction(equalChange)} هستند. مومنتوم چندجلسه‌ای فقط با داده معتبر از جلسات قبلی قابل محاسبه است و در نبود آن گزارش نمی‌شود.`,
-    `۸) ریسک و نوسان: ${risk === 'قابل محاسبه نیست' ? 'سطح ریسک مستقل قابل محاسبه نیست؛ داده معتبر نوسان یا ریسک در دسترس نیست.' : `شاخص ریسک/نوسان ثبت‌شده «${fa(risk)}» است و صرفاً بر اساس داده معتبر نوسان گزارش می‌شود.`}`,
+    `۸) ریسک و نوسان: ${risk ? `امتیاز ریسک ${fa(risk.score, 0)} از ۱۰۰ (${risk.level})؛ نوسان تاریخی ۲۰ جلسه اخیر ${fa(risk.volatility20)}٪؛ بیشترین افت از سقف در همین بازه ${fa(risk.maxDrawdown20)}٪؛ میانگین قدرمطلق تغییرات ۵ جلسه اخیر ${risk.recentVolatility5 === null ? 'قابل محاسبه نیست' : `${fa(risk.recentVolatility5)}٪`} است. وزن محاسبه: نوسان تاریخی ۶۰٪، افت از سقف ۲۵٪ و حرکت اخیر ۱۵٪.` : 'داده تاریخی معتبر کافی برای محاسبه مستقل ریسک و نوسان در دسترس نیست.'}`,
     `۹) واگرایی‌ها و هشدارها: شاخص کل ${direction(overallChange)}، شاخص هم‌وزن ${direction(equalChange)} و پهنای بازار ${breadth.positive > breadth.negative ? 'مثبت' : breadth.negative > breadth.positive ? 'منفی' : 'متعادل'} است. ${(direction(overallChange) !== direction(equalChange) || direction(overallChange) !== (breadth.positive > breadth.negative ? 'مثبت' : breadth.negative > breadth.positive ? 'منفی' : 'متعادل')) ? 'اختلاف جهت بین مؤلفه‌ها مشاهده می‌شود و به‌عنوان واگرایی فعلی گزارش می‌شود.' : 'اختلاف جهت معناداری بین این سه مؤلفه مشاهده نمی‌شود.'}`,
     `۱۰) نمادهای شاخص حرکت: برترین رشدهای محاسبه‌شده: ${gainers}؛ برترین افت‌ها: ${losers}؛ نمادهای پرتراکنش از نظر حجم: ${volumes}.`,
     `۱۱) شرایط تغییر وضعیت: ادامه وضعیت فعلی با حفظ جهت شاخص‌ها و پهنای بازار سنجیده می‌شود؛ تغییر به وضعیت منفی با افت شاخص‌ها و افزایش سهم نمادهای منفی قابل مشاهده خواهد بود. این بخش صرفاً شروط داده‌ای را توصیف می‌کند و پیش‌بینی بازار نیست.`,
@@ -690,7 +757,7 @@ async function generateMarketSummary({ marketData, fallbackDate = new Date() }) 
   const targetDay = getTehranDayStart(sourceDate);
   const breadth = buildBreadth(marketData);
   const technical = await buildTechnicalMarketAnalysis(marketData, sourceDate);
-  const summaryData = { ...marketData, __technicalAnalysis: technical };
+  const summaryData = { ...marketData, __technicalAnalysis: technical, __riskAnalysis: technical?.risk || null };
   const payload = {
     summaryDate: targetDay,
     overallIndex: pickValue(marketData, FIELD_KEYS.index),
@@ -789,7 +856,7 @@ async function rebuildExistingTechnicalSummaries({ limit = SUMMARY_RETENTION_COU
     };
     if (!isUsableMarketData(marketData) || isLikelySyntheticMarketData(marketData)) continue;
     const technical = await buildTechnicalMarketAnalysis(marketData, record.summaryDate);
-    const content = buildDeterministicSummary({ ...marketData, __technicalAnalysis: technical });
+    const content = buildDeterministicSummary({ ...marketData, __technicalAnalysis: technical, __riskAnalysis: technical?.risk || null });
     const saved = await model.update({
       where: { id: record.id },
       data: { content, summary: content }
