@@ -96,6 +96,10 @@ type UnifiedAnalysisResult = AnalysisResult & {
   fundamentalData?: unknown;
   meta?: Record<string, unknown>;
   risk_level?: string;
+  compositeScore?: number;
+  decisionBasis?: string;
+  technicalExplanation?: string;
+  technicalAnalysis?: string;
   ontology_version?: string;
   targets?: Record<string, number>;
   stopLoss?: number | null;
@@ -2474,6 +2478,18 @@ const clearCurrentAnalysis = () => {
                   />
                 </div>
 
+                <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+                  <SectionHeader
+                    title="امتیاز نهایی ترکیبی"
+                    subtitle={analysisData.decisionBasis || "جمع‌بندی نتیجه تحلیل تکنیکال و بنیادی"}
+                    tone="violet"
+                  />
+                  <div className="text-[30px] font-black leading-none text-violet-800">
+                    {faNumber(analysisData.compositeScore ?? null)}
+                    <span className="mr-2 text-[15px] font-bold text-violet-700">از ۱۰۰</span>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                     <SectionHeader
@@ -2748,8 +2764,11 @@ const clearCurrentAnalysis = () => {
                       title="توضیحات تکنیکال"
                       subtitle="برداشت تحلیلی از ساختار نمودار، روند، حمایت و مقاومت"
                     />
-                    <div className="whitespace-pre-wrap text-[14px] font-medium leading-8 text-slate-800">
-                      {historySummaryText(analysisData.explanations?.technical) || '—'}
+                    <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 text-[15px] font-medium leading-9 text-slate-800">
+                      {historySummaryText(analysisData.technicalExplanation) ||
+                        historySummaryText(analysisData.technicalAnalysis) ||
+                        historySummaryText(analysisData.explanations?.technical) ||
+                        '—'}
                     </div>
                   </div>
                 </div>
