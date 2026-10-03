@@ -2192,9 +2192,19 @@ const clearCurrentAnalysis = () => {
       return value.flatMap((item) => flattenCandles(item));
     };
 
-    const preferred = hasAdjustedDailyDisplayData
-      ? (adjustedDailyCandles.length > 0 ? adjustedDailyCandles : adjustedCandleToShow)
-      : (dailyCandles.length > 0 ? dailyCandles : dailyCandleToShow);
+    // Use unadjusted daily candles for the technical chart so the latest
+    // candle matches the actual traded/current market price. Adjusted candles
+    // can legitimately differ after corporate actions.
+    const preferred =
+      dailyCandles.length > 0
+        ? dailyCandles
+        : dailyCandleToShow
+        ? [dailyCandleToShow]
+        : adjustedDailyCandles.length > 0
+        ? adjustedDailyCandles
+        : adjustedCandleToShow
+        ? [adjustedCandleToShow]
+        : [];
 
     return flattenCandles(preferred).filter((item) =>
       item && typeof item === 'object' &&
@@ -2446,8 +2456,97 @@ const clearCurrentAnalysis = () => {
 
     const dailyAverage = averageDirect ?? averageFromCandle;
 
-    const realMoneyNet = pickFirstNumber(md?.realMoneyFlow?.net, mm?.realMoneyFlow);
-    const legalMoneyNet = pickFirstNumber(md?.legalMoneyFlow?.net, mm?.legalMoneyFlow);
+    const realFlow = md?.moneyFlow?.real ?? md?.moneyFlow?.individual ?? {};
+    const legalFlow = md?.moneyFlow?.legal ?? md?.moneyFlow?.institutional ?? {};
+    const realMoneyNet = pickFirstNumber(
+      md?.realMoneyFlow?.net,
+      md?.realMoneyFlow,
+      mm?.realMoneyFlow,
+      realFlow?.net,
+      realFlow?.netValue,
+      md?.realMoneyFlowNet
+    );
+    const legalMoneyNet = pickFirstNumber(
+      md?.legalMoneyFlow?.net,
+      md?.legalMoneyFlow,
+      mm?.legalMoneyFlow,
+      legalFlow?.net,
+      legalFlow?.netValue,
+      md?.legalMoneyFlowNet,
+      md?.instMoneyFlow
+    );
+
+    const deriveBreakdown = (flow: any, aliases: Record<string, unknown>, net: number | null) => {
+      const source = flow && typeof flow === 'object' ? flow : {};
+      const buyVolume = pickFirstNumber(
+        source.buyVolume,
+        source.buyVol,
+        source.inflowVolume,
+        aliases.buyVolume,
+        aliases.buyQty,
+        aliases.inVolume
+      );
+      const sellVolume = pickFirstNumber(
+        source.sellVolume,
+        source.sellVol,
+        source.outflowVolume,
+        aliases.sellVolume,
+        aliases.sellQty,
+        aliases.outVolume
+      );
+      const buyValue = pickFirstNumber(
+        source.buyValue,
+        source.inflow,
+        source.buy,
+        aliases.buyValue,
+        aliases.inflow
+      );
+      const sellValue = pickFirstNumber(
+        source.sellValue,
+        source.outflow,
+        source.sell,
+        aliases.sellValue,
+        aliases.outflow
+      );
+      const referencePrice = lastTradedPrice ?? closingPrice ?? averagePrice;
+      const inflow = buyValue ?? (
+        buyVolume !== null && referencePrice !== null
+          ? buyVolume * referencePrice
+          : null
+      );
+      const outflow = sellValue ?? (
+        sellVolume !== null && referencePrice !== null
+          ? sellVolume * referencePrice
+          : null
+      );
+      const resolvedNet = net ?? (
+        inflow !== null && outflow !== null
+          ? inflow - outflow
+          : null
+      );
+      if (inflow === null && outflow === null && resolvedNet === null) return null;
+      return {
+        inflow,
+        outflow,
+        net: resolvedNet,
+      };
+    };
+
+    const realBreakdown = mm?.realMoneyFlowBreakdown ??
+      deriveBreakdown(realFlow, {
+        buyVolume: md?.realBuyVolume,
+        sellVolume: md?.realSellVolume,
+        buyValue: md?.realBuyValue,
+        sellValue: md?.realSellValue,
+      }, realMoneyNet);
+
+    const legalBreakdown = mm?.legalMoneyFlowBreakdown ??
+      deriveBreakdown(legalFlow, {
+        buyVolume: md?.instBuyVolume ?? md?.legalBuyVolume,
+        sellVolume: md?.instSellVolume ?? md?.legalSellVolume,
+        buyValue: md?.instBuyValue ?? md?.legalBuyValue,
+        sellValue: md?.instSellValue ?? md?.legalSellValue,
+      }, legalMoneyNet);
 
     return {
       closingPrice,
@@ -2469,8 +2568,8 @@ const clearCurrentAnalysis = () => {
       dailyAverage,
       realMoneyNet,
       legalMoneyNet,
-      realBreakdown: mm?.realMoneyFlowBreakdown,
-      legalBreakdown: mm?.legalMoneyFlowBreakdown,
+      realBreakdown,
+      legalBreakdown,
     };
   }, [analysisData, resolvedMarketMetrics]);
 

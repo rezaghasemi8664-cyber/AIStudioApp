@@ -194,14 +194,32 @@ function getFallbackDailySeries(fallbackData,dailyLimit) {
   for(let i=0;i<candidates.length;i+=1) if(Array.isArray(candidates[i])&&candidates[i].length>0) return sanitizeCandleSeries(candidates[i],dailyLimit);
   return [];
 }
+function deriveMoneyFlowBreakdown(flow, referencePrice) {
+  if (!isObject(flow)) return null;
+  const price = toFiniteOrNull(referencePrice);
+  const buyVolume = toFiniteOrNull(firstDefined(flow.buyVolume, flow.inflowVolume, flow.buyVol));
+  const sellVolume = toFiniteOrNull(firstDefined(flow.sellVolume, flow.outflowVolume, flow.sellVol));
+  const buyValue = toFiniteOrNull(firstDefined(flow.buyValue, flow.inflow, flow.in));
+  const sellValue = toFiniteOrNull(firstDefined(flow.sellValue, flow.outflow, flow.out));
+  const explicitNet = toFiniteOrNull(firstDefined(flow.netValue, flow.net, flow.value, flow.amount, flow.total));
+  const inflow = buyValue !== null ? buyValue : (buyVolume !== null && price !== null ? buyVolume * price : null);
+  const outflow = sellValue !== null ? sellValue : (sellVolume !== null && price !== null ? sellVolume * price : null);
+  const net = explicitNet !== null ? explicitNet : (inflow !== null && outflow !== null ? inflow - outflow : null);
+  if (inflow === null && outflow === null && net === null) return null;
+  return { inflow, outflow, net, source: buyValue !== null || sellValue !== null ? 'brs-value' : 'brs-volume-price' };
+}
+
 function normalizeMoneyFlowPayload(payload) {
   if(!payload) return {real:null,legal:null};
   const root=isObject(payload.data)?payload.data:isObject(payload.result)?payload.result:isObject(payload.moneyFlow)?payload.moneyFlow:payload;
   if(!isObject(root)) return {real:null,legal:null};
   const realRaw=firstDefined(root.real,root.realMoneyFlow,root.haghighi,root.individual);
   const legalRaw=firstDefined(root.legal,root.legalMoneyFlow,root.hoghoghi,root.corporate);
-  const real=normalizeMoneyFlowBreakdown(realRaw)||(normalizeMoneyFlowValue(realRaw)!==null?{inflow:null,outflow:null,net:normalizeMoneyFlowValue(realRaw)}:null);
-  const legal=normalizeMoneyFlowBreakdown(legalRaw)||(normalizeMoneyFlowValue(legalRaw)!==null?{inflow:null,outflow:null,net:normalizeMoneyFlowValue(legalRaw)}:null);
+  // Preserve BRS buy/sell volume fields when monetary values are absent.
+  // buildResolvedMarketData will deterministically derive monetary inflow/outflow
+  // from those volumes and the live reference price.
+  const real=normalizeMoneyFlowBreakdown(realRaw) || (isObject(realRaw) ? realRaw : (normalizeMoneyFlowValue(realRaw)!==null ? {inflow:null,outflow:null,net:normalizeMoneyFlowValue(realRaw)} : null));
+  const legal=normalizeMoneyFlowBreakdown(legalRaw) || (isObject(legalRaw) ? legalRaw : (normalizeMoneyFlowValue(legalRaw)!==null ? {inflow:null,outflow:null,net:normalizeMoneyFlowValue(legalRaw)} : null));
   return {real,legal};
 }
 function hasMinimumAnalysisData(data) {
@@ -241,13 +259,32 @@ function buildDailySummary(merged,dailySeries) {
   const latest=Array.isArray(dailySeries)&&dailySeries.length>0?dailySeries[0]:null; const closingPrice=getClosingPrice(merged||{}); const lastPrice=getLastPrice(merged||{}); const tradedVolume=getTradedVolume(merged||{});
   return {close:latest&&latest.close>0?latest.close:closingPrice,last:latest&&latest.last>0?latest.last:lastPrice,open:latest?toNumber(latest.open,0):0,high:latest?toNumber(latest.high,0):0,low:latest?toNumber(latest.low,0):0,volume:latest&&latest.volume>0?latest.volume:tradedVolume,value:latest?toNumber(latest.value,0):0,count:latest?toNumber(latest.count,0):0,yesterdayClose:latest?toNumber(latest.yesterdayClose,0):0,date:latest&&latest.date?latest.date:''};
 }
-function buildResolvedMarketData(snapshot,daily,fallbackData,qualityMeta,dailyLimit,moneyFlow) {
-  const merged=Object.assign({},fallbackData||{},snapshot||{}); const fallbackDaily=getFallbackDailySeries(fallbackData,dailyLimit); const resolvedDaily=Array.isArray(daily)&&daily.length>0?daily:fallbackDaily; const safeQualityMeta=createQualityMeta(qualityMeta); const qualityWarnings=buildQualityWarnings(safeQualityMeta);
-  merged.daily=resolvedDaily; merged.dailyCandles=resolvedDaily; merged.adjustedDailyCandles=resolvedDaily; merged.weekly=[]; merged.weeklyCandles=[];
+function buildResolvedMarketData(snapshot,daily,fallbackData,qualityMeta,dailyLimit,moneyFlow,adjustedDaily) {
+  const merged=Object.assign({},fallbackData||{},snapshot||{}); const fallbackDaily=getFallbackDailySeries(fallbackData,dailyLimit); const resolvedDaily=Array.isArray(daily)&&daily.length>0?daily:fallbackDaily; const resolvedAdjustedDaily=Array.isArray(adjustedDaily)&&adjustedDaily.length>0?adjustedDaily:resolvedDaily; const safeQualityMeta=createQualityMeta(qualityMeta); const qualityWarnings=buildQualityWarnings(safeQualityMeta);
+  merged.daily=resolvedDaily; merged.dailyCandles=resolvedDaily; merged.adjustedDailyCandles=resolvedAdjustedDaily; merged.weekly=[]; merged.weeklyCandles=[];
   if(!merged.dailySummary||typeof merged.dailySummary!=='object') merged.dailySummary=buildDailySummary(merged,resolvedDaily);
   const snapshotMetrics=isObject(snapshot)?enrichMarketMetrics(snapshot):null; const fallbackMetrics=isObject(fallbackData)?mergePreferSnapshot(pickFirstObject(fallbackData.marketMetrics),enrichMarketMetrics(fallbackData)):null;
   const mergedMetrics=mergePreferSnapshot(mergePreferSnapshot(fallbackMetrics,pickFirstObject(merged.marketMetrics)),snapshotMetrics);
-  if(moneyFlow&&isObject(moneyFlow)){ merged.moneyFlow=moneyFlow; if(moneyFlow.real&&toFiniteOrNull(moneyFlow.real.net)!==null) merged.realMoneyFlow=moneyFlow.real.net; if(moneyFlow.legal&&toFiniteOrNull(moneyFlow.legal.net)!==null) merged.legalMoneyFlow=moneyFlow.legal.net; mergedMetrics.realMoneyFlow=firstDefined(toFiniteOrNull(mergedMetrics.realMoneyFlow),toFiniteOrNull(merged.realMoneyFlow),moneyFlow.real?toFiniteOrNull(moneyFlow.real.net):null); mergedMetrics.legalMoneyFlow=firstDefined(toFiniteOrNull(mergedMetrics.legalMoneyFlow),toFiniteOrNull(merged.legalMoneyFlow),moneyFlow.legal?toFiniteOrNull(moneyFlow.legal.net):null); mergedMetrics.realMoneyFlowBreakdown=mergedMetrics.realMoneyFlowBreakdown||(moneyFlow.real||null); mergedMetrics.legalMoneyFlowBreakdown=mergedMetrics.legalMoneyFlowBreakdown||(moneyFlow.legal||null); }
+  if(moneyFlow&&isObject(moneyFlow)){
+    merged.moneyFlow=moneyFlow;
+    const referencePrice=firstDefined(
+      toFiniteOrNull(merged.last),
+      toFiniteOrNull(merged.price&&merged.price.last),
+      toFiniteOrNull(mergedMetrics.lastPrice),
+      toFiniteOrNull(merged.averagePrice),
+      toFiniteOrNull(mergedMetrics.averagePrice)
+    );
+    const realBreakdown=deriveMoneyFlowBreakdown(moneyFlow.real,referencePrice);
+    const legalBreakdown=deriveMoneyFlowBreakdown(moneyFlow.legal,referencePrice);
+    if(realBreakdown) moneyFlow.real=Object.assign({},moneyFlow.real,realBreakdown);
+    if(legalBreakdown) moneyFlow.legal=Object.assign({},moneyFlow.legal,legalBreakdown);
+    if(moneyFlow.real&&toFiniteOrNull(moneyFlow.real.net)!==null) merged.realMoneyFlow=moneyFlow.real.net;
+    if(moneyFlow.legal&&toFiniteOrNull(moneyFlow.legal.net)!==null) merged.legalMoneyFlow=moneyFlow.legal.net;
+    mergedMetrics.realMoneyFlow=firstDefined(toFiniteOrNull(mergedMetrics.realMoneyFlow),toFiniteOrNull(merged.realMoneyFlow),moneyFlow.real?toFiniteOrNull(moneyFlow.real.net):null);
+    mergedMetrics.legalMoneyFlow=firstDefined(toFiniteOrNull(mergedMetrics.legalMoneyFlow),toFiniteOrNull(merged.legalMoneyFlow),moneyFlow.legal?toFiniteOrNull(moneyFlow.legal.net):null);
+    mergedMetrics.realMoneyFlowBreakdown=mergedMetrics.realMoneyFlowBreakdown||(realBreakdown||null);
+    mergedMetrics.legalMoneyFlowBreakdown=mergedMetrics.legalMoneyFlowBreakdown||(legalBreakdown||null);
+  }
   merged.marketMetrics=mergedMetrics;
   if(toFiniteOrNull(merged.realMoneyFlow)===null&&toFiniteOrNull(mergedMetrics.realMoneyFlow)!==null) merged.realMoneyFlow=mergedMetrics.realMoneyFlow;
   if(toFiniteOrNull(merged.legalMoneyFlow)===null&&toFiniteOrNull(mergedMetrics.legalMoneyFlow)!==null) merged.legalMoneyFlow=mergedMetrics.legalMoneyFlow;
@@ -287,15 +324,16 @@ function computeLowQualityMeta(quality,analysisPayload,aiResultData) {
 async function resolveAnalysisContext(symbol,fallbackData,dailyCount,weeklyCount) {
   const normalizedDailyCount=Math.max(5,toNumber(dailyCount,30)); const invalidQuality=createQualityMeta();
   if(!symbol) return {marketData:buildResolvedMarketData(null,[],fallbackData,invalidQuality,normalizedDailyCount,null),quality:invalidQuality};
-  const context={snapshot:null,daily:[],moneyFlow:null,fundamentalAnalysis:null,fundamentalData:null,snapshotError:null,historyError:null,moneyFlowError:null,fundamentalError:null}; const historyLimit=Math.max(normalizedDailyCount,30); const canFetchAdjusted=brsService&&typeof brsService.getAdjustedDailyCandlestick==='function'; const canFetchHistory=brsService&&typeof brsService.getSymbolHistory==='function'; const canFetchMoneyFlow=brsService&&typeof brsService.getMoneyFlow==='function';
+  const context={snapshot:null,daily:[],adjustedDaily:[],moneyFlow:null,fundamentalAnalysis:null,fundamentalData:null,snapshotError:null,historyError:null,moneyFlowError:null,fundamentalError:null}; const historyLimit=Math.max(normalizedDailyCount,30); const canFetchAdjusted=brsService&&typeof brsService.getAdjustedDailyCandlestick==='function'; const canFetchHistory=brsService&&typeof brsService.getSymbolHistory==='function'; const canFetchMoneyFlow=brsService&&typeof brsService.getMoneyFlow==='function';
   const qualitySources={liveSnapshotRequested:Boolean(brsService&&typeof brsService.getSymbolData==='function'),liveSnapshotSucceeded:false,historyRequested:Boolean(canFetchHistory),historySucceeded:false,adjustedDailyRequested:Boolean(canFetchAdjusted),adjustedDailySucceeded:false,moneyFlowRequested:Boolean(canFetchMoneyFlow),moneyFlowSucceeded:false,fundamentalRequested:Boolean(analysisDataProvider&&typeof analysisDataProvider.getFundamentalData==='function'),fundamentalSucceeded:false}; const tasks=[];
   if(qualitySources.liveSnapshotRequested) tasks.push(brsService.getSymbolData(symbol).then(r=>{context.snapshot=extractBrsMarketData(r);qualitySources.liveSnapshotSucceeded=Boolean(context.snapshot);}).catch(err=>{context.snapshotError=err;console.warn('[Analyze] Live market fetch failed for '+symbol+':',err.message);}));
-  if(canFetchAdjusted) tasks.push(brsService.getAdjustedDailyCandlestick(symbol,historyLimit).then(r=>{context.daily=sanitizeCandleSeries(extractHistoryItems(r),normalizedDailyCount);qualitySources.adjustedDailySucceeded=context.daily.length>0;qualitySources.historySucceeded=qualitySources.adjustedDailySucceeded;}).catch(err=>{context.historyError=err;console.warn('[Analyze] Adjusted daily history fetch failed for '+symbol+':',err.message);})); else if(canFetchHistory) tasks.push(brsService.getSymbolHistory(symbol,historyLimit).then(r=>{context.daily=sanitizeCandleSeries(extractHistoryItems(r),normalizedDailyCount);qualitySources.historySucceeded=context.daily.length>0;}).catch(err=>{context.historyError=err;console.warn('[Analyze] History fetch failed for '+symbol+':',err.message);}));
+  if(canFetchHistory) tasks.push(brsService.getSymbolHistory(symbol,historyLimit).then(r=>{context.daily=sanitizeCandleSeries(extractHistoryItems(r),normalizedDailyCount);qualitySources.historySucceeded=context.daily.length>0;}).catch(err=>{context.historyError=err;console.warn('[Analyze] History fetch failed for '+symbol+':',err.message);}));
+  if(canFetchAdjusted) tasks.push(brsService.getAdjustedDailyCandlestick(symbol,historyLimit).then(r=>{context.adjustedDaily=sanitizeCandleSeries(extractHistoryItems(r),normalizedDailyCount);qualitySources.adjustedDailySucceeded=context.adjustedDaily.length>0;}).catch(err=>{console.warn('[Analyze] Adjusted daily history fetch failed for '+symbol+':',err.message);}));
   if(canFetchMoneyFlow) tasks.push(brsService.getMoneyFlow(symbol).then(r=>{const normalized=normalizeMoneyFlowPayload(r);context.moneyFlow=normalized;qualitySources.moneyFlowSucceeded=Boolean((normalized.real&&toFiniteOrNull(normalized.real.net)!==null)||(normalized.legal&&toFiniteOrNull(normalized.legal.net)!==null));}).catch(err=>{context.moneyFlowError=err;console.warn('[Analyze] Money flow fetch failed for '+symbol+':',err.message);}));
   if(qualitySources.fundamentalRequested) tasks.push(analysisDataProvider.getFundamentalData(symbol).then(r=>{context.fundamentalData=r&&r.data?r.data:null;context.fundamentalAnalysis=r&&r.analysis&&typeof r.analysis==='object'?r.analysis:null;qualitySources.fundamentalSucceeded=Boolean(context.fundamentalAnalysis&&context.fundamentalAnalysis.scoreStatus==='calculated'&&Number.isFinite(Number(context.fundamentalAnalysis.score)));}).catch(err=>{context.fundamentalError=err;console.warn('[Analyze] Fundamental fetch failed for '+symbol+':',err.message);}));
   if(tasks.length>0) await Promise.allSettled(tasks);
   const quality=createQualityMeta(Object.assign(buildMarketDataQuality(context.snapshot,context.daily,fallbackData,normalizedDailyCount,context.moneyFlow),{sources:qualitySources}));
-  const marketData=buildResolvedMarketData(context.snapshot,context.daily,fallbackData,quality,normalizedDailyCount,context.moneyFlow);
+  const marketData=buildResolvedMarketData(context.snapshot,context.daily,fallbackData,quality,normalizedDailyCount,context.moneyFlow,context.adjustedDaily);
   marketData.fundamentalAnalysis=context.fundamentalAnalysis;
   marketData.fundamentalData=context.fundamentalData;
   marketData.sources=Object.assign({},marketData.sources||{},{fundamental:'CODAL',fundamentalRequest:context.fundamentalError?{message:context.fundamentalError.message}:null});

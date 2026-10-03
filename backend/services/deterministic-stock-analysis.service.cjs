@@ -91,6 +91,47 @@ function normalizeMoneyFlow(market) {
     ? realDerived.value + legalDerived.value
     : null;
   const net = rawNet !== null && rawNet !== 0 ? rawNet : calculatedNet;
+  // BRS currently supplies the حقیقی/حقوقی buy/sell quantities but may omit
+  // monetary buyValue/sellValue. Prefer the volume-derived monetary values
+  // whenever the direct monetary fields are absent or zero.
+  const realInflow = first(
+    real.buyValue,
+    real.inflow,
+    real.buyVolume != null && averagePrice != null ? Number(real.buyVolume) * averagePrice : null
+  );
+  const realOutflow = first(
+    real.sellValue,
+    real.outflow,
+    real.sellVolume != null && averagePrice != null ? Number(real.sellVolume) * averagePrice : null
+  );
+  const legalInflow = first(
+    legal.buyValue,
+    legal.inflow,
+    legal.buyVolume != null && averagePrice != null ? Number(legal.buyVolume) * averagePrice : null
+  );
+  const legalOutflow = first(
+    legal.sellValue,
+    legal.outflow,
+    legal.sellVolume != null && averagePrice != null ? Number(legal.sellVolume) * averagePrice : null
+  );
+
+  const realBuyVolumeValue = real.buyVolume != null && averagePrice != null
+    ? Number(real.buyVolume) * averagePrice
+    : null;
+  const realSellVolumeValue = real.sellVolume != null && averagePrice != null
+    ? Number(real.sellVolume) * averagePrice
+    : null;
+  const legalBuyVolumeValue = legal.buyVolume != null && averagePrice != null
+    ? Number(legal.buyVolume) * averagePrice
+    : null;
+  const legalSellVolumeValue = legal.sellVolume != null && averagePrice != null
+    ? Number(legal.sellVolume) * averagePrice
+    : null;
+
+  const resolvedRealInflow = realInflow !== null && realInflow > 0 ? realInflow : realBuyVolumeValue;
+  const resolvedRealOutflow = realOutflow !== null && realOutflow > 0 ? realOutflow : realSellVolumeValue;
+  const resolvedLegalInflow = legalInflow !== null && legalInflow > 0 ? legalInflow : legalBuyVolumeValue;
+  const resolvedLegalOutflow = legalOutflow !== null && legalOutflow > 0 ? legalOutflow : legalSellVolumeValue;
 
   return {
     net,
@@ -103,15 +144,15 @@ function normalizeMoneyFlow(market) {
       legalSell.estimated
     ),
     real: {
-      inflow: first(real.inflow, realBuy.value),
-      outflow: first(real.outflow, realSell.value),
+      inflow: resolvedRealInflow,
+      outflow: resolvedRealOutflow,
       net: realDerived.value,
       estimated: Boolean(realDerived.estimated || realBuy.estimated || realSell.estimated),
       estimateMethod: realDerived.method || (realBuy.estimated || realSell.estimated ? 'حجم معاملات حقیقی × میانگین قیمت معامله' : null),
     },
     legal: {
-      inflow: first(legal.inflow, legalBuy.value),
-      outflow: first(legal.outflow, legalSell.value),
+      inflow: resolvedLegalInflow,
+      outflow: resolvedLegalOutflow,
       net: legalDerived.value,
       estimated: Boolean(legalDerived.estimated || legalBuy.estimated || legalSell.estimated),
       estimateMethod: legalDerived.method || (legalBuy.estimated || legalSell.estimated ? 'حجم معاملات حقوقی × میانگین قیمت معامله' : null),
@@ -151,6 +192,37 @@ function buildMarketData(data) {
   const closingPrice = first(market.closingPrice, market.closePrice, market.pClosing, market.pc, market.close, market.price?.closing);
   const lastTradedPrice = first(market.lastPrice, market.lastTradedPrice, market.pDrCotVal, market.pl, currentPrice);
   const moneyFlow = normalizeMoneyFlow(market);
+
+  // BRS daily-candle history can lag the live Symbol endpoint (for example,
+  // the latest historical candle may still belong to an older trading day).
+  // Keep technical indicators based on the historical series, but expose a
+  // live "today" candle for the result chart whenever the live quote belongs
+  // to a newer trading day. This makes the displayed current price come from
+  // the live BRS quote, not from a stale historical close.
+  const liveDate = String(market.date || '').trim();
+  const historicalLastDate = String(latest?.date || '').trim();
+  const liveOpen = first(market.open, market.openingPrice, market.price?.open);
+  const liveHigh = first(market.high, market.highPrice, market.price?.high);
+  const liveLow = first(market.low, market.lowPrice, market.price?.low);
+  const liveClose = lastTradedPrice ?? closingPrice;
+  const liveCandle = liveDate && liveClose !== null &&
+    liveDate !== historicalLastDate &&
+    liveOpen !== null && liveHigh !== null && liveLow !== null
+    ? {
+        date: liveDate,
+        time: String(market.time || '').trim(),
+        open: liveOpen,
+        high: liveHigh,
+        low: liveLow,
+        close: liveClose,
+        last: lastTradedPrice,
+        yesterday: first(market.yesterday, market.py),
+        volume: first(market.tradedVolume, market.volume, market.trading?.volume),
+        value: first(market.tradedValue, market.value, market.tradeValue, market.trading?.value),
+      }
+    : null;
+
+  const displayCandles = liveCandle ? [...candles, liveCandle] : candles;
   const adjusted = Array.isArray(data.adjustedDailyCandles) && data.adjustedDailyCandles.length ? data.adjustedDailyCandles : candles;
 
   return {
@@ -170,10 +242,10 @@ function buildMarketData(data) {
     netMoneyFlow: moneyFlow.net,
     realMoneyFlowEstimated: moneyFlow.real.estimated,
     legalMoneyFlowEstimated: moneyFlow.legal.estimated,
-    dailyCandles: candles,
+    dailyCandles: displayCandles,
     adjustedDailyCandles: adjusted,
-    dailyCandle: latest,
-    adjustedDailyCandle: adjusted[adjusted.length - 1] || latest,
+    dailyCandle: displayCandles[displayCandles.length - 1] || latest,
+    adjustedDailyCandle: adjusted[adjusted.length - 1] || displayCandles[displayCandles.length - 1] || latest,
     dailySummary: {
       date: latest?.date || market.date || data.fetchedAt,
       openingPrice: first(market.openingPrice, market.open, latest?.open),

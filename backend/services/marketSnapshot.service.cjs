@@ -217,13 +217,30 @@ async function validateSnapshotHealth(symbols) {
   const minOverlapRatio = getHealthThreshold('MARKET_SNAPSHOT_MIN_OVERLAP_RATIO', 0.90);
   const maxCountRatio = getHealthThreshold('MARKET_SNAPSHOT_MAX_COUNT_RATIO', 1.10);
 
-  const healthy = countRatio >= minCountRatio && countRatio <= maxCountRatio &&
+  // BRS AllSymbols can legitimately shrink when suspended/non-trading symbols are
+  // omitted. Accept a stable subset only when almost every returned symbol was
+  // present in the previous snapshot and the shrink is not extreme. This keeps
+  // partial/empty responses from replacing the active snapshot while allowing
+  // the provider's current ~2/3 sized universe to refresh normally.
+  const variableSizeMinCountRatio = getHealthThreshold('MARKET_SNAPSHOT_VARIABLE_MIN_COUNT_RATIO', 0.65);
+  const variableSizeMinOverlapRatio = getHealthThreshold('MARKET_SNAPSHOT_VARIABLE_MIN_OVERLAP_RATIO', 0.98);
+  const variableSizeOldOverlapRatio = getHealthThreshold('MARKET_SNAPSHOT_VARIABLE_MIN_OLD_OVERLAP_RATIO', 0.60);
+
+  const standardHealthy = countRatio >= minCountRatio && countRatio <= maxCountRatio &&
     overlapRatio >= minOverlapRatio && overlapNewRatio >= minOverlapRatio;
+  const variableSizeHealthy = countRatio >= variableSizeMinCountRatio && countRatio <= maxCountRatio &&
+    overlapRatio >= variableSizeOldOverlapRatio && overlapNewRatio >= variableSizeMinOverlapRatio;
+
+  const healthy = standardHealthy || variableSizeHealthy;
+  const mode = standardHealthy ? 'COMPARE_ACTIVE' : 'COMPARE_ACTIVE_VARIABLE_SIZE';
 
   const health = {
-    mode: 'COMPARE_ACTIVE', accepted: healthy, previousCount, newCount, intersectionCount,
+    mode, accepted: healthy, previousCount, newCount, intersectionCount,
     countRatio, overlapRatio, overlapNewRatio, duplicateCount,
-    thresholds: { minCountRatio, maxCountRatio, minOverlapRatio }
+    thresholds: {
+      minCountRatio, maxCountRatio, minOverlapRatio,
+      variableSizeMinCountRatio, variableSizeMinOverlapRatio, variableSizeOldOverlapRatio
+    }
   };
 
   if (!healthy) {

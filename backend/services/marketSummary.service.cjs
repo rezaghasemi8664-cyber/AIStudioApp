@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 const prismaModule = require('../config/prisma.cjs');
 const env = require('../config/env.cjs');
