@@ -2456,8 +2456,24 @@ const clearCurrentAnalysis = () => {
 
     const dailyAverage = averageDirect ?? averageFromCandle;
 
-    const realMoneyNet = pickFirstNumber(md?.realMoneyFlow?.net, mm?.realMoneyFlow);
-    const legalMoneyNet = pickFirstNumber(md?.legalMoneyFlow?.net, mm?.legalMoneyFlow);
+    const realMoneyNet = pickFirstNumber(md?.realMoneyFlow?.net, mm?.realMoneyFlow, md?.moneyFlow?.real?.net);
+    const legalMoneyNet = pickFirstNumber(md?.legalMoneyFlow?.net, mm?.legalMoneyFlow, md?.moneyFlow?.legal?.net);
+
+    const deriveBreakdown = (flow: any, net: number | null) => {
+      if (!flow || typeof flow !== 'object') return null;
+      const buyVolume = pickFirstNumber(flow.buyVolume, flow.buyVol, flow.inflowVolume);
+      const sellVolume = pickFirstNumber(flow.sellVolume, flow.sellVol, flow.outflowVolume);
+      const buyValue = pickFirstNumber(flow.buyValue, flow.inflow, flow.buy);
+      const sellValue = pickFirstNumber(flow.sellValue, flow.outflow, flow.sell);
+      const referencePrice = lastTradedPrice ?? closingPrice ?? averagePrice;
+      const inflow = buyValue ?? (buyVolume !== null && referencePrice !== null ? buyVolume * referencePrice : null);
+      const outflow = sellValue ?? (sellVolume !== null && referencePrice !== null ? sellVolume * referencePrice : null);
+      if (inflow === null && outflow === null && net === null) return null;
+      return { inflow: inflow ?? 0, outflow: outflow ?? 0, net: net ?? (inflow !== null && outflow !== null ? inflow - outflow : 0) };
+    };
+
+    const realBreakdown = mm?.realMoneyFlowBreakdown ?? deriveBreakdown(md?.moneyFlow?.real, realMoneyNet);
+    const legalBreakdown = mm?.legalMoneyFlowBreakdown ?? deriveBreakdown(md?.moneyFlow?.legal, legalMoneyNet);
 
     return {
       closingPrice,
@@ -2479,8 +2495,8 @@ const clearCurrentAnalysis = () => {
       dailyAverage,
       realMoneyNet,
       legalMoneyNet,
-      realBreakdown: mm?.realMoneyFlowBreakdown,
-      legalBreakdown: mm?.legalMoneyFlowBreakdown,
+      realBreakdown,
+      legalBreakdown,
     };
   }, [analysisData, resolvedMarketMetrics]);
 
