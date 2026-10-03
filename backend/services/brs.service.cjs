@@ -1740,7 +1740,7 @@ function getAllSymbols(options) {
   var opts = options || {};
   var forceFresh = opts.forceFresh === true;
   var cacheKey = 'all_symbols';
-  var cacheEntry = getCacheEntry(cacheKey);
+  var cacheEntry = forceFresh ? null : getCacheEntry(cacheKey);
 
   if (cacheEntry) {
     var cacheMeta = buildMeta('all-symbols', {
