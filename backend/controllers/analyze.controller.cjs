@@ -194,6 +194,21 @@ function getFallbackDailySeries(fallbackData,dailyLimit) {
   for(let i=0;i<candidates.length;i+=1) if(Array.isArray(candidates[i])&&candidates[i].length>0) return sanitizeCandleSeries(candidates[i],dailyLimit);
   return [];
 }
+function deriveMoneyFlowBreakdown(flow, referencePrice) {
+  if (!isObject(flow)) return null;
+  const price = toFiniteOrNull(referencePrice);
+  const buyVolume = toFiniteOrNull(firstDefined(flow.buyVolume, flow.inflowVolume, flow.buyVol));
+  const sellVolume = toFiniteOrNull(firstDefined(flow.sellVolume, flow.outflowVolume, flow.sellVol));
+  const buyValue = toFiniteOrNull(firstDefined(flow.buyValue, flow.inflow, flow.in));
+  const sellValue = toFiniteOrNull(firstDefined(flow.sellValue, flow.outflow, flow.out));
+  const explicitNet = toFiniteOrNull(firstDefined(flow.netValue, flow.net, flow.value, flow.amount, flow.total));
+  const inflow = buyValue !== null ? buyValue : (buyVolume !== null && price !== null ? buyVolume * price : null);
+  const outflow = sellValue !== null ? sellValue : (sellVolume !== null && price !== null ? sellVolume * price : null);
+  const net = explicitNet !== null ? explicitNet : (inflow !== null && outflow !== null ? inflow - outflow : null);
+  if (inflow === null && outflow === null && net === null) return null;
+  return { inflow, outflow, net, source: buyValue !== null || sellValue !== null ? 'brs-value' : 'brs-volume-price' };
+}
+
 function normalizeMoneyFlowPayload(payload) {
   if(!payload) return {real:null,legal:null};
   const root=isObject(payload.data)?payload.data:isObject(payload.result)?payload.result:isObject(payload.moneyFlow)?payload.moneyFlow:payload;
@@ -247,7 +262,26 @@ function buildResolvedMarketData(snapshot,daily,fallbackData,qualityMeta,dailyLi
   if(!merged.dailySummary||typeof merged.dailySummary!=='object') merged.dailySummary=buildDailySummary(merged,resolvedDaily);
   const snapshotMetrics=isObject(snapshot)?enrichMarketMetrics(snapshot):null; const fallbackMetrics=isObject(fallbackData)?mergePreferSnapshot(pickFirstObject(fallbackData.marketMetrics),enrichMarketMetrics(fallbackData)):null;
   const mergedMetrics=mergePreferSnapshot(mergePreferSnapshot(fallbackMetrics,pickFirstObject(merged.marketMetrics)),snapshotMetrics);
-  if(moneyFlow&&isObject(moneyFlow)){ merged.moneyFlow=moneyFlow; if(moneyFlow.real&&toFiniteOrNull(moneyFlow.real.net)!==null) merged.realMoneyFlow=moneyFlow.real.net; if(moneyFlow.legal&&toFiniteOrNull(moneyFlow.legal.net)!==null) merged.legalMoneyFlow=moneyFlow.legal.net; mergedMetrics.realMoneyFlow=firstDefined(toFiniteOrNull(mergedMetrics.realMoneyFlow),toFiniteOrNull(merged.realMoneyFlow),moneyFlow.real?toFiniteOrNull(moneyFlow.real.net):null); mergedMetrics.legalMoneyFlow=firstDefined(toFiniteOrNull(mergedMetrics.legalMoneyFlow),toFiniteOrNull(merged.legalMoneyFlow),moneyFlow.legal?toFiniteOrNull(moneyFlow.legal.net):null); mergedMetrics.realMoneyFlowBreakdown=mergedMetrics.realMoneyFlowBreakdown||(moneyFlow.real||null); mergedMetrics.legalMoneyFlowBreakdown=mergedMetrics.legalMoneyFlowBreakdown||(moneyFlow.legal||null); }
+  if(moneyFlow&&isObject(moneyFlow)){
+    merged.moneyFlow=moneyFlow;
+    const referencePrice=firstDefined(
+      toFiniteOrNull(merged.last),
+      toFiniteOrNull(merged.price&&merged.price.last),
+      toFiniteOrNull(mergedMetrics.lastPrice),
+      toFiniteOrNull(merged.averagePrice),
+      toFiniteOrNull(mergedMetrics.averagePrice)
+    );
+    const realBreakdown=deriveMoneyFlowBreakdown(moneyFlow.real,referencePrice);
+    const legalBreakdown=deriveMoneyFlowBreakdown(moneyFlow.legal,referencePrice);
+    if(realBreakdown) moneyFlow.real=Object.assign({},moneyFlow.real,realBreakdown);
+    if(legalBreakdown) moneyFlow.legal=Object.assign({},moneyFlow.legal,legalBreakdown);
+    if(moneyFlow.real&&toFiniteOrNull(moneyFlow.real.net)!==null) merged.realMoneyFlow=moneyFlow.real.net;
+    if(moneyFlow.legal&&toFiniteOrNull(moneyFlow.legal.net)!==null) merged.legalMoneyFlow=moneyFlow.legal.net;
+    mergedMetrics.realMoneyFlow=firstDefined(toFiniteOrNull(mergedMetrics.realMoneyFlow),toFiniteOrNull(merged.realMoneyFlow),moneyFlow.real?toFiniteOrNull(moneyFlow.real.net):null);
+    mergedMetrics.legalMoneyFlow=firstDefined(toFiniteOrNull(mergedMetrics.legalMoneyFlow),toFiniteOrNull(merged.legalMoneyFlow),moneyFlow.legal?toFiniteOrNull(moneyFlow.legal.net):null);
+    mergedMetrics.realMoneyFlowBreakdown=mergedMetrics.realMoneyFlowBreakdown||(realBreakdown||null);
+    mergedMetrics.legalMoneyFlowBreakdown=mergedMetrics.legalMoneyFlowBreakdown||(legalBreakdown||null);
+  }
   merged.marketMetrics=mergedMetrics;
   if(toFiniteOrNull(merged.realMoneyFlow)===null&&toFiniteOrNull(mergedMetrics.realMoneyFlow)!==null) merged.realMoneyFlow=mergedMetrics.realMoneyFlow;
   if(toFiniteOrNull(merged.legalMoneyFlow)===null&&toFiniteOrNull(mergedMetrics.legalMoneyFlow)!==null) merged.legalMoneyFlow=mergedMetrics.legalMoneyFlow;
