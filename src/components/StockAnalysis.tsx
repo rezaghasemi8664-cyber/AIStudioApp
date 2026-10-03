@@ -2192,9 +2192,19 @@ const clearCurrentAnalysis = () => {
       return value.flatMap((item) => flattenCandles(item));
     };
 
-    const preferred = hasAdjustedDailyDisplayData
-      ? (adjustedDailyCandles.length > 0 ? adjustedDailyCandles : adjustedCandleToShow)
-      : (dailyCandles.length > 0 ? dailyCandles : dailyCandleToShow);
+    // Use unadjusted daily candles for the technical chart so the latest
+    // candle matches the actual traded/current market price. Adjusted candles
+    // can legitimately differ after corporate actions.
+    const preferred =
+      dailyCandles.length > 0
+        ? dailyCandles
+        : dailyCandleToShow
+        ? [dailyCandleToShow]
+        : adjustedDailyCandles.length > 0
+        ? adjustedDailyCandles
+        : adjustedCandleToShow
+        ? [adjustedCandleToShow]
+        : [];
 
     return flattenCandles(preferred).filter((item) =>
       item && typeof item === 'object' &&
