@@ -215,8 +215,11 @@ function normalizeMoneyFlowPayload(payload) {
   if(!isObject(root)) return {real:null,legal:null};
   const realRaw=firstDefined(root.real,root.realMoneyFlow,root.haghighi,root.individual);
   const legalRaw=firstDefined(root.legal,root.legalMoneyFlow,root.hoghoghi,root.corporate);
-  const real=normalizeMoneyFlowBreakdown(realRaw)||(normalizeMoneyFlowValue(realRaw)!==null?{inflow:null,outflow:null,net:normalizeMoneyFlowValue(realRaw)}:null);
-  const legal=normalizeMoneyFlowBreakdown(legalRaw)||(normalizeMoneyFlowValue(legalRaw)!==null?{inflow:null,outflow:null,net:normalizeMoneyFlowValue(legalRaw)}:null);
+  // Preserve BRS buy/sell volume fields when monetary values are absent.
+  // buildResolvedMarketData will deterministically derive monetary inflow/outflow
+  // from those volumes and the live reference price.
+  const real=normalizeMoneyFlowBreakdown(realRaw) || (isObject(realRaw) ? realRaw : (normalizeMoneyFlowValue(realRaw)!==null ? {inflow:null,outflow:null,net:normalizeMoneyFlowValue(realRaw)} : null));
+  const legal=normalizeMoneyFlowBreakdown(legalRaw) || (isObject(legalRaw) ? legalRaw : (normalizeMoneyFlowValue(legalRaw)!==null ? {inflow:null,outflow:null,net:normalizeMoneyFlowValue(legalRaw)} : null));
   return {real,legal};
 }
 function hasMinimumAnalysisData(data) {
