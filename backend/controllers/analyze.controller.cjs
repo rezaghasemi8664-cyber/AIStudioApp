@@ -218,8 +218,16 @@ function normalizeMoneyFlowPayload(payload) {
   // Preserve BRS buy/sell volume fields when monetary values are absent.
   // buildResolvedMarketData will deterministically derive monetary inflow/outflow
   // from those volumes and the live reference price.
-  const real=normalizeMoneyFlowBreakdown(realRaw) || (isObject(realRaw) ? realRaw : (normalizeMoneyFlowValue(realRaw)!==null ? {inflow:null,outflow:null,net:normalizeMoneyFlowValue(realRaw)} : null));
-  const legal=normalizeMoneyFlowBreakdown(legalRaw) || (isObject(legalRaw) ? legalRaw : (normalizeMoneyFlowValue(legalRaw)!==null ? {inflow:null,outflow:null,net:normalizeMoneyFlowValue(legalRaw)} : null));
+  // Keep the original BRS object intact when it contains buy/sell volumes.
+  // normalizeMoneyFlowBreakdown intentionally only keeps monetary fields, which
+  // would otherwise discard buyVolume/sellVolume before the deterministic
+  // volume × live-price fallback can run.
+  const real = isObject(realRaw)
+    ? realRaw
+    : (normalizeMoneyFlowValue(realRaw)!==null ? {inflow:null,outflow:null,net:normalizeMoneyFlowValue(realRaw)} : null);
+  const legal = isObject(legalRaw)
+    ? legalRaw
+    : (normalizeMoneyFlowValue(legalRaw)!==null ? {inflow:null,outflow:null,net:normalizeMoneyFlowValue(legalRaw)} : null);
   return {real,legal};
 }
 function hasMinimumAnalysisData(data) {
