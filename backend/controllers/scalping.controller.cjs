@@ -131,31 +131,44 @@ async function getHistory(req, res) {
 
 async function getStatus(req, res) {
   try {
-    const userId = getUserId(req);
-    if (!userId) return sendUnauthorized(res);
-
     const marketStatus = await resolveMarketStatus();
-    let latestRun = null;
 
+    // Scalping is produced centrally by market.worker.cjs, not by a user-owned
+    // ScalpingRun. The old status check inspected the latest user's ScalpingRun,
+    // which is normally absent in the central architecture and therefore showed
+    // "stopped" even while the central worker was refreshing opportunities.
+    let latestOpportunity = null;
     try {
-      latestRun = await scalpingService.getLatest(userId);
+      const rows = await sharedMarketService.getScalpingOpportunities({
+        status: 'ACTIVE',
+        marketDate: marketStatus.marketDate || null,
+        limit: 1
+      });
+      latestOpportunity = rows[0] || null;
     } catch (error) {
-      console.warn('[SCALPING CTRL] Failed to load latest scalping run:', error.message);
+      console.warn('[SCALPING CTRL] Failed to load central opportunity heartbeat:', error.message);
     }
 
-    const latestMeta = latestRun && typeof latestRun === 'object' ? latestRun : {};
+    const lastUpdate = latestOpportunity?.updatedAt || latestOpportunity?.createdAt || null;
+    const lastUpdateMs = lastUpdate ? new Date(lastUpdate).getTime() : 0;
+    const heartbeatAgeMs = lastUpdateMs ? Math.max(0, Date.now() - lastUpdateMs) : Number.POSITIVE_INFINITY;
+    const heartbeatFresh = heartbeatAgeMs <= 5 * 60 * 1000;
+    const centralRunning = marketStatus.isOpen === true && heartbeatFresh && !!latestOpportunity;
+
     const mergedStatus = {
-      isRunning: latestMeta.status === 'running',
-      lastRunId: latestMeta.id || null,
-      lastStatus: latestMeta.status || null,
-      lastUpdate: latestMeta.finishedAt || latestMeta.createdAt || null,
-      lastUpdated: latestMeta.finishedAt || latestMeta.createdAt || null,
+      isRunning: centralRunning,
+      lastRunId: latestOpportunity?.id || null,
+      lastStatus: centralRunning ? 'running' : (latestOpportunity ? 'stale' : 'no-active-opportunity'),
+      lastUpdate,
+      lastUpdated: lastUpdate,
+      heartbeatAgeMs: Number.isFinite(heartbeatAgeMs) ? heartbeatAgeMs : null,
       statusCheckedAt: new Date().toISOString(),
       todayTrades: 0,
       activePositions: 0,
       todayPnL: 0,
       marketStatus,
-      marketOpen: marketStatus.isOpen === true
+      marketOpen: marketStatus.isOpen === true,
+      source: 'central-market-worker'
     };
 
     return sendSuccess(res, mergedStatus);
