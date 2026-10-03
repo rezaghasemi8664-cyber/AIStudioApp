@@ -1337,6 +1337,7 @@ async function getMarketIndex() {
 
 async function getMarketSummary(options) {
   var opts = options || {};
+  var forceFresh = opts.forceFresh === true;
   var requestedDate = opts.date ? String(opts.date).trim() : '';
   var cacheKey = 'market_summary_' + (requestedDate || 'today');
   var cacheEntry = forceFresh ? null : getCacheEntry(cacheKey);
@@ -1397,7 +1398,9 @@ async function getMarketSummary(options) {
   }
 }
 
-async function getSymbolData(symbol) {
+async function getSymbolData(symbol, options) {
+  var opts = options || {};
+  var forceFresh = opts.forceFresh === true;
   var symbolClean;
   try {
     symbolClean = normalizeSymbolInput(symbol);
