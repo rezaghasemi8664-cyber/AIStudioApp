@@ -258,18 +258,25 @@ async function getMarketData(symbol, options) {
       }
     : null;
 
+  // Technical analysis must use the unadjusted BRS trading history so the
+  // latest candle represents the actual traded/current price. Adjusted history
+  // is retained separately for any consumers that explicitly need it.
   var results = await Promise.all([
     brs.getSymbolData(symbolClean),
+    brs.getSymbolHistory(symbolClean, historyCount),
     brs.getAdjustedDailyCandlestick(symbolClean, historyCount),
     suppliedFundamental || getFundamentalData(symbolClean)
   ]);
 
   var marketResult = results[0];
   var historyResult = results[1];
-  var fundamentalResult = results[2];
+  var adjustedHistoryResult = results[2];
+  var fundamentalResult = results[3];
   var market = unwrap(marketResult);
   var history = asArray(unwrap(historyResult));
+  var adjustedHistory = asArray(unwrap(adjustedHistoryResult));
   var candles = normalizeCandles(history);
+  var adjustedDailyCandles = normalizeCandles(adjustedHistory);
   var historyMeta = getMeta(historyResult);
   var fundamentalStatus = fundamentalResult.status;
   var fundamentalAnalysis = fundamentalResult.analysis || {};
@@ -279,6 +286,7 @@ async function getMarketData(symbol, options) {
     market: market,
     history: history,
     candles: candles,
+    adjustedDailyCandles: adjustedDailyCandles,
     fundamental: fundamentalResult.data,
     fundamentalAnalysis: fundamentalAnalysis,
     dataQuality: buildQuality(candles, history, marketResult, fundamentalStatus, historyMeta, fundamentalAnalysis),

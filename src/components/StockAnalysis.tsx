@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChartBarIcon, ClockIcon, MarketIcon, TrashIcon } from './Icons';
 import api from '../api/apiClient';
 import { getLatestSummary, getSummaryHistory } from '../services/marketSummaryService';
@@ -1455,7 +1455,7 @@ export default function StockAnalysis() {
   const [selectedAnalysisDetail, setSelectedAnalysisDetail] = useState<any | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
-  
+
 useEffect(() => {
   let cancelled = false;
 
@@ -1597,7 +1597,7 @@ useEffect(() => {
     return normalizeAnalysisResponse(response.data);
   };
 
- 
+
 const toMarketSummaryView = (item: any): MarketSummary | null => {
   if (!item || typeof item !== 'object') return null;
 
@@ -1796,7 +1796,7 @@ const fetchMarketSummary = async () => {
   }
 };
 
-    
+
   const renderAnalysisHistory = () => {
   if (false) {
     return (
@@ -1843,7 +1843,7 @@ const fetchMarketSummary = async () => {
   );
 };
 
-               
+
   const handleExportPdf = async () => {
   const reportEl = reportRef.current;
 
@@ -1961,7 +1961,7 @@ try {
     historyError
   );
 }
-           
+
     } catch (e: any) {
       setAnalysisResult(null);
       setAnalysisData(null);
@@ -2456,8 +2456,10 @@ const clearCurrentAnalysis = () => {
 
     const dailyAverage = averageDirect ?? averageFromCandle;
 
+
     const realFlow = md?.moneyFlow?.real ?? md?.moneyFlow?.individual ?? {};
     const legalFlow = md?.moneyFlow?.legal ?? md?.moneyFlow?.institutional ?? {};
+
     const realMoneyNet = pickFirstNumber(
       md?.realMoneyFlow?.net,
       md?.realMoneyFlow,
@@ -2466,6 +2468,7 @@ const clearCurrentAnalysis = () => {
       realFlow?.netValue,
       md?.realMoneyFlowNet
     );
+
     const legalMoneyNet = pickFirstNumber(
       md?.legalMoneyFlow?.net,
       md?.legalMoneyFlow,
@@ -2476,8 +2479,13 @@ const clearCurrentAnalysis = () => {
       md?.instMoneyFlow
     );
 
-    const deriveBreakdown = (flow: any, aliases: Record<string, unknown>, net: number | null) => {
+    const deriveBreakdown = (
+      flow: any,
+      aliases: Record<string, unknown>,
+      net: number | null
+    ) => {
       const source = flow && typeof flow === 'object' ? flow : {};
+
       const buyVolume = pickFirstNumber(
         source.buyVolume,
         source.buyVol,
@@ -2486,6 +2494,7 @@ const clearCurrentAnalysis = () => {
         aliases.buyQty,
         aliases.inVolume
       );
+
       const sellVolume = pickFirstNumber(
         source.sellVolume,
         source.sellVol,
@@ -2494,6 +2503,7 @@ const clearCurrentAnalysis = () => {
         aliases.sellQty,
         aliases.outVolume
       );
+
       const buyValue = pickFirstNumber(
         source.buyValue,
         source.inflow,
@@ -2501,6 +2511,7 @@ const clearCurrentAnalysis = () => {
         aliases.buyValue,
         aliases.inflow
       );
+
       const sellValue = pickFirstNumber(
         source.sellValue,
         source.outflow,
@@ -2508,28 +2519,32 @@ const clearCurrentAnalysis = () => {
         aliases.sellValue,
         aliases.outflow
       );
+
       const referencePrice = lastTradedPrice ?? closingPrice ?? averagePrice;
+
       const inflow = buyValue ?? (
         buyVolume !== null && referencePrice !== null
           ? buyVolume * referencePrice
           : null
       );
+
       const outflow = sellValue ?? (
         sellVolume !== null && referencePrice !== null
           ? sellVolume * referencePrice
           : null
       );
+
       const resolvedNet = net ?? (
         inflow !== null && outflow !== null
           ? inflow - outflow
           : null
       );
-      if (inflow === null && outflow === null && resolvedNet === null) return null;
-      return {
-        inflow,
-        outflow,
-        net: resolvedNet,
-      };
+
+      if (inflow === null && outflow === null && resolvedNet === null) {
+        return null;
+      }
+
+      return { inflow, outflow, net: resolvedNet };
     };
 
     const realBreakdown = mm?.realMoneyFlowBreakdown ??
