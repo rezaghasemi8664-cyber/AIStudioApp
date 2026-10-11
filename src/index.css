@@ -2239,3 +2239,17 @@ body {
   background-color: #111827 !important;
   opacity: 1 !important;
 }
+
+
+/* Keep market-radar industry and symbol labels readable in dark mode. */
+.market-radar-readable-label {
+  color: #f8fafc !important;
+  opacity: 1 !important;
+  font-weight: 700 !important;
+  text-shadow: none !important;
+}
+
+.dark .market-radar-readable-label {
+  color: #f8fafc !important;
+  opacity: 1 !important;
+}
