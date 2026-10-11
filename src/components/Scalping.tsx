@@ -41,6 +41,7 @@ const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ oppor
   const stopLossPrice = opportunity.stopLossPrice;
   const currentPrice = opportunity.currentPrice ?? opportunity.price;
   const signalType = opportunity.signalType ?? opportunity.signal ?? opportunity.type;
+  const isSellSignal = signalType === 'SELL';
 
   return (
     <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
@@ -48,7 +49,7 @@ const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ oppor
         <h3 className="text-lg font-bold text-[var(--color-accent)]">{opportunity.symbol}</h3>
         <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${signalType === 'SELL' ? 'text-red-500 bg-red-500/10' : 'text-green-500 bg-green-500/10'}`}>
           <ArrowTrendingUpIcon className="w-3 h-3" />
-          <span>{signalType === 'SELL' ? 'سیگنال فروش' : 'فرصت فعال'}</span>
+          <span>{isSellSignal ? 'پیشنهاد فروش سهم' : 'سیگنال خرید'}</span>
         </div>
       </div>
 
@@ -59,15 +60,15 @@ const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ oppor
 
       <div className="grid grid-cols-2 gap-2 mb-3">
         <div className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 p-2">
-          <span className="block text-[10px] text-cyan-600 dark:text-cyan-400">نقطه ورود</span>
+          <span className="block text-[10px] text-cyan-600 dark:text-cyan-400">{isSellSignal ? 'قیمت مرجع فروش / خروج' : 'نقطه ورود'}</span>
           <span className="block text-sm font-mono font-bold">{formatPrice(entryPrice)}</span>
         </div>
         <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-2">
-          <span className="block text-[10px] text-emerald-600 dark:text-emerald-400">نقطه خروج / هدف</span>
+          <span className="block text-[10px] text-emerald-600 dark:text-emerald-400">{isSellSignal ? 'هدف قیمتی نزولی' : 'هدف قیمتی / خروج'}</span>
           <span className="block text-sm font-mono font-bold">{formatPrice(exitPrice)}</span>
         </div>
         <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-2">
-          <span className="block text-[10px] text-red-600 dark:text-red-400">حد ضرر</span>
+          <span className="block text-[10px] text-red-600 dark:text-red-400">{isSellSignal ? 'سطح ابطال سناریوی نزولی' : 'حد ضرر'}</span>
           <span className="block text-sm font-mono font-bold">{formatPrice(stopLossPrice)}</span>
         </div>
         <div className="rounded-lg bg-gray-500/10 border border-gray-500/20 p-2">
@@ -75,6 +76,12 @@ const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ oppor
           <span className="block text-sm font-mono font-bold">{formatPrice(currentPrice)}</span>
         </div>
       </div>
+
+      {isSellSignal && (
+        <p className="text-xs text-[var(--color-text-secondary)] bg-red-500/5 border border-red-500/15 rounded-lg p-2 mb-3">
+          این سیگنال نشان‌دهنده چشم‌انداز نزولی قیمت سهم و بررسی فروش یا خروج از سهم موجود است؛ به‌معنای فروش استقراضی یا توصیه معامله اختیار معامله نیست.
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-2 pt-3 border-t border-[var(--color-border)]">
         <div className="flex flex-col">
