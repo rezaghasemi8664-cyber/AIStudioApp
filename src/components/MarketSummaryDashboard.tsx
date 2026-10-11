@@ -448,7 +448,7 @@ export default function MarketSummaryDashboard({
         <div className="text-[18px] font-extrabold text-white">
           خلاصه بازار
         </div>
-        <div className="mt-4 whitespace-pre-wrap rounded-2xl border border-white/[0.12] bg-slate-900/80 p-5 text-[15px] font-medium leading-[2] text-white">
+        <div className="market-summary-readable-text mt-4 whitespace-pre-wrap rounded-2xl border border-white/[0.12] bg-slate-900/80 p-5 text-[15px] font-medium leading-[2] text-white">
           {canonicalContent}
         </div>
       </div>
@@ -463,7 +463,7 @@ export default function MarketSummaryDashboard({
         style={{ fontFamily: 'Vazirmatn, IRANSans, Tahoma, Arial, sans-serif' }}
       >
         <div className="text-[18px] font-extrabold text-white">خلاصه بازار</div>
-        <div className="mt-4 whitespace-pre-wrap rounded-2xl border border-white/[0.12] bg-slate-900/80 p-5 text-[15px] font-medium leading-[2] text-white">
+        <div className="market-summary-readable-text mt-4 whitespace-pre-wrap rounded-2xl border border-white/[0.12] bg-slate-900/80 p-5 text-[15px] font-medium leading-[2] text-white">
           {canonicalContent}
         </div>
       </div>
@@ -483,7 +483,7 @@ export default function MarketSummaryDashboard({
         <div className="text-[18px] font-extrabold text-white">
           خلاصه بازار
         </div>
-        <div className="mt-4 whitespace-pre-wrap rounded-2xl border border-white/[0.12] bg-slate-900/80 p-5 text-[15px] font-medium leading-[2] text-white">
+        <div className="market-summary-readable-text mt-4 whitespace-pre-wrap rounded-2xl border border-white/[0.12] bg-slate-900/80 p-5 text-[15px] font-medium leading-[2] text-white">
           {canonicalContent}
         </div>
       </div>
@@ -503,7 +503,7 @@ export default function MarketSummaryDashboard({
         <div className="text-[18px] font-extrabold text-white">
           خلاصه بازار
         </div>
-        <div className="mt-4 whitespace-pre-wrap rounded-2xl border border-white/[0.12] bg-slate-900/80 p-5 text-[15px] font-medium leading-[2] text-white">
+        <div className="market-summary-readable-text mt-4 whitespace-pre-wrap rounded-2xl border border-white/[0.12] bg-slate-900/80 p-5 text-[15px] font-medium leading-[2] text-white">
           {canonicalContent}
         </div>
       </div>
@@ -524,7 +524,7 @@ export default function MarketSummaryDashboard({
           خلاصه بازار
         </div>
 
-        <div className="mt-4 whitespace-pre-wrap rounded-2xl border border-white/[0.12] bg-slate-900/80 p-5 text-[15px] font-medium leading-[2] text-white">
+        <div className="market-summary-readable-text mt-4 whitespace-pre-wrap rounded-2xl border border-white/[0.12] bg-slate-900/80 p-5 text-[15px] font-medium leading-[2] text-white">
           {content || 'تحلیل بازار در دسترس نیست.'}
         </div>
       </div>
@@ -1611,7 +1611,7 @@ export default function MarketSummaryDashboard({
             مشاهده گزارش متنی کامل
           </summary>
 
-          <div className="mt-5 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 whitespace-pre-wrap text-[15px] leading-[2] text-slate-200">
+          <div className="market-summary-readable-text mt-5 rounded-2xl border border-white/[0.12] bg-slate-900/80 p-5 whitespace-pre-wrap text-[15px] font-semibold leading-[2] text-white">
             {content}
           </div>
         </details>
