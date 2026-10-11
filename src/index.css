@@ -2275,3 +2275,26 @@ body {
   text-shadow: none !important;
   -webkit-text-fill-color: #ffffff !important;
 }
+
+
+/* Market summary dashboard: improve low-contrast secondary copy in dark mode.
+   Keep semantic positive/warning/negative colors unchanged. */
+.dark .market-summary-dashboard-page .text-slate-300,
+.dark .market-summary-dashboard-page .text-slate-400,
+.dark .market-summary-dashboard-page .text-slate-500,
+.dark .market-summary-dashboard-page .text-gray-300,
+.dark .market-summary-dashboard-page .text-gray-400,
+.dark .market-summary-dashboard-page .text-gray-500,
+.dark .market-summary-dashboard-page .ms-muted,
+.dark .market-summary-dashboard-page [class*="text-slate-400"],
+.dark .market-summary-dashboard-page [class*="text-slate-500"] {
+  color: #e2e8f0 !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+}
+
+.dark .market-summary-dashboard-page p,
+.dark .market-summary-dashboard-page li,
+.dark .market-summary-dashboard-page dd {
+  opacity: 1;
+}
