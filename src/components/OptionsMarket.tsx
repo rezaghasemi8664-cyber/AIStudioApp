@@ -82,7 +82,6 @@ function getExpiryDays(value: string): number | null {
 function rankOptionContract(contract: OptionContract) {
   const spot = getNumeric(contract, ['underlyingLastPrice']);
   const strike = getNumeric(contract, ['strikePrice', 'price_strike', 'priceStrike', 'strike']);
-  const premiumLast = getNumeric(contract, ['optionLastPrice', 'pl', 'lastPrice', 'pClosing']);
   const ask = getNumeric(contract, ['bestAskPrice', 'pMeOf', 'askPrice', 'sellPrice']);
   const bid = getNumeric(contract, ['bestBidPrice', 'pMeDem', 'bidPrice', 'buyPrice']);
   const kind = getKind(contract);
@@ -251,7 +250,7 @@ const OptionsMarket: React.FC = () => {
                 <p className="mt-2 text-sm">نماد پایه: {getValue(item.contract, BASE_SYMBOL_KEYS)}</p>
                 <p className="text-sm">سررسید: {getValue(item.contract, EXPIRY_KEYS)} · {item.days} روز</p>
                 <p className="mt-1 text-sm">قیمت پیشنهادی ورود: <strong>{formatPrice(item.entryPrice)}</strong></p>
-                <p className="text-xs text-gray-500">{item.priceSource === 'best-ask' ? 'بر مبنای بهترین قیمت عرضه ثبت‌شده' : 'صرفاً آخرین معامله؛ قیمت عرضه زنده موجود نیست'}</p>
+                <p className="text-xs text-gray-500">بر مبنای بهترین قیمت عرضه ثبت‌شده؛ قیمت سفارش واقعی ممکن است تغییر کند</p>
                 <p className="mt-1 text-sm">قیمت بهترین تقاضا برای خروج: <strong>{formatPrice(item.exitPrice)}</strong></p>
                 <ul className="mt-2 list-disc space-y-1 pr-4 text-xs text-gray-600 dark:text-gray-300">
                   {item.reasons.map((reason) => <li key={reason}>{reason}</li>)}
