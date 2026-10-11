@@ -291,7 +291,7 @@ const OptionsMarket: React.FC = () => {
             />
           </label>
         </div>
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">محاسبه برای خریدار اختیار و به‌ازای هر واحد است. درصد کارمزد را مطابق تعرفه واقعی خود وارد کنید؛ مقدار خالی معادل صفر فرض می‌شود. کارمزد خروج به‌صورت ساده‌شده روی ارزش تسویه فرضی اعمال می‌شود. این سناریو پیش‌بینی قیمت نیست و ضریب اندازه قرارداد را شامل نمی‌شود.</p>
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">سود/زیان سناریو برای یک قرارداد و با استفاده از اندازه قرارداد دریافتی از BRS محاسبه می‌شود. حداکثر حق‌بیمه سربه‌سر به‌ازای هر واحد از دارایی پایه است. اگر اندازه قرارداد معتبر نباشد، سود/زیان نمایش داده نمی‌شود. درصد کارمزد هر سمت را مطابق تعرفه واقعی وارد کنید؛ مقدار خالی معادل صفر است. کارمزد خروج به‌صورت ساده‌شده روی ارزش تسویه فرضی اعمال می‌شود؛ این سناریو پیش‌بینی قیمت نیست.</p>
       </div>
 
       <section className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900 dark:bg-blue-950/20">
@@ -329,7 +329,7 @@ const OptionsMarket: React.FC = () => {
                 </div>
                 <p className="mt-2 text-sm">نماد پایه: {getValue(item.contract, BASE_SYMBOL_KEYS)}</p>
                 <p className="text-sm">سررسید: {getValue(item.contract, EXPIRY_KEYS)} · {item.days} روز</p>
-                <p className="mt-1 text-sm">قیمت پیشنهادی ورود: <strong>{formatPrice(item.entryPrice)}</strong></p>
+                <p className="mt-1 text-sm">قیمت پیشنهادی ورود (هر واحد): <strong>{formatPrice(item.entryPrice)}</strong></p>
                 <p className="text-xs text-gray-500">بر مبنای بهترین قیمت عرضه ثبت‌شده؛ قیمت سفارش واقعی ممکن است تغییر کند</p>
                 <p className="mt-1 text-sm">قیمت بهترین تقاضا برای خروج: <strong>{formatPrice(item.exitPrice)}</strong></p>
                 <ul className="mt-2 list-disc space-y-1 pr-4 text-xs text-gray-600 dark:text-gray-300">
@@ -386,12 +386,13 @@ const OptionsMarket: React.FC = () => {
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">نماد پایه</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">نماد قرارداد</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">نوع قرارداد</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">اندازه قرارداد</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">قیمت اعمال</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">قیمت نماد پایه</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">ارزش ذاتی</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">قیمت سربه‌سر</th>
-                  <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">سود/زیان خالص سناریو</th>
-                  <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">حداکثر حق‌بیمه سربه‌سر</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">سود/زیان خالص یک قرارداد</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">حداکثر حق‌بیمه سربه‌سر (هر واحد)</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">سررسید</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">قیمت آخرین معامله</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">حجم</th>
@@ -404,6 +405,7 @@ const OptionsMarket: React.FC = () => {
                     <td className="whitespace-nowrap px-4 py-3">{getValue(contract, ['base_l18', 'baseL18', 'baseSymbol', 'BaseSymbol', 'underlyingSymbol', 'UnderlyingSymbol', 'symbolBase', 'نماد پایه'])}</td>
                     <td className="whitespace-nowrap px-4 py-3 font-semibold">{getValue(contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol', 'نماد'])}</td>
                     <td className="whitespace-nowrap px-4 py-3">{getValue(contract, ['type', 'Type', 'optionType', 'OptionType', 'callPut', 'CallPut', 'نوع'])}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(getNumeric(contract, ['contractSize', 'size_contract', 'sizeContract', 'contract_size']))}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['price_strike', 'priceStrike', 'strikePrice', 'StrikePrice', 'strike', 'Strike', 'قیمت اعمال'])}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(contract.underlyingLastPrice)}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(contract.intrinsicValue)}</td>
@@ -413,13 +415,14 @@ const OptionsMarket: React.FC = () => {
                         const scenario = parseNumeric(scenarioUnderlyingPrice);
                         const strike = getNumeric(contract, ['strikePrice', 'price_strike', 'priceStrike', 'strike']);
                         const premium = getNumeric(contract, ['bestAskPrice', 'po1', 'pMeOf', 'askPrice', 'sellPrice']);
+                        const contractSize = getNumeric(contract, ['contractSize', 'size_contract', 'sizeContract', 'contract_size']);
                         const kind = getKind(contract);
                         const feeInput = scenarioFeeRatePercent.trim() === '' ? 0 : parseNumeric(scenarioFeeRatePercent);
-                        if (scenario === null || scenario < 0 || strike === null || premium === null || premium <= 0 || (kind !== 'call' && kind !== 'put') || feeInput === null || feeInput < 0 || feeInput > 100) return '—';
+                        if (scenario === null || scenario < 0 || strike === null || premium === null || premium <= 0 || contractSize === null || contractSize <= 0 || (kind !== 'call' && kind !== 'put') || feeInput === null || feeInput < 0 || feeInput > 100) return '—';
                         const feeRate = feeInput / 100;
                         const payoff = Math.max(0, kind === 'call' ? scenario - strike : strike - scenario);
-                        const netPnl = payoff - (premium * (1 + feeRate)) - (payoff * feeRate);
-                        return formatPrice(netPnl);
+                        const netPnlPerUnit = payoff - (premium * (1 + feeRate)) - (payoff * feeRate);
+                        return formatPrice(netPnlPerUnit * contractSize);
                       })()}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">
@@ -444,7 +447,7 @@ const OptionsMarket: React.FC = () => {
             </table>
           </div>
           <p className="border-t border-gray-200 px-4 py-3 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
-            قیمت نماد پایه از دیتابیس مشترک بازار خوانده می‌شود. سود/زیان خالص بر مبنای بهترین قیمت عرضه و کارمزد درصدی واردشده برای خرید و تسویه فرضی محاسبه می‌شود. حداکثر حق‌بیمه سربه‌سر نیز فقط در سناریوی واردشده معنا دارد؛ ضریب قرارداد و تعرفه واقعی باید جداگانه بررسی شوند. «—» یعنی داده کافی یا فرض معتبر وجود ندارد.
+            قیمت نماد پایه از دیتابیس مشترک بازار خوانده می‌شود. سود/زیان یک قرارداد با ضرب سود/زیان هر واحد در اندازه قرارداد دریافتی از BRS محاسبه می‌شود؛ اگر اندازه قرارداد معتبر نباشد، مقدار نمایش داده نمی‌شود. حداکثر حق‌بیمه سربه‌سر به‌ازای هر واحد است و فقط در سناریوی واردشده معنا دارد. کارمزد مدل ساده‌شده است و باید با تعرفه واقعی تطبیق داده شود. «—» یعنی داده کافی یا فرض معتبر وجود ندارد.
           </p>
         </div>
         </>
