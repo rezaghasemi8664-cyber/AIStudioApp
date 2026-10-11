@@ -23,6 +23,7 @@ router.get('/plans', authenticate, controller.plans);
 
 // Payment creation requires the authenticated user.
 router.post('/payments/create', authenticate, paymentController.create);
+router.get('/payments/history', authenticate, paymentController.history);
 
 // ZarinPal callback is public because the gateway redirects the browser here.
 router.get('/payments/callback', paymentController.callback);
