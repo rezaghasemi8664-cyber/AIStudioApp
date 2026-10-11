@@ -14,6 +14,15 @@ function getValue(record: OptionContract, keys: string[]): string {
   return '—';
 }
 
+function parseNumeric(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string') return null;
+  const normalized = value.replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit))).replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/[,٬\s]/g, '').trim();
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function formatPrice(value: unknown): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
   return value.toLocaleString('fa-IR', { maximumFractionDigits: 4 });
@@ -26,6 +35,7 @@ const OptionsMarket: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedBaseSymbol, setSelectedBaseSymbol] = useState('');
   const [selectedExpiry, setSelectedExpiry] = useState('');
+  const [scenarioUnderlyingPrice, setScenarioUnderlyingPrice] = useState('');
 
   const loadContracts = useCallback(async () => {
     setLoading(true);
@@ -99,6 +109,23 @@ const OptionsMarket: React.FC = () => {
         </div>
       </div>
 
+      <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+        <label className="block max-w-md text-sm">
+          <span className="mb-1 block font-semibold">قیمت فرضی نماد پایه در سررسید (برای سناریو)</span>
+          <input
+            type="number"
+            min="0"
+            step="any"
+            inputMode="decimal"
+            value={scenarioUnderlyingPrice}
+            onChange={(event) => setScenarioUnderlyingPrice(event.target.value)}
+            placeholder="قیمت فرضی را وارد کنید"
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+          />
+        </label>
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">محاسبه سناریویی برای خریدار اختیار، به‌ازای هر واحد و بدون احتساب کارمزد است؛ این مقدار پیش‌بینی قیمت نیست.</p>
+      </div>
+
       {error && (
         <div role="alert" className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
           <p className="font-bold">اطلاعات بازار آپشن در دسترس نیست</p>
@@ -146,6 +173,8 @@ const OptionsMarket: React.FC = () => {
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">قیمت اعمال</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">قیمت نماد پایه</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">ارزش ذاتی</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">قیمت سربه‌سر</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">سود/زیان سناریو</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">سررسید</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">قیمت آخرین معامله</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">حجم</th>
@@ -161,6 +190,18 @@ const OptionsMarket: React.FC = () => {
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['price_strike', 'priceStrike', 'strikePrice', 'StrikePrice', 'strike', 'Strike', 'قیمت اعمال'])}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(contract.underlyingLastPrice)}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(contract.intrinsicValue)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(contract.breakEvenPrice)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">
+                      {(() => {
+                        const scenario = parseNumeric(scenarioUnderlyingPrice);
+                        const strike = parseNumeric(contract.strikePrice);
+                        const premium = parseNumeric(contract.optionLastPrice);
+                        const kind = contract.optionKind;
+                        if (scenario === null || strike === null || premium === null || (kind !== 'call' && kind !== 'put')) return '—';
+                        const payoff = Math.max(0, kind === 'call' ? scenario - strike : strike - scenario);
+                        return formatPrice(payoff - premium);
+                      })()}
+                    </td>
                     <td className="whitespace-nowrap px-4 py-3">{getValue(contract, ['date_end', 'dateEnd', 'expiryDate', 'ExpiryDate', 'maturityDate', 'MaturityDate', 'endDate', 'EndDate', 'سررسید'])}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['pl', 'lastPrice', 'LastPrice', 'pClosing', 'PClosing', 'last', 'Last'])}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['tvol', 'volume', 'Volume', 'qTotTran5J', 'QTotTran5J'])}</td>
@@ -171,7 +212,7 @@ const OptionsMarket: React.FC = () => {
             </table>
           </div>
           <p className="border-t border-gray-200 px-4 py-3 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
-            قیمت نماد پایه از دیتابیس مشترک بازار خوانده می‌شود. ارزش ذاتی فقط با قیمت پایه، قیمت اعمال و نوع قراردادِ قابل تشخیص محاسبه می‌شود؛ در غیر این صورت «—» نمایش داده می‌شود.
+            قیمت نماد پایه از دیتابیس مشترک بازار خوانده می‌شود. ارزش ذاتی و سربه‌سر فقط با داده‌های کافی محاسبه می‌شوند. سود/زیان سناریو به‌ازای هر واحد، برای خریدار و بدون کارمزد است؛ «—» یعنی داده کافی وجود ندارد.
           </p>
         </div>
         </>
