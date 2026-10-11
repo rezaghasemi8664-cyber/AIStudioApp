@@ -2224,3 +2224,18 @@ body {
   line-height: 1.65 !important;
 }
 \n
+
+/* High-contrast text for market summary narrative in dark mode and themed shells. */
+.market-summary-readable-text {
+  color: #ffffff !important;
+  background-color: #111827 !important;
+  opacity: 1 !important;
+  font-weight: 600 !important;
+  text-shadow: none !important;
+}
+
+.dark .market-summary-readable-text {
+  color: #ffffff !important;
+  background-color: #111827 !important;
+  opacity: 1 !important;
+}
