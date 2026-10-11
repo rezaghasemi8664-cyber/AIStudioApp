@@ -12,6 +12,7 @@ var CACHE_TTL = {
   history: 5 * 60 * 1000,
   candlestick: 5 * 60 * 1000,
   allSymbols: 10 * 60 * 1000,
+  options: 30 * 1000,
   marketSummary: 5 * 60 * 1000
 };
 
@@ -1954,6 +1955,84 @@ async function refreshMarketIndexInBackground() {
     return null;
   }
 }
+
+async function getOptionContracts(options) {
+  var opts = options || {};
+  var forceFresh = opts.forceFresh === true;
+  var cacheKey = 'option_contracts';
+  var cacheEntry = forceFresh ? null : getCacheEntry(cacheKey);
+
+  if (cacheEntry) {
+    var cachedMeta = buildMeta('option-contracts', {
+      source: 'cache',
+      cacheHit: true,
+      cacheKey: cacheKey,
+      ageMs: cacheEntry.ageMs,
+      ttlMs: cacheEntry.ttl,
+      expiresAt: cacheEntry.expiresAt,
+      fetchedAt: cacheEntry.fetchedAt,
+      baseSource: 'brs-live'
+    });
+    return buildEnvelope(cacheEntry.data, cachedMeta, { total: cacheEntry.data.length });
+  }
+
+  try {
+    ensureEndpointConfig('BRS_OPTION', endpoints && endpoints.BRS_OPTION, {
+      includeSymbolParam: false,
+      includeCountParam: false,
+      includeTypeParam: false,
+      removeParams: ['l18', 'symbol', 'count', 'type']
+    });
+  } catch (error) {
+    return Promise.reject(error);
+  }
+
+  var optionUrl;
+  try {
+    optionUrl = buildPublicEndpointUrl(endpoints.BRS_OPTION, {
+      includeCountParam: false,
+      includeTypeParam: false,
+      removeParams: ['l18', 'symbol', 'count', 'type']
+    });
+  } catch (error) {
+    return Promise.reject(error);
+  }
+
+  var response;
+  try {
+    response = await fetchBRS(optionUrl, 'Option Contracts');
+  } catch (error) {
+    throw new Error('BRS option market request failed: ' + error.message);
+  }
+
+  var rawArray = extractArrayPayload(response.payload);
+  if (!Array.isArray(rawArray)) {
+    throw new Error('BRS Option did not return a recognized array payload');
+  }
+
+  // Keep provider fields intact: calculations and normalization must be explicit
+  // and testable in the dedicated deterministic options engine.
+  setCache(cacheKey, rawArray, CACHE_TTL.options, {
+    fetchedAt: response.transportMeta.fetchedAt
+  });
+
+  var liveMeta = buildMeta('option-contracts', {
+    source: 'brs-live',
+    cacheHit: false,
+    cacheKey: cacheKey,
+    ageMs: 0,
+    ttlMs: CACHE_TTL.options,
+    fetchedAt: response.transportMeta.fetchedAt,
+    endpoint: response.transportMeta.endpoint,
+    elapsedMs: response.transportMeta.elapsedMs
+  });
+
+  return buildEnvelope(rawArray, liveMeta, {
+    total: rawArray.length,
+    limited: false
+  });
+}
+
 module.exports = {
   getMarketIndex: getMarketIndex,
   refreshMarketIndexInBackground: refreshMarketIndexInBackground,
@@ -1963,6 +2042,7 @@ module.exports = {
   getSymbolHistory: getSymbolHistory,
   getAdjustedDailyCandlestick: getAdjustedDailyCandlestick,
   getAllSymbols: getAllSymbols,
+  getOptionContracts: getOptionContracts,
   searchSymbols: searchSymbols,
   clearCache: clearCache,
   getCacheStats: getCacheStats,
