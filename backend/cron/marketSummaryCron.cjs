@@ -64,6 +64,19 @@ async function runEndOfDaySummaryJob(attempt, label) {
 
   eodRunning = true;
   try {
+    // The 18:00 recovery run also fills missing recent trading days from
+    // persisted, date-matched market history before checking today's record.
+    if (attempt === 7 && typeof marketSummaryService.runCatchUpForMissingSummary === 'function') {
+      try {
+        const catchUp = await marketSummaryService.runCatchUpForMissingSummary({ daysBack: 14 });
+        console.log(
+          `[Cron][MarketSummary] catch-up generated=${catchUp?.generatedCount ?? 0} existing=${catchUp?.existingCount ?? 0} daysBack=${catchUp?.daysBack ?? 14}`
+        );
+      } catch (catchUpError) {
+        console.error('[Cron][MarketSummary] catch-up failed:', catchUpError?.message || catchUpError);
+      }
+    }
+
     const alreadyExists = await hasTodaySummary();
     if (alreadyExists) {
       console.log(`[Cron][MarketSummary] attempt=${attempt} skipped=SUMMARY_ALREADY_EXISTS | ${label}`);
