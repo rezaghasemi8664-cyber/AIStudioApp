@@ -25,6 +25,7 @@ var brsIndexUrl = process.env.BRS_INDEX_URL || (defaultEndpoints.BRS_INDEX && de
 var brsHistoryUrl = process.env.BRS_HISTORY_URL || (defaultEndpoints.BRS_HISTORY && defaultEndpoints.BRS_HISTORY.url) || '';
 var brsCandlestickUrl = process.env.BRS_CANDLESTICK_URL || (defaultEndpoints.BRS_CANDLESTICK && defaultEndpoints.BRS_CANDLESTICK.url) || '';
 var brsCodalUrl = process.env.BRS_CODAL_URL || (defaultEndpoints.BRS_CODAL && defaultEndpoints.BRS_CODAL.url) || '';
+var brsOptionUrl = process.env.BRS_OPTION_URL || (defaultEndpoints.BRS_OPTION && defaultEndpoints.BRS_OPTION.url) || '';
 
 var env = {
   NODE_ENV: NODE_ENV, IS_DEV: IS_DEV, IS_PROD: IS_PROD, PORT: PORT,
@@ -40,7 +41,7 @@ var env = {
   FARAZ_SMS_PLUGIN_ZIP: process.env.FARAZ_SMS_PLUGIN_ZIP || path.resolve(__dirname, '..', '..', 'temporary', 'faraz-sms-3.22.212.zip'),
   BRS_API_KEY: process.env.BRS_API_KEY || '', BRS_API_URL: process.env.BRS_SYMBOL_URL || process.env.BRS_API_URL || '',
   BRS_SYMBOL_URL: brsSymbolUrl, BRS_ALL_SYMBOLS_URL: brsAllSymbolsUrl, BRS_INDEX_URL: brsIndexUrl,
-  BRS_HISTORY_URL: brsHistoryUrl, BRS_CANDLESTICK_URL: brsCandlestickUrl, BRS_AVAILABLE: !!process.env.BRS_API_KEY,
+  BRS_HISTORY_URL: brsHistoryUrl, BRS_CANDLESTICK_URL: brsCandlestickUrl, BRS_OPTION_URL: brsOptionUrl, BRS_AVAILABLE: !!process.env.BRS_API_KEY,
   BRS_CODAL_API_KEY: process.env.BRS_CODAL_API_KEY || process.env.CODAL_API_KEY || '',
   BRS_CODAL_URL: brsCodalUrl,
   CODAL_API_KEY: process.env.BRS_CODAL_API_KEY || process.env.CODAL_API_KEY || '', CODAL_API_URL: process.env.BRS_CODAL_URL || process.env.CODAL_API_URL || brsCodalUrl,
