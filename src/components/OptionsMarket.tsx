@@ -37,7 +37,7 @@ function getNumeric(record: OptionContract, keys: string[]): number | null {
 }
 
 function getKind(record: OptionContract): 'call' | 'put' | null {
-  const raw = getValue(record, ['optionKind', 'type', 'Type', 'optionType', 'OptionType', 'callPut', 'CallPut', 'نوع']).trim().toLowerCase();
+  const raw = getValue(record, ['optionKind', 'OptionKind', 'type', 'Type', 'optionType', 'OptionType', 'callPut', 'CallPut', 'نوع']).trim().toLowerCase();
   if (raw === 'call' || raw === 'c' || raw.includes('اختیار خرید') || raw === 'خرید') return 'call';
   if (raw === 'put' || raw === 'p' || raw.includes('اختیار فروش') || raw === 'فروش') return 'put';
   return null;
