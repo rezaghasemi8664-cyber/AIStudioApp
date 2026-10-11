@@ -58,8 +58,8 @@ function enrichOptionContracts(contracts, symbols) {
     const strike = parseFiniteNumber(getFirstValue(contract, ['price_strike', 'priceStrike', 'strikePrice', 'StrikePrice', 'strike', 'Strike', 'قیمت اعمال']));
     const kind = getOptionKind(contract);
     const optionLastPrice = parseFiniteNumber(getFirstValue(contract, ['pl', 'lastPrice', 'LastPrice', 'pClosing', 'PClosing', 'last', 'Last']));
-    const bestAskPrice = parseFiniteNumber(getFirstValue(contract, ['pMeOf', 'bestAskPrice', 'bestAsk', 'askPrice', 'sellPrice', 'priceSell', 'قیمت فروش']));
-    const bestBidPrice = parseFiniteNumber(getFirstValue(contract, ['pMeDem', 'bestBidPrice', 'bestBid', 'bidPrice', 'buyPrice', 'priceBuy', 'قیمت خرید']));
+    const bestAskPrice = parseFiniteNumber(getFirstValue(contract, ['bestAskPrice', 'po1', 'pMeOf', 'bestAsk', 'askPrice', 'sellPrice', 'priceSell', 'قیمت فروش']));
+    const bestBidPrice = parseFiniteNumber(getFirstValue(contract, ['bestBidPrice', 'pd1', 'pMeDem', 'bestBid', 'bidPrice', 'buyPrice', 'priceBuy', 'قیمت خرید']));
     const tradedVolume = parseFiniteNumber(getFirstValue(contract, ['tvol', 'volume', 'Volume', 'qTotTran5J', 'QTotTran5J']));
     const openInterest = parseFiniteNumber(getFirstValue(contract, ['interest_open', 'interestOpen', 'openInterest', 'OpenInterest', 'open_interest', 'OI']));
     const breakEvenPrice = strike !== null && optionLastPrice !== null && kind ? (kind === 'call' ? strike + optionLastPrice : strike - optionLastPrice) : null;
