@@ -105,14 +105,14 @@ const OptionsMarket: React.FC = () => {
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {contracts.map((contract, index) => (
                   <tr key={getValue(contract, ['insCode', 'InsCode', 'symbol', 'Symbol', 'l18']) + '-' + index} className="hover:bg-gray-50 dark:hover:bg-gray-800/60">
-                    <td className="whitespace-nowrap px-4 py-3">{getValue(contract, ['baseSymbol', 'BaseSymbol', 'underlyingSymbol', 'UnderlyingSymbol', 'symbolBase', 'نماد پایه'])}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{getValue(contract, ['base_l18', 'baseL18', 'baseSymbol', 'BaseSymbol', 'underlyingSymbol', 'UnderlyingSymbol', 'symbolBase', 'نماد پایه'])}</td>
                     <td className="whitespace-nowrap px-4 py-3 font-semibold">{getValue(contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol', 'نماد'])}</td>
-                    <td className="whitespace-nowrap px-4 py-3">{getValue(contract, ['optionType', 'OptionType', 'type', 'Type', 'callPut', 'CallPut', 'نوع'])}</td>
-                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['strikePrice', 'StrikePrice', 'strike', 'Strike', 'قیمت اعمال'])}</td>
-                    <td className="whitespace-nowrap px-4 py-3">{getValue(contract, ['expiryDate', 'ExpiryDate', 'maturityDate', 'MaturityDate', 'endDate', 'EndDate', 'سررسید'])}</td>
-                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['lastPrice', 'LastPrice', 'pClosing', 'PClosing', 'last', 'Last'])}</td>
-                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['volume', 'Volume', 'qTotTran5J', 'QTotTran5J'])}</td>
-                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['openInterest', 'OpenInterest', 'open_interest', 'OI'])}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{getValue(contract, ['type', 'Type', 'optionType', 'OptionType', 'callPut', 'CallPut', 'نوع'])}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['price_strike', 'priceStrike', 'strikePrice', 'StrikePrice', 'strike', 'Strike', 'قیمت اعمال'])}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{getValue(contract, ['date_end', 'dateEnd', 'expiryDate', 'ExpiryDate', 'maturityDate', 'MaturityDate', 'endDate', 'EndDate', 'سررسید'])}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['pl', 'lastPrice', 'LastPrice', 'pClosing', 'PClosing', 'last', 'Last'])}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['tvol', 'volume', 'Volume', 'qTotTran5J', 'QTotTran5J'])}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['interest_open', 'interestOpen', 'openInterest', 'OpenInterest', 'open_interest', 'OI'])}</td>
                   </tr>
                 ))}
               </tbody>
