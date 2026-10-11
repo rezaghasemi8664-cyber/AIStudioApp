@@ -79,6 +79,27 @@ function getExpiryDays(value: string): number | null {
   return Math.ceil((expiry.getTime() - Date.now()) / 86400000);
 }
 
+type RankRejectionReason = 'spot' | 'strike' | 'quotes' | 'kind' | 'expiry' | 'spread';
+
+function getRankRejectionReason(contract: OptionContract): RankRejectionReason | null {
+  const spot = getNumeric(contract, ['underlyingLastPrice']);
+  const strike = getNumeric(contract, ['strikePrice', 'price_strike', 'priceStrike', 'strike']);
+  const ask = getNumeric(contract, ['bestAskPrice', 'pMeOf', 'askPrice', 'sellPrice']);
+  const bid = getNumeric(contract, ['bestBidPrice', 'pMeDem', 'bidPrice', 'buyPrice']);
+  const kind = getKind(contract);
+  const days = getExpiryDays(getValue(contract, EXPIRY_KEYS));
+
+  if (spot === null || spot <= 0) return 'spot';
+  if (strike === null || strike <= 0) return 'strike';
+  if (ask === null || ask <= 0 || bid === null || bid <= 0 || ask < bid) return 'quotes';
+  if (!kind) return 'kind';
+  if (days === null || days < 7) return 'expiry';
+
+  const spreadPercent = ((ask - bid) / ((ask + bid) / 2)) * 100;
+  if (!Number.isFinite(spreadPercent) || spreadPercent > 20) return 'spread';
+  return null;
+}
+
 function rankOptionContract(contract: OptionContract) {
   const spot = getNumeric(contract, ['underlyingLastPrice']);
   const strike = getNumeric(contract, ['strikePrice', 'price_strike', 'priceStrike', 'strike']);
@@ -88,12 +109,11 @@ function rankOptionContract(contract: OptionContract) {
   const expiryText = getValue(contract, EXPIRY_KEYS);
   const days = getExpiryDays(expiryText);
   // Do not present a last trade as an actionable entry quote.
-  // A candidate is eligible only when both sides of the market are valid.
+  // Keep rejection diagnostics and eligibility gates in one shared validation path.
   const entryPrice = ask;
-  if (!spot || spot <= 0 || !strike || strike <= 0 || !entryPrice || entryPrice <= 0 || bid === null || bid <= 0 || ask === null || ask < bid || !kind || days === null || days < 7) return null;
+  if (getRankRejectionReason(contract) !== null) return null;
 
   const spreadPercent = ((ask - bid) / ((ask + bid) / 2)) * 100;
-  if (!Number.isFinite(spreadPercent) || spreadPercent > 20) return null;
 
   const moneyness = Math.abs(spot - strike) / spot;
   const moneynessScore = Math.max(0, 1 - moneyness / 0.15);
@@ -179,6 +199,24 @@ const OptionsMarket: React.FC = () => {
     [filteredContracts]
   );
 
+  const rankDiagnostics = useMemo(() => {
+    const counts: Record<RankRejectionReason, number> = {
+      spot: 0,
+      strike: 0,
+      quotes: 0,
+      kind: 0,
+      expiry: 0,
+      spread: 0,
+    };
+    let eligible = 0;
+    for (const contract of filteredContracts) {
+      const reason = getRankRejectionReason(contract);
+      if (reason) counts[reason] += 1;
+      else eligible += 1;
+    }
+    return { counts, eligible };
+  }, [filteredContracts]);
+
   return (
     <section dir="rtl" className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -255,7 +293,22 @@ const OptionsMarket: React.FC = () => {
           <span className="text-xs text-gray-500">فقط داده‌های دارای قیمت و سررسید قابل‌محاسبه</span>
         </div>
         {rankedContracts.length === 0 ? (
-          <p className="mt-3 text-sm">فعلاً قرارداد واجد شرایط پیشنهاد پیدا نشد. برای ورود، قیمت معتبر عرضه و تقاضا، سررسید حداقل ۷ روزه و فاصله عرضه/تقاضای حداکثر ۲۰٪ لازم است؛ این محدودیت‌ها مانع پیشنهاد بر اساس آخرین معامله قدیمی می‌شوند.</p>
+          <>
+            <p className="mt-3 text-sm">فعلاً قرارداد واجد شرایط پیشنهاد پیدا نشد. برای ورود، قیمت معتبر عرضه و تقاضا، سررسید حداقل ۷ روزه و فاصله عرضه/تقاضای حداکثر ۲۰٪ لازم است؛ این محدودیت‌ها مانع پیشنهاد بر اساس آخرین معامله قدیمی می‌شوند.</p>
+            <div className="mt-3 rounded-lg border border-blue-100 bg-white/80 p-3 dark:border-gray-700 dark:bg-gray-900/70">
+              <p className="text-sm font-semibold">علت کنار گذاشته‌شدن قراردادها (بدون تغییر محدودیت‌ها)</p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">از {filteredContracts.length.toLocaleString('fa-IR')} قراردادِ منطبق با فیلترها، {rankDiagnostics.eligible.toLocaleString('fa-IR')} قرارداد از بررسی اولیه عبور کرده‌اند.</p>
+              <ul className="mt-2 grid grid-cols-1 gap-1 text-sm sm:grid-cols-2">
+                <li>قیمت نماد پایه نامعتبر/ناموجود: {rankDiagnostics.counts.spot.toLocaleString('fa-IR')}</li>
+                <li>قیمت اعمال نامعتبر/ناموجود: {rankDiagnostics.counts.strike.toLocaleString('fa-IR')}</li>
+                <li>عرضه/تقاضای نامعتبر یا ناقص: {rankDiagnostics.counts.quotes.toLocaleString('fa-IR')}</li>
+                <li>نوع اختیار خرید/فروش نامشخص: {rankDiagnostics.counts.kind.toLocaleString('fa-IR')}</li>
+                <li>سررسید نامعتبر یا کمتر از ۷ روز: {rankDiagnostics.counts.expiry.toLocaleString('fa-IR')}</li>
+                <li>فاصله عرضه و تقاضا بیشتر از ۲۰٪: {rankDiagnostics.counts.spread.toLocaleString('fa-IR')}</li>
+              </ul>
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">هر قرارداد فقط در اولین علتِ عدم احراز شرایط شمرده می‌شود؛ تعدادها با هم جمع‌پذیرند و محدودیت‌های رتبه‌بندی را تغییر نمی‌دهند.</p>
+            </div>
+          </>
         ) : (
           <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
             {rankedContracts.map((item, index) => (
