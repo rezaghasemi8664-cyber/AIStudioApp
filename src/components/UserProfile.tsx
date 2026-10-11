@@ -251,7 +251,7 @@ const UserProfile: React.FC<UserProfileProps> = ({
   // =====================
   // Tab type
   // =====================
-  type ProfileTab = 'info' | 'subscription' | 'message';
+  type ProfileTab = 'info' | 'subscription' | 'history' | 'message';
 
   const [activeTab, setActiveTab] = useState<ProfileTab>('info');
   const { addNotification } = useNotification();
@@ -263,6 +263,9 @@ const UserProfile: React.FC<UserProfileProps> = ({
   const [serverSubscription, setServerSubscription] =
     useState<SubscriptionInfo | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [paymentHistory, setPaymentHistory] = useState<profileService.PaymentHistoryItem[]>([]);
+  const [paymentHistoryLoading, setPaymentHistoryLoading] = useState(false);
+  const [paymentHistoryLoaded, setPaymentHistoryLoaded] = useState(false);
 
   // =====================
   // Info Tab State
@@ -325,6 +328,25 @@ const UserProfile: React.FC<UserProfileProps> = ({
     fetchSubscription();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser.isAdmin]);
+
+  useEffect(() => {
+    if (activeTab !== 'history' || paymentHistoryLoaded || currentUser.isAdmin) return;
+    let cancelled = false;
+    const loadPaymentHistory = async () => {
+      setPaymentHistoryLoading(true);
+      const result = await profileService.getPaymentHistory();
+      if (cancelled) return;
+      if (result.success) {
+        setPaymentHistory(result.data || []);
+        setPaymentHistoryLoaded(true);
+      } else {
+        addNotification(result.error || 'دریافت تاریخچه پرداخت‌ها ناموفق بود.', 'error');
+      }
+      setPaymentHistoryLoading(false);
+    };
+    void loadPaymentHistory();
+    return () => { cancelled = true; };
+  }, [activeTab, paymentHistoryLoaded, currentUser.isAdmin, addNotification]);
 
   useEffect(() => {
     if (currentUser.isAdmin) return;
@@ -495,6 +517,13 @@ const UserProfile: React.FC<UserProfileProps> = ({
           />
           {!currentUser.isAdmin && (
             <TabButton
+              tabId="history"
+              label="تاریخچه پرداختها"
+              icon={<CalendarDaysIcon className="h-5 w-5" />}
+            />
+          )}
+          {!currentUser.isAdmin && (
+            <TabButton
               tabId="message"
               label="پیغام به ادمین"
               icon={<EnvelopeIcon className="h-5 w-5" />}
@@ -646,6 +675,69 @@ const UserProfile: React.FC<UserProfileProps> = ({
                 }
               />
             </>
+          )}
+        </div>
+      )}
+
+      {/* ─── تب تاریخچه پرداخت‌ها ─── */}
+      {activeTab === 'history' && !currentUser.isAdmin && (
+        <div
+          className="p-4 sm:p-6 rounded-lg shadow-md"
+          style={{
+            backgroundColor: 'var(--card-bg)',
+            color: 'var(--card-color)',
+            border: '1px solid var(--card-border-color)',
+          }}
+        >
+          <h3 className="text-lg font-semibold mb-4">تاریخچه پرداختها</h3>
+          {paymentHistoryLoading ? (
+            <div className="flex justify-center py-10" role="status" aria-label="در حال بارگذاری">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500" />
+            </div>
+          ) : paymentHistory.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400 py-6 text-center">
+              هنوز پرداخت موفقی برای حساب شما ثبت نشده است.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {paymentHistory.map((payment) => (
+                <article key={payment.id} className="rounded-xl border border-[var(--card-border-color)] p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                    <div>
+                      <h4 className="font-semibold">{payment.planName}</h4>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        مدت پلن: {payment.durationMonths && payment.durationMonths > 0
+                          ? `${payment.durationMonths} ماه`
+                          : '—'}
+                      </p>
+                    </div>
+                    <span className="self-start rounded-full bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 px-3 py-1 text-xs font-semibold">
+                      پرداخت موفق
+                    </span>
+                  </div>
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 mt-3 text-sm">
+                    <div className="py-2 border-t border-[var(--card-border-color)]">
+                      <dt className="text-gray-500 dark:text-gray-400">مبلغ پرداخت</dt>
+                      <dd className="mt-1 font-medium">{payment.amount.toLocaleString('fa-IR')} {payment.currency === 'IRR' ? 'ریال' : payment.currency}</dd>
+                    </div>
+                    <div className="py-2 border-t border-[var(--card-border-color)]">
+                      <dt className="text-gray-500 dark:text-gray-400">تاریخ و زمان پرداخت</dt>
+                      <dd className="mt-1 font-medium">{new Date(payment.paidAt).toLocaleString('fa-IR', {
+                        dateStyle: 'long',
+                        timeStyle: 'short',
+                        timeZone: 'Asia/Tehran',
+                      })}</dd>
+                    </div>
+                    {payment.referenceNumber && (
+                      <div className="py-2 border-t border-[var(--card-border-color)] sm:col-span-2">
+                        <dt className="text-gray-500 dark:text-gray-400">شماره پیگیری</dt>
+                        <dd className="mt-1 font-mono break-all">{payment.referenceNumber}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </article>
+              ))}
+            </div>
           )}
         </div>
       )}
