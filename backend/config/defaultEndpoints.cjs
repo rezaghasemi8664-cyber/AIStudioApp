@@ -41,6 +41,9 @@ const BRS_CANDLESTICK_URL =
 const BRS_CODAL_URL =
   process.env.BRS_CODAL_URL || process.env.CODAL_API_URL || "https://Api.BrsApi.ir/Codal/Announcement.php";
 
+const BRS_OPTION_URL =
+  process.env.BRS_OPTION_URL || "https://Api.BrsApi.ir/Tsetmc/Option.php";
+
 module.exports = {
   BRS_SYMBOL: {
     key: "brs_symbol",
@@ -128,6 +131,18 @@ module.exports = {
     method: "GET",
     enabled: true,
     parameterName: "l18",
+  },
+
+  BRS_OPTION: {
+    key: "brs_option",
+    provider: "brs",
+    title: "BRS Option Market",
+    url: withQuery(BRS_OPTION_URL, {
+      key: BRS_API_KEY,
+    }),
+    requiresSymbol: false,
+    method: "GET",
+    enabled: true,
   },
 
   BRS_CODAL: {
