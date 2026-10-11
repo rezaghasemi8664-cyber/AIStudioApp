@@ -31,9 +31,7 @@ const formatPrice = (value?: number | null) =>
   value && value > 0 ? new Intl.NumberFormat('fa-IR').format(value) : '---';
 
 const formatScore = (value?: number | null) =>
-  typeof value === 'number' && Number.isFinite(value)
-    ? new Intl.NumberFormat('fa-IR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value)
-    : new Intl.NumberFormat('fa-IR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(0);
+  typeof value === 'number' ? value.toFixed(1) : '0.0';
 
 const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ opportunity }) => {
   const entryPrice = opportunity.entryPrice ?? opportunity.price;
