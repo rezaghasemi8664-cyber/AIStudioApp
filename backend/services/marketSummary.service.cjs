@@ -817,6 +817,18 @@ async function ensureRecentTradingDaySummaries(daysBack = 7) {
       continue;
     }
 
+    // Catch-up can run outside the scheduled cron (including manual/admin calls).
+    // Never create today's summary before the official Tehran generation window.
+    // Existing summaries are still reported above and are not hidden by this guard.
+    if (offset === 0 && isBeforeTodaysGenerationWindow()) {
+      ensured.push({
+        date: toDateOnlyISO(targetDay),
+        status: 'deferred_before_generation_window',
+        reason: 'TODAY_SUMMARY_NOT_BEFORE_12_35_TEHRAN'
+      });
+      continue;
+    }
+
     let marketData = null;
     let fallbackDate = reference;
 
