@@ -69,7 +69,7 @@ function jalaliToGregorianDate(year: number, month: number, day: number): Date |
 
 function getExpiryDays(value: string): number | null {
   const digits = value.replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit))).replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
-  const match = digits.match(/(13\\d{2}|14\\d{2}|20\\d{2})[\\/-]?(\\d{1,2})[\\/-]?(\\d{1,2})/);
+  const match = digits.match(/(13\d{2}|14\d{2}|20\d{2})[\/-]?(\d{1,2})[\/-]?(\d{1,2})/);
   if (!match) return null;
   const year = Number(match[1]);
   const month = Number(match[2]);
