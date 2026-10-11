@@ -2323,3 +2323,18 @@ body {
   -webkit-text-fill-color: #86efac !important;
   opacity: 1 !important;
 }
+
+
+/* Final contrast override: market summary must remain readable in dark mode,
+   even when nested utility classes or dashboard theme rules set muted colors. */
+.dark .page-shell.market-summary-dashboard-page .market-summary-readable-text,
+.dark .page-shell.market-summary-dashboard-page .market-summary-readable-text *,
+.dark .market-summary-dashboard-page .market-summary-readable-text,
+.dark .market-summary-dashboard-page .market-summary-readable-text * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+}
