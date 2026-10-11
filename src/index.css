@@ -2225,16 +2225,17 @@ body {
 }
 \n
 
-/* Force a high-contrast surface for the market summary narrative in dark mode. */
+/* Keep the market-summary narrative readable on the light surface by default. */
 .market-summary-readable-text {
-  color: #ffffff !important;
-  background-color: #020617 !important;
+  color: #0f172a !important;
+  background-color: #f8fafc !important;
   opacity: 1 !important;
   font-weight: 700 !important;
   text-shadow: none !important;
-  -webkit-text-fill-color: #ffffff !important;
+  -webkit-text-fill-color: #0f172a !important;
 }
 
+/* In dark mode, switch the narrative surface and text together for strong contrast. */
 .dark .market-summary-readable-text,
 .dark .market-summary-dashboard-page .market-summary-readable-text {
   color: #ffffff !important;
