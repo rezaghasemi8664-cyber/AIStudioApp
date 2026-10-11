@@ -147,6 +147,16 @@ function extractMarketDataCandidate(parsed) {
   }
   return null;
 }
+function hasActualTradingActivity(data) {
+  if (!data || typeof data !== 'object') return false;
+  const trades = pickValue(data, FIELD_KEYS.totalTrades);
+  const volume = pickValue(data, FIELD_KEYS.totalVolume);
+  const value = pickValue(data, FIELD_KEYS.totalValue);
+  // Match the daily generator: a summary requires evidence of actual trading,
+  // not merely a stale index snapshot from a holiday.
+  return trades > 0 && volume > 0 && value > 0;
+}
+
 function isUsableMarketData(data) {
   if (!data || typeof data !== 'object') return false;
   return [
@@ -828,7 +838,13 @@ async function ensureRecentTradingDaySummaries(daysBack = 7) {
       fallbackDate = reference;
     }
 
-    if (!isUsableMarketData(marketData) || isLikelySyntheticMarketData(marketData)) {
+    if (
+      !isUsableMarketData(marketData) ||
+      isLikelySyntheticMarketData(marketData) ||
+      !hasActualTradingActivity(marketData)
+    ) {
+      // Weekdays can still be official market holidays. Only persisted data
+      // with positive trades, volume, and value proves that trading occurred.
       continue;
     }
 
