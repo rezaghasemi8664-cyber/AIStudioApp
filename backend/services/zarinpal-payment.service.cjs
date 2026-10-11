@@ -399,6 +399,39 @@ async function verifyAndActivate(authority, status) {
   }
 }
 
+ 
+async function getPaymentHistory(userId) {
+  const rows = await prisma.$queryRaw`
+    SELECT
+      payment.id,
+      payment.amount,
+      payment.currency,
+      payment.provider,
+      payment.refId,
+      payment.paidAt,
+      payment.planId,
+      plan.name AS planName,
+      plan.durationMonths
+    FROM dbo.PaymentTransaction AS payment
+    LEFT JOIN dbo.SubscriptionPlan AS plan ON plan.id = payment.planId
+    WHERE payment.userId = ${Number(userId)}
+      AND payment.status = ${STATUS.VERIFIED}
+      AND payment.paidAt IS NOT NULL
+    ORDER BY payment.paidAt DESC, payment.id DESC
+  `;
+  return rows.map((row) => ({
+    id: Number(row.id),
+    planId: row.planId == null ? null : Number(row.planId),
+    planName: row.planName || 'پلن اشتراک',
+    durationMonths: row.durationMonths == null ? null : Number(row.durationMonths),
+    amount: Number(row.amount || 0),
+    currency: row.currency || 'IRR',
+    provider: row.provider || PROVIDER,
+    referenceNumber: row.refId == null ? null : String(row.refId),
+    paidAt: row.paidAt,
+  }));
+}
+
 function callbackRedirect(params) {
   const url = new URL(frontendUrl());
   url.searchParams.set('payment', params.success ? 'success' : params.cancelled ? 'cancelled' : params.pending ? 'pending' : 'failed');
@@ -411,5 +444,6 @@ module.exports = {
   STATUS,
   requestPayment,
   verifyAndActivate,
+  getPaymentHistory,
   callbackRedirect,
 };
