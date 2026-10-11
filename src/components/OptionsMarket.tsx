@@ -84,8 +84,8 @@ type RankRejectionReason = 'spot' | 'strike' | 'quotes' | 'kind' | 'expiry' | 's
 function getRankRejectionReason(contract: OptionContract): RankRejectionReason | null {
   const spot = getNumeric(contract, ['underlyingLastPrice']);
   const strike = getNumeric(contract, ['strikePrice', 'price_strike', 'priceStrike', 'strike']);
-  const ask = getNumeric(contract, ['bestAskPrice', 'pMeOf', 'askPrice', 'sellPrice']);
-  const bid = getNumeric(contract, ['bestBidPrice', 'pMeDem', 'bidPrice', 'buyPrice']);
+  const ask = getNumeric(contract, ['bestAskPrice', 'po1', 'pMeOf', 'askPrice', 'sellPrice']);
+  const bid = getNumeric(contract, ['bestBidPrice', 'pd1', 'pMeDem', 'bidPrice', 'buyPrice']);
   const kind = getKind(contract);
   const days = getExpiryDays(getValue(contract, EXPIRY_KEYS));
 
@@ -103,8 +103,8 @@ function getRankRejectionReason(contract: OptionContract): RankRejectionReason |
 function rankOptionContract(contract: OptionContract) {
   const spot = getNumeric(contract, ['underlyingLastPrice']);
   const strike = getNumeric(contract, ['strikePrice', 'price_strike', 'priceStrike', 'strike']);
-  const ask = getNumeric(contract, ['bestAskPrice', 'pMeOf', 'askPrice', 'sellPrice']);
-  const bid = getNumeric(contract, ['bestBidPrice', 'pMeDem', 'bidPrice', 'buyPrice']);
+  const ask = getNumeric(contract, ['bestAskPrice', 'po1', 'pMeOf', 'askPrice', 'sellPrice']);
+  const bid = getNumeric(contract, ['bestBidPrice', 'pd1', 'pMeDem', 'bidPrice', 'buyPrice']);
   const kind = getKind(contract);
   const expiryText = getValue(contract, EXPIRY_KEYS);
   const days = getExpiryDays(expiryText);
@@ -412,7 +412,7 @@ const OptionsMarket: React.FC = () => {
                       {(() => {
                         const scenario = parseNumeric(scenarioUnderlyingPrice);
                         const strike = getNumeric(contract, ['strikePrice', 'price_strike', 'priceStrike', 'strike']);
-                        const premium = getNumeric(contract, ['bestAskPrice', 'pMeOf', 'askPrice', 'sellPrice']);
+                        const premium = getNumeric(contract, ['bestAskPrice', 'po1', 'pMeOf', 'askPrice', 'sellPrice']);
                         const kind = getKind(contract);
                         const feeInput = scenarioFeeRatePercent.trim() === '' ? 0 : parseNumeric(scenarioFeeRatePercent);
                         if (scenario === null || scenario < 0 || strike === null || premium === null || premium <= 0 || (kind !== 'call' && kind !== 'put') || feeInput === null || feeInput < 0 || feeInput > 100) return '—';
