@@ -56,6 +56,7 @@ function enrichOptionContracts(contracts, symbols) {
     const baseSymbol = baseRaw == null ? '' : String(baseRaw).trim();
     const underlyingLastPrice = spotBySymbol.get(baseSymbol.toLocaleLowerCase()) ?? null;
     const strike = parseFiniteNumber(getFirstValue(contract, ['price_strike', 'priceStrike', 'strikePrice', 'StrikePrice', 'strike', 'Strike', 'قیمت اعمال']));
+    const contractSize = parseFiniteNumber(getFirstValue(contract, ['size_contract', 'sizeContract', 'contractSize', 'contract_size']));
     const kind = getOptionKind(contract);
     const optionLastPrice = parseFiniteNumber(getFirstValue(contract, ['pl', 'lastPrice', 'LastPrice', 'pClosing', 'PClosing', 'last', 'Last']));
     const bestAskPrice = parseFiniteNumber(getFirstValue(contract, ['bestAskPrice', 'po1', 'pMeOf', 'bestAsk', 'askPrice', 'sellPrice', 'priceSell', 'قیمت فروش']));
@@ -71,6 +72,7 @@ function enrichOptionContracts(contracts, symbols) {
       underlyingLastPrice,
       optionKind: kind,
       strikePrice: strike,
+      contractSize: contractSize !== null && contractSize > 0 ? contractSize : null,
       optionLastPrice,
       bestAskPrice: bestAskPrice !== null && bestAskPrice > 0 ? bestAskPrice : null,
       bestBidPrice: bestBidPrice !== null && bestBidPrice > 0 ? bestBidPrice : null,
