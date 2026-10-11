@@ -2263,3 +2263,15 @@ body {
   color: #f8fafc !important;
   opacity: 1 !important;
 }
+
+
+/* Market summary: override nested utility/theme selectors in dark mode. */
+.dark .market-summary-readable-text,
+.dark .market-summary-readable-text *,
+.dark .market-summary-dashboard-page .market-summary-readable-text,
+.dark .market-summary-dashboard-page .market-summary-readable-text * {
+  color: #ffffff !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
