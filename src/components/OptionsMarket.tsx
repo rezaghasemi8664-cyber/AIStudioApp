@@ -112,6 +112,16 @@ function rankOptionContract(contract: OptionContract) {
   // Keep rejection diagnostics and eligibility gates in one shared validation path.
   const entryPrice = ask;
   if (getRankRejectionReason(contract) !== null) return null;
+  // TypeScript cannot infer narrowing from the shared rejection helper.
+  // Repeat explicit guards so nullable values are narrowed before scoring.
+  if (
+    spot === null || spot <= 0 ||
+    strike === null || strike <= 0 ||
+    ask === null || ask <= 0 ||
+    bid === null || bid <= 0 || ask < bid ||
+    kind === null ||
+    days === null || days < 7
+  ) return null;
 
   const spreadPercent = ((ask - bid) / ((ask + bid) / 2)) * 100;
 
