@@ -392,6 +392,7 @@ const OptionsMarket: React.FC = () => {
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">ارزش ذاتی</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">قیمت سربه‌سر</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">سود/زیان خالص یک قرارداد</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">بازده خالص نسبت به حق‌بیمه (٪)</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">حداکثر حق‌بیمه سربه‌سر (هر واحد)</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">سررسید</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">قیمت آخرین معامله</th>
@@ -429,6 +430,24 @@ const OptionsMarket: React.FC = () => {
                       {(() => {
                         const scenario = parseNumeric(scenarioUnderlyingPrice);
                         const strike = getNumeric(contract, ['strikePrice', 'price_strike', 'priceStrike', 'strike']);
+                        const premium = getNumeric(contract, ['bestAskPrice', 'po1', 'pMeOf', 'askPrice', 'sellPrice']);
+                        const contractSize = getNumeric(contract, ['contractSize', 'size_contract', 'sizeContract', 'contract_size']);
+                        const kind = getKind(contract);
+                        const feeInput = scenarioFeeRatePercent.trim() === '' ? 0 : parseNumeric(scenarioFeeRatePercent);
+                        if (scenario === null || scenario < 0 || strike === null || premium === null || premium <= 0 || contractSize === null || contractSize <= 0 || (kind !== 'call' && kind !== 'put') || feeInput === null || feeInput < 0 || feeInput > 100) return '—';
+                        const feeRate = feeInput / 100;
+                        const payoff = Math.max(0, kind === 'call' ? scenario - strike : strike - scenario);
+                        const netPnlPerUnit = payoff - (premium * (1 + feeRate)) - (payoff * feeRate);
+                        const investedPerUnit = premium * (1 + feeRate);
+                        return Number.isFinite(netPnlPerUnit) && investedPerUnit > 0
+                          ? (netPnlPerUnit / investedPerUnit * 100).toLocaleString('fa-IR', { maximumFractionDigits: 2 }) + '٪'
+                          : '—';
+                      })()}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">
+                      {(() => {
+                        const scenario = parseNumeric(scenarioUnderlyingPrice);
+                        const strike = getNumeric(contract, ['strikePrice', 'price_strike', 'priceStrike', 'strike']);
                         const kind = getKind(contract);
                         const feeInput = scenarioFeeRatePercent.trim() === '' ? 0 : parseNumeric(scenarioFeeRatePercent);
                         if (scenario === null || scenario < 0 || strike === null || (kind !== 'call' && kind !== 'put') || feeInput === null || feeInput < 0 || feeInput > 100) return '—';
@@ -447,7 +466,7 @@ const OptionsMarket: React.FC = () => {
             </table>
           </div>
           <p className="border-t border-gray-200 px-4 py-3 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
-            قیمت نماد پایه از دیتابیس مشترک بازار خوانده می‌شود. سود/زیان یک قرارداد با ضرب سود/زیان هر واحد در اندازه قرارداد دریافتی از BRS محاسبه می‌شود؛ اگر اندازه قرارداد معتبر نباشد، مقدار نمایش داده نمی‌شود. حداکثر حق‌بیمه سربه‌سر به‌ازای هر واحد است و فقط در سناریوی واردشده معنا دارد. کارمزد مدل ساده‌شده است و باید با تعرفه واقعی تطبیق داده شود. «—» یعنی داده کافی یا فرض معتبر وجود ندارد.
+            قیمت نماد پایه از دیتابیس مشترک بازار خوانده می‌شود. سود/زیان یک قرارداد با ضرب سود/زیان هر واحد در اندازه قرارداد دریافتی از BRS محاسبه می‌شود؛ اگر اندازه قرارداد معتبر نباشد، مقدار نمایش داده نمی‌شود. بازده درصدی نسبت به حق‌بیمه خرید به‌علاوه کارمزد ورود محاسبه می‌شود و پیش‌بینی یا تضمین سود نیست. حداکثر حق‌بیمه سربه‌سر به‌ازای هر واحد است و فقط در سناریوی واردشده معنا دارد. کارمزد مدل ساده‌شده است و باید با تعرفه واقعی تطبیق داده شود. «—» یعنی داده کافی یا فرض معتبر وجود ندارد.
           </p>
         </div>
         </>
