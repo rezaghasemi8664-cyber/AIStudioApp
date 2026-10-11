@@ -12,6 +12,28 @@ function userAuth(req, res, next) {
     : next();
 }
 
+router.get('/options', userAuth, async function getOptionContracts(_req, res) {
+  try {
+    const result = await sharedBrsService.getOptionContracts();
+    const data = Array.isArray(result && result.data) ? result.data : [];
+    return res.json({
+      success: true,
+      data,
+      total: data.length,
+      source: result && result._meta ? result._meta.source : 'brs-option',
+      cached: !!(result && result._cached),
+      meta: result && result._meta ? result._meta : null
+    });
+  } catch (error) {
+    console.error('[BRS] GET /options error:', error.message);
+    return res.status(502).json({
+      success: false,
+      code: 'BRS_OPTION_FETCH_FAILED',
+      message: 'خطا در دریافت اطلاعات اختیار معامله از BRS'
+    });
+  }
+});
+
 router.get('/status', userAuth, async function (req, res) {
   try {
     const available = !!process.env.BRS_API_KEY;
