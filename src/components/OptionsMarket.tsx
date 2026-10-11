@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { get } from '../services/apiClient';
 
 type OptionContract = Record<string, unknown>;
 
@@ -12,16 +13,11 @@ const OptionsMarket: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/v1/brs/options', {
-        method: 'GET',
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
-      const result = await response.json().catch(() => null);
-      if (!response.ok || result?.success !== true || !Array.isArray(result.data)) {
-        throw new Error(result?.message || 'دریافت اطلاعات بازار آپشن ناموفق بود.');
+      const result = await get<OptionContract[]>('/brs/options');
+      if (!result.success || !Array.isArray(result.data)) {
+        throw new Error(result.message || 'دریافت اطلاعات بازار آپشن ناموفق بود.');
       }
-      setContracts(result.data as OptionContract[]);
+      setContracts(result.data);
       setLastUpdated(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'خطا در دریافت اطلاعات بازار آپشن.');
