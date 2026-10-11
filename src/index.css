@@ -2225,27 +2225,37 @@ body {
 }
 \n
 
-/* High-contrast text for market summary narrative in dark mode and themed shells. */
+/* Force a high-contrast surface for the market summary narrative in dark mode. */
 .market-summary-readable-text {
   color: #ffffff !important;
-  background-color: #111827 !important;
-  opacity: 1 !important;
-  font-weight: 600 !important;
-  text-shadow: none !important;
-}
-
-.dark .market-summary-readable-text {
-  color: #ffffff !important;
-  background-color: #111827 !important;
-  opacity: 1 !important;
-}
-
-
-/* Keep market-radar industry and symbol labels readable in dark mode. */
-.market-radar-readable-label {
-  color: #f8fafc !important;
+  background-color: #020617 !important;
   opacity: 1 !important;
   font-weight: 700 !important;
+  text-shadow: none !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.dark .market-summary-readable-text,
+.dark .market-summary-dashboard-page .market-summary-readable-text {
+  color: #ffffff !important;
+  background-color: #020617 !important;
+  opacity: 1 !important;
+  font-weight: 700 !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.market-summary-readable-text * {
+  color: inherit !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+
+/* Keep market-radar industry and symbol labels readable in both themes. */
+.market-radar-readable-label {
+  color: #0f172a !important;
+  opacity: 1 !important;
+  font-weight: 800 !important;
   text-shadow: none !important;
 }
 
