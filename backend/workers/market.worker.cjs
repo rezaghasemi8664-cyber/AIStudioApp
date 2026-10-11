@@ -130,9 +130,24 @@ function scoreSymbol(item) {
     last <= close;
 
   const signal = bullish ? 'BUY' : bearish ? 'SELL' : 'WATCH';
+  const direction = bullish ? 1 : bearish ? -1 : 0;
+  const directionalPosition = direction > 0 ? position : direction < 0 ? 1 - position : 0;
+  const directionalMomentum = direction !== 0 && pct * direction > 0 ? Math.abs(pct) : 0;
+  const directionalFlow = direction !== 0 && realNetRatio * direction > 0 ? Math.abs(realNetRatio) : 0;
+  // Confidence measures directional evidence quality, independently of the composite analysis score.
+  const confidence = Math.round(Math.max(0, Math.min(100,
+    (dataQuality ? 15 : 0) +
+    Math.min(directionalMomentum / (SCALPING_MIN_CHANGE_PCT * 2), 1) * 20 +
+    Math.min(directionalFlow / 0.5, 1) * 25 +
+    Math.min(realParticipation / 0.5, 1) * 15 +
+    Math.max(0, Math.min(1, (directionalPosition - 0.5) / 0.5)) * 15 +
+    ((direction > 0 && last >= open && last >= close) ||
+     (direction < 0 && last <= open && last <= close) ? 10 : 0)
+  )));
 
   return {
     score,
+    confidence,
     signal,
     pct,
     last,
@@ -431,7 +446,7 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
         stopLoss,
         takeProfit,
         currentPrice: entry,
-        confidence: scored.score,
+        confidence: scored.confidence,
         strategyName,
         recommendationText,
         marketDate,
@@ -446,7 +461,7 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
         stopLoss,
         takeProfit,
         currentPrice: entry,
-        confidence: scored.score,
+        confidence: scored.confidence,
         status: 'ACTIVE',
         recommendationText,
         meta: JSON.stringify(meta),
