@@ -2338,3 +2338,20 @@ body {
   filter: none !important;
   mix-blend-mode: normal !important;
 }
+
+/* High-specificity safeguard for the actual market-summary narrative.
+   The theme class is applied to <html>; #root specificity prevents dashboard/theme
+   selectors from dimming the summary text. */
+html.dark #root .page-shell.market-summary-dashboard-page .market-summary-readable-text,
+html.dark #root .page-shell.market-summary-dashboard-page .market-summary-readable-text *,
+html.dark #root .market-summary-readable-text,
+html.dark #root .market-summary-readable-text * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  opacity: 1 !important;
+  filter: none !important;
+  text-shadow: none !important;
+  mix-blend-mode: normal !important;
+  visibility: visible !important;
+}
+
