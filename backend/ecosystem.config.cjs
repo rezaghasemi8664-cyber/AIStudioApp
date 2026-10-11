@@ -8,9 +8,9 @@
       instances: 1,
 
       env: {
-        NODE_ENV: "development",
+        NODE_ENV: "production",
         BRS_API_KEY: "BBd8wTnmLTQpSHcz5kqxFegudgym5Tnd",
-        COOKIE_SECURE: "false",
+        COOKIE_SECURE: "true",
       },
 
       env_production: {
