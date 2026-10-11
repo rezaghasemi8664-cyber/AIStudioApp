@@ -2648,7 +2648,7 @@ const clearCurrentAnalysis = () => {
       {activeTab === 'marketSummary' && (
   <div
     dir="rtl"
-    className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+    className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"
   >
     {isLoadingMarketSummaryHistory ? (
       <div className="py-6 text-center text-[13px] font-medium text-slate-500">
@@ -2660,8 +2660,8 @@ const clearCurrentAnalysis = () => {
       </div>
     ) : (
       <>
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <div className="mb-2 text-[12px] font-bold text-slate-600">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
+          <div className="mb-2 text-[12px] font-bold text-slate-600 dark:text-slate-300">
             ۵ روز معاملاتی آخر
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
@@ -2674,8 +2674,8 @@ const clearCurrentAnalysis = () => {
                   onClick={() => { setSelectedMarketSummaryId(item.id); setMarketSummary(item); }}
                   className={`rounded-xl border p-3 text-right transition-colors ${
                     isSelected
-                      ? 'border-blue-500 bg-blue-50 text-blue-900'
-                      : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50/50'
+                      ? 'border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950/60 dark:text-blue-100'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50/50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                   }`}
                 >
                   <div className="text-[12px] font-extrabold">
@@ -2696,17 +2696,17 @@ const clearCurrentAnalysis = () => {
           </div>
         ) : marketSummary ? (
           <>
-            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-              <div className="text-[11px] font-bold text-blue-700">تاریخ بازار</div>
-              <div className="mt-1 text-[15px] font-extrabold text-blue-950">
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/40">
+              <div className="text-[11px] font-bold text-blue-700 dark:text-blue-300">تاریخ بازار</div>
+              <div className="mt-1 text-[15px] font-extrabold text-blue-950 dark:text-blue-100">
                 {new Date(marketSummary.date).toLocaleDateString('fa-IR-u-ca-persian', { timeZone: 'Asia/Tehran', dateStyle: 'full' })}
               </div>
-              <div className="mt-2 text-[11px] font-medium text-blue-700/80">
+              <div className="mt-2 text-[11px] font-medium text-blue-700/80 dark:text-blue-300">
                 ثبت در پایگاه داده: {new Date(marketSummary.createdAt).toLocaleString('fa-IR-u-ca-persian', { timeZone: 'Asia/Tehran', dateStyle: 'short', timeStyle: 'medium' })}
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5 dark:border-slate-700 dark:bg-slate-800">
               <MarketSummaryContent content={marketSummary.content} />
             </div>
           </>
