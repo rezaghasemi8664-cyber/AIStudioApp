@@ -1686,7 +1686,7 @@ const MarketSummaryContent = ({ content }: { content: string }) => {
   };
 
   return (
-    <div className="space-y-4 text-right text-[15px] leading-8 text-slate-800 dark:text-slate-100">
+    <div className="stock-analysis-market-summary-content space-y-4 text-right text-[15px] leading-8 text-slate-800 dark:text-slate-100">
       {paragraphs.map((line, index) => {
         const isTitle = index === 0 && line.includes('تحلیل تکنیکال');
         const isMetrics = line.includes('SMA5:') || line.includes('SMA10:') || line.includes('EMA5:');
