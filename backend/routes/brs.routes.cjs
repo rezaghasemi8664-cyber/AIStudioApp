@@ -58,6 +58,10 @@ function enrichOptionContracts(contracts, symbols) {
     const strike = parseFiniteNumber(getFirstValue(contract, ['price_strike', 'priceStrike', 'strikePrice', 'StrikePrice', 'strike', 'Strike', 'قیمت اعمال']));
     const kind = getOptionKind(contract);
     const optionLastPrice = parseFiniteNumber(getFirstValue(contract, ['pl', 'lastPrice', 'LastPrice', 'pClosing', 'PClosing', 'last', 'Last']));
+    const bestAskPrice = parseFiniteNumber(getFirstValue(contract, ['pMeOf', 'bestAskPrice', 'bestAsk', 'askPrice', 'sellPrice', 'priceSell', 'قیمت فروش']));
+    const bestBidPrice = parseFiniteNumber(getFirstValue(contract, ['pMeDem', 'bestBidPrice', 'bestBid', 'bidPrice', 'buyPrice', 'priceBuy', 'قیمت خرید']));
+    const tradedVolume = parseFiniteNumber(getFirstValue(contract, ['tvol', 'volume', 'Volume', 'qTotTran5J', 'QTotTran5J']));
+    const openInterest = parseFiniteNumber(getFirstValue(contract, ['interest_open', 'interestOpen', 'openInterest', 'OpenInterest', 'open_interest', 'OI']));
     const breakEvenPrice = strike !== null && optionLastPrice !== null && kind ? (kind === 'call' ? strike + optionLastPrice : strike - optionLastPrice) : null;
     const intrinsicValue = underlyingLastPrice !== null && strike !== null && kind
       ? Math.max(0, kind === 'call' ? underlyingLastPrice - strike : strike - underlyingLastPrice)
@@ -68,6 +72,10 @@ function enrichOptionContracts(contracts, symbols) {
       optionKind: kind,
       strikePrice: strike,
       optionLastPrice,
+      bestAskPrice: bestAskPrice !== null && bestAskPrice > 0 ? bestAskPrice : null,
+      bestBidPrice: bestBidPrice !== null && bestBidPrice > 0 ? bestBidPrice : null,
+      tradedVolume,
+      openInterest,
       breakEvenPrice,
       intrinsicValue,
       intrinsicValueStatus: intrinsicValue === null ? 'insufficient-data' : 'calculated'
