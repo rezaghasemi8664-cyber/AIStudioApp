@@ -14,6 +14,11 @@ function getValue(record: OptionContract, keys: string[]): string {
   return '—';
 }
 
+function formatPrice(value: unknown): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
+  return value.toLocaleString('fa-IR', { maximumFractionDigits: 4 });
+}
+
 const OptionsMarket: React.FC = () => {
   const [contracts, setContracts] = useState<OptionContract[]>([]);
   const [loading, setLoading] = useState(false);
@@ -139,6 +144,8 @@ const OptionsMarket: React.FC = () => {
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">نماد قرارداد</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">نوع قرارداد</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">قیمت اعمال</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">قیمت نماد پایه</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">ارزش ذاتی</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">سررسید</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">قیمت آخرین معامله</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">حجم</th>
@@ -152,6 +159,8 @@ const OptionsMarket: React.FC = () => {
                     <td className="whitespace-nowrap px-4 py-3 font-semibold">{getValue(contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol', 'نماد'])}</td>
                     <td className="whitespace-nowrap px-4 py-3">{getValue(contract, ['type', 'Type', 'optionType', 'OptionType', 'callPut', 'CallPut', 'نوع'])}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['price_strike', 'priceStrike', 'strikePrice', 'StrikePrice', 'strike', 'Strike', 'قیمت اعمال'])}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(contract.underlyingLastPrice)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(contract.intrinsicValue)}</td>
                     <td className="whitespace-nowrap px-4 py-3">{getValue(contract, ['date_end', 'dateEnd', 'expiryDate', 'ExpiryDate', 'maturityDate', 'MaturityDate', 'endDate', 'EndDate', 'سررسید'])}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['pl', 'lastPrice', 'LastPrice', 'pClosing', 'PClosing', 'last', 'Last'])}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['tvol', 'volume', 'Volume', 'qTotTran5J', 'QTotTran5J'])}</td>
@@ -162,7 +171,7 @@ const OptionsMarket: React.FC = () => {
             </table>
           </div>
           <p className="border-t border-gray-200 px-4 py-3 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
-            ستون‌هایی که در پاسخ خام BRS موجود نباشند با «—» مشخص می‌شوند؛ محاسبه و تحلیل فرمولی در گام‌های بعدی اضافه می‌شود.
+            قیمت نماد پایه از دیتابیس مشترک بازار خوانده می‌شود. ارزش ذاتی فقط با قیمت پایه، قیمت اعمال و نوع قراردادِ قابل تشخیص محاسبه می‌شود؛ در غیر این صورت «—» نمایش داده می‌شود.
           </p>
         </div>
         </>
