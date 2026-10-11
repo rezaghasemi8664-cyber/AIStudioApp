@@ -410,10 +410,10 @@ async function getPaymentHistory(userId) {
       payment.refId,
       payment.paidAt,
       payment.planId,
-      plan.name AS planName,
-      plan.durationMonths
+      subPlan.name AS planName,
+      subPlan.durationMonths
     FROM dbo.PaymentTransaction AS payment
-    LEFT JOIN dbo.SubscriptionPlan AS plan ON plan.id = payment.planId
+    LEFT JOIN dbo.SubscriptionPlan AS subPlan ON subPlan.id = payment.planId
     WHERE payment.userId = ${Number(userId)}
       AND payment.status = ${STATUS.VERIFIED}
       AND payment.paidAt IS NOT NULL
