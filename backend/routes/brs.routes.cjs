@@ -4,6 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const sharedBrsService = require('../services/brs.service.cjs');
+const sharedMarketService = require('../services/sharedMarket.service.cjs');
 const authMiddleware = require('../middlewares/auth.middleware.cjs');
 
 function userAuth(req, res, next) {
@@ -12,10 +13,73 @@ function userAuth(req, res, next) {
     : next();
 }
 
+function getFirstValue(record, keys) {
+  for (const key of keys) {
+    const value = record && record[key];
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  return null;
+}
+
+function parseFiniteNumber(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string') return null;
+  const normalized = value
+    .replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+    .replace(/[,٬\s]/g, '')
+    .trim();
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getOptionKind(record) {
+  const raw = getFirstValue(record, ['type', 'Type', 'optionType', 'OptionType', 'callPut', 'CallPut', 'نوع']);
+  if (raw == null) return null;
+  const value = String(raw).trim().toLowerCase();
+  if (value === 'call' || value === 'c' || value.includes('اختیار خرید') || value === 'خرید') return 'call';
+  if (value === 'put' || value === 'p' || value.includes('اختیار فروش') || value === 'فروش') return 'put';
+  return null;
+}
+
+function enrichOptionContracts(contracts, symbols) {
+  const spotBySymbol = new Map();
+  for (const symbol of symbols) {
+    const name = String(symbol && symbol.symbol || '').trim().toLocaleLowerCase();
+    const price = parseFiniteNumber(symbol && symbol.lastPrice);
+    if (name && price !== null && price > 0) spotBySymbol.set(name, price);
+  }
+
+  return contracts.map((contract) => {
+    const baseRaw = getFirstValue(contract, ['base_l18', 'baseL18', 'baseSymbol', 'BaseSymbol', 'underlyingSymbol', 'UnderlyingSymbol', 'symbolBase', 'نماد پایه']);
+    const baseSymbol = baseRaw == null ? '' : String(baseRaw).trim();
+    const underlyingLastPrice = spotBySymbol.get(baseSymbol.toLocaleLowerCase()) ?? null;
+    const strike = parseFiniteNumber(getFirstValue(contract, ['price_strike', 'priceStrike', 'strikePrice', 'StrikePrice', 'strike', 'Strike', 'قیمت اعمال']));
+    const kind = getOptionKind(contract);
+    const intrinsicValue = underlyingLastPrice !== null && strike !== null && kind
+      ? Math.max(0, kind === 'call' ? underlyingLastPrice - strike : strike - underlyingLastPrice)
+      : null;
+
+    return Object.assign({}, contract, {
+      underlyingLastPrice,
+      intrinsicValue,
+      intrinsicValueStatus: intrinsicValue === null ? 'insufficient-data' : 'calculated'
+    });
+  });
+}
+
 router.get('/options', userAuth, async function getOptionContracts(_req, res) {
   try {
     const result = await sharedBrsService.getOptionContracts();
-    const data = Array.isArray(result && result.data) ? result.data : [];
+    const contracts = Array.isArray(result && result.data) ? result.data : [];
+    let symbols = [];
+    try {
+      symbols = await sharedMarketService.getSymbols({ limit: 10000 });
+    } catch (marketError) {
+      console.warn('[BRS] Shared market spot prices unavailable for options:', marketError.message);
+    }
+    const data = enrichOptionContracts(contracts, symbols);
     return res.json({
       success: true,
       data,
