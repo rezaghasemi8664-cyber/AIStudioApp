@@ -2355,3 +2355,19 @@ html.dark #root .market-summary-readable-text * {
   visibility: visible !important;
 }
 
+
+
+/* High-contrast text for the summary report inside Stock Analysis (not the standalone dashboard). */
+html.dark #root .stock-analysis-market-summary-content,
+html.dark #root .stock-analysis-market-summary-content p,
+html.dark #root .stock-analysis-market-summary-content > div,
+html.dark #root .stock-analysis-market-summary-content section h4,
+html.dark #root .stock-analysis-market-summary-content .text-slate-800,
+html.dark #root .stock-analysis-market-summary-content .dark\\:text-slate-100 {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+}
