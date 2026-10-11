@@ -88,8 +88,13 @@ function rankOptionContract(contract: OptionContract) {
   const kind = getKind(contract);
   const expiryText = getValue(contract, EXPIRY_KEYS);
   const days = getExpiryDays(expiryText);
-  const entryPrice = ask !== null && ask > 0 ? ask : premiumLast;
-  if (!spot || spot <= 0 || !strike || strike <= 0 || !entryPrice || entryPrice <= 0 || !kind || days === null || days <= 0) return null;
+  // Do not present a last trade as an actionable entry quote.
+  // A candidate is eligible only when both sides of the market are valid.
+  const entryPrice = ask;
+  if (!spot || spot <= 0 || !strike || strike <= 0 || !entryPrice || entryPrice <= 0 || bid === null || bid <= 0 || ask === null || ask < bid || !kind || days === null || days < 7) return null;
+
+  const spreadPercent = ((ask - bid) / ((ask + bid) / 2)) * 100;
+  if (!Number.isFinite(spreadPercent) || spreadPercent > 20) return null;
 
   const moneyness = Math.abs(spot - strike) / spot;
   const moneynessScore = Math.max(0, 1 - moneyness / 0.15);
@@ -97,9 +102,7 @@ function rankOptionContract(contract: OptionContract) {
   const volume = getNumeric(contract, ['tradedVolume', 'tvol', 'volume', 'qTotTran5J']) || 0;
   const oi = getNumeric(contract, ['openInterest', 'interest_open', 'interestOpen', 'OI']) || 0;
   const liquidityScore = (Math.min(1, Math.log10(volume + 1) / 4) * 0.5) + (Math.min(1, Math.log10(oi + 1) / 5) * 0.5);
-  const spreadScore = bid !== null && bid > 0 && ask !== null && ask >= bid
-    ? Math.max(0, 1 - ((ask - bid) / ((ask + bid) / 2)) / 0.2)
-    : 0.25;
+  const spreadScore = Math.max(0, 1 - spreadPercent / 20);
   const premiumRatio = entryPrice / spot;
   const premiumScore = premiumRatio <= 0.01 ? 0.5 : premiumRatio <= 0.08 ? 1 : Math.max(0, 1 - (premiumRatio - 0.08) / 0.2);
   const score = Math.round(100 * (moneynessScore * 0.25 + timeScore * 0.20 + liquidityScore * 0.30 + spreadScore * 0.15 + premiumScore * 0.10));
@@ -108,12 +111,14 @@ function rankOptionContract(contract: OptionContract) {
     score,
     days,
     entryPrice,
-    priceSource: ask !== null && ask > 0 ? 'best-ask' : 'last-trade',
-    exitPrice: bid !== null && bid > 0 ? bid : null,
+    priceSource: 'best-ask',
+    exitPrice: bid,
+    spreadPercent,
     reasons: [
       moneynessScore >= 0.7 ? 'نزدیکی مناسب قیمت اعمال به قیمت پایه' : 'فاصله نسبتاً زیاد از قیمت پایه',
       liquidityScore >= 0.5 ? 'نقدشوندگی نسبی بهتر بر اساس حجم و موقعیت باز' : 'نقدشوندگی نیازمند بررسی',
-      days < 14 ? 'سررسید نزدیک و ریسک زمانی بالاتر' : days <= 60 ? 'بازه زمانی سررسید متعادل در مدل' : 'زمان باقی‌مانده طولانی‌تر'
+      days < 14 ? 'سررسید نزدیک؛ ریسک زمانی بیشتر' : days <= 60 ? 'بازه زمانی سررسید متعادل در مدل' : 'زمان باقی‌مانده طولانی‌تر',
+      `فاصله عرضه و تقاضا ${spreadPercent.toLocaleString('fa-IR', { maximumFractionDigits: 2 })}٪`
     ]
   };
 }
@@ -229,12 +234,12 @@ const OptionsMarket: React.FC = () => {
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <h3 className="font-bold">رتبه‌بندی فرمولی قراردادها</h3>
-            <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">امتیاز ۰ تا ۱۰۰ بر اساس نزدیکی به قیمت پایه، زمان تا سررسید، حجم/موقعیت باز، فاصله خرید و فروش و نسبت حق‌بیمه به قیمت پایه است؛ امتیاز، احتمال سود را تضمین نمی‌کند.</p>
+            <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">امتیاز ۰ تا ۱۰۰ بر اساس نزدیکی به قیمت پایه، زمان تا سررسید، حجم/موقعیت باز، فاصله عرضه و تقاضا و نسبت حق‌بیمه به قیمت پایه است. فقط قراردادهایی با قیمت عرضه و تقاضای معتبر، سررسید حداقل ۷ روز و فاصله حداکثر ۲۰٪ وارد رتبه‌بندی می‌شوند؛ امتیاز، احتمال سود را تضمین نمی‌کند.</p>
           </div>
           <span className="text-xs text-gray-500">فقط داده‌های دارای قیمت و سررسید قابل‌محاسبه</span>
         </div>
         {rankedContracts.length === 0 ? (
-          <p className="mt-3 text-sm">فعلاً امکان رتبه‌بندی قابل اتکا وجود ندارد؛ قیمت پایه، قیمت قرارداد یا تاریخ سررسید معتبر ممکن است ناقص باشد.</p>
+          <p className="mt-3 text-sm">فعلاً قرارداد واجد شرایط پیشنهاد پیدا نشد. برای ورود، قیمت معتبر عرضه و تقاضا، سررسید حداقل ۷ روزه و فاصله عرضه/تقاضای حداکثر ۲۰٪ لازم است؛ این محدودیت‌ها مانع پیشنهاد بر اساس آخرین معامله قدیمی می‌شوند.</p>
         ) : (
           <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
             {rankedContracts.map((item, index) => (
