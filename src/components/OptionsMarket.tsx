@@ -28,6 +28,96 @@ function formatPrice(value: unknown): string {
   return value.toLocaleString('fa-IR', { maximumFractionDigits: 4 });
 }
 
+function getNumeric(record: OptionContract, keys: string[]): number | null {
+  for (const key of keys) {
+    const parsed = parseNumeric(record[key]);
+    if (parsed !== null && parsed >= 0) return parsed;
+  }
+  return null;
+}
+
+function getKind(record: OptionContract): 'call' | 'put' | null {
+  const raw = getValue(record, ['optionKind', 'type', 'Type', 'optionType', 'OptionType', 'callPut', 'CallPut', 'نوع']).trim().toLowerCase();
+  if (raw === 'call' || raw === 'c' || raw.includes('اختیار خرید') || raw === 'خرید') return 'call';
+  if (raw === 'put' || raw === 'p' || raw.includes('اختیار فروش') || raw === 'فروش') return 'put';
+  return null;
+}
+
+function jalaliToGregorianDate(year: number, month: number, day: number): Date | null {
+  if (year < 1300 || year > 1500 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  let jy = year + 1595;
+  let days = -355668 + 365 * jy + Math.floor(jy / 33) * 8 + Math.floor(((jy % 33) + 3) / 4) + day + (month < 7 ? (month - 1) * 31 : (month - 7) * 30 + 186);
+  let gy = 400 * Math.floor(days / 146097);
+  days %= 146097;
+  if (days > 36524) {
+    gy += 100 * Math.floor(--days / 36524);
+    days %= 36524;
+    if (days >= 365) days += 1;
+  }
+  gy += 4 * Math.floor(days / 1461);
+  days %= 1461;
+  if (days > 365) {
+    gy += Math.floor((days - 1) / 365);
+    days = (days - 1) % 365;
+  }
+  let gd = days + 1;
+  const monthDays = [0, 31, ((gy % 4 === 0 && gy % 100 !== 0) || gy % 400 === 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  let gm = 1;
+  while (gm <= 12 && gd > monthDays[gm]) { gd -= monthDays[gm]; gm += 1; }
+  return gm <= 12 ? new Date(Date.UTC(gy, gm - 1, gd)) : null;
+}
+
+function getExpiryDays(value: string): number | null {
+  const digits = value.replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit))).replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+  const match = digits.match(/(13\\d{2}|14\\d{2}|20\\d{2})[\\/-]?(\\d{1,2})[\\/-]?(\\d{1,2})/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const expiry = year < 1600 ? jalaliToGregorianDate(year, month, day) : new Date(Date.UTC(year, month - 1, day));
+  if (!expiry || Number.isNaN(expiry.getTime())) return null;
+  return Math.ceil((expiry.getTime() - Date.now()) / 86400000);
+}
+
+function rankOptionContract(contract: OptionContract) {
+  const spot = getNumeric(contract, ['underlyingLastPrice']);
+  const strike = getNumeric(contract, ['strikePrice', 'price_strike', 'priceStrike', 'strike']);
+  const premiumLast = getNumeric(contract, ['optionLastPrice', 'pl', 'lastPrice', 'pClosing']);
+  const ask = getNumeric(contract, ['bestAskPrice', 'pMeOf', 'askPrice', 'sellPrice']);
+  const bid = getNumeric(contract, ['bestBidPrice', 'pMeDem', 'bidPrice', 'buyPrice']);
+  const kind = getKind(contract);
+  const expiryText = getValue(contract, EXPIRY_KEYS);
+  const days = getExpiryDays(expiryText);
+  const entryPrice = ask !== null && ask > 0 ? ask : premiumLast;
+  if (!spot || spot <= 0 || !strike || strike <= 0 || !entryPrice || entryPrice <= 0 || !kind || days === null || days <= 0) return null;
+
+  const moneyness = Math.abs(spot - strike) / spot;
+  const moneynessScore = Math.max(0, 1 - moneyness / 0.15);
+  const timeScore = days < 7 ? 0.15 : days < 14 ? 0.45 + (days - 7) / 7 * 0.25 : days <= 60 ? 1 : days <= 120 ? 0.8 : 0.55;
+  const volume = getNumeric(contract, ['tradedVolume', 'tvol', 'volume', 'qTotTran5J']) || 0;
+  const oi = getNumeric(contract, ['openInterest', 'interest_open', 'interestOpen', 'OI']) || 0;
+  const liquidityScore = (Math.min(1, Math.log10(volume + 1) / 4) * 0.5) + (Math.min(1, Math.log10(oi + 1) / 5) * 0.5);
+  const spreadScore = bid !== null && bid > 0 && ask !== null && ask >= bid
+    ? Math.max(0, 1 - ((ask - bid) / ((ask + bid) / 2)) / 0.2)
+    : 0.25;
+  const premiumRatio = entryPrice / spot;
+  const premiumScore = premiumRatio <= 0.01 ? 0.5 : premiumRatio <= 0.08 ? 1 : Math.max(0, 1 - (premiumRatio - 0.08) / 0.2);
+  const score = Math.round(100 * (moneynessScore * 0.25 + timeScore * 0.20 + liquidityScore * 0.30 + spreadScore * 0.15 + premiumScore * 0.10));
+  return {
+    contract,
+    score,
+    days,
+    entryPrice,
+    priceSource: ask !== null && ask > 0 ? 'best-ask' : 'last-trade',
+    exitPrice: bid !== null && bid > 0 ? bid : null,
+    reasons: [
+      moneynessScore >= 0.7 ? 'نزدیکی مناسب قیمت اعمال به قیمت پایه' : 'فاصله نسبتاً زیاد از قیمت پایه',
+      liquidityScore >= 0.5 ? 'نقدشوندگی نسبی بهتر بر اساس حجم و موقعیت باز' : 'نقدشوندگی نیازمند بررسی',
+      days < 14 ? 'سررسید نزدیک و ریسک زمانی بالاتر' : days <= 60 ? 'بازه زمانی سررسید متعادل در مدل' : 'زمان باقی‌مانده طولانی‌تر'
+    ]
+  };
+}
+
 const OptionsMarket: React.FC = () => {
   const [contracts, setContracts] = useState<OptionContract[]>([]);
   const [loading, setLoading] = useState(false);
@@ -73,6 +163,15 @@ const OptionsMarket: React.FC = () => {
       return baseMatches && expiryMatches;
     }),
     [contracts, selectedBaseSymbol, selectedExpiry]
+  );
+
+  const rankedContracts = useMemo(
+    () => filteredContracts
+      .map((contract) => rankOptionContract(contract))
+      .filter((item): item is NonNullable<ReturnType<typeof rankOptionContract>> => item !== null)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3),
+    [filteredContracts]
   );
 
   return (
@@ -125,6 +224,39 @@ const OptionsMarket: React.FC = () => {
         </label>
         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">محاسبه سناریویی برای خریدار اختیار، به‌ازای هر واحد و بدون احتساب کارمزد است؛ این مقدار پیش‌بینی قیمت نیست.</p>
       </div>
+
+      <section className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900 dark:bg-blue-950/20">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h3 className="font-bold">رتبه‌بندی فرمولی قراردادها</h3>
+            <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">امتیاز ۰ تا ۱۰۰ بر اساس نزدیکی به قیمت پایه، زمان تا سررسید، حجم/موقعیت باز، فاصله خرید و فروش و نسبت حق‌بیمه به قیمت پایه است؛ امتیاز، احتمال سود را تضمین نمی‌کند.</p>
+          </div>
+          <span className="text-xs text-gray-500">فقط داده‌های دارای قیمت و سررسید قابل‌محاسبه</span>
+        </div>
+        {rankedContracts.length === 0 ? (
+          <p className="mt-3 text-sm">فعلاً امکان رتبه‌بندی قابل اتکا وجود ندارد؛ قیمت پایه، قیمت قرارداد یا تاریخ سررسید معتبر ممکن است ناقص باشد.</p>
+        ) : (
+          <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
+            {rankedContracts.map((item, index) => (
+              <div key={getValue(item.contract, ['l18', 'symbol', 'contractSymbol']) + '-' + index} className="rounded-lg border border-blue-100 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+                <div className="flex items-center justify-between gap-2">
+                  <strong>{getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol'])}</strong>
+                  <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-bold text-blue-900 dark:bg-blue-900 dark:text-blue-100">امتیاز {item.score}</span>
+                </div>
+                <p className="mt-2 text-sm">نماد پایه: {getValue(item.contract, BASE_SYMBOL_KEYS)}</p>
+                <p className="text-sm">سررسید: {getValue(item.contract, EXPIRY_KEYS)} · {item.days} روز</p>
+                <p className="mt-1 text-sm">قیمت پیشنهادی ورود: <strong>{formatPrice(item.entryPrice)}</strong></p>
+                <p className="text-xs text-gray-500">{item.priceSource === 'best-ask' ? 'بر مبنای بهترین قیمت عرضه ثبت‌شده' : 'صرفاً آخرین معامله؛ قیمت عرضه زنده موجود نیست'}</p>
+                <p className="mt-1 text-sm">قیمت بهترین تقاضا برای خروج: <strong>{formatPrice(item.exitPrice)}</strong></p>
+                <ul className="mt-2 list-disc space-y-1 pr-4 text-xs text-gray-600 dark:text-gray-300">
+                  {item.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">این رتبه‌بندی، غربالگری اولیه است نه پیش‌بینی سود. پیش از معامله، عمق سفارش، کارمزد، اندازه قرارداد، محدودیت نقدشوندگی و ریسک افت ارزش زمانی را بررسی کن. در نبود داده معتبر، نباید امتیاز را مبنای سفارش قرار داد.</p>
+      </section>
 
       {error && (
         <div role="alert" className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
