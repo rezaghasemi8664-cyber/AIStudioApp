@@ -110,7 +110,6 @@ function rankOptionContract(contract: OptionContract) {
   const days = getExpiryDays(expiryText);
   // Do not present a last trade as an actionable entry quote.
   // Keep rejection diagnostics and eligibility gates in one shared validation path.
-  const entryPrice = ask;
   if (getRankRejectionReason(contract) !== null) return null;
   // TypeScript cannot infer narrowing from the shared rejection helper.
   // Repeat explicit guards so nullable values are narrowed before scoring.
@@ -123,6 +122,7 @@ function rankOptionContract(contract: OptionContract) {
     days === null || days < 7
   ) return null;
 
+  const entryPrice = ask;
   const spreadPercent = ((ask - bid) / ((ask + bid) / 2)) * 100;
 
   const moneyness = Math.abs(spot - strike) / spot;
