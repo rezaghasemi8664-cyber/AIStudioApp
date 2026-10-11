@@ -104,6 +104,17 @@ function toDateOrNull(value) {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
 }
+
+// SQL Server datetime columns can contain Tehran wall-clock values without an
+// offset. Prisma exposes those values as UTC-shaped Date objects; serializing
+// them with toISOString() makes the UI add Tehran's +03:30 a second time.
+function toTehranWallClockISO(value) {
+  const d = toDateOrNull(value);
+  if (!d) return null;
+  const pad = n => String(n).padStart(2, '0');
+  const millis = String(d.getUTCMilliseconds()).padStart(3, '0');
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}.${millis}+03:30`;
+}
 function tehranParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US-u-ca-gregory', {
     timeZone: TEHRAN_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit',
@@ -650,7 +661,7 @@ function normalizeSummaryRecord(record, diagnostics = null) {
     topLosers: parseJsonSafe(record.topLosers) || [],
     topVolumes: parseJsonSafe(record.topVolumes) || [],
     rawJson: record.rawJson || null,
-    createdAt: record.createdAt ? new Date(record.createdAt).toISOString() : new Date().toISOString(),
+    createdAt: toTehranWallClockISO(record.createdAt) || toTehranWallClockISO(new Date()),
     updatedAt: record.updatedAt ? new Date(record.updatedAt).toISOString() : null,
     content,
     summary: content,
@@ -814,6 +825,18 @@ async function ensureRecentTradingDaySummaries(daysBack = 7) {
     const existing = await findBySummaryDateSafe(targetDay);
     if (existing) {
       ensured.push({ date: toDateOnlyISO(targetDay), status: 'existing', id: existing.id });
+      continue;
+    }
+
+    // Catch-up can run outside the scheduled cron (including manual/admin calls).
+    // Never create today's summary before the official Tehran generation window.
+    // Existing summaries are still reported above and are not hidden by this guard.
+    if (offset === 0 && isBeforeTodaysGenerationWindow()) {
+      ensured.push({
+        date: toDateOnlyISO(targetDay),
+        status: 'deferred_before_generation_window',
+        reason: 'TODAY_SUMMARY_NOT_BEFORE_12_35_TEHRAN'
+      });
       continue;
     }
 
