@@ -24,27 +24,10 @@ type FilterView = {
 const PRESET_KEY = 'ronia_professional_screener_presets_v1';
 
 const FILTER_CARD_PALETTE = [
-  { idle: 'border-blue-200 bg-blue-50 text-blue-950 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/70 dark:text-blue-100 dark:hover:bg-blue-900/80', active: 'ring-2 ring-blue-500 bg-blue-100 text-blue-950 dark:bg-blue-900 dark:text-white' },
-  { idle: 'border-emerald-200 bg-emerald-50 text-emerald-950 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-100 dark:hover:bg-emerald-900/80', active: 'ring-2 ring-emerald-500 bg-emerald-100 text-emerald-950 dark:bg-emerald-900 dark:text-white' },
-  { idle: 'border-violet-200 bg-violet-50 text-violet-950 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/70 dark:text-violet-100 dark:hover:bg-violet-900/80', active: 'ring-2 ring-violet-500 bg-violet-100 text-violet-950 dark:bg-violet-900 dark:text-white' },
-  { idle: 'border-amber-200 bg-amber-50 text-amber-950 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/70 dark:text-amber-100 dark:hover:bg-amber-900/80', active: 'ring-2 ring-amber-500 bg-amber-100 text-amber-950 dark:bg-amber-900 dark:text-white' },
-  { idle: 'border-rose-200 bg-rose-50 text-rose-950 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/70 dark:text-rose-100 dark:hover:bg-rose-900/80', active: 'ring-2 ring-rose-500 bg-rose-100 text-rose-950 dark:bg-rose-900 dark:text-white' },
-  { idle: 'border-cyan-200 bg-cyan-50 text-cyan-950 hover:bg-cyan-100 dark:border-cyan-800 dark:bg-cyan-950/70 dark:text-cyan-100 dark:hover:bg-cyan-900/80', active: 'ring-2 ring-cyan-500 bg-cyan-100 text-cyan-950 dark:bg-cyan-900 dark:text-white' },
-  { idle: 'border-indigo-200 bg-indigo-50 text-indigo-950 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/70 dark:text-indigo-100 dark:hover:bg-indigo-900/80', active: 'ring-2 ring-indigo-500 bg-indigo-100 text-indigo-950 dark:bg-indigo-900 dark:text-white' },
-  { idle: 'border-teal-200 bg-teal-50 text-teal-950 hover:bg-teal-100 dark:border-teal-800 dark:bg-teal-950/70 dark:text-teal-100 dark:hover:bg-teal-900/80', active: 'ring-2 ring-teal-500 bg-teal-100 text-teal-950 dark:bg-teal-900 dark:text-white' },
-  { idle: 'border-orange-200 bg-orange-50 text-orange-950 hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-950/70 dark:text-orange-100 dark:hover:bg-orange-900/80', active: 'ring-2 ring-orange-500 bg-orange-100 text-orange-950 dark:bg-orange-900 dark:text-white' },
-  { idle: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-950 hover:bg-fuchsia-100 dark:border-fuchsia-800 dark:bg-fuchsia-950/70 dark:text-fuchsia-100 dark:hover:bg-fuchsia-900/80', active: 'ring-2 ring-fuchsia-500 bg-fuchsia-100 text-fuchsia-950 dark:bg-fuchsia-900 dark:text-white' },
-  { idle: 'border-lime-200 bg-lime-50 text-lime-950 hover:bg-lime-100 dark:border-lime-800 dark:bg-lime-950/70 dark:text-lime-100 dark:hover:bg-lime-900/80', active: 'ring-2 ring-lime-500 bg-lime-100 text-lime-950 dark:bg-lime-900 dark:text-white' },
-  { idle: 'border-sky-200 bg-sky-50 text-sky-950 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950/70 dark:text-sky-100 dark:hover:bg-sky-900/80', active: 'ring-2 ring-sky-500 bg-sky-100 text-sky-950 dark:bg-sky-900 dark:text-white' },
-  { idle: 'border-pink-200 bg-pink-50 text-pink-950 hover:bg-pink-100 dark:border-pink-800 dark:bg-pink-950/70 dark:text-pink-100 dark:hover:bg-pink-900/80', active: 'ring-2 ring-pink-500 bg-pink-100 text-pink-950 dark:bg-pink-900 dark:text-white' },
-  { idle: 'border-purple-200 bg-purple-50 text-purple-950 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/70 dark:text-purple-100 dark:hover:bg-purple-900/80', active: 'ring-2 ring-purple-500 bg-purple-100 text-purple-950 dark:bg-purple-900 dark:text-white' },
-  { idle: 'border-red-200 bg-red-50 text-red-950 hover:bg-red-100 dark:border-red-800 dark:bg-red-950/70 dark:text-red-100 dark:hover:bg-red-900/80', active: 'ring-2 ring-red-500 bg-red-100 text-red-950 dark:bg-red-900 dark:text-white' },
-  { idle: 'border-yellow-200 bg-yellow-50 text-yellow-950 hover:bg-yellow-100 dark:border-yellow-800 dark:bg-yellow-950/70 dark:text-yellow-100 dark:hover:bg-yellow-900/80', active: 'ring-2 ring-yellow-500 bg-yellow-100 text-yellow-950 dark:bg-yellow-900 dark:text-white' },
-  { idle: 'border-green-200 bg-green-50 text-green-950 hover:bg-green-100 dark:border-green-800 dark:bg-green-950/70 dark:text-green-100 dark:hover:bg-green-900/80', active: 'ring-2 ring-green-500 bg-green-100 text-green-950 dark:bg-green-900 dark:text-white' },
-  { idle: 'border-slate-200 bg-slate-50 text-slate-950 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700', active: 'ring-2 ring-slate-500 bg-slate-100 text-slate-950 dark:bg-slate-700 dark:text-white' },
-  { idle: 'border-stone-200 bg-stone-50 text-stone-950 hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:hover:bg-stone-700', active: 'ring-2 ring-stone-500 bg-stone-100 text-stone-950 dark:bg-stone-700 dark:text-white' },
-  { idle: 'border-zinc-200 bg-zinc-50 text-zinc-950 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700', active: 'ring-2 ring-zinc-500 bg-zinc-100 text-zinc-950 dark:bg-zinc-700 dark:text-white' },
-  { idle: 'border-neutral-200 bg-neutral-50 text-neutral-950 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700', active: 'ring-2 ring-neutral-500 bg-neutral-100 text-neutral-950 dark:bg-neutral-700 dark:text-white' }
+  '#2563eb', '#059669', '#7c3aed', '#d97706', '#e11d48',
+  '#0891b2', '#4f46e5', '#0f766e', '#c2410c', '#a21caf',
+  '#4d7c0f', '#0369a1', '#be185d', '#6d28d9', '#b91c1c',
+  '#a16207', '#15803d', '#475569', '#57534e', '#52525b', '#404040'
 ];
 
 const fmt = (value: number | null | undefined, digits = 0) =>
@@ -246,7 +229,7 @@ const ProfessionalScreener: React.FC = () => {
       <div className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div><h2 className="font-black text-[var(--color-text-primary)]">منبع اولیه غربال</h2><p className="text-xs text-slate-500">فیلترهای واقعی بازار موجود در سرویس فعلی</p></div>
-          <div className="flex flex-wrap gap-2">{filters.map((item, index) => { const palette = FILTER_CARD_PALETTE[index % FILTER_CARD_PALETTE.length]; const isActive = active === item.id; return <button key={item.id} onClick={() => setActive(item.id)} aria-pressed={isActive} className={`rounded-xl border px-3 py-2 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950 ${isActive ? palette.active : palette.idle}`}>{item.label} <span className="mr-1 inline-flex min-w-6 items-center justify-center rounded-full bg-black/5 px-1.5 py-0.5 font-black dark:bg-white/10">{fmt(item.count)}</span></button>; })}</div>
+          <div className="flex flex-wrap gap-2">{filters.map((item, index) => { const palette = FILTER_CARD_PALETTE[index % FILTER_CARD_PALETTE.length]; const isActive = active === item.id; return <button key={item.id} onClick={() => setActive(item.id)} aria-pressed={isActive} style={{ backgroundColor: palette, borderColor: palette, color: '#ffffff', filter: isActive ? 'brightness(0.86)' : undefined }} className={`rounded-xl border px-3 py-2 text-xs font-bold transition-[filter,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950 ${isActive ? 'ring-2 ring-offset-2 ring-white dark:ring-offset-slate-950' : 'hover:brightness-110'}`}>{item.label} <span style={{ backgroundColor: 'rgba(0,0,0,0.22)', color: '#ffffff' }} className="mr-1 inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 font-black">{fmt(item.count)}</span></button>; })}</div>
         </div>
 
         <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
