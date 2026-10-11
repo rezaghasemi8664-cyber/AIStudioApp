@@ -2277,30 +2277,30 @@ body {
 }
 
 
-/* Final, high-specificity dark-mode contrast rules for the full market summary dashboard.
-   Duplicated .dark raises specificity above legacy .page-shell utility overrides.
-   Light mode remains unchanged. */
-.dark.dark .market-summary-dashboard-page .text-slate-200,
-.dark.dark .market-summary-dashboard-page .text-slate-300,
-.dark.dark .market-summary-dashboard-page .text-slate-400,
-.dark.dark .market-summary-dashboard-page .text-slate-500,
-.dark.dark .market-summary-dashboard-page .text-slate-600,
-.dark.dark .market-summary-dashboard-page .text-gray-200,
-.dark.dark .market-summary-dashboard-page .text-gray-300,
-.dark.dark .market-summary-dashboard-page .text-gray-400,
-.dark.dark .market-summary-dashboard-page .text-gray-500,
-.dark.dark .market-summary-dashboard-page .text-gray-600,
-.dark.dark .market-summary-dashboard-page .text-zinc-200,
-.dark.dark .market-summary-dashboard-page .text-zinc-300,
-.dark.dark .market-summary-dashboard-page .text-zinc-400,
-.dark.dark .market-summary-dashboard-page .text-zinc-500,
-.dark.dark .market-summary-dashboard-page .text-zinc-600,
-.dark.dark .market-summary-dashboard-page .text-neutral-200,
-.dark.dark .market-summary-dashboard-page .text-neutral-300,
-.dark.dark .market-summary-dashboard-page .text-neutral-400,
-.dark.dark .market-summary-dashboard-page .text-neutral-500,
-.dark.dark .market-summary-dashboard-page .text-neutral-600,
-.dark.dark .market-summary-dashboard-page .ms-muted {
+/* Final dark-mode contrast rules. The dashboard wrapper has both page-shell and
+   market-summary-dashboard-page classes; this selector outranks legacy .dark .page-shell
+   utility overrides without requiring a duplicated .dark class. Light mode is unchanged. */
+.dark .page-shell.market-summary-dashboard-page .text-slate-200,
+.dark .page-shell.market-summary-dashboard-page .text-slate-300,
+.dark .page-shell.market-summary-dashboard-page .text-slate-400,
+.dark .page-shell.market-summary-dashboard-page .text-slate-500,
+.dark .page-shell.market-summary-dashboard-page .text-slate-600,
+.dark .page-shell.market-summary-dashboard-page .text-gray-200,
+.dark .page-shell.market-summary-dashboard-page .text-gray-300,
+.dark .page-shell.market-summary-dashboard-page .text-gray-400,
+.dark .page-shell.market-summary-dashboard-page .text-gray-500,
+.dark .page-shell.market-summary-dashboard-page .text-gray-600,
+.dark .page-shell.market-summary-dashboard-page .text-zinc-200,
+.dark .page-shell.market-summary-dashboard-page .text-zinc-300,
+.dark .page-shell.market-summary-dashboard-page .text-zinc-400,
+.dark .page-shell.market-summary-dashboard-page .text-zinc-500,
+.dark .page-shell.market-summary-dashboard-page .text-zinc-600,
+.dark .page-shell.market-summary-dashboard-page .text-neutral-200,
+.dark .page-shell.market-summary-dashboard-page .text-neutral-300,
+.dark .page-shell.market-summary-dashboard-page .text-neutral-400,
+.dark .page-shell.market-summary-dashboard-page .text-neutral-500,
+.dark .page-shell.market-summary-dashboard-page .text-neutral-600,
+.dark .page-shell.market-summary-dashboard-page .ms-muted {
   color: #ffffff !important;
   opacity: 1 !important;
   text-shadow: none !important;
@@ -2308,16 +2308,16 @@ body {
 }
 
 /* Keep positive/negative/warning/info meaning, but soften green in dark mode. */
-.dark.dark .market-summary-dashboard-page .text-emerald-200,
-.dark.dark .market-summary-dashboard-page .text-emerald-300,
-.dark.dark .market-summary-dashboard-page .text-emerald-400,
-.dark.dark .market-summary-dashboard-page .text-emerald-500,
-.dark.dark .market-summary-dashboard-page .text-green-300,
-.dark.dark .market-summary-dashboard-page .text-green-400,
-.dark.dark .market-summary-dashboard-page .text-green-500,
-.dark.dark .market-summary-dashboard-page .text-lime-300,
-.dark.dark .market-summary-dashboard-page .text-lime-400,
-.dark.dark .market-summary-dashboard-page .ms-positive {
+.dark .page-shell.market-summary-dashboard-page .text-emerald-200,
+.dark .page-shell.market-summary-dashboard-page .text-emerald-300,
+.dark .page-shell.market-summary-dashboard-page .text-emerald-400,
+.dark .page-shell.market-summary-dashboard-page .text-emerald-500,
+.dark .page-shell.market-summary-dashboard-page .text-green-300,
+.dark .page-shell.market-summary-dashboard-page .text-green-400,
+.dark .page-shell.market-summary-dashboard-page .text-green-500,
+.dark .page-shell.market-summary-dashboard-page .text-lime-300,
+.dark .page-shell.market-summary-dashboard-page .text-lime-400,
+.dark .page-shell.market-summary-dashboard-page .ms-positive {
   color: #86efac !important;
   -webkit-text-fill-color: #86efac !important;
   opacity: 1 !important;
