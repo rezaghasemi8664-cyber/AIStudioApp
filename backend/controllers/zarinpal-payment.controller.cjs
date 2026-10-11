@@ -35,6 +35,24 @@ async function create(req, res) {
   }
 }
 
+ 
+async function history(req, res) {
+  try {
+    const id = userId(req);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
+    }
+    const items = await paymentService.getPaymentHistory(id);
+    return res.json({ success: true, data: items });
+  } catch (error) {
+    console.error('[ZARINPAL] history', error);
+    return res.status(500).json({
+      success: false,
+      message: 'دریافت تاریخچه پرداخت‌ها ناموفق بود.',
+    });
+  }
+}
+
 async function callback(req, res) {
   try {
     const authority = String(req.query?.Authority || '').trim();
@@ -47,4 +65,4 @@ async function callback(req, res) {
   }
 }
 
-module.exports = { create, callback };
+module.exports = { create, history, callback };
