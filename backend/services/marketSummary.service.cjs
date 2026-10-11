@@ -812,8 +812,16 @@ async function ensureRecentTradingDaySummaries(daysBack = 7) {
 
     if (offset === 0) {
       const current = await findLatestUsableMarketHistoryRow();
-      marketData = current?.marketData || null;
-      fallbackDate = current?.row?.createdAt || reference;
+      const currentDataDate = current?.row?.createdAt
+        ? toDateOnlyISO(current.row.createdAt)
+        : null;
+      // Never label stale shared-market data as today's summary.
+      if (currentDataDate === toDateOnlyISO(reference)) {
+        marketData = current?.marketData || null;
+        fallbackDate = current?.row?.createdAt || reference;
+      } else {
+        marketData = null;
+      }
     } else {
       const merged = await buildMergedMarketDataForDay(reference);
       marketData = merged?.merged || null;
@@ -938,7 +946,17 @@ exports.isUsableMarketData = isUsableMarketData;
 exports.isLikelySyntheticMarketData = isLikelySyntheticMarketData;
 exports.getNowInTehran = () => new Date();
 exports.retainOnlyLastNSummaries = retainOnlyLastNSummaries;
-exports.runCatchUpForMissingSummary = async () => ({ data: null, generated: false, reason: 'CATCH_UP_DISABLED_DAILY_ONLY_12_35' });
+exports.runCatchUpForMissingSummary = async ({ daysBack = 14 } = {}) => {
+  const boundedDaysBack = Math.min(30, Math.max(1, Number.parseInt(daysBack, 10) || 14));
+  const results = await ensureRecentTradingDaySummaries(boundedDaysBack);
+  return {
+    success: true,
+    daysBack: boundedDaysBack,
+    generatedCount: results.filter(item => item.status === 'created').length,
+    existingCount: results.filter(item => item.status === 'existing').length,
+    results
+  };
+};
 exports.findLatestUnsummarizedMarketDay = async () => null;
 exports.isTradingDay = isTradingDay;
 exports.buildMergedMarketDataForDay = buildMergedMarketDataForDay;
