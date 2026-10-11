@@ -130,6 +130,7 @@ const OptionsMarket: React.FC = () => {
   const [selectedBaseSymbol, setSelectedBaseSymbol] = useState('');
   const [selectedExpiry, setSelectedExpiry] = useState('');
   const [scenarioUnderlyingPrice, setScenarioUnderlyingPrice] = useState('');
+  const [scenarioFeeRatePercent, setScenarioFeeRatePercent] = useState('');
 
   const loadContracts = useCallback(async () => {
     setLoading(true);
@@ -213,20 +214,36 @@ const OptionsMarket: React.FC = () => {
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-        <label className="block max-w-md text-sm">
-          <span className="mb-1 block font-semibold">قیمت فرضی نماد پایه در سررسید (برای سناریو)</span>
-          <input
-            type="number"
-            min="0"
-            step="any"
-            inputMode="decimal"
-            value={scenarioUnderlyingPrice}
-            onChange={(event) => setScenarioUnderlyingPrice(event.target.value)}
-            placeholder="قیمت فرضی را وارد کنید"
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
-          />
-        </label>
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">محاسبه سناریویی برای خریدار اختیار، به‌ازای هر واحد و بدون احتساب کارمزد است؛ این مقدار پیش‌بینی قیمت نیست.</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="block text-sm">
+            <span className="mb-1 block font-semibold">قیمت فرضی نماد پایه در سررسید</span>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              inputMode="decimal"
+              value={scenarioUnderlyingPrice}
+              onChange={(event) => setScenarioUnderlyingPrice(event.target.value)}
+              placeholder="قیمت فرضی را وارد کنید"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block font-semibold">کارمزد هر سمت معامله (درصد)</span>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="any"
+              inputMode="decimal"
+              value={scenarioFeeRatePercent}
+              onChange={(event) => setScenarioFeeRatePercent(event.target.value)}
+              placeholder="درصد کارمزد را وارد کنید"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+            />
+          </label>
+        </div>
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">محاسبه برای خریدار اختیار و به‌ازای هر واحد است. درصد کارمزد را مطابق تعرفه واقعی خود وارد کنید؛ مقدار خالی معادل صفر فرض می‌شود. کارمزد خروج به‌صورت ساده‌شده روی ارزش تسویه فرضی اعمال می‌شود. این سناریو پیش‌بینی قیمت نیست و ضریب اندازه قرارداد را شامل نمی‌شود.</p>
       </div>
 
       <section className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900 dark:bg-blue-950/20">
@@ -310,7 +327,8 @@ const OptionsMarket: React.FC = () => {
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">قیمت نماد پایه</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">ارزش ذاتی</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">قیمت سربه‌سر</th>
-                  <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">سود/زیان سناریو</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">سود/زیان خالص سناریو</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">حداکثر حق‌بیمه سربه‌سر</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">سررسید</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">قیمت آخرین معامله</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">حجم</th>
@@ -330,12 +348,27 @@ const OptionsMarket: React.FC = () => {
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">
                       {(() => {
                         const scenario = parseNumeric(scenarioUnderlyingPrice);
-                        const strike = parseNumeric(contract.strikePrice);
-                        const premium = parseNumeric(contract.optionLastPrice);
-                        const kind = contract.optionKind;
-                        if (scenario === null || strike === null || premium === null || (kind !== 'call' && kind !== 'put')) return '—';
+                        const strike = getNumeric(contract, ['strikePrice', 'price_strike', 'priceStrike', 'strike']);
+                        const premium = getNumeric(contract, ['bestAskPrice', 'pMeOf', 'askPrice', 'sellPrice']);
+                        const kind = getKind(contract);
+                        const feeInput = scenarioFeeRatePercent.trim() === '' ? 0 : parseNumeric(scenarioFeeRatePercent);
+                        if (scenario === null || scenario < 0 || strike === null || premium === null || premium <= 0 || (kind !== 'call' && kind !== 'put') || feeInput === null || feeInput < 0 || feeInput > 100) return '—';
+                        const feeRate = feeInput / 100;
                         const payoff = Math.max(0, kind === 'call' ? scenario - strike : strike - scenario);
-                        return formatPrice(payoff - premium);
+                        const netPnl = payoff - (premium * (1 + feeRate)) - (payoff * feeRate);
+                        return formatPrice(netPnl);
+                      })()}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">
+                      {(() => {
+                        const scenario = parseNumeric(scenarioUnderlyingPrice);
+                        const strike = getNumeric(contract, ['strikePrice', 'price_strike', 'priceStrike', 'strike']);
+                        const kind = getKind(contract);
+                        const feeInput = scenarioFeeRatePercent.trim() === '' ? 0 : parseNumeric(scenarioFeeRatePercent);
+                        if (scenario === null || scenario < 0 || strike === null || (kind !== 'call' && kind !== 'put') || feeInput === null || feeInput < 0 || feeInput > 100) return '—';
+                        const feeRate = feeInput / 100;
+                        const payoff = Math.max(0, kind === 'call' ? scenario - strike : strike - scenario);
+                        return formatPrice(Math.max(0, payoff * (1 - feeRate) / (1 + feeRate)));
                       })()}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">{getValue(contract, ['date_end', 'dateEnd', 'expiryDate', 'ExpiryDate', 'maturityDate', 'MaturityDate', 'endDate', 'EndDate', 'سررسید'])}</td>
@@ -348,7 +381,7 @@ const OptionsMarket: React.FC = () => {
             </table>
           </div>
           <p className="border-t border-gray-200 px-4 py-3 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
-            قیمت نماد پایه از دیتابیس مشترک بازار خوانده می‌شود. ارزش ذاتی و سربه‌سر فقط با داده‌های کافی محاسبه می‌شوند. سود/زیان سناریو به‌ازای هر واحد، برای خریدار و بدون کارمزد است؛ «—» یعنی داده کافی وجود ندارد.
+            قیمت نماد پایه از دیتابیس مشترک بازار خوانده می‌شود. سود/زیان خالص بر مبنای بهترین قیمت عرضه و کارمزد درصدی واردشده برای خرید و تسویه فرضی محاسبه می‌شود. حداکثر حق‌بیمه سربه‌سر نیز فقط در سناریوی واردشده معنا دارد؛ ضریب قرارداد و تعرفه واقعی باید جداگانه بررسی شوند. «—» یعنی داده کافی یا فرض معتبر وجود ندارد.
           </p>
         </div>
         </>
