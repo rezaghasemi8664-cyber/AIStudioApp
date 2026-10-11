@@ -186,9 +186,10 @@ const normalizeSignalItem = (item: unknown, index: number): ScalpingOpportunity 
     row.currentPrice ??
     row.last;
 
+  // امتیاز تحلیل و اعتبار سیگنال دو معیار مستقل‌اند؛
+  // در نبود امتیاز، از confidence به‌عنوان جایگزین استفاده نکن.
   const scoreValue =
     row.score ??
-    row.confidence ??
     row.rank ??
     row.strength ??
     row.rating;
