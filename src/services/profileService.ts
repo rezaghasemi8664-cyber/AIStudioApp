@@ -4,6 +4,18 @@ import type { ApiResult } from '../types';
 import { get, put, post } from './apiClient';
 import { getMySubscription, getSubscriptionPlans, type SubscriptionPlan } from './subscriptionService';
 
+export interface PaymentHistoryItem {
+  id: number;
+  planId: number | null;
+  planName: string;
+  durationMonths: number | null;
+  amount: number;
+  currency: string;
+  provider: string;
+  referenceNumber: string | null;
+  paidAt: string;
+}
+
 export interface ProfileUpdateData {
   name?: string;
   firstName?: string;
@@ -60,6 +72,19 @@ export async function getSubscriptionStatus(): Promise<SubscriptionInfo> {
 /** دریافت پلن‌های فعال اشتراک از دیتابیس */
 export async function getActiveSubscriptionPlans(): Promise<SubscriptionPlan[]> {
   return getSubscriptionPlans();
+}
+
+/** دریافت تاریخچه پرداخت‌های موفق کاربر جاری */
+export async function getPaymentHistory(): Promise<ApiResult<PaymentHistoryItem[]>> {
+  try {
+    const res = await get<any>('/subscriptions/payments/history');
+    if (!res?.success) {
+      return { success: false, error: res?.message || 'دریافت تاریخچه پرداخت‌ها ناموفق بود' };
+    }
+    return { success: true, data: Array.isArray(res.data) ? res.data as PaymentHistoryItem[] : [] };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'دریافت تاریخچه پرداخت‌ها ناموفق بود' };
+  }
 }
 
 /** alias */
@@ -152,6 +177,7 @@ export async function requestSubscriptionExtension(message?: string): Promise<Ap
 export default {
   getSubscriptionStatus,
   getSubscriptionInfo,
+  getPaymentHistory,
   getActiveSubscriptionPlans,
   getProfile,
   updateProfile,
