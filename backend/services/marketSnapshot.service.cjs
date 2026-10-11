@@ -226,20 +226,32 @@ async function validateSnapshotHealth(symbols) {
   const variableSizeMinOverlapRatio = getHealthThreshold('MARKET_SNAPSHOT_VARIABLE_MIN_OVERLAP_RATIO', 0.98);
   const variableSizeOldOverlapRatio = getHealthThreshold('MARKET_SNAPSHOT_VARIABLE_MIN_OLD_OVERLAP_RATIO', 0.60);
 
+  // Allow a genuine increase in the provider's symbol universe only when the
+  // new snapshot still contains nearly all previously active symbols and a
+  // substantial majority of its symbols overlap the previous verified snapshot.
+  // This rejects unrelated/partial payloads while allowing the observed ~1.4x growth.
+  const growthMaxCountRatio = getHealthThreshold('MARKET_SNAPSHOT_GROWTH_MAX_COUNT_RATIO', 1.50);
+  const growthMinOldOverlapRatio = getHealthThreshold('MARKET_SNAPSHOT_GROWTH_MIN_OLD_OVERLAP_RATIO', 0.98);
+  const growthMinNewOverlapRatio = getHealthThreshold('MARKET_SNAPSHOT_GROWTH_MIN_NEW_OVERLAP_RATIO', 0.65);
+
   const standardHealthy = countRatio >= minCountRatio && countRatio <= maxCountRatio &&
     overlapRatio >= minOverlapRatio && overlapNewRatio >= minOverlapRatio;
   const variableSizeHealthy = countRatio >= variableSizeMinCountRatio && countRatio <= maxCountRatio &&
     overlapRatio >= variableSizeOldOverlapRatio && overlapNewRatio >= variableSizeMinOverlapRatio;
+  const growthHealthy = countRatio > maxCountRatio && countRatio <= growthMaxCountRatio &&
+    overlapRatio >= growthMinOldOverlapRatio && overlapNewRatio >= growthMinNewOverlapRatio;
 
-  const healthy = standardHealthy || variableSizeHealthy;
-  const mode = standardHealthy ? 'COMPARE_ACTIVE' : 'COMPARE_ACTIVE_VARIABLE_SIZE';
+  const healthy = standardHealthy || variableSizeHealthy || growthHealthy;
+  const mode = standardHealthy ? 'COMPARE_ACTIVE' :
+    growthHealthy ? 'COMPARE_ACTIVE_GROWTH' : 'COMPARE_ACTIVE_VARIABLE_SIZE';
 
   const health = {
     mode, accepted: healthy, previousCount, newCount, intersectionCount,
     countRatio, overlapRatio, overlapNewRatio, duplicateCount,
     thresholds: {
       minCountRatio, maxCountRatio, minOverlapRatio,
-      variableSizeMinCountRatio, variableSizeMinOverlapRatio, variableSizeOldOverlapRatio
+      variableSizeMinCountRatio, variableSizeMinOverlapRatio, variableSizeOldOverlapRatio,
+      growthMaxCountRatio, growthMinOldOverlapRatio, growthMinNewOverlapRatio
     }
   };
 
