@@ -51,9 +51,14 @@ export function getStoredMarketingAttribution(): MarketingAttribution | null {
 export async function trackMarketingVisit(): Promise<void> {
   const attribution = captureMarketingAttribution();
   if (!attribution) return;
+  const sessionKey = `roniyaMarketingVisitTracked:${attribution.campaign}:${attribution.content}`;
   try {
-    await post('/marketing-attribution/visit', { attribution });
+    if (window.sessionStorage.getItem(sessionKey) === '1') return;
+    window.sessionStorage.setItem(sessionKey, '1');
+    const response = await post('/marketing-attribution/visit', { attribution });
+    if (!response.success) window.sessionStorage.removeItem(sessionKey);
   } catch (error) {
+    try { window.sessionStorage.removeItem(sessionKey); } catch {}
     console.warn('[MarketingAttribution] visit tracking failed:', error);
   }
 }
