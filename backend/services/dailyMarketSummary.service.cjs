@@ -171,60 +171,34 @@ async function generateDailyMarketSummary(options = {}) {
   const summaryDate = toDateOnly(expectedGregorian);
   if (!summaryDate) throw new Error('INVALID_SUMMARY_DATE');
 
-  const content = typeof live.content === 'string' && live.content.trim()
-    ? live.content
-    : typeof live.summary === 'string' && live.summary.trim()
-      ? live.summary
-      : null;
+  // Use the same deterministic summary builder as historical/admin generation.
+  // The live endpoint intentionally provides a compact 14-section snapshot; it
+  // does not contain the technical outlook. Persisting live.content directly
+  // therefore silently dropped section 15 from daily summaries.
+  const result = await marketSummaryService.generateMarketSummary({
+    marketData: live,
+    fallbackDate: now
+  });
 
-  if (!content) throw new Error('LIVE_MARKET_SUMMARY_CONTENT_UNAVAILABLE');
+  if (!result?.data) {
+    return {
+      success: false,
+      generated: false,
+      skipped: true,
+      reason: result?.reason || 'DETERMINISTIC_SUMMARY_GENERATION_FAILED'
+    };
+  }
 
-  const dataForDb = {
-    date: now,
-    summaryDate,
-    overallIndex: n(live.overallIndex ?? live.index ?? live.value),
-    overallChange: n(live.overallChange ?? live.indexChange ?? live.index_change ?? live.changeValue ?? live.change),
-    equalIndex: n(live.equalIndex ?? live.indexEqualWeight ?? live.index_equalWeight ?? live.equalWeightedValue),
-    equalChange: n(live.equalChange ?? live.indexEqualWeightChange ?? live.index_equalWeight_change ?? live.equalWeightedChangeValue),
-    marketStatus: String(live.marketStatus ?? live.marketState ?? live.state ?? 'closed'),
-    totalTrades: BigInt(Math.trunc(trades)),
-    totalVolume: BigInt(Math.trunc(volume)),
-    totalValue: BigInt(Math.trunc(value)),
-    positiveStocks: n(live.positiveStocks ?? live.positive),
-    negativeStocks: n(live.negativeStocks ?? live.negative),
-    neutralStocks: n(live.neutralStocks ?? live.neutral),
-    topGainers: JSON.stringify(live.topGainers || []),
-    topLosers: JSON.stringify(live.topLosers || []),
-    topVolumes: JSON.stringify(live.topVolumes || []),
-    content,
-    summary: content,
-    rawJson: JSON.stringify({
-      data: live,
-      meta: {
-        source: 'live-market-summary-controller',
-        generatedAt: now.toISOString(),
-        generatedAtTehran: `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`,
-        sourceEndpoint: LIVE_ENDPOINT,
-        jalaliDate: expectedJalali,
-        gregorianDate: expectedGregorian
-      }
-    })
-  };
-
-  const existing = await prisma.marketSummary.findUnique({ where: { summaryDate } });
-  const record = existing
-    ? await prisma.marketSummary.update({ where: { id: existing.id }, data: dataForDb })
-    : await prisma.marketSummary.create({ data: dataForDb });
-
+  const generated = result.reason === 'CREATED_DETERMINISTIC_SUMMARY';
   return {
     success: true,
-    generated: !existing,
-    updated: Boolean(existing),
+    generated,
+    updated: !generated,
     skipped: false,
-    id: record.id,
-    data: record,
-    sourceType: 'daily-live-analysis',
-    reason: 'CREATED_AT_SCHEDULED_RUN'
+    id: result.data.id,
+    data: result.data,
+    sourceType: result.sourceType || 'deterministic',
+    reason: result.reason || 'DETERMINISTIC_SUMMARY_SAVED'
   };
 }
 
