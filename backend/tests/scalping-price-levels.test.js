@@ -1,6 +1,6 @@
 'use strict';
 
-const { calculateScalpingPriceLevels } = require('../services/scalping-price-levels.service.cjs');
+const { calculateScalpingPriceLevels, selectCandidatesWithValidLevels } = require('../services/scalping-price-levels.service.cjs');
 
 function makeCandles(count = 30) {
   return Array.from({ length: count }, (_, i) => {
@@ -83,5 +83,38 @@ describe('calculateScalpingPriceLevels', () => {
 
   test('returns null for unknown signal direction', () => {
     expect(calculateScalpingPriceLevels(makeCandles(), 'WATCH', 1087, normalMarket)).toBeNull();
+  });
+});
+
+describe('selectCandidatesWithValidLevels', () => {
+  test('continues past rejected higher-ranked symbols until it fills the valid opportunity limit', async () => {
+    const ranked = [
+      { item: { symbol: 'TOP-1' }, scored: { score: 100 } },
+      { item: { symbol: 'TOP-2' }, scored: { score: 99 } },
+      { item: { symbol: 'NEXT-1' }, scored: { score: 98 } },
+      { item: { symbol: 'NEXT-2' }, scored: { score: 97 } }
+    ];
+    const attempted = [];
+    const result = await selectCandidatesWithValidLevels(ranked, 2, async candidate => {
+      attempted.push(candidate.item.symbol);
+      if (candidate.item.symbol.startsWith('TOP')) return null;
+      return { entryPrice: 100, targetPrice: 110, stopLossPrice: 95 };
+    });
+    expect(attempted).toEqual(['TOP-1', 'TOP-2', 'NEXT-1', 'NEXT-2']);
+    expect(result.candidates.map(x => x.item.symbol)).toEqual(['NEXT-1', 'NEXT-2']);
+    expect(result.candidates.every(x => x.levels.entryPrice === 100)).toBe(true);
+    expect(result.evaluatedCount).toBe(4);
+  });
+
+  test('stops checking once the valid opportunity limit is reached', async () => {
+    const ranked = [1, 2, 3, 4].map(n => ({ item: { symbol: String(n) } }));
+    const attempted = [];
+    const result = await selectCandidatesWithValidLevels(ranked, 2, async candidate => {
+      attempted.push(candidate.item.symbol);
+      return { entryPrice: 100 };
+    });
+    expect(attempted).toEqual(['1', '2']);
+    expect(result.candidates).toHaveLength(2);
+    expect(result.evaluatedCount).toBe(2);
   });
 });
