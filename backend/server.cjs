@@ -656,6 +656,7 @@ mountRoute('/api/v1/codal', './routes/codalIntelligence.routes.cjs', 'Codal Comp
 mountRoute('/api/v1/valuable-symbols', './routes/valuableSymbols.routes.cjs', 'Valuable Symbols independent engine v1 alias');
 mountRoute('/api/v1/subscriptions', './routes/subscriptions.routes.cjs', 'Subscriptions v1 alias (priority)');
 mountRoute('/api/v1/site-analytics', './routes/siteAnalytics.routes.cjs', 'Site Analytics v1 alias (priority)');
+mountRoute('/api/v1/marketing-attribution', './routes/marketingAttribution.routes.cjs', 'Marketing attribution v1 alias');
 
 mountRoute('/api/v1', './routes/v1/index.cjs', 'API v1 Root');
 // Compatibility aliases for reverse proxies that strip the /api prefix.
@@ -705,6 +706,7 @@ mountRoute('/api/paper-trading', './routes/paperTrading.routes.cjs', 'Paper Trad
 mountRoute('/api/trader-performance', './routes/traderPerformance.routes.cjs', 'Trader Performance');
 mountRoute('/api/production-readiness', './routes/productionReadiness.routes.cjs', 'Production Readiness');
 mountRoute('/api/site-analytics', './routes/siteAnalytics.routes.cjs', 'Site Analytics');
+mountRoute('/api/marketing-attribution', './routes/marketingAttribution.routes.cjs', 'Marketing attribution');
 mountRoute('/api/v1/production-readiness', './routes/productionReadiness.routes.cjs', 'Production Readiness v1 alias');
 mountRoute('/api/v1/trader-performance', './routes/traderPerformance.routes.cjs', 'Trader Performance v1 alias');
 mountRoute('/api/v1/trader-journal', './routes/traderJournal.routes.cjs', 'Trader Journal v1 alias');
