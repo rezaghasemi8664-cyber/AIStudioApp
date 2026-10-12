@@ -15,8 +15,8 @@ const SCALPING_MIN_CHANGE_PCT = 0.35;
 const SCALPING_MIN_VALUE = 100000000;
 const SCALPING_MIN_TRADES = 30;
 const SCALPING_MIN_REAL_FLOW_RATIO = 0.05;
-const SCALPING_MIN_POSITION = 0.55;
-const SCALPING_MAX_POSITION = 0.45;
+const SCALPING_MIN_POSITION = 0.05;
+const SCALPING_MAX_POSITION = 0.95;
 const SCALPING_MIN_RANGE_PCT = 0.5;
 const SCALPING_MIN_REAL_PARTICIPATION = 0.10;
 
@@ -119,7 +119,7 @@ function scoreSymbol(item) {
     pct >= SCALPING_MIN_CHANGE_PCT &&
     realNetRatio >= SCALPING_MIN_REAL_FLOW_RATIO &&
     realParticipation >= SCALPING_MIN_REAL_PARTICIPATION &&
-    position >= 0.45 &&
+    position >= SCALPING_MIN_POSITION &&
     last >= open &&
     last >= close;
   const bearish =
@@ -127,7 +127,7 @@ function scoreSymbol(item) {
     pct <= -SCALPING_MIN_CHANGE_PCT &&
     realNetRatio <= -SCALPING_MIN_REAL_FLOW_RATIO &&
     realParticipation >= SCALPING_MIN_REAL_PARTICIPATION &&
-    position <= 0.55 &&
+    position <= SCALPING_MAX_POSITION &&
     last <= open &&
     last <= close;
 
@@ -381,8 +381,8 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
   );
   const threshold = moving.filter(({ scored }) => scored.score >= SCALPING_THRESHOLD);
   const directional = threshold.filter(({ scored }) =>
-    (scored.signal === 'BUY' && scored.realNetRatio >= SCALPING_MIN_REAL_FLOW_RATIO && scored.position >= 0.45) ||
-    (scored.signal === 'SELL' && scored.realNetRatio <= -SCALPING_MIN_REAL_FLOW_RATIO && scored.position <= 0.55)
+    (scored.signal === 'BUY' && scored.realNetRatio >= SCALPING_MIN_REAL_FLOW_RATIO && scored.position >= SCALPING_MIN_POSITION) ||
+    (scored.signal === 'SELL' && scored.realNetRatio <= -SCALPING_MIN_REAL_FLOW_RATIO && scored.position <= SCALPING_MAX_POSITION)
   );
 
   const rankedCandidates = directional
