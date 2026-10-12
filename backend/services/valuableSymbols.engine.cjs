@@ -6,6 +6,7 @@ const codal = require('./codalIntelligence.service.cjs');
 
 const MAX_RESULTS = 20;
 const MIN_HISTORY = 20;
+const MAX_CODAL_LOOKUPS = positiveEnv('VALUABLE_SYMBOLS_MAX_CODAL_LOOKUPS', 60);
 const MAX_PRICE_AGE_HOURS = positiveEnv('VALUABLE_SYMBOLS_MAX_PRICE_AGE_HOURS', 72);
 const MAX_HISTORY_AGE_DAYS = positiveEnv('VALUABLE_SYMBOLS_MAX_HISTORY_AGE_DAYS', 7);
 const MAX_CODAL_REPORT_AGE_DAYS = positiveEnv('VALUABLE_SYMBOLS_MAX_CODAL_REPORT_AGE_DAYS', 540);
@@ -162,16 +163,19 @@ async function evaluateValuableSymbols({ limit = MAX_RESULTS, now = new Date() }
     .filter(row => row && row.symbol && !row.isStale &&
       toNumber(row.lastPrice) > 0 && toNumber(row.closePrice) > 0 &&
       isFreshTimestamp(row.updatedAt, MAX_PRICE_AGE_HOURS * 60 * 60 * 1000, nowMs))
-    .sort((a, b) => (toNumber(b.value) || 0) - (toNumber(a.value) || 0))
-    .slice(0, 20);
+    .sort((a, b) => (toNumber(b.value) || 0) - (toNumber(a.value) || 0));
   const results = [];
+  let codalLookups = 0;
   const marketSession = getMarketSession(now);
   for (const row of candidates) {
+    if (results.length >= Math.max(1, Math.min(Number(limit) || MAX_RESULTS, MAX_RESULTS))) break;
+    if (codalLookups >= MAX_CODAL_LOOKUPS) break;
     try {
       const history = await market.getSymbolHistory(row.symbol, 40);
       if (!isFreshHistory(history, nowMs)) continue;
       const technical = analyzeTechnical(history, row.lastPrice);
       if (!technical) continue;
+      codalLookups += 1;
       const reports = await codal.getReports({ symbol: row.symbol, limit: 30 });
       const fundamental = analyzeFundamental(reports.items, now);
       if (!fundamental) continue;
