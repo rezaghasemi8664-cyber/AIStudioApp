@@ -89,7 +89,7 @@ function getReportAgeDays(value, now = new Date()) {
     const reportDay = jalaliDayNumber(year, month, day);
     const currentDay = currentJalaliDayNumber(now);
     if (reportDay === null || currentDay === null || reportDay > currentDay) return null;
-    return (currentDay - reportDay) / 365 * 365;
+    return currentDay - reportDay;
   }
   const timestamp = Date.UTC(year, month - 1, day);
   if (!Number.isFinite(timestamp) || month < 1 || month > 12 || day < 1 || day > 31) return null;
@@ -115,7 +115,9 @@ function analyzeTechnical(history, currentPrice) {
   const support = Math.min(...recent.map(row => toNumber(row.low)));
   const resistance = Math.max(...recent.map(row => toNumber(row.high)));
   const price = toNumber(currentPrice);
+  const latestCandle = rows[rows.length - 1];
   if (!(sma20 > 0 && support > 0 && resistance > support) ||
+      price < toNumber(latestCandle.low) || price > toNumber(latestCandle.high) ||
       price < sma20 || price <= support || rsi14 < 45 || rsi14 > 68) return null;
   const risk = price - support;
   if (!(risk > 0)) return null;
