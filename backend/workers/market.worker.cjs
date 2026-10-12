@@ -443,7 +443,7 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
     const strategyName = 'technical-breakout-atr-v1';
     const stopLoss = levels.stopLossPrice;
     const takeProfit = levels.targetPrice;
-    const recommendationText = isBuy
+    const recommendationText = scored.signal === 'BUY'
       ? 'مومنتوم مثبت، موقعیت قیمت و جریان خرید حقیقی هم‌جهت هستند.'
       : 'مومنتوم منفی، موقعیت قیمت و جریان فروش حقیقی هم‌جهت هستند.';
 
