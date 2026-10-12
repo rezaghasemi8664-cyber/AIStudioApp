@@ -33,6 +33,21 @@ describe('Codal normalization compatibility', () => {
     expect(item.publishDate).toBe('1405/07/20');
     expect(item.financialMetrics.eps).toBe(100);
   });
+
+  test('normalizes the actual BRS Codal API date and attachment field names', () => {
+    const item = codalService.normalizeItem({
+      title: 'صورت‌های مالی', l18: 'فزر', date_publish: '۱۴۰۵/۰۷/۱۴',
+      date_send: '۱۴۰۵/۰۷/۱۳', link_pdf: 'https://example.test/report.pdf',
+      link_excel: 'https://example.test/report.xlsx',
+      link_attachment: 'https://example.test/attachment'
+    });
+    expect(item.publishDate).toBe('1405/07/14');
+    expect(item.symbol).toBe('فزر');
+    expect(item.pdfUrl).toBe('https://example.test/report.pdf');
+    expect(item.excelUrl).toBe('https://example.test/report.xlsx');
+    expect(item.attachmentUrl).toBe('https://example.test/attachment');
+    expect(item.financialMetrics).toEqual({});
+  });
 });
 
 describe('valuable symbols freshness guards', () => {
