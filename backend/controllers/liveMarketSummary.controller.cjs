@@ -213,6 +213,19 @@ function makeText({ market, breadth, momentum }) {
 
 const sharedMarketService = require('../services/sharedMarket.service.cjs');
 
+function toJalaliDate(value) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-US-u-ca-persian', {
+    timeZone: 'Asia/Tehran',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const fields = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+  return `${fields.year}-${fields.month}-${fields.day}`;
+}
+
 exports.getLatestMarketSummary = async function getLatestMarketSummary(req, res) {
   try {
     const [market, breadth, industries] = await Promise.all([
@@ -297,7 +310,7 @@ exports.getLatestMarketSummary = async function getLatestMarketSummary(req, res)
         id: market.id,
         date,
         summaryDate: date,
-        marketDateJalali: market.marketDate || null,
+        marketDateJalali: toJalaliDate(market.marketDate),
         createdAt: market.updatedAt ? new Date(market.updatedAt).toISOString() : now.toISOString(),
         overallIndex: overall,
         overallChange,
