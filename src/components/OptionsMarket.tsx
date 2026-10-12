@@ -409,6 +409,10 @@ const OptionsMarket: React.FC = () => {
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">بازده خالص نسبت به حق‌بیمه (٪)</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">حداکثر حق‌بیمه سربه‌سر (هر واحد)</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">سررسید</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">بهترین تقاضا</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">حجم تقاضا</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">بهترین عرضه</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">حجم عرضه</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">قیمت آخرین معامله</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">حجم</th>
                   <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">موقعیت باز</th>
@@ -473,6 +477,10 @@ const OptionsMarket: React.FC = () => {
                       })()}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">{getValue(contract, ['date_end', 'dateEnd', 'expiryDate', 'ExpiryDate', 'maturityDate', 'MaturityDate', 'endDate', 'EndDate', 'سررسید'])}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(getPositiveNumeric(contract, ['bestBidPrice', 'pd1', 'pMeDem', 'bestBid', 'bidPrice', 'buyPrice']))}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(getNumeric(contract, ['qd1', 'qD1', 'bestBidQuantity', 'bestBidVolume', 'bidQuantity']))}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(getPositiveNumeric(contract, ['bestAskPrice', 'po1', 'pMeOf', 'bestAsk', 'askPrice', 'sellPrice']))}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(getNumeric(contract, ['qo1', 'qO1', 'bestAskQuantity', 'bestAskVolume', 'askQuantity']))}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['pl', 'lastPrice', 'LastPrice', 'pClosing', 'PClosing', 'last', 'Last'])}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['tvol', 'volume', 'Volume', 'qTotTran5J', 'QTotTran5J'])}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['interest_open', 'interestOpen', 'openInterest', 'OpenInterest', 'open_interest', 'OI'])}</td>
