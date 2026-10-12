@@ -8,7 +8,7 @@ on:
 
 jobs:
   backend-jest:
-    name: Backend Jest (Node 20)
+    name: Scalping Price Levels Jest (Node 20)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -24,5 +24,5 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - name: Install backend dependencies
         run: npm ci
-      - name: Run backend tests
-        run: npm test -- --runInBand
+      - name: Run scalping price-level tests
+        run: npm test -- --runInBand tests/scalping-price-levels.test.js
