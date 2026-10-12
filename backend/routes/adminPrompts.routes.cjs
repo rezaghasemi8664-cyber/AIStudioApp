@@ -105,9 +105,19 @@ router.post('/prompts/activate', async (req, res) => {
       name, version
     );
     if (!matches.length) return fail(res, 404, 'نسخه موردنظر پرامپت پیدا نشد.');
+    const selected = await prisma.$queryRawUnsafe(
+      'SELECT value FROM dbo.AdminPromptVersion WHERE name = @p1 AND version = @p2',
+      name, version
+    );
+    const activeValue = String(selected[0] && selected[0].value || '');
     await prisma.$transaction(async tx => {
       await tx.$executeRawUnsafe('UPDATE dbo.AdminPromptVersion SET active = 0 WHERE name = @p1', name);
       await tx.$executeRawUnsafe('UPDATE dbo.AdminPromptVersion SET active = 1, updatedAt = SYSDATETIME(), updatedBy = @p3 WHERE name = @p1 AND version = @p2', name, version, Number(req.user && (req.user.id || req.user.userId)) || null);
+      await tx.globalSetting.upsert({
+        where: { key: 'prompt.' + name.slice(0, 90) },
+        update: { category: 'prompts', value: activeValue, updatedBy: String(Number(req.user && (req.user.id || req.user.userId)) || '') || null, updatedAt: new Date() },
+        create: { category: 'prompts', key: 'prompt.' + name.slice(0, 90), value: activeValue, updatedBy: String(Number(req.user && (req.user.id || req.user.userId)) || '') || null }
+      });
     });
     return res.json({ success: true, data: { saved: true, name, version, active: true } });
   } catch (error) {
