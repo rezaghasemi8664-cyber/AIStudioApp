@@ -6,6 +6,8 @@ const codal = require('./codalIntelligence.service.cjs');
 
 const MAX_RESULTS = 20;
 const MIN_HISTORY = 20;
+let cachedResults = [];
+let cachedEvaluatedAt = null;
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -92,7 +94,13 @@ async function evaluateValuableSymbols({ limit = MAX_RESULTS } = {}) {
       continue;
     }
   }
-  return results.sort((a, b) => b.score - a.score).slice(0, Math.max(1, Math.min(Number(limit) || MAX_RESULTS, MAX_RESULTS)));
+  cachedResults = results.sort((a, b) => b.score - a.score).slice(0, Math.max(1, Math.min(Number(limit) || MAX_RESULTS, MAX_RESULTS)));
+  cachedEvaluatedAt = new Date().toISOString();
+  return cachedResults;
 }
 
-module.exports = { evaluateValuableSymbols, analyzeTechnical, analyzeFundamental };
+function getCachedValuableSymbols() {
+  return { results: cachedResults, evaluatedAt: cachedEvaluatedAt };
+}
+
+module.exports = { evaluateValuableSymbols, getCachedValuableSymbols, analyzeTechnical, analyzeFundamental };
