@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { get } from '../services/apiClient';
+import OptionsPortfolio from './OptionsPortfolio';
 
 type OptionContract = Record<string, unknown>;
 
@@ -163,6 +164,7 @@ function rankOptionContract(contract: OptionContract) {
 }
 
 const OptionsMarket: React.FC = () => {
+  const [activeView, setActiveView] = useState<'market' | 'portfolio'>('market');
   const [contracts, setContracts] = useState<OptionContract[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -241,6 +243,11 @@ const OptionsMarket: React.FC = () => {
 
   return (
     <section dir="rtl" className="space-y-5">
+      <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-3 dark:border-gray-700" role="tablist" aria-label="بخش‌های بازار آپشن">
+        <button type="button" role="tab" aria-selected={activeView === 'market'} onClick={() => setActiveView('market')} className={`rounded-lg px-4 py-2 text-sm font-semibold ${activeView === 'market' ? 'bg-cyan-600 text-white' : 'border border-gray-300 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}>بازار آپشن</button>
+        <button type="button" role="tab" aria-selected={activeView === 'portfolio'} onClick={() => setActiveView('portfolio')} className={`rounded-lg px-4 py-2 text-sm font-semibold ${activeView === 'portfolio' ? 'bg-cyan-600 text-white' : 'border border-gray-300 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}>سبد آپشن</button>
+      </div>
+      {activeView === 'portfolio' ? <OptionsPortfolio contracts={contracts} /> : <>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-extrabold">بازار آپشن</h1>
@@ -495,6 +502,7 @@ const OptionsMarket: React.FC = () => {
         </div>
         </>
       )}
+      </>}
     </section>
   );
 };
