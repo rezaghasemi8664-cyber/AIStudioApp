@@ -418,6 +418,7 @@ const BackgroundTabLoader: React.FC<{
 
 const App: React.FC = () => {
   const [isInitializing, setIsInitializing] = useState(true);
+  const [maintenanceStatus, setMaintenanceStatus] = useState<{ enabled: boolean; allowAdmins: boolean; message: string } | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<StoredUser | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -1120,8 +1121,51 @@ const App: React.FC = () => {
     }
   }, [activeTab, currentUser, handlePasswordChange, handleProfileUpdate, handleTabClick, isExpired, isOnline, onlineUserCount, refreshUnreadCount, unreadCount, validityInfo]);
 
+  useEffect(() => {
+    let active = true;
+    const loadMaintenanceStatus = async () => {
+      try {
+        const response = await fetch('/api/maintenance/status', { cache: 'no-store', credentials: 'same-origin' });
+        if (!response.ok) return;
+        const payload = await response.json();
+        const data = payload?.data;
+        if (active && payload?.success && data) {
+          setMaintenanceStatus({
+            enabled: data.enabled === true,
+            allowAdmins: data.allowAdmins !== false,
+            message: String(data.message || 'سامانه موقتاً در حال نگهداری است.'),
+          });
+        }
+      } catch (error) {
+        console.warn('[App] دریافت وضعیت تعمیرات ناموفق بود:', error);
+      }
+    };
+    void loadMaintenanceStatus();
+    const timer = window.setInterval(loadMaintenanceStatus, 30000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
+
   if (isInitializing) return <SplashScreen />;
   if (initError) return <div className="min-h-screen flex items-center justify-center p-4"><div className="text-center"><ExclamationTriangleIcon className="h-16 w-16 text-yellow-500 mx-auto mb-4" /><p className="text-red-600 dark:text-red-400 mt-4">{initError}</p><button onClick={() => window.location.reload()} className="mt-4 px-6 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors">بارگذاری مجدد</button></div></div>;
+  if (maintenanceStatus?.enabled && !(currentUser?.isAdmin && maintenanceStatus.allowAdmins)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--app-bg)] text-[var(--app-color)]" dir="rtl">
+        <div className="w-full max-w-xl rounded-2xl border border-amber-500/30 bg-white dark:bg-gray-900 p-8 text-center shadow-xl">
+          <ExclamationTriangleIcon className="h-16 w-16 text-amber-500 mx-auto mb-5" />
+          <h1 className="text-2xl font-extrabold mb-3">سامانه در حال تعمیرات است</h1>
+          <p className="text-base leading-8 whitespace-pre-wrap text-gray-600 dark:text-gray-300">{maintenanceStatus.message}</p>
+          <p className="mt-5 text-sm text-gray-500">لطفاً پس از پایان عملیات تعمیرات دوباره مراجعه کنید.</p>
+          {!currentUser && maintenanceStatus.allowAdmins && (
+            <details className="mt-6 text-right">
+              <summary className="cursor-pointer text-sm text-cyan-600">ورود مدیر سامانه</summary>
+              <div className="mt-4"><Login onLogin={handleLogin} /></div>
+            </details>
+          )}
+          <button onClick={() => window.location.reload()} className="mt-6 px-5 py-2 rounded-lg bg-cyan-600 text-white font-semibold">بررسی مجدد</button>
+        </div>
+      </div>
+    );
+  }
   if (!currentUser) return <Login onLogin={handleLogin} />;
 
   return (
