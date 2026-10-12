@@ -23,6 +23,8 @@ export interface ValuableSymbol {
     source: string;
   };
   marketUpdatedAt?: string | null;
+  marketDataAgeMinutes?: number;
+  marketStatus?: 'OPEN' | 'CLOSED';
   evaluatedAt: string;
 }
 
@@ -30,6 +32,7 @@ export interface ValuableSymbolsResponse {
   signals: ValuableSymbol[];
   lastEvaluatedAt: string | null;
   stale: boolean;
+  marketStatus: 'OPEN' | 'CLOSED';
 }
 
 export const valuableSymbolsService = {
@@ -62,7 +65,8 @@ export const valuableSymbolsService = {
         Number.isFinite(Number(row.stopLoss))
       ),
       lastEvaluatedAt: typeof meta.lastEvaluatedAt === 'string' ? meta.lastEvaluatedAt : null,
-      stale: Boolean(meta.stale)
+      stale: Boolean(meta.stale),
+      marketStatus: meta.marketStatus === 'OPEN' ? 'OPEN' : 'CLOSED'
     };
   }
 };
