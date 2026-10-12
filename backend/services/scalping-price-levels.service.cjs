@@ -20,13 +20,15 @@ function calculateScalpingPriceLevels(candles, signal, currentPrice) {
   if (signal === 'BUY') {
     const entryPrice = resistance + atr * 0.1;
     const targetPrice = entryPrice + atr * 2;
-    if (!(support < entryPrice && targetPrice > entryPrice)) return null;
+    // Do not publish a breakout trigger that the current price has already crossed.
+    if (!(entryPrice > current && support < entryPrice && targetPrice > entryPrice)) return null;
     return { entryPrice: round(entryPrice), targetPrice: round(targetPrice), stopLossPrice: round(support), support: round(support), resistance: round(resistance), atr: round(atr), method: 'swing-resistance-atr' };
   }
   if (signal === 'SELL') {
     const entryPrice = support - atr * 0.1;
     const targetPrice = entryPrice - atr * 2;
-    if (!(targetPrice > 0 && targetPrice < entryPrice && resistance > entryPrice)) return null;
+    // SELL is an exit/breakdown reference for an existing holding, never a short-sale instruction.
+    if (!(entryPrice < current && targetPrice > 0 && targetPrice < entryPrice && resistance > entryPrice)) return null;
     return { entryPrice: round(entryPrice), targetPrice: round(targetPrice), stopLossPrice: round(resistance), support: round(support), resistance: round(resistance), atr: round(atr), method: 'swing-support-atr' };
   }
   return null;
