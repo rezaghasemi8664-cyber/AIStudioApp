@@ -478,9 +478,9 @@ const OptionsMarket: React.FC = () => {
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">{getValue(contract, ['date_end', 'dateEnd', 'expiryDate', 'ExpiryDate', 'maturityDate', 'MaturityDate', 'endDate', 'EndDate', 'سررسید'])}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(getPositiveNumeric(contract, ['bestBidPrice', 'pd1', 'pMeDem', 'bestBid', 'bidPrice', 'buyPrice']))}</td>
-                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(getPositiveNumeric(contract, ['bestBidQuantity', 'qd1', 'qd2', 'qd3', 'qd4', 'qd5', 'qD1', 'bestBidVolume', 'bidQuantity']))}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(parseNumeric(contract.bestBidQuantity))}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(getPositiveNumeric(contract, ['bestAskPrice', 'po1', 'pMeOf', 'bestAsk', 'askPrice', 'sellPrice']))}</td>
-                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(getPositiveNumeric(contract, ['bestAskQuantity', 'qo1', 'qo2', 'qo3', 'qo4', 'qo5', 'qO1', 'bestAskVolume', 'askQuantity']))}</td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums">{formatPrice(parseNumeric(contract.bestAskQuantity))}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['pl', 'lastPrice', 'LastPrice', 'pClosing', 'PClosing', 'last', 'Last'])}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['tvol', 'volume', 'Volume', 'qTotTran5J', 'QTotTran5J'])}</td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums">{getValue(contract, ['interest_open', 'interestOpen', 'openInterest', 'OpenInterest', 'open_interest', 'OI'])}</td>
