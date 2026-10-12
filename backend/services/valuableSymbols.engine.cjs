@@ -72,7 +72,7 @@ async function evaluateValuableSymbols({ limit = MAX_RESULTS } = {}) {
   const candidates = symbols
     .filter(row => row && row.symbol && !row.isStale && toNumber(row.lastPrice) > 0 && toNumber(row.closePrice) > 0)
     .sort((a, b) => (toNumber(b.value) || 0) - (toNumber(a.value) || 0))
-    .slice(0, 60);
+    .slice(0, 20);
   const results = [];
   for (const row of candidates) {
     let history, reports;
