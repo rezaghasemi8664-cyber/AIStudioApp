@@ -4,7 +4,7 @@ const cron = require('node-cron');
 const prisma = require('../config/prisma.cjs');
 const brsService = require('../services/brs.service.cjs');
 const marketSnapshotService = require('../services/marketSnapshot.service.cjs');
-const { calculateScalpingPriceLevels } = require('../services/scalping-price-levels.service.cjs');
+const { calculateScalpingPriceLevels, selectCandidatesWithValidLevels } = require('../services/scalping-price-levels.service.cjs');
 const { ensureMarketDailyHistory } = require('../services/market-daily-history.service.cjs');
 
 const MARKET_TZ = 'Asia/Tehran';
@@ -386,43 +386,48 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
   );
 
   const rankedCandidates = directional
-    .sort((a, b) => b.scored.score - a.scored.score)
-    .slice(0, SCALPING_LIMIT);
+    .sort((a, b) => b.scored.score - a.scored.score);
+  // Check up to five times the display limit so rejected top-ranked symbols do
+  // not prevent valid lower-ranked opportunities from being considered.
+  const candidatesToEvaluate = rankedCandidates.slice(0, SCALPING_LIMIT * 5);
 
   // Keep safety checks intact, but count exactly why each ranked candidate is rejected.
-  const candidates = [];
   const technicalLevelRejections = {};
-  for (const candidate of rankedCandidates) {
-    const levels = await getScalpingPriceLevels(
-      candidate.item.symbol,
-      candidate.scored.signal,
-      candidate.scored.last,
-      marketDate,
-      candidate.item,
-      (reason, details) => {
-        const entry = technicalLevelRejections[reason] || { count: 0, samples: [] };
+  const selection = await selectCandidatesWithValidLevels(
+    candidatesToEvaluate,
+    SCALPING_LIMIT,
+    async (candidate) => {
+      return getScalpingPriceLevels(
+        candidate.item.symbol,
+        candidate.scored.signal,
+        candidate.scored.last,
+        marketDate,
+        candidate.item,
+        (reason, details) => {
+          const entry = technicalLevelRejections[reason] || { count: 0, samples: [] };
+          entry.count += 1;
+          if (entry.samples.length < 3) entry.samples.push({
+            symbol: candidate.item.symbol,
+            signal: candidate.scored.signal,
+            ...details
+          });
+          technicalLevelRejections[reason] = entry;
+        }
+      ).catch((error) => {
+        const entry = technicalLevelRejections.technical_history_or_calculation_error || { count: 0, samples: [] };
         entry.count += 1;
         if (entry.samples.length < 3) entry.samples.push({
           symbol: candidate.item.symbol,
           signal: candidate.scored.signal,
-          ...details
+          message: error.message
         });
-        technicalLevelRejections[reason] = entry;
-      }
-    ).catch((error) => {
-      const entry = technicalLevelRejections.technical_history_or_calculation_error || { count: 0, samples: [] };
-      entry.count += 1;
-      if (entry.samples.length < 3) entry.samples.push({
-        symbol: candidate.item.symbol,
-        signal: candidate.scored.signal,
-        message: error.message
+        technicalLevelRejections.technical_history_or_calculation_error = entry;
+        console.warn('[SCALPING] Technical levels unavailable for ' + candidate.item.symbol + ': ' + error.message);
+        return null;
       });
-      technicalLevelRejections.technical_history_or_calculation_error = entry;
-      console.warn('[SCALPING] Technical levels unavailable for ' + candidate.item.symbol + ': ' + error.message);
-      return null;
-    });
-    if (levels) candidates.push({ ...candidate, levels });
-  }
+    }
+  );
+  const candidates = selection.candidates;
   const symbolsWithValidPriceBands = symbols.filter(item =>
     Number.isFinite(Number(item.allowedMin)) &&
     Number(item.allowedMin) > 0 &&
@@ -459,6 +464,7 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
     threshold: threshold.length,
     directional: directional.length,
     rankedCandidates: rankedCandidates.length,
+    candidatesEvaluated: selection.evaluatedCount,
     candidatesWithTechnicalLevels: candidates.length,
     symbolsWithValidPriceBands,
     symbolsMissingOrInvalidPriceBands: symbols.length - symbolsWithValidPriceBands,

@@ -97,4 +97,21 @@ function calculateScalpingPriceLevels(candles, signal, currentPrice, market = {}
   return reject('unsupported_signal', { signal: String(signal) });
 }
 
-module.exports = { calculateScalpingPriceLevels, isLockedAtUpperLimit, isLockedAtLowerLimit };
+async function selectCandidatesWithValidLevels(rankedCandidates, limit, resolveLevels) {
+  const candidates = [];
+  let evaluatedCount = 0;
+  for (const candidate of rankedCandidates) {
+    if (candidates.length >= limit) break;
+    evaluatedCount += 1;
+    const levels = await resolveLevels(candidate);
+    if (levels) candidates.push({ ...candidate, levels });
+  }
+  return { candidates, evaluatedCount };
+}
+
+module.exports = {
+  calculateScalpingPriceLevels,
+  isLockedAtUpperLimit,
+  isLockedAtLowerLimit,
+  selectCandidatesWithValidLevels
+};
