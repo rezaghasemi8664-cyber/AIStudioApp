@@ -38,31 +38,31 @@ export const valuableSymbolsService = {
       headers: { 'Cache-Control': 'no-cache' },
       params: { t: Date.now() }
     });
-    let payload: any = response;
-    for (let i = 0; i < 5 && payload && typeof payload === 'object'; i += 1) {
-      if (payload.data !== undefined && payload.data !== payload) {
-        payload = payload.data;
-        continue;
-      }
-      if (payload.result !== undefined && payload.result !== payload) {
-        payload = payload.result;
-        continue;
-      }
-      break;
-    }
-    const rows = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
+    const envelope: any = response && response.data && typeof response.data === 'object'
+      ? response.data
+      : response;
+    const nested: any = envelope?.result && typeof envelope.result === 'object'
+      ? envelope.result
+      : envelope;
+    const rawRows = Array.isArray(nested?.data) ? nested.data
+      : Array.isArray(nested?.signals) ? nested.signals
+      : Array.isArray(nested?.items) ? nested.items
+      : Array.isArray(nested?.results) ? nested.results
+      : Array.isArray(nested) ? nested
+      : [];
+    const meta = nested?.meta && typeof nested.meta === 'object'
+      ? nested.meta
+      : envelope?.meta && typeof envelope.meta === 'object' ? envelope.meta : {};
     return {
-      signals: rows.filter((row: any) =>
+      signals: rawRows.filter((row: any) =>
         row && typeof row.symbol === 'string' &&
         Number.isFinite(Number(row.currentPrice)) &&
         Number.isFinite(Number(row.entryPrice)) &&
         Number.isFinite(Number(row.targetPrice)) &&
         Number.isFinite(Number(row.stopLoss))
       ),
-      lastEvaluatedAt: typeof payload?.meta?.lastEvaluatedAt === 'string'
-        ? payload.meta.lastEvaluatedAt
-        : null,
-      stale: Boolean(payload?.meta?.stale)
+      lastEvaluatedAt: typeof meta.lastEvaluatedAt === 'string' ? meta.lastEvaluatedAt : null,
+      stale: Boolean(meta.stale)
     };
   }
 };
