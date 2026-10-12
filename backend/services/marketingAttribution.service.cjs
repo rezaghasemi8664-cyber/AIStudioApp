@@ -69,11 +69,10 @@ function getReport() {
     const registrations = store.registrations.filter(item => item.content === content);
     channels[content] = {
       visits: visits.length,
-      registrations: registrations.length,
-      visitCount: visits.length,
       registrationCount: registrations.length,
+      visitCount: visits.length,
       conversionRatePercent: visits.length ? Math.round((registrations.length / visits.length) * 10000) / 100 : 0,
-      registrations: registrations.map(({ userId, registeredAt, source, medium, campaign, content: channel }) => ({ userId, registeredAt, source, medium, campaign, content: channel }))
+      recentRegistrations: registrations.slice(-100).map(({ userId, registeredAt, source, medium, campaign, content: channel }) => ({ userId, registeredAt, source, medium, campaign, content: channel }))
     };
   }
   return { generatedAt: new Date().toISOString(), channels };
