@@ -11,6 +11,29 @@ jest.mock('../services/codalIntelligence.service.cjs', () => ({
 const market = require('../services/sharedMarket.service.cjs');
 const codal = require('../services/codalIntelligence.service.cjs');
 const engine = require('../services/valuableSymbols.engine.cjs');
+const codalService = jest.requireActual('../services/codalIntelligence.service.cjs');
+
+describe('Codal normalization compatibility', () => {
+  test('normalizes Persian digits and numeric values', () => {
+    expect(codalService.normalizeDigits('۱۴۰۵/۰۷/۲۱')).toBe('1405/07/21');
+    expect(codalService.normalizeNumber('۱٬۲۳۴')).toBe(1234);
+    expect(codalService.normalizeNumber('۱۲۵')).toBe(125);
+  });
+
+  test('extracts financial metrics from a nested financial data object', () => {
+    expect(codalService.extractFinancialMetrics({
+      FinancialData: { EPS: '۱۲۳', NetProfit: '۴۵۶۷', Revenue: '۹۸۷۶' }
+    })).toMatchObject({ eps: 123, netProfit: 4567, revenue: 9876 });
+  });
+
+  test('normalizes alternate publication date fields and Persian digits', () => {
+    const item = codalService.normalizeItem({
+      Title: 'گزارش مالی', SendDate: '۱۴۰۵/۰۷/۲۰', EPS: '۱۰۰'
+    });
+    expect(item.publishDate).toBe('1405/07/20');
+    expect(item.financialMetrics.eps).toBe(100);
+  });
+});
 
 describe('valuable symbols freshness guards', () => {
   beforeEach(() => {
