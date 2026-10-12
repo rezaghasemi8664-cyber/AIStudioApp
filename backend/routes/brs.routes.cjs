@@ -43,6 +43,23 @@ function getOptionKind(record) {
   return null;
 }
 
+function getBestOrderLevel(record, pricePrefix, quantityPrefix, countPrefix) {
+  // BRS exposes five levels. Use the first level with a positive price,
+  // keeping its own quantity/count aligned with that price.
+  for (let level = 1; level <= 5; level += 1) {
+    const price = parseFiniteNumber(record && record[pricePrefix + level]);
+    if (price !== null && price > 0) {
+      return {
+        price,
+        quantity: parseFiniteNumber(record && record[quantityPrefix + level]),
+        count: parseFiniteNumber(record && record[countPrefix + level]),
+        level
+      };
+    }
+  }
+  return { price: null, quantity: null, count: null, level: null };
+}
+
 function enrichOptionContracts(contracts, symbols) {
   const spotBySymbol = new Map();
   for (const symbol of symbols) {
@@ -59,8 +76,12 @@ function enrichOptionContracts(contracts, symbols) {
     const contractSize = parseFiniteNumber(getFirstValue(contract, ['size_contract', 'sizeContract', 'contractSize', 'contract_size']));
     const kind = getOptionKind(contract);
     const optionLastPrice = parseFiniteNumber(getFirstValue(contract, ['pl', 'lastPrice', 'LastPrice', 'pClosing', 'PClosing', 'last', 'Last']));
-    const bestAskPrice = parseFiniteNumber(getFirstValue(contract, ['bestAskPrice', 'po1', 'pMeOf', 'bestAsk', 'askPrice', 'sellPrice', 'priceSell', 'قیمت فروش']));
-    const bestBidPrice = parseFiniteNumber(getFirstValue(contract, ['bestBidPrice', 'pd1', 'pMeDem', 'bestBid', 'bidPrice', 'buyPrice', 'priceBuy', 'قیمت خرید']));
+    const rawBestAskPrice = parseFiniteNumber(getFirstValue(contract, ['bestAskPrice', 'po1', 'pMeOf', 'bestAsk', 'askPrice', 'sellPrice', 'priceSell', 'قیمت فروش']));
+    const rawBestBidPrice = parseFiniteNumber(getFirstValue(contract, ['bestBidPrice', 'pd1', 'pMeDem', 'bestBid', 'bidPrice', 'buyPrice', 'priceBuy', 'قیمت خرید']));
+    const askLevel = getBestOrderLevel(contract, 'po', 'qo', 'zo');
+    const bidLevel = getBestOrderLevel(contract, 'pd', 'qd', 'zd');
+    const bestAskPrice = rawBestAskPrice !== null && rawBestAskPrice > 0 ? rawBestAskPrice : askLevel.price;
+    const bestBidPrice = rawBestBidPrice !== null && rawBestBidPrice > 0 ? rawBestBidPrice : bidLevel.price;
     const tradedVolume = parseFiniteNumber(getFirstValue(contract, ['tvol', 'volume', 'Volume', 'qTotTran5J', 'QTotTran5J']));
     const openInterest = parseFiniteNumber(getFirstValue(contract, ['interest_open', 'interestOpen', 'openInterest', 'OpenInterest', 'open_interest', 'OI']));
     const breakEvenPrice = strike !== null && optionLastPrice !== null && kind ? (kind === 'call' ? strike + optionLastPrice : strike - optionLastPrice) : null;
@@ -76,6 +97,14 @@ function enrichOptionContracts(contracts, symbols) {
       optionLastPrice,
       bestAskPrice: bestAskPrice !== null && bestAskPrice > 0 ? bestAskPrice : null,
       bestBidPrice: bestBidPrice !== null && bestBidPrice > 0 ? bestBidPrice : null,
+      bestAskQuantity: rawBestAskPrice !== null && rawBestAskPrice > 0
+        ? parseFiniteNumber(getFirstValue(contract, ['qo1', 'bestAskQuantity', 'bestAskVolume', 'askQuantity']))
+        : askLevel.quantity,
+      bestAskLevel: rawBestAskPrice !== null && rawBestAskPrice > 0 ? 1 : askLevel.level,
+      bestBidQuantity: rawBestBidPrice !== null && rawBestBidPrice > 0
+        ? parseFiniteNumber(getFirstValue(contract, ['qd1', 'bestBidQuantity', 'bestBidVolume', 'bidQuantity']))
+        : bidLevel.quantity,
+      bestBidLevel: rawBestBidPrice !== null && rawBestBidPrice > 0 ? 1 : bidLevel.level,
       tradedVolume,
       openInterest,
       breakEvenPrice,
