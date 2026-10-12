@@ -2,9 +2,16 @@
 
 const axios = require('axios');
 
+function normalizeDigits(value) {
+  return String(value ?? '').replace(/[۰-۹٠-٩]/g, digit => {
+    const code = digit.charCodeAt(0);
+    return String(code >= 0x06f0 && code <= 0x06f9 ? code - 0x06f0 : code - 0x0660);
+  });
+}
 function normalizeNumber(value) {
   if (value === null || value === undefined || value === '') return null;
-  const n = Number(String(value).replace(/,/g, '').replace(/٪/g, '').trim());
+  const text = normalizeDigits(value).replace(/[٬,]/g, '').replace(/٪/g, '').trim();
+  const n = Number(text);
   return Number.isFinite(n) ? n : null;
 }
 function toBoolean(value) {
@@ -15,7 +22,30 @@ function toBoolean(value) {
   return Boolean(value);
 }
 function first(obj, keys) {
-  for (const key of keys) { const value = obj?.[key]; if (value !== undefined && value !== null && value !== '') return value; }
+  if (!obj || typeof obj !== 'object') return null;
+  for (const key of keys) {
+    const value = obj[key];
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  const wanted = new Set(keys.map(key => String(key).toLowerCase()));
+  for (const [key, value] of Object.entries(obj)) {
+    if (wanted.has(key.toLowerCase()) && value !== undefined && value !== null && value !== '') return value;
+  }
+  return null;
+}
+function financialSources(row) {
+  const sources = [row];
+  for (const key of ['financialMetrics', 'FinancialMetrics', 'metrics', 'Metrics', 'financialData', 'FinancialData', 'data', 'Data', 'reportData', 'ReportData', 'result', 'Result']) {
+    const value = row && row[key];
+    if (value && typeof value === 'object' && !Array.isArray(value)) sources.push(value);
+  }
+  return sources;
+}
+function metricFromSources(row, keys) {
+  for (const source of financialSources(row)) {
+    const value = metric(source, keys);
+    if (value !== null) return value;
+  }
   return null;
 }
 function metric(row, keys) { return normalizeNumber(first(row, keys)); }
@@ -25,18 +55,21 @@ function growth(row, currentKeys, previousKeys) {
   return ((current - previous) / Math.abs(previous)) * 100;
 }
 function extractFinancialMetrics(row) {
+  const revenueKeys = ['revenue', 'Revenue', 'salesRevenue', 'SalesRevenue', 'netSales', 'NetSales', 'درآمد', 'درآمد فروش', 'درآمدهای عملیاتی', 'مبلغ فروش'];
+  const profitKeys = ['netProfit', 'NetProfit', 'profit', 'Profit', 'netIncome', 'NetIncome', 'سود خالص', 'سود (زیان) خالص'];
+  const epsKeys = ['eps', 'EPS', 'earningsPerShare', 'Eps', 'سود هر سهم', 'سود هر سهم (ریال)'];
   const metrics = {
-    revenue: metric(row, ['revenue', 'Revenue', 'salesRevenue', 'SalesRevenue', 'netSales', 'NetSales', 'درآمد', 'درآمد فروش']),
-    netProfit: metric(row, ['netProfit', 'NetProfit', 'profit', 'Profit', 'netIncome', 'NetIncome', 'سود خالص']),
-    eps: metric(row, ['eps', 'EPS', 'earningsPerShare', 'Eps', 'سود هر سهم']),
-    assets: metric(row, ['assets', 'Assets', 'totalAssets', 'TotalAssets', 'دارایی']),
-    liabilities: metric(row, ['liabilities', 'Liabilities', 'totalLiabilities', 'TotalLiabilities', 'بدهی']),
-    cash: metric(row, ['cash', 'Cash', 'cashAndEquivalents', 'CashAndEquivalents', 'وجه نقد']),
-    salesVolume: metric(row, ['salesVolume', 'SalesVolume', 'volume', 'Volume', 'مقدار فروش']),
+    revenue: metricFromSources(row, revenueKeys),
+    netProfit: metricFromSources(row, profitKeys),
+    eps: metricFromSources(row, epsKeys),
+    assets: metricFromSources(row, ['assets', 'Assets', 'totalAssets', 'TotalAssets', 'دارایی', 'جمع دارایی‌ها']),
+    liabilities: metricFromSources(row, ['liabilities', 'Liabilities', 'totalLiabilities', 'TotalLiabilities', 'بدهی', 'جمع بدهی‌ها']),
+    cash: metricFromSources(row, ['cash', 'Cash', 'cashAndEquivalents', 'CashAndEquivalents', 'وجه نقد']),
+    salesVolume: metricFromSources(row, ['salesVolume', 'SalesVolume', 'volume', 'Volume', 'مقدار فروش']),
   };
   const growthFields = {
-    revenueGrowthPercent: growth(row, ['revenue', 'Revenue', 'salesRevenue', 'SalesRevenue', 'netSales', 'NetSales'], ['previousRevenue', 'PreviousRevenue', 'priorRevenue', 'PriorRevenue', 'lastYearRevenue', 'LastYearRevenue']),
-    netProfitGrowthPercent: growth(row, ['netProfit', 'NetProfit', 'profit', 'Profit', 'netIncome', 'NetIncome'], ['previousNetProfit', 'PreviousNetProfit', 'priorNetProfit', 'PriorNetProfit', 'lastYearNetProfit', 'LastYearNetProfit']),
+    revenueGrowthPercent: growth(row, revenueKeys, ['previousRevenue', 'PreviousRevenue', 'priorRevenue', 'PriorRevenue', 'lastYearRevenue', 'LastYearRevenue', 'درآمد دوره مشابه سال قبل']),
+    netProfitGrowthPercent: growth(row, profitKeys, ['previousNetProfit', 'PreviousNetProfit', 'priorNetProfit', 'PriorNetProfit', 'lastYearNetProfit', 'LastYearNetProfit', 'سود خالص دوره مشابه سال قبل']),
   };
   return Object.fromEntries(Object.entries({ ...metrics, ...growthFields }).filter(([, value]) => value !== null));
 }
@@ -67,7 +100,7 @@ function normalizeItem(item) {
     companyName: String(first(row, ['companyName', 'CompanyName', 'company', 'name']) || '').trim(),
     reportType,
     category: classifyReport(title, reportType),
-    publishDate: String(first(row, ['publishDate', 'PublishDate', 'date', 'Date', 'sendDate']) || '').trim(),
+    publishDate: normalizeDigits(first(row, ['publishDate', 'PublishDate', 'publishDateTime', 'PublishDateTime', 'sendDate', 'SendDate', 'sentDate', 'SentDate', 'insertDate', 'InsertDate', 'date', 'Date', 'dateTime', 'DateTime', 'تاریخ انتشار', 'تاریخ ارسال']) || '').trim(),
     period: String(first(row, ['period', 'Period', 'fiscalPeriod']) || '').trim(),
     periodEnd: String(first(row, ['periodEnd', 'PeriodEnd', 'endDate']) || '').trim(),
     url: String(first(row, ['url', 'URL', 'link', 'Link', 'documentUrl']) || '').trim(),
@@ -133,4 +166,4 @@ async function getReports({ symbol = '', from = '', to = '', limit = 50 } = {}) 
   const items = extractItems(response.data).map(normalizeItem).filter(item => item.title || item.symbol || item.publishDate || item.url).slice(0, maxItems);
   return { items, summary: buildSummary(items), fetchedAt: new Date().toISOString(), source: 'codal', configured: true };
 }
-module.exports = { getReports, normalizeNumber, classifyReport, extractFinancialMetrics, buildPeriodicTrend, buildSensitiveEvents };
+module.exports = { getReports, normalizeNumber, normalizeDigits, classifyReport, extractFinancialMetrics, buildPeriodicTrend, buildSensitiveEvents };
