@@ -53,7 +53,17 @@ function todayTehranDateOnly() {
 async function hasTodaySummary() {
   const summaryDate = todayTehranDateOnly();
   const existing = await prisma.marketSummary.findUnique({ where: { summaryDate } });
-  return Boolean(existing);
+  if (!existing) return false;
+
+  // Older daily runs saved the compact live text and omitted section 15.
+  // Treat that record as incomplete so a later retry/recovery can rebuild it
+  // through the deterministic summary service rather than leaving it stale.
+  const content = String(existing.content || existing.summary || '');
+  const hasTechnicalSection = /تحلیل تکنیکال و چشم‌انداز کوتاه‌مدت/.test(content);
+  if (!hasTechnicalSection) {
+    console.warn('[Cron][MarketSummary] existing summary has no technical section; allowing deterministic regeneration');
+  }
+  return hasTechnicalSection;
 }
 
 async function runEndOfDaySummaryJob(attempt, label) {
