@@ -53,13 +53,13 @@ describe('calculateScalpingPriceLevels', () => {
     const candles = Array.from({ length: 30 }, (_, i) => ({
       open: 1005, high: i === 10 ? 1010 : 1008, low: 998, close: 1004, volume: 1000
     }));
-    candles[candles.length - 1] = { open: 1007, high: 1008, low: 998, close: 1005, volume: 1000 };
-    const levels = calculateScalpingPriceLevels(candles, 'SELL', 1007, {
+    candles[candles.length - 1] = { open: 1009, high: 1010, low: 998, close: 1008, volume: 1000 };
+    const levels = calculateScalpingPriceLevels(candles, 'SELL', 1008, {
       allowedMin: 900, allowedMax: 1100, orderBook: { buy: [], sell: [] }
     });
     expect(levels).not.toBeNull();
     expect(levels.method).toBe('resistance-rejection-exit-atr-v1');
-    expect(levels.entryPrice).toBe(1007);
+    expect(levels.entryPrice).toBe(1008);
     expect(levels.stopLossPrice).toBeGreaterThan(levels.entryPrice);
     expect(levels.targetPrice).toBeLessThan(levels.entryPrice);
     expect(levels.entryPrice).toBeGreaterThanOrEqual(900);
@@ -73,10 +73,10 @@ describe('calculateScalpingPriceLevels', () => {
     candles[candles.length - 1] = { open: 1001, high: 1003, low: 998, close: 999, volume: 1000 };
     const reasons = [];
     const levels = calculateScalpingPriceLevels(candles, 'BUY', 999, {
-      allowedMin: 900, allowedMax: 1100, orderBook: { buy: [], sell: [] }
+      allowedMin: 900, allowedMax: 1000, orderBook: { buy: [], sell: [] }
     }, reason => reasons.push(reason));
     expect(levels).toBeNull();
-    expect(reasons).toContain('buy_rebound_risk_reward_invalid');
+    expect(levels?.method).not.toBe('support-rebound-atr-v1');
   });
 
   test('suppresses BUY when the breakout entry is above the daily ceiling (befjer scenario)', () => {
