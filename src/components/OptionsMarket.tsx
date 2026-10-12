@@ -36,6 +36,14 @@ function getNumeric(record: OptionContract, keys: string[]): number | null {
   return null;
 }
 
+function getPositiveNumeric(record: OptionContract, keys: string[]): number | null {
+  for (const key of keys) {
+    const parsed = parseNumeric(record[key]);
+    if (parsed !== null && parsed > 0) return parsed;
+  }
+  return null;
+}
+
 function getKind(record: OptionContract): 'call' | 'put' | null {
   const raw = getValue(record, ['optionKind', 'OptionKind', 'type', 'Type', 'optionType', 'OptionType', 'callPut', 'CallPut', 'نوع']).trim().toLowerCase();
   if (raw === 'call' || raw === 'c' || raw.includes('اختیار خرید') || raw === 'خرید') return 'call';
@@ -79,19 +87,21 @@ function getExpiryDays(value: string): number | null {
   return Math.ceil((expiry.getTime() - Date.now()) / 86400000);
 }
 
-type RankRejectionReason = 'spot' | 'strike' | 'quotes' | 'kind' | 'expiry' | 'spread';
+type RankRejectionReason = 'spot' | 'strike' | 'ask' | 'bid' | 'crossed' | 'kind' | 'expiry' | 'spread';
 
 function getRankRejectionReason(contract: OptionContract): RankRejectionReason | null {
   const spot = getNumeric(contract, ['underlyingLastPrice']);
   const strike = getNumeric(contract, ['strikePrice', 'price_strike', 'priceStrike', 'strike']);
-  const ask = getNumeric(contract, ['bestAskPrice', 'po1', 'pMeOf', 'askPrice', 'sellPrice']);
-  const bid = getNumeric(contract, ['bestBidPrice', 'pd1', 'pMeDem', 'bidPrice', 'buyPrice']);
+  const ask = getPositiveNumeric(contract, ['bestAskPrice', 'po1', 'pMeOf', 'askPrice', 'sellPrice']);
+  const bid = getPositiveNumeric(contract, ['bestBidPrice', 'pd1', 'pMeDem', 'bidPrice', 'buyPrice']);
   const kind = getKind(contract);
   const days = getExpiryDays(getValue(contract, EXPIRY_KEYS));
 
   if (spot === null || spot <= 0) return 'spot';
   if (strike === null || strike <= 0) return 'strike';
-  if (ask === null || ask <= 0 || bid === null || bid <= 0 || ask < bid) return 'quotes';
+  if (ask === null) return 'ask';
+  if (bid === null) return 'bid';
+  if (ask < bid) return 'crossed';
   if (!kind) return 'kind';
   if (days === null || days < 7) return 'expiry';
 
@@ -103,8 +113,8 @@ function getRankRejectionReason(contract: OptionContract): RankRejectionReason |
 function rankOptionContract(contract: OptionContract) {
   const spot = getNumeric(contract, ['underlyingLastPrice']);
   const strike = getNumeric(contract, ['strikePrice', 'price_strike', 'priceStrike', 'strike']);
-  const ask = getNumeric(contract, ['bestAskPrice', 'po1', 'pMeOf', 'askPrice', 'sellPrice']);
-  const bid = getNumeric(contract, ['bestBidPrice', 'pd1', 'pMeDem', 'bidPrice', 'buyPrice']);
+  const ask = getPositiveNumeric(contract, ['bestAskPrice', 'po1', 'pMeOf', 'askPrice', 'sellPrice']);
+  const bid = getPositiveNumeric(contract, ['bestBidPrice', 'pd1', 'pMeDem', 'bidPrice', 'buyPrice']);
   const kind = getKind(contract);
   const expiryText = getValue(contract, EXPIRY_KEYS);
   const days = getExpiryDays(expiryText);
@@ -116,8 +126,8 @@ function rankOptionContract(contract: OptionContract) {
   if (
     spot === null || spot <= 0 ||
     strike === null || strike <= 0 ||
-    ask === null || ask <= 0 ||
-    bid === null || bid <= 0 || ask < bid ||
+    ask === null ||
+    bid === null || ask < bid ||
     kind === null ||
     days === null || days < 7
   ) return null;
@@ -213,7 +223,9 @@ const OptionsMarket: React.FC = () => {
     const counts: Record<RankRejectionReason, number> = {
       spot: 0,
       strike: 0,
-      quotes: 0,
+      ask: 0,
+      bid: 0,
+      crossed: 0,
       kind: 0,
       expiry: 0,
       spread: 0,
@@ -311,7 +323,9 @@ const OptionsMarket: React.FC = () => {
               <ul className="mt-2 grid grid-cols-1 gap-1 text-sm sm:grid-cols-2">
                 <li>قیمت نماد پایه نامعتبر/ناموجود: {rankDiagnostics.counts.spot.toLocaleString('fa-IR')}</li>
                 <li>قیمت اعمال نامعتبر/ناموجود: {rankDiagnostics.counts.strike.toLocaleString('fa-IR')}</li>
-                <li>عرضه/تقاضای نامعتبر یا ناقص: {rankDiagnostics.counts.quotes.toLocaleString('fa-IR')}</li>
+                <li>قیمت فروش/عرضه ناموجود یا صفر: {rankDiagnostics.counts.ask.toLocaleString('fa-IR')}</li>
+                <li>قیمت خرید/تقاضای ناموجود یا صفر: {rankDiagnostics.counts.bid.toLocaleString('fa-IR')}</li>
+                <li>قیمت عرضه کمتر از تقاضا: {rankDiagnostics.counts.crossed.toLocaleString('fa-IR')}</li>
                 <li>نوع اختیار خرید/فروش نامشخص: {rankDiagnostics.counts.kind.toLocaleString('fa-IR')}</li>
                 <li>سررسید نامعتبر یا کمتر از ۷ روز: {rankDiagnostics.counts.expiry.toLocaleString('fa-IR')}</li>
                 <li>فاصله عرضه و تقاضا بیشتر از ۲۰٪: {rankDiagnostics.counts.spread.toLocaleString('fa-IR')}</li>
