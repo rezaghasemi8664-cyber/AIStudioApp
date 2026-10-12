@@ -31,6 +31,54 @@ describe('calculateScalpingPriceLevels', () => {
     expect(levels.method).toBe('swing-support-atr');
   });
 
+
+  test('creates a BUY support-rebound setup near support with a bullish candle and valid risk/reward', () => {
+    const candles = Array.from({ length: 30 }, (_, i) => ({
+      open: 1000, high: i === 10 ? 1010 : 1003, low: 998, close: 1001, volume: 1000
+    }));
+    candles[candles.length - 1] = { open: 999, high: 1003, low: 998, close: 1000, volume: 1000 };
+    const levels = calculateScalpingPriceLevels(candles, 'BUY', 1000, {
+      allowedMin: 900, allowedMax: 1100, orderBook: { buy: [], sell: [] }
+    });
+    expect(levels).not.toBeNull();
+    expect(levels.method).toBe('support-rebound-atr-v1');
+    expect(levels.entryPrice).toBe(1000);
+    expect(levels.stopLossPrice).toBeLessThan(levels.entryPrice);
+    expect(levels.targetPrice).toBeGreaterThan(levels.entryPrice);
+    expect(levels.entryPrice).toBeGreaterThanOrEqual(900);
+    expect(levels.targetPrice).toBeLessThanOrEqual(1100);
+  });
+
+  test('creates a SELL resistance-rejection exit reference with a bearish candle', () => {
+    const candles = Array.from({ length: 30 }, (_, i) => ({
+      open: 1005, high: i === 10 ? 1010 : 1008, low: 998, close: 1004, volume: 1000
+    }));
+    candles[candles.length - 1] = { open: 1009, high: 1010, low: 998, close: 1008, volume: 1000 };
+    const levels = calculateScalpingPriceLevels(candles, 'SELL', 1008, {
+      allowedMin: 900, allowedMax: 1100, orderBook: { buy: [], sell: [] }
+    });
+    expect(levels).not.toBeNull();
+    expect(levels.method).toBe('resistance-rejection-exit-atr-v1');
+    expect(levels.entryPrice).toBe(1008);
+    expect(levels.stopLossPrice).toBeGreaterThan(levels.entryPrice);
+    expect(levels.targetPrice).toBeLessThan(levels.entryPrice);
+    expect(levels.entryPrice).toBeGreaterThanOrEqual(900);
+    expect(levels.stopLossPrice).toBeLessThanOrEqual(1100);
+  });
+
+  test('does not turn a support touch without a bullish candle into a rebound signal', () => {
+    const candles = Array.from({ length: 30 }, () => ({
+      open: 1001, high: 1010, low: 998, close: 1000, volume: 1000
+    }));
+    candles[candles.length - 1] = { open: 1001, high: 1003, low: 998, close: 999, volume: 1000 };
+    const reasons = [];
+    const levels = calculateScalpingPriceLevels(candles, 'BUY', 999, {
+      allowedMin: 900, allowedMax: 1000, orderBook: { buy: [], sell: [] }
+    }, reason => reasons.push(reason));
+    expect(levels).toBeNull();
+    expect(levels?.method).not.toBe('support-rebound-atr-v1');
+  });
+
   test('suppresses BUY when the breakout entry is above the daily ceiling (befjer scenario)', () => {
     const candles = makeCandles().map(c => ({ ...c, high: c.high + 250, open: c.open + 250, low: c.low + 250, close: c.close + 250 }));
     expect(calculateScalpingPriceLevels(candles, 'BUY', 12300, {

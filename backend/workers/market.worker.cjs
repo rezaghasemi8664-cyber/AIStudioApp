@@ -8,17 +8,17 @@ const { calculateScalpingPriceLevels, selectCandidatesWithValidLevels } = requir
 const { ensureMarketDailyHistory } = require('../services/market-daily-history.service.cjs');
 
 const MARKET_TZ = 'Asia/Tehran';
-// Stricter real-market filters: prefer fewer, higher-conviction opportunities.
-const SCALPING_THRESHOLD = 55;
+// Balanced filters: preserve liquidity/data-quality safeguards while allowing more genuine intraday setups.
+const SCALPING_THRESHOLD = 50;
 const SCALPING_LIMIT = 20;
-const SCALPING_MIN_CHANGE_PCT = 0.7;
-const SCALPING_MIN_VALUE = 200000000;
-const SCALPING_MIN_TRADES = 50;
-const SCALPING_MIN_REAL_FLOW_RATIO = 0.10;
-const SCALPING_MIN_POSITION = 0.65;
-const SCALPING_MAX_POSITION = 0.35;
-const SCALPING_MIN_RANGE_PCT = 0.8;
-const SCALPING_MIN_REAL_PARTICIPATION = 0.15;
+const SCALPING_MIN_CHANGE_PCT = 0.35;
+const SCALPING_MIN_VALUE = 100000000;
+const SCALPING_MIN_TRADES = 30;
+const SCALPING_MIN_REAL_FLOW_RATIO = 0.05;
+const SCALPING_MIN_POSITION = 0.05;
+const SCALPING_MAX_POSITION = 0.95;
+const SCALPING_MIN_RANGE_PCT = 0.5;
+const SCALPING_MIN_REAL_PARTICIPATION = 0.10;
 
 function tehranDateKey(date = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: MARKET_TZ, calendar: 'gregory' }).format(date);
@@ -489,12 +489,20 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
 
   for (const { item, scored, levels } of candidates) {
     const entry = levels.entryPrice;
-    const strategyName = 'technical-breakout-atr-v1';
+    const strategyName = levels.method === 'support-rebound-atr-v1'
+      ? 'technical-support-rebound-atr-v1'
+      : levels.method === 'resistance-rejection-exit-atr-v1'
+        ? 'technical-resistance-rejection-exit-atr-v1'
+        : 'technical-breakout-atr-v1';
     const stopLoss = levels.stopLossPrice;
     const takeProfit = levels.targetPrice;
-    const recommendationText = scored.signal === 'BUY'
-      ? 'مومنتوم مثبت، موقعیت قیمت و جریان خرید حقیقی هم‌جهت هستند.'
-      : 'مومنتوم منفی، موقعیت قیمت و جریان فروش حقیقی هم‌جهت هستند.';
+    const recommendationText = levels.method === 'support-rebound-atr-v1'
+      ? 'بازگشت قیمت از محدوده حمایت با کندل صعودی؛ ورود نزدیک قیمت فعلی و فقط با رعایت حد ضرر.'
+      : levels.method === 'resistance-rejection-exit-atr-v1'
+        ? 'رد قیمت از مقاومت با کندل نزولی؛ مرجع بررسی کاهش ریسک یا خروج از سهم موجود، نه فروش استقراضی.'
+        : scored.signal === 'BUY'
+          ? 'مومنتوم مثبت، موقعیت قیمت و جریان خرید حقیقی هم‌جهت هستند؛ ورود مشروط به شکست مقاومت.'
+          : 'مومنتوم منفی، موقعیت قیمت و جریان فروش حقیقی هم‌جهت هستند؛ سناریوی شکست حمایت برای بررسی خروج.';
 
     const meta = {
       pct: scored.pct,
