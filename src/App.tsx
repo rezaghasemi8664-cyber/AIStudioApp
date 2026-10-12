@@ -29,6 +29,7 @@ import * as apiEndpointServiceModule from './services/apiEndpointService';
 import * as gapgptServiceModule from './services/gapgptService';
 import * as socketServiceModule from './services/socketService';
 import { getTodaySiteAnalytics, recordSiteVisit, sendSiteHeartbeat } from './services/siteAnalyticsService';
+import { trackMarketingVisit } from './services/marketingAttribution';
 import { globalSettings } from './services/settingsService';
 
 import { useNotification } from './components/NotificationSystem';
@@ -518,6 +519,10 @@ const App: React.FC = () => {
     setActiveTab('dashboard');
     setPortfolioAlert('none');
     setScalpingAlert(false);
+  }, []);
+
+  useEffect(() => {
+    void trackMarketingVisit();
   }, []);
 
   useEffect(() => {
