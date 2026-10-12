@@ -9,21 +9,24 @@ function parseValue(value) {
 }
 
 function isExempt(pathname) {
-  return pathname === '/api' ||
-    pathname.startsWith('/api/health') ||
-    pathname.startsWith('/api/v1/health') ||
-    pathname.startsWith('/api/version') ||
-    pathname.startsWith('/api/auth') ||
-    pathname.startsWith('/api/v1/auth') ||
-    pathname.startsWith('/api/admin') ||
-    pathname.startsWith('/api/v1/admin');
+  const pathOnly = String(pathname || '').split('?')[0];
+  if (pathOnly === '/api/maintenance/status' || pathOnly === '/api/v1/maintenance/status' || pathOnly === '/v1/maintenance/status') return true;
+  return pathOnly === '/api' ||
+    pathOnly.startsWith('/api/health') ||
+    pathOnly.startsWith('/api/v1/health') ||
+    pathOnly.startsWith('/api/version') ||
+    pathOnly.startsWith('/api/auth') ||
+    pathOnly.startsWith('/api/v1/auth') ||
+    pathOnly.startsWith('/api/admin') ||
+    pathOnly.startsWith('/api/v1/admin');
 }
 
 async function getPolicy() {
   const now = Date.now();
   if (cache.expiresAt > now && cache.value) return cache.value;
   const row = await prisma.globalSetting.findUnique({ where:{ key:'maintenance.policy' } });
-  const value = row && row.category === 'maintenance' ? parseValue(row.value) : { enabled:false, allowAdmins:true, message:'' };
+  const parsed = row && row.category === 'maintenance' ? parseValue(row.value) : { enabled:false, allowAdmins:true, message:'' };
+  const value = parsed && typeof parsed === 'object' ? parsed : { enabled:false, allowAdmins:true, message:'' };
   cache = { value, expiresAt:now + 5000 };
   return value;
 }
