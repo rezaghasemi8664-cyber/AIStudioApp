@@ -3,6 +3,7 @@
 // Independent analysis engine. It intentionally does not import the scalping engine.
 const market = require('./sharedMarket.service.cjs');
 const codal = require('./codalIntelligence.service.cjs');
+const fundamentalAnalysis = require('./fundamental-analysis.v2.service.cjs');
 
 const MAX_RESULTS = 20;
 const MIN_HISTORY = 20;
@@ -156,6 +157,81 @@ function analyzeFundamental(items, now = new Date()) {
   return null;
 }
 
+
+function toCodalAnnouncement(item) {
+  const raw = item && item.raw && typeof item.raw === 'object' ? item.raw : {};
+  return {
+    ...raw,
+    title: item?.title || raw.title || raw.Title || '',
+    date_publish: item?.publishDate || raw.date_publish || raw.datePublish || raw.date_send || raw.dateSend || '',
+    link_excel: item?.excelUrl || raw.link_excel || raw.linkExcel || '',
+    link_attachment: item?.attachmentUrl || raw.link_attachment || raw.linkAttachment || '',
+    link_pdf: item?.pdfUrl || raw.link_pdf || raw.linkPdf || '',
+    link: item?.url || raw.url || raw.link || '',
+    category: raw.category ?? raw.categoryId ?? raw.category_id ?? '',
+    categoryName: raw.categoryName ?? raw.category_name ?? ''
+  };
+}
+
+function metricValue(metrics, key) {
+  const entry = metrics && metrics[key];
+  return toNumber(entry && typeof entry === 'object' && Object.prototype.hasOwnProperty.call(entry, 'value')
+    ? entry.value
+    : entry);
+}
+
+async function analyzeFundamentalWithDocuments(items, now = new Date()) {
+  // Preserve the fast path when the provider already supplies real numeric values.
+  const direct = analyzeFundamental(items, now);
+  if (direct) return direct;
+
+  const recentReports = (Array.isArray(items) ? items : []).filter(item => {
+    const age = getReportAgeDays(item?.publishDate, now);
+    if (age === null || age > MAX_CODAL_REPORT_AGE_DAYS) return false;
+    return Boolean(item?.excelUrl || item?.attachmentUrl || item?.pdfUrl || item?.url ||
+      item?.raw?.link_excel || item?.raw?.link_attachment || item?.raw?.link_pdf || item?.raw?.link);
+  });
+  if (!recentReports.length) return null;
+
+  const announcements = recentReports.map(toCodalAnnouncement);
+  const extracted = await fundamentalAnalysis.analyzeAnnouncements({ announcements });
+  const metrics = extracted?.numericData?.metrics || {};
+  const eps = metricValue(metrics, 'eps');
+  const netProfit = metricValue(metrics, 'netProfit');
+  if (!((eps !== null && eps > 0) || (netProfit !== null && netProfit > 0))) return null;
+  if (!Number.isFinite(Number(extracted.score)) || extracted.scoreStatus !== 'calculated') return null;
+
+  const document = (extracted.financialDocuments || []).find(item => {
+    if (!item?.available) return false;
+    const age = getReportAgeDays(
+      item.announcement?.publishDate || item.announcement?.date_publish || item.announcement?.date_send,
+      now
+    );
+    return age !== null && age <= MAX_CODAL_REPORT_AGE_DAYS &&
+      (metricValue(item.metrics, 'eps') > 0 || metricValue(item.metrics, 'netProfit') > 0 ||
+       metricValue(metrics, 'eps') > 0 || metricValue(metrics, 'netProfit') > 0);
+  });
+  const announcement = document?.announcement || announcements.find(item =>
+    item.title && /صورت.*مالی|سود و زیان|ترازنامه|financial statement/i.test(item.title)
+  ) || announcements[0];
+  const reportDate = announcement?.publishDate || announcement?.date_publish || announcement?.date_send || null;
+  const reportAgeDays = getReportAgeDays(reportDate, now);
+  if (reportAgeDays === null || reportAgeDays > MAX_CODAL_REPORT_AGE_DAYS) return null;
+
+  return {
+    score: Number(extracted.score),
+    eps,
+    netProfit,
+    revenue: metricValue(metrics, 'revenue'),
+    reportTitle: announcement?.title || null,
+    reportDate,
+    reportAgeDays: Math.floor(reportAgeDays),
+    source: 'codal-financial-documents',
+    extractedMetricCount: Number(extracted.numericData?.quality?.extractedMetricCount) || Object.keys(metrics).length,
+    scoreCoverage: extracted.scoreCoverage ?? null
+  };
+}
+
 async function evaluateValuableSymbols({ limit = MAX_RESULTS, now = new Date() } = {}) {
   const nowMs = now.getTime();
   const symbols = await market.getSymbols({ limit: 1200 });
@@ -177,7 +253,7 @@ async function evaluateValuableSymbols({ limit = MAX_RESULTS, now = new Date() }
       if (!technical) continue;
       codalLookups += 1;
       const reports = await codal.getReports({ symbol: row.symbol, limit: 30 });
-      const fundamental = analyzeFundamental(reports.items, now);
+      const fundamental = await analyzeFundamentalWithDocuments(reports.items, now);
       if (!fundamental) continue;
       const priceTimestamp = parseTimestamp(row.updatedAt);
       results.push({
@@ -205,6 +281,6 @@ function getCachedValuableSymbols() {
 }
 
 module.exports = {
-  evaluateValuableSymbols, getCachedValuableSymbols, analyzeTechnical, analyzeFundamental,
+  evaluateValuableSymbols, getCachedValuableSymbols, analyzeTechnical, analyzeFundamental, analyzeFundamentalWithDocuments,
   isFreshTimestamp, isFreshHistory, getReportAgeDays, getMarketSession
 };

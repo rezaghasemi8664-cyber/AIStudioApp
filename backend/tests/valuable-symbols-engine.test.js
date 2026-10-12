@@ -7,9 +7,13 @@ jest.mock('../services/sharedMarket.service.cjs', () => ({
 jest.mock('../services/codalIntelligence.service.cjs', () => ({
   getReports: jest.fn()
 }));
+jest.mock('../services/fundamental-analysis.v2.service.cjs', () => ({
+  analyzeAnnouncements: jest.fn()
+}));
 
 const market = require('../services/sharedMarket.service.cjs');
 const codal = require('../services/codalIntelligence.service.cjs');
+const fundamentalAnalysis = require('../services/fundamental-analysis.v2.service.cjs');
 const engine = require('../services/valuableSymbols.engine.cjs');
 const codalService = jest.requireActual('../services/codalIntelligence.service.cjs');
 
@@ -95,6 +99,64 @@ describe('valuable symbols freshness guards', () => {
     expect(engine.analyzeFundamental([{
       financialMetrics: metrics, publishDate: '2026-10-01', title: 'Recent report'
     }], now)).toMatchObject({ source: 'codal', reportTitle: 'Recent report', eps: 10 });
+  });
+
+
+  test('extracts fundamental metrics from real Codal statement documents when list rows have no numbers', async () => {
+    const now = new Date('2026-10-12T08:00:00.000Z');
+    fundamentalAnalysis.analyzeAnnouncements.mockResolvedValue({
+      score: 78,
+      scoreStatus: 'calculated',
+      scoreCoverage: 0.8,
+      numericData: {
+        metrics: {
+          revenue: { value: 9000 }, operatingProfit: { value: 1800 },
+          netProfit: { value: 1200 }, assets: { value: 15000 },
+          liabilities: { value: 6000 }, equity: { value: 9000 }, eps: { value: 125 }
+        },
+        quality: { extractedMetricCount: 7 }
+      },
+      financialDocuments: [{
+        available: true,
+        announcement: { title: 'اطلاعات و صورت‌های مالی میان‌دوره‌ای شش‌ماهه', publishDate: '1405/07/01' },
+        metrics: { eps: { value: 125 }, netProfit: { value: 1200 } }
+      }]
+    });
+    const reports = [{
+      title: 'اطلاعات و صورت‌های مالی میان‌دوره‌ای شش‌ماهه',
+      publishDate: '1405/07/01',
+      excelUrl: 'https://excel.codal.ir/report.xlsx',
+      attachmentUrl: 'https://codal.ir/attachment',
+      pdfUrl: 'https://codal.ir/report.pdf',
+      url: 'https://codal.ir/report',
+      raw: { title: 'اطلاعات و صورت‌های مالی میان‌دوره‌ای شش‌ماهه', date_publish: '1405/07/01' },
+      financialMetrics: {}
+    }];
+
+    await expect(engine.analyzeFundamentalWithDocuments(reports, now)).resolves.toMatchObject({
+      score: 78, eps: 125, netProfit: 1200, revenue: 9000,
+      source: 'codal-financial-documents', extractedMetricCount: 7
+    });
+    expect(fundamentalAnalysis.analyzeAnnouncements).toHaveBeenCalledWith({
+      announcements: [expect.objectContaining({
+        title: reports[0].title,
+        date_publish: reports[0].publishDate,
+        link_excel: reports[0].excelUrl,
+        link_attachment: reports[0].attachmentUrl,
+        link_pdf: reports[0].pdfUrl
+      })]
+    });
+  });
+
+  test('does not download or score financial documents older than the Codal freshness limit', async () => {
+    const reports = [{
+      title: 'صورت‌های مالی',
+      publishDate: '2024/01/01',
+      excelUrl: 'https://excel.codal.ir/old.xlsx',
+      financialMetrics: {}
+    }];
+    await expect(engine.analyzeFundamentalWithDocuments(reports, new Date('2026-10-12T08:00:00.000Z'))).resolves.toBeNull();
+    expect(fundamentalAnalysis.analyzeAnnouncements).not.toHaveBeenCalled();
   });
 
   test('labels the Tehran market as closed outside the trading session', () => {
