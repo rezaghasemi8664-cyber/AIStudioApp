@@ -1,5 +1,6 @@
 ﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { scalpingService } from '../services/scalpingService';
+import ValuableSymbols from './ValuableSymbols';
 import {
   ChartBarIcon,
   ArrowTrendingUpIcon,
@@ -113,6 +114,7 @@ const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ oppor
 };
 
 const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
+  const [activeSubTab, setActiveSubTab] = useState<'scalping' | 'valuable'>('scalping');
   const [opportunities, setOpportunities] = useState<ScalpingOpportunity[]>([]);
   const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -195,6 +197,11 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
 
   return (
     <div className="page-shell scalping-page space-y-5" dir="rtl">
+      <div className="flex flex-wrap gap-2 border-b border-[var(--color-border)] pb-3">
+        <button type="button" onClick={() => setActiveSubTab('scalping')} className={activeSubTab === 'scalping' ? 'rounded-lg px-4 py-2 text-sm font-semibold bg-cyan-500 text-white' : 'rounded-lg px-4 py-2 text-sm font-semibold border border-[var(--color-border)] text-[var(--color-text-secondary)]'}>نوسان‌گیری</button>
+        <button type="button" onClick={() => setActiveSubTab('valuable')} className={activeSubTab === 'valuable' ? 'rounded-lg px-4 py-2 text-sm font-semibold bg-cyan-500 text-white' : 'rounded-lg px-4 py-2 text-sm font-semibold border border-[var(--color-border)] text-[var(--color-text-secondary)]'}>نمادهای ارزنده</button>
+      </div>
+      {activeSubTab === 'valuable' ? <ValuableSymbols isOnline={isOnline} /> : <>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-cyan-500/10 rounded-lg">
@@ -233,6 +240,7 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
       <div className="text-[10px] text-gray-400 text-center pt-4">
         * سیگنال‌ها توسط موتور مرکزی رونیـا تولید و در پایگاه داده مشترک به‌روزرسانی می‌شوند.
       </div>
+      </>}
     </div>
   );
 };

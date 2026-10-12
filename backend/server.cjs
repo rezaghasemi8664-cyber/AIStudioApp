@@ -491,6 +491,7 @@ const REAL_DATA_API_PREFIXES = [
   '/api/analysis-data', '/api/v1/analysis-data',
   '/api/codal', '/api/v1/codal',
   '/api/codal-intelligence', '/api/v1/codal-intelligence',
+  '/api/valuable-symbols', '/api/v1/valuable-symbols',
   '/api/daily-filters',
   '/api/watchlist',
   '/api/v1/watchlist', '/api/v1/daily-filters'
@@ -652,6 +653,7 @@ mountRoute('/api/v1/settings', './routes/settings.routes.cjs', 'User Settings v1
 mountRoute('/api/v1/global-settings', './routes/globalSettings.routes.cjs', 'Global Settings v1 alias (priority)');
 mountRoute('/api/v1/codal-intelligence', './routes/codalIntelligence.routes.cjs', 'Codal Intelligence v1 alias (priority)');
 mountRoute('/api/v1/codal', './routes/codalIntelligence.routes.cjs', 'Codal Compatibility v1 alias (priority)');
+mountRoute('/api/v1/valuable-symbols', './routes/valuableSymbols.routes.cjs', 'Valuable Symbols independent engine v1 alias');
 mountRoute('/api/v1/subscriptions', './routes/subscriptions.routes.cjs', 'Subscriptions v1 alias (priority)');
 mountRoute('/api/v1/site-analytics', './routes/siteAnalytics.routes.cjs', 'Site Analytics v1 alias (priority)');
 
@@ -681,6 +683,7 @@ mountRoute('/api/v1/maintenance', './routes/maintenance.routes.cjs',   'Maintena
 mountRoute('/api/market-summary',      './routes/marketSummary.routes.cjs',   'Market Summary (AI)');
 mountRoute('/api/v1/market-summary',   './routes/marketSummary.routes.cjs',   'Market Summary v1 alias');
 
+mountRoute('/api/valuable-symbols', './routes/valuableSymbols.routes.cjs', 'Valuable Symbols independent engine');
 mountRoute('/api/scalping',      './routes/scalping.routes.cjs',       'Scalping');
 mountRoute('/api/v1/scalping',   './routes/scalping.routes.cjs',       'Scalping v1 alias');
 mountRoute('/api/v1/ronia-assistant', './routes/roniaAssistant.routes.cjs', 'Ronia Assistant v1 alias');
