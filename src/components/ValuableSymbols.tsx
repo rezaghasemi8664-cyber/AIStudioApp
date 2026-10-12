@@ -35,7 +35,7 @@ const ValuableSymbolCard: React.FC<{ item: ValuableSymbol; index: number }> = ({
     </div>
     <p className="mt-3 rounded-lg bg-gray-500/5 p-2 text-[10px] leading-5 text-[var(--color-text-secondary)]">
       {item.marketStatus === 'OPEN' ? 'قیمت ثبت‌شده در ساعات بازار' : 'آخرین قیمت ثبت‌شده؛ بازار بسته است'} · زمان ثبت قیمت: {dateTime(item.marketUpdatedAt || null)}
-      {typeof item.marketDataAgeMinutes === 'number' ? ` · سن داده: ${new Intl.NumberFormat('fa-IR').format(Math.floor(item.marketDataAgeMinutes / 60))} ساعت` : ''}
+      {typeof item.marketDataAgeMinutes === 'number' ? ` · سن داده: ${new Intl.NumberFormat('fa-IR').format(item.marketDataAgeMinutes < 60 ? item.marketDataAgeMinutes : Math.floor(item.marketDataAgeMinutes / 60))} ${item.marketDataAgeMinutes < 60 ? 'دقیقه' : 'ساعت'}` : ''}
     </p>
     <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[var(--color-border)] pt-3 text-xs">
       <div><span className="text-[var(--color-text-secondary)]">RSI 14: </span><strong>{price(item.rsi14)}</strong></div>
