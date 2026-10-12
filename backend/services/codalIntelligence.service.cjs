@@ -166,4 +166,4 @@ async function getReports({ symbol = '', from = '', to = '', limit = 50 } = {}) 
   const items = extractItems(response.data).map(normalizeItem).filter(item => item.title || item.symbol || item.publishDate || item.url).slice(0, maxItems);
   return { items, summary: buildSummary(items), fetchedAt: new Date().toISOString(), source: 'codal', configured: true };
 }
-module.exports = { getReports, normalizeNumber, normalizeDigits, classifyReport, extractFinancialMetrics, buildPeriodicTrend, buildSensitiveEvents };
+module.exports = { getReports, normalizeNumber, normalizeDigits, normalizeItem, classifyReport, extractFinancialMetrics, buildPeriodicTrend, buildSensitiveEvents };
