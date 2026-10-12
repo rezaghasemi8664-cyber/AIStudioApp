@@ -429,11 +429,12 @@ const OptionsMarket: React.FC = () => {
                       {(() => {
                         const scenario = parseNumeric(scenarioUnderlyingPrice);
                         const strike = getNumeric(contract, ['strikePrice', 'price_strike', 'priceStrike', 'strike']);
-                        const premium = getNumeric(contract, ['bestAskPrice', 'po1', 'pMeOf', 'askPrice', 'sellPrice']);
+                        const premium = getPositiveNumeric(contract, ['bestAskPrice', 'po1', 'pMeOf', 'askPrice', 'sellPrice']);
                         const contractSize = getNumeric(contract, ['contractSize', 'size_contract', 'sizeContract', 'contract_size']);
                         const kind = getKind(contract);
                         const feeInput = scenarioFeeRatePercent.trim() === '' ? 0 : parseNumeric(scenarioFeeRatePercent);
-                        if (scenario === null || scenario < 0 || strike === null || premium === null || premium <= 0 || contractSize === null || contractSize <= 0 || (kind !== 'call' && kind !== 'put') || feeInput === null || feeInput < 0 || feeInput > 100) return '—';
+                        if (premium === null) return 'عرضه معتبر ندارد';
+                        if (scenario === null || scenario < 0 || strike === null || contractSize === null || contractSize <= 0 || (kind !== 'call' && kind !== 'put') || feeInput === null || feeInput < 0 || feeInput > 100) return '—';
                         const feeRate = feeInput / 100;
                         const payoff = Math.max(0, kind === 'call' ? scenario - strike : strike - scenario);
                         const netPnlPerUnit = payoff - (premium * (1 + feeRate)) - (payoff * feeRate);
@@ -444,11 +445,12 @@ const OptionsMarket: React.FC = () => {
                       {(() => {
                         const scenario = parseNumeric(scenarioUnderlyingPrice);
                         const strike = getNumeric(contract, ['strikePrice', 'price_strike', 'priceStrike', 'strike']);
-                        const premium = getNumeric(contract, ['bestAskPrice', 'po1', 'pMeOf', 'askPrice', 'sellPrice']);
+                        const premium = getPositiveNumeric(contract, ['bestAskPrice', 'po1', 'pMeOf', 'askPrice', 'sellPrice']);
                         const contractSize = getNumeric(contract, ['contractSize', 'size_contract', 'sizeContract', 'contract_size']);
                         const kind = getKind(contract);
                         const feeInput = scenarioFeeRatePercent.trim() === '' ? 0 : parseNumeric(scenarioFeeRatePercent);
-                        if (scenario === null || scenario < 0 || strike === null || premium === null || premium <= 0 || contractSize === null || contractSize <= 0 || (kind !== 'call' && kind !== 'put') || feeInput === null || feeInput < 0 || feeInput > 100) return '—';
+                        if (premium === null) return 'عرضه معتبر ندارد';
+                        if (scenario === null || scenario < 0 || strike === null || contractSize === null || contractSize <= 0 || (kind !== 'call' && kind !== 'put') || feeInput === null || feeInput < 0 || feeInput > 100) return '—';
                         const feeRate = feeInput / 100;
                         const payoff = Math.max(0, kind === 'call' ? scenario - strike : strike - scenario);
                         const netPnlPerUnit = payoff - (premium * (1 + feeRate)) - (payoff * feeRate);
