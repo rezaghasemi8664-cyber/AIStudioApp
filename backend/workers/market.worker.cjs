@@ -387,9 +387,10 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
 
   const rankedCandidates = directional
     .sort((a, b) => b.scored.score - a.scored.score);
-  // Check up to five times the display limit so rejected top-ranked symbols do
-  // not prevent valid lower-ranked opportunities from being considered.
-  const candidatesToEvaluate = rankedCandidates.slice(0, SCALPING_LIMIT * 5);
+  // Evaluate the full ranked list until the display limit is filled. The
+  // highest-scoring symbols often sit at daily price limits and cannot be
+  // entered safely; truncating this list early starves the UI of valid setups.
+  const candidatesToEvaluate = rankedCandidates;
 
   // Keep safety checks intact, but count exactly why each ranked candidate is rejected.
   const technicalLevelRejections = {};
