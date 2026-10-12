@@ -1080,6 +1080,10 @@ function mapAllSymbolsItem(item) {
     low: toNumber(item.pmin != null ? item.pmin : item.low),
     allowedMin: toNumber(item.tmin),
     allowedMax: toNumber(item.tmax),
+    orderBook: {
+      buy: [{ price: toNumber(item.pd1), volume: toInt(item.qd1) }],
+      sell: [{ price: toNumber(item.po1), volume: toInt(item.qo1) }]
+    },
     tradeCount: toInt(item.tno != null ? item.tno : item.count),
     tradeVolume: tradeVolume,
     tradeValue: tradeValue,
