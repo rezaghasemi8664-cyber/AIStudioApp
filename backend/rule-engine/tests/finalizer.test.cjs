@@ -1,14 +1,14 @@
 "use strict";
 
-const Ajv = require("ajv");
+const Ajv2020 = require("ajv/dist/2020");
 const { finalize } = require("../finalizer.cjs");
 const schema = require("../../schemas/analysisOutput.schema.cjs");
 const { RISK } = require("../rule.types.cjs");
 
 /* =========================
-   AJV (match production)
+   AJV 2020-12 schema support
 ========================= */
-const ajv = new Ajv({
+const ajv = new Ajv2020({
   allErrors: true,
   strict: true,
   removeAdditional: false,
@@ -24,7 +24,7 @@ describe("Rule Engine Finalizer", () => {
     confidence: 0.7,
     meta: {
       ontology_version: "1.0.0",
-      rule_engine: "IRAN_V1", // ? REQUIRED BY SCHEMA
+      rule_engine: "IRAN_V1",
     },
   };
 
@@ -36,7 +36,7 @@ describe("Rule Engine Finalizer", () => {
 
     const result = finalize({}, findings, baseAI);
 
-    expect(result.confidence).toBe(0.1); // 0.7 - 0.6
+    expect(result.confidence).toBe(0.1);
     expect(result.explanation.penalties.length).toBe(2);
   });
 
@@ -59,7 +59,7 @@ describe("Rule Engine Finalizer", () => {
   test("confidence never exceeds [0,1]", () => {
     const findings = [{ rule: "STRONG_TREND", penalty: 0.5 }];
 
-    const result = finalize({}, findings, {
+    const result = finalize({}, [], {
       ...baseAI,
       confidence: 0.9,
     });
