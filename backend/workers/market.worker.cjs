@@ -5,6 +5,7 @@ const prisma = require('../config/prisma.cjs');
 const brsService = require('../services/brs.service.cjs');
 const marketSnapshotService = require('../services/marketSnapshot.service.cjs');
 const { calculateScalpingPriceLevels } = require('../services/scalping-price-levels.service.cjs');
+const { ensureMarketDailyHistory } = require('../services/market-daily-history.service.cjs');
 
 const MARKET_TZ = 'Asia/Tehran';
 // Stricter real-market filters: prefer fewer, higher-conviction opportunities.
@@ -333,13 +334,14 @@ async function updateIndustries(symbols) {
   return rows.length;
 }
 
-async function getScalpingPriceLevels(symbol, signal, currentPrice) {
-  // Use centrally stored daily OHLC history; never add per-symbol BRS calls.
-  const rows = await prisma.marketDaily.findMany({
-    where: { symbol },
-    orderBy: { date: 'desc' },
-    take: 40,
-    select: { open: true, high: true, low: true, close: true }
+async function getScalpingPriceLevels(symbol, signal, currentPrice, marketDate) {
+  // Prefer the shared DB. If its history is too short, backfill validated
+  // historical candles through the central BRS queue before calculating levels.
+  const rows = await ensureMarketDailyHistory({
+    prisma,
+    brsService,
+    symbol,
+    marketDate
   });
   const candles = rows.reverse();
   return calculateScalpingPriceLevels(candles, signal, currentPrice);
@@ -386,7 +388,8 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
     const levels = await getScalpingPriceLevels(
       candidate.item.symbol,
       candidate.scored.signal,
-      candidate.scored.last
+      candidate.scored.last,
+      marketDate
     ).catch((error) => {
       console.warn('[SCALPING] Technical levels unavailable for ' + candidate.item.symbol + ': ' + error.message);
       return null;
