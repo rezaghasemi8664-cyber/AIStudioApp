@@ -42,6 +42,7 @@ const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ oppor
   const currentPrice = opportunity.currentPrice ?? opportunity.price;
   const signalType = opportunity.signalType ?? opportunity.signal ?? opportunity.type;
   const isSellSignal = signalType === 'SELL';
+  const isConditionalBreakout = opportunity.strategyName === 'technical-breakout-atr-v1';
 
   return (
     <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
@@ -49,7 +50,7 @@ const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ oppor
         <h3 className="text-lg font-bold text-[var(--color-accent)]">{opportunity.symbol}</h3>
         <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${signalType === 'SELL' ? 'text-red-500 bg-red-500/10' : 'text-green-500 bg-green-500/10'}`}>
           <ArrowTrendingUpIcon className="w-3 h-3" />
-          <span>{isSellSignal ? 'پیشنهاد فروش سهم' : 'سیگنال خرید'}</span>
+          <span>{isConditionalBreakout ? (isSellSignal ? 'در انتظار شکست حمایت' : 'در انتظار شکست مقاومت') : (isSellSignal ? 'پیشنهاد فروش سهم' : 'سیگنال خرید')}</span>
         </div>
       </div>
 
@@ -76,6 +77,14 @@ const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ oppor
           <span className="block text-sm font-mono font-bold">{formatPrice(currentPrice)}</span>
         </div>
       </div>
+
+      {isConditionalBreakout && (
+        <p className={`text-xs text-[var(--color-text-secondary)] border rounded-lg p-2 mb-3 ${isSellSignal ? 'bg-red-500/5 border-red-500/15' : 'bg-amber-500/5 border-amber-500/20'}`}>
+          {isSellSignal
+            ? 'این قیمت، شرط فعال‌شدن سناریوی شکست حمایت است؛ تا زمانی که قیمت به سطح ورود نرسیده، سیگنال به‌معنای اقدام فوری نیست.'
+            : 'این قیمت، شرط فعال‌شدن سناریوی شکست مقاومت است؛ تا زمانی که قیمت به سطح ورود نرسیده، سیگنال خرید فوری نیست. قیمت ورود ممکن است از قیمت فعلی بالاتر باشد.'}
+        </p>
+      )}
 
       {isSellSignal && (
         <p className="text-xs text-[var(--color-text-secondary)] bg-red-500/5 border border-red-500/15 rounded-lg p-2 mb-3">
