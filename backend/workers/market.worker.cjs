@@ -200,6 +200,9 @@ async function updateSymbolsAndMovers() {
       value: num(item.tradeValue),
       tradeCount: int(item.tradeCount),
       yesterday,
+      allowedMin: num(item.allowedMin),
+      allowedMax: num(item.allowedMax),
+      orderBook: item.orderBook || null,
       sector: item.sector || null,
       realBuyVolume: int(item.realBuyVolume, 0),
       realSellVolume: int(item.realSellVolume, 0),
@@ -334,7 +337,7 @@ async function updateIndustries(symbols) {
   return rows.length;
 }
 
-async function getScalpingPriceLevels(symbol, signal, currentPrice, marketDate) {
+async function getScalpingPriceLevels(symbol, signal, currentPrice, marketDate, marketData) {
   // Prefer the shared DB. If its history is too short, backfill validated
   // historical candles through the central BRS queue before calculating levels.
   const rows = await ensureMarketDailyHistory({
@@ -344,7 +347,11 @@ async function getScalpingPriceLevels(symbol, signal, currentPrice, marketDate) 
     marketDate
   });
   const candles = rows.reverse();
-  return calculateScalpingPriceLevels(candles, signal, currentPrice);
+  return calculateScalpingPriceLevels(candles, signal, currentPrice, {
+    allowedMin: marketData && marketData.allowedMin,
+    allowedMax: marketData && marketData.allowedMax,
+    orderBook: marketData && marketData.orderBook
+  });
 }
 
 async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
@@ -389,7 +396,8 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
       candidate.item.symbol,
       candidate.scored.signal,
       candidate.scored.last,
-      marketDate
+      marketDate,
+      candidate.item
     ).catch((error) => {
       console.warn('[SCALPING] Technical levels unavailable for ' + candidate.item.symbol + ': ' + error.message);
       return null;
