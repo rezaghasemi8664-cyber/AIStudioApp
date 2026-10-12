@@ -1,0 +1,28 @@
+name: Backend Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [feature/scalping-technical-price-levels]
+
+jobs:
+  backend-jest:
+    name: Scalping Price Levels Jest (Node 20)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install backend dependencies
+        run: npm ci
+      - name: Run scalping price-level tests
+        run: npm test -- --runInBand tests/scalping-price-levels.test.js
