@@ -406,6 +406,8 @@ app.use(function requestTimeout(req, res, next) {
   next();
 });
 
+app.use(require('./middlewares/maintenance.middleware.cjs'));
+
 // ═══════════════════════════════════════════════════════════════════
 // 12. HEALTH CHECK & VERSION (before auth - public endpoints)
 // ═══════════════════════════════════════════════════════════════════
