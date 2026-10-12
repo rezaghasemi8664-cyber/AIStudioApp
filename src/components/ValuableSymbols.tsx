@@ -33,7 +33,11 @@ const ValuableSymbolCard: React.FC<{ item: ValuableSymbol; index: number }> = ({
       <div className="rounded-lg bg-emerald-500/10 p-2"><div className="text-[10px] text-emerald-600">هدف قیمتی</div><strong className="font-mono text-sm">{price(item.targetPrice)}</strong></div>
       <div className="rounded-lg bg-red-500/10 p-2"><div className="text-[10px] text-red-600">حد ضرر</div><strong className="font-mono text-sm">{price(item.stopLoss)}</strong></div>
     </div>
-    <p className="mt-3 rounded-lg bg-gray-500/5 p-2 text-[10px] leading-5 text-[var(--color-text-secondary)]">\n      {item.marketStatus === 'OPEN' ? 'قیمت ثبت‌شده در ساعات بازار' : 'آخرین قیمت ثبت‌شده؛ بازار بسته است'} · زمان ثبت قیمت: {dateTime(item.marketUpdatedAt || null)}\n      {typeof item.marketDataAgeMinutes === 'number' ? ` · سن داده: ${new Intl.NumberFormat('fa-IR').format(Math.floor(item.marketDataAgeMinutes / 60))} ساعت` : ''}\n    </p>\n    <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[var(--color-border)] pt-3 text-xs">
+    <p className="mt-3 rounded-lg bg-gray-500/5 p-2 text-[10px] leading-5 text-[var(--color-text-secondary)]">
+      {item.marketStatus === 'OPEN' ? 'قیمت ثبت‌شده در ساعات بازار' : 'آخرین قیمت ثبت‌شده؛ بازار بسته است'} · زمان ثبت قیمت: {dateTime(item.marketUpdatedAt || null)}
+      {typeof item.marketDataAgeMinutes === 'number' ? ` · سن داده: ${new Intl.NumberFormat('fa-IR').format(Math.floor(item.marketDataAgeMinutes / 60))} ساعت` : ''}
+    </p>
+    <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[var(--color-border)] pt-3 text-xs">
       <div><span className="text-[var(--color-text-secondary)]">RSI 14: </span><strong>{price(item.rsi14)}</strong></div>
       <div><span className="text-[var(--color-text-secondary)]">SMA 20: </span><strong>{price(item.sma20)}</strong></div>
     </div>
@@ -46,7 +50,8 @@ const ValuableSymbolCard: React.FC<{ item: ValuableSymbol; index: number }> = ({
 const ValuableSymbols: React.FC<{ isOnline: boolean }> = ({ isOnline }) => {
   const [items, setItems] = useState<ValuableSymbol[]>([]);
   const [lastEvaluatedAt, setLastEvaluatedAt] = useState<string | null>(null);
-  const [stale, setStale] = useState(false);\n  const [marketStatus, setMarketStatus] = useState<'OPEN' | 'CLOSED'>('CLOSED');
+  const [stale, setStale] = useState(false);
+  const [marketStatus, setMarketStatus] = useState<'OPEN' | 'CLOSED'>('CLOSED');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -60,7 +65,8 @@ const ValuableSymbols: React.FC<{ isOnline: boolean }> = ({ isOnline }) => {
       const response = await valuableSymbolsService.getSignals();
       setItems(response.signals);
       setLastEvaluatedAt(response.lastEvaluatedAt);
-      setStale(response.stale);\n      setMarketStatus(response.marketStatus);
+      setStale(response.stale);
+      setMarketStatus(response.marketStatus);
       setError('');
     } catch (e) {
       console.error('[ValuableSymbols] Failed to load:', e);
