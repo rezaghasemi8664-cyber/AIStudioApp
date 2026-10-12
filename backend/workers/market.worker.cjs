@@ -337,7 +337,7 @@ async function updateIndustries(symbols) {
   return rows.length;
 }
 
-async function getScalpingPriceLevels(symbol, signal, currentPrice, marketDate, marketData) {
+async function getScalpingPriceLevels(symbol, signal, currentPrice, marketDate, marketData, onReject) {
   // Prefer the shared DB. If its history is too short, backfill validated
   // historical candles through the central BRS queue before calculating levels.
   const rows = await ensureMarketDailyHistory({
@@ -351,7 +351,7 @@ async function getScalpingPriceLevels(symbol, signal, currentPrice, marketDate, 
     allowedMin: marketData && marketData.allowedMin,
     allowedMax: marketData && marketData.allowedMax,
     orderBook: marketData && marketData.orderBook
-  });
+  }, onReject);
 }
 
 async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
@@ -389,21 +389,49 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
     .sort((a, b) => b.scored.score - a.scored.score)
     .slice(0, SCALPING_LIMIT);
 
-  // A signal is only publishable when valid chart history yields all three levels.
+  // Keep safety checks intact, but count exactly why each ranked candidate is rejected.
   const candidates = [];
+  const technicalLevelRejections = {};
   for (const candidate of rankedCandidates) {
     const levels = await getScalpingPriceLevels(
       candidate.item.symbol,
       candidate.scored.signal,
       candidate.scored.last,
       marketDate,
-      candidate.item
+      candidate.item,
+      (reason, details) => {
+        const entry = technicalLevelRejections[reason] || { count: 0, samples: [] };
+        entry.count += 1;
+        if (entry.samples.length < 3) entry.samples.push({
+          symbol: candidate.item.symbol,
+          signal: candidate.scored.signal,
+          ...details
+        });
+        technicalLevelRejections[reason] = entry;
+      }
     ).catch((error) => {
+      const entry = technicalLevelRejections.technical_history_or_calculation_error || { count: 0, samples: [] };
+      entry.count += 1;
+      if (entry.samples.length < 3) entry.samples.push({
+        symbol: candidate.item.symbol,
+        signal: candidate.scored.signal,
+        message: error.message
+      });
+      technicalLevelRejections.technical_history_or_calculation_error = entry;
       console.warn('[SCALPING] Technical levels unavailable for ' + candidate.item.symbol + ': ' + error.message);
       return null;
     });
     if (levels) candidates.push({ ...candidate, levels });
   }
+  const symbolsWithValidPriceBands = symbols.filter(item =>
+    Number.isFinite(Number(item.allowedMin)) &&
+    Number(item.allowedMin) > 0 &&
+    Number.isFinite(Number(item.allowedMax)) &&
+    Number(item.allowedMax) > Number(item.allowedMin)
+  ).length;
+  const symbolsWithOrderBook = symbols.filter(item =>
+    item.orderBook && (Array.isArray(item.orderBook.buy) || Array.isArray(item.orderBook.sell))
+  ).length;
 
   const diagnosticTop = scoredSymbols
     .filter(({ scored }) => scored.last > 0 && scored.value >= SCALPING_MIN_VALUE)
@@ -432,6 +460,10 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
     directional: directional.length,
     rankedCandidates: rankedCandidates.length,
     candidatesWithTechnicalLevels: candidates.length,
+    symbolsWithValidPriceBands,
+    symbolsMissingOrInvalidPriceBands: symbols.length - symbolsWithValidPriceBands,
+    symbolsWithOrderBook,
+    technicalLevelRejections,
     thresholdValue: SCALPING_THRESHOLD,
     minChangePct: SCALPING_MIN_CHANGE_PCT,
     minValue: SCALPING_MIN_VALUE,

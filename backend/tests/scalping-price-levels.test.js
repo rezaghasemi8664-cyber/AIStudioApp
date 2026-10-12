@@ -45,9 +45,36 @@ describe('calculateScalpingPriceLevels', () => {
     })).toBeNull();
   });
 
-  test('fails closed when daily price limits are missing or invalid', () => {
-    expect(calculateScalpingPriceLevels(makeCandles(), 'BUY', 1087)).toBeNull();
-    expect(calculateScalpingPriceLevels(makeCandles(), 'BUY', 1087, { allowedMin: 1200, allowedMax: 900 })).toBeNull();
+  test('reports missing or invalid daily price bands as a distinct rejection reason', () => {
+    const missingReasons = [];
+    expect(calculateScalpingPriceLevels(makeCandles(), 'BUY', 1087, {}, reason => missingReasons.push(reason))).toBeNull();
+    expect(missingReasons).toContain('invalid_price_band');
+
+    const invalidReasons = [];
+    expect(calculateScalpingPriceLevels(
+      makeCandles(), 'BUY', 1087,
+      { allowedMin: 1200, allowedMax: 900 },
+      reason => invalidReasons.push(reason)
+    )).toBeNull();
+    expect(invalidReasons).toContain('invalid_price_band');
+  });
+
+  test('reports a valid band that is too narrow for the calculated BUY entry', () => {
+    const reasons = [];
+    const narrowBand = { allowedMin: 900, allowedMax: 1080, orderBook: { buy: [], sell: [] } };
+    expect(calculateScalpingPriceLevels(makeCandles(), 'BUY', 1070, narrowBand, reason => reasons.push(reason))).toBeNull();
+    expect(reasons).toContain('buy_entry_outside_band_or_invalid');
+  });
+
+  test('reports a locked upper-limit order book separately from an invalid band', () => {
+    const reasons = [];
+    const lockedMarket = {
+      allowedMin: 900,
+      allowedMax: 1087,
+      orderBook: { buy: [{ price: 1087, volume: 1000 }], sell: [] }
+    };
+    expect(calculateScalpingPriceLevels(makeCandles(), 'BUY', 1080, lockedMarket, reason => reasons.push(reason))).toBeNull();
+    expect(reasons).toContain('buy_locked_at_upper_limit');
   });
 
   test('returns null when valid history is insufficient', () => {
