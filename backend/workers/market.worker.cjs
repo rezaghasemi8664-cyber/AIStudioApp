@@ -4,6 +4,7 @@ const cron = require('node-cron');
 const prisma = require('../config/prisma.cjs');
 const brsService = require('../services/brs.service.cjs');
 const marketSnapshotService = require('../services/marketSnapshot.service.cjs');
+const { calculateScalpingPriceLevels } = require('../services/scalping-price-levels.service.cjs');
 
 const MARKET_TZ = 'Asia/Tehran';
 // Stricter real-market filters: prefer fewer, higher-conviction opportunities.
@@ -332,6 +333,18 @@ async function updateIndustries(symbols) {
   return rows.length;
 }
 
+async function getScalpingPriceLevels(symbol, signal, currentPrice) {
+  // Use centrally stored daily OHLC history; never add per-symbol BRS calls.
+  const rows = await prisma.marketDaily.findMany({
+    where: { symbol },
+    orderBy: { date: 'desc' },
+    take: 40,
+    select: { open: true, high: true, low: true, close: true }
+  });
+  const candles = rows.reverse();
+  return calculateScalpingPriceLevels(candles, signal, currentPrice);
+}
+
 async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
   const marketDate = sqlDate(tehranDateKey());
 
@@ -363,9 +376,23 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
     (scored.signal === 'SELL' && scored.realNetRatio <= -SCALPING_MIN_REAL_FLOW_RATIO && scored.position <= SCALPING_MAX_POSITION)
   );
 
-  const candidates = directional
+  const rankedCandidates = directional
     .sort((a, b) => b.scored.score - a.scored.score)
     .slice(0, SCALPING_LIMIT);
+
+  // A signal is only publishable when valid chart history yields all three levels.
+  const candidates = [];
+  for (const candidate of rankedCandidates) {
+    const levels = await getScalpingPriceLevels(
+      candidate.item.symbol,
+      candidate.scored.signal,
+      candidate.scored.last
+    ).catch((error) => {
+      console.warn('[SCALPING] Technical levels unavailable for ' + candidate.item.symbol + ': ' + error.message);
+      return null;
+    });
+    if (levels) candidates.push({ ...candidate, levels });
+  }
 
   const diagnosticTop = scoredSymbols
     .filter(({ scored }) => scored.last > 0 && scored.value >= SCALPING_MIN_VALUE)
@@ -392,7 +419,8 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
     moving: moving.length,
     threshold: threshold.length,
     directional: directional.length,
-    candidates: candidates.length,
+    rankedCandidates: rankedCandidates.length,
+    candidatesWithTechnicalLevels: candidates.length,
     thresholdValue: SCALPING_THRESHOLD,
     minChangePct: SCALPING_MIN_CHANGE_PCT,
     minValue: SCALPING_MIN_VALUE,
@@ -410,12 +438,11 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
     data: { status: 'EXPIRED' }
   });
 
-  for (const { item, scored } of candidates) {
-    const entry = scored.last;
-    const isBuy = scored.signal === 'BUY';
-    const strategyName = 'momentum-flow-v2';
-    const stopLoss = isBuy ? entry * 0.99 : entry * 1.01;
-    const takeProfit = isBuy ? entry * 1.02 : entry * 0.98;
+  for (const { item, scored, levels } of candidates) {
+    const entry = levels.entryPrice;
+    const strategyName = 'technical-breakout-atr-v1';
+    const stopLoss = levels.stopLossPrice;
+    const takeProfit = levels.targetPrice;
     const recommendationText = isBuy
       ? 'مومنتوم مثبت، موقعیت قیمت و جریان خرید حقیقی هم‌جهت هستند.'
       : 'مومنتوم منفی، موقعیت قیمت و جریان فروش حقیقی هم‌جهت هستند.';
@@ -427,7 +454,8 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
       liquidity: scored.value,
       volume: scored.volume,
       trades: scored.trades,
-      source: 'brs-central-worker'
+      source: 'brs-central-worker',
+      technicalLevels: levels
     };
 
     await prisma.marketScalpingOpportunity.upsert({
