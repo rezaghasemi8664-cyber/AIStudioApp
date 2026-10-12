@@ -381,8 +381,8 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
   );
   const threshold = moving.filter(({ scored }) => scored.score >= SCALPING_THRESHOLD);
   const directional = threshold.filter(({ scored }) =>
-    (scored.signal === 'BUY' && scored.realNetRatio >= SCALPING_MIN_REAL_FLOW_RATIO && scored.position >= SCALPING_MIN_POSITION) ||
-    (scored.signal === 'SELL' && scored.realNetRatio <= -SCALPING_MIN_REAL_FLOW_RATIO && scored.position <= SCALPING_MAX_POSITION)
+    (scored.signal === 'BUY' && scored.realNetRatio >= SCALPING_MIN_REAL_FLOW_RATIO && scored.position >= 0.45) ||
+    (scored.signal === 'SELL' && scored.realNetRatio <= -SCALPING_MIN_REAL_FLOW_RATIO && scored.position <= 0.55)
   );
 
   const rankedCandidates = directional
