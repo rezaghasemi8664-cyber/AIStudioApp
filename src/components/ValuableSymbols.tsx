@@ -91,7 +91,7 @@ const ValuableSymbols: React.FC<{ isOnline: boolean }> = ({ isOnline }) => {
         </div>
         <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
           <span>{marketStatus === 'OPEN' ? 'بازار باز است' : 'بازار بسته است'} · {stale ? 'نتیجه ارزیابی قدیمی' : 'آخرین ارزیابی'}: {dateTime(lastEvaluatedAt)}</span>
-          <button type="button" onClick={() => { setLoading(true); void load(); }} className="rounded-lg border border-[var(--color-border)] px-3 py-2 hover:bg-gray-500/10">به‌روزرسانی</button>
+          <button type="button" onClick={() => { setLoading(true); void load(); }} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-3 py-2 hover:bg-gray-500/10 disabled:opacity-50">{loading ? <span aria-hidden="true" className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : null}{loading ? 'در حال به‌روزرسانی…' : 'به‌روزرسانی'}</button>
         </div>
       </div>
       <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs leading-6 text-[var(--color-text-secondary)]">
