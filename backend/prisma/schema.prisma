@@ -42,7 +42,7 @@ model User {
   lastAnalysisReset     DateTime?
   lastLoginAt           DateTime?
   loginCount            Int?                    @default(0)
-  referralCode           String                  @unique(map: "UQ_User_referralCode") @db.NVarChar(20)
+  referralCode           String?                 @unique(map: "UQ_User_referralCode") @db.NVarChar(20)
 
   admin_scheduler_rules admin_scheduler_rules[]
   analysis              AnalysisHistory[]
