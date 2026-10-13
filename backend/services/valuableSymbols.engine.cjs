@@ -400,13 +400,13 @@ async function evaluateValuableSymbolsInternal({ limit = MAX_RESULTS, now = new 
   }
   const rankedResults = results.sort((a, b) => b.score - a.score)
     .slice(0, Math.max(1, Math.min(Number(limit) || MAX_RESULTS, MAX_RESULTS)));
-  // Do not publish results if a newer market snapshot became active mid-run.
-  const latestSnapshot = await marketSnapshotService.getActiveSnapshot();
+  // The market rows are captured once before candidate evaluation. A newer
+  // snapshot can become active while history/Codal requests are in flight;
+  // discarding the entire run in that case can prevent persistence indefinitely
+  // when the market snapshot refresh cadence is shorter than evaluation time.
+  // Each result still carries its captured price timestamp and is revalidated
+  // against the shared market data by the read endpoint before being displayed.
   assertEvaluationRun(runId);
-  if (!latestSnapshot || Number(latestSnapshot.id) !== snapshotId) {
-    console.log('[VALUABLE SYMBOLS] Discarding run because active snapshot changed during analysis');
-    return (await getStoredValuableSymbols({ force: true })).results;
-  }
   // Never replace a valid persisted list with an empty/failed evaluation.
   if (rankedResults.length) {
     await persistValuableSymbols(rankedResults, now.toISOString(), snapshotId);
