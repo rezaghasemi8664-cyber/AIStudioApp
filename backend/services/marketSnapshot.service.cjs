@@ -260,7 +260,7 @@ async function validateSnapshotHealth(symbols) {
   }
   return health;
 }
-async function publishMarketSnapshot(symbols) {
+async function publishMarketSnapshotInternal(symbols) {
   const health = await validateSnapshotHealth(symbols);
   let id = null;
 
@@ -330,7 +330,7 @@ async function publishMarketSnapshot(symbols) {
         SET [status]='ACTIVE', [activatedAt]=SYSDATETIME()
         WHERE [id]=${id} AND [status]='VERIFIED'
       `;
-    });
+    }, { maxWait: 15000, timeout: 120000 });
 
     return { snapshotId:id, symbolCount:verifiedSymbols.length, health, derived:derivedCheck };
   } catch (error) {
@@ -345,6 +345,20 @@ async function publishMarketSnapshot(symbols) {
       }
     }
     throw error;
+  }
+}
+
+let publishInFlight = false;
+
+async function publishMarketSnapshot(symbols) {
+  if (publishInFlight) {
+    throw new Error('Market snapshot publish already in progress; skipping overlapping run');
+  }
+  publishInFlight = true;
+  try {
+    return await publishMarketSnapshotInternal(symbols);
+  } finally {
+    publishInFlight = false;
   }
 }
 
