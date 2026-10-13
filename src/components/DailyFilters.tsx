@@ -24,10 +24,10 @@ type FilterView = {
 const PRESET_KEY = 'ronia_professional_screener_presets_v1';
 
 const FILTER_CARD_PALETTE = [
-  '#2563eb', '#059669', '#7c3aed', '#d97706', '#e11d48',
-  '#0891b2', '#4f46e5', '#0f766e', '#c2410c', '#a21caf',
-  '#4d7c0f', '#0369a1', '#be185d', '#6d28d9', '#b91c1c',
-  '#a16207', '#15803d', '#475569', '#57534e', '#52525b', '#404040'
+  '#60a5fa', '#34d399', '#c084fc', '#fbbf24', '#fb7185',
+  '#22d3ee', '#818cf8', '#2dd4bf', '#fdba74', '#e879f9',
+  '#a3e635', '#38bdf8', '#f472b6', '#a78bfa', '#f87171',
+  '#fde047', '#4ade80', '#94a3b8', '#a8a29e', '#a1a1aa', '#d4d4d8'
 ];
 
 const fmt = (value: number | null | undefined, digits = 0) =>
@@ -229,7 +229,7 @@ const ProfessionalScreener: React.FC = () => {
       <div className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div><h2 className="font-black text-[var(--color-text-primary)]">منبع اولیه غربال</h2><p className="text-xs text-slate-500">فیلترهای واقعی بازار موجود در سرویس فعلی</p></div>
-          <div className="flex flex-wrap gap-2">{filters.map((item, index) => { const palette = FILTER_CARD_PALETTE[index % FILTER_CARD_PALETTE.length]; const isActive = active === item.id; return <button key={item.id} onClick={() => setActive(item.id)} aria-pressed={isActive} style={{ backgroundColor: palette, borderColor: palette, color: '#ffffff', filter: isActive ? 'brightness(0.86)' : undefined }} className={`rounded-xl border px-3 py-2 text-xs font-bold transition-[filter,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950 ${isActive ? 'ring-2 ring-offset-2 ring-white dark:ring-offset-slate-950' : 'hover:brightness-110'}`}>{item.label} <span style={{ backgroundColor: 'rgba(0,0,0,0.22)', color: '#ffffff' }} className="mr-1 inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 font-black">{fmt(item.count)}</span></button>; })}</div>
+          <div className="flex flex-wrap gap-2">{filters.map((item, index) => { const palette = FILTER_CARD_PALETTE[index % FILTER_CARD_PALETTE.length]; const isActive = active === item.id; return <button key={item.id} onClick={() => setActive(item.id)} aria-pressed={isActive} style={{ backgroundColor: palette, borderColor: isActive ? '#ffffff' : 'rgba(15,23,42,0.22)', color: '#172033', boxShadow: isActive ? '0 0 0 2px rgba(255,255,255,0.95), 0 4px 14px rgba(15,23,42,0.22)' : '0 2px 7px rgba(15,23,42,0.12)' }} className={`rounded-xl border-2 px-3 py-2 text-xs font-extrabold transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950 ${isActive ? 'ring-2 ring-offset-2 ring-white dark:ring-offset-slate-950' : ''}`}>{item.label} <span style={{ backgroundColor: 'rgba(15,23,42,0.14)', color: '#172033' }} className="mr-1 inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 font-extrabold">{fmt(item.count)}</span></button>; })}</div>
         </div>
 
         <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
