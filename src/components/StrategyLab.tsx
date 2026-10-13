@@ -163,10 +163,10 @@ const StrategyLab: React.FC<StrategyLabProps> = ({ isOnline }) => {
         </label>
         <div className="lg:col-span-6 flex items-center gap-3">
           <button disabled={!isOnline || loading || optimizing || !symbol.trim()} className="px-5 py-2.5 rounded-lg bg-cyan-600 text-white font-bold disabled:opacity-50">
-            {loading ? 'در حال محاسبه...' : 'اجرای بک‌تست'}
+            {loading ? <span className="inline-flex items-center gap-2"><span aria-hidden="true" className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" />در حال محاسبه بک‌تست…</span> : 'اجرای بک‌تست'}
           </button>
           <button type="button" onClick={optimize} disabled={!isOnline || loading || optimizing || !symbol.trim()} className="px-5 py-2.5 rounded-lg border border-cyan-500 text-cyan-700 dark:text-cyan-300 font-bold disabled:opacity-50">
-            {optimizing ? 'در حال جستجوی پارامترها...' : 'جستجوی پارامترها'}
+            {optimizing ? <span className="inline-flex items-center gap-2"><span aria-hidden="true" className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" />در حال جستجوی پارامترها…</span> : 'جستجوی پارامترها'}
           </button>
           <span className="text-xs text-slate-500">استراتژی این گام: تقاطع میانگین متحرک ساده</span>
         </div>
