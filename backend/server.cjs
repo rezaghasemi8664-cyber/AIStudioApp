@@ -669,6 +669,8 @@ mountRoute('/api/v1/auth',     './routes/auth.routes.cjs',             'Auth v1 
 
 mountRoute('/api/profile',     './routes/profile.routes.cjs',          'User Profile');
 mountRoute('/api/v1/profile',  './routes/profile.routes.cjs',          'User Profile v1 alias');
+mountRoute('/api/referrals',     './routes/referral.routes.cjs', 'Referral Invites');
+mountRoute('/api/v1/referrals',  './routes/referral.routes.cjs', 'Referral Invites v1 alias');
 
 mountRoute('/api/users',       './routes/user.routes.cjs',             'User Management');
 mountRoute('/api/v1/users',    './routes/user.routes.cjs',             'User Management v1 alias');
