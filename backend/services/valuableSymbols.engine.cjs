@@ -11,7 +11,8 @@ const PERSISTENCE_KEY = 'valuableSymbols.snapshot.v1';
 
 const MAX_RESULTS = 20;
 const MIN_HISTORY = 20;
-const MAX_CODAL_LOOKUPS = positiveEnv('VALUABLE_SYMBOLS_MAX_CODAL_LOOKUPS', 60);
+const MAX_CODAL_LOOKUPS = positiveEnv('VALUABLE_SYMBOLS_MAX_CODAL_LOOKUPS', 20);
+const MAX_HISTORY_CANDIDATES = positiveEnv('VALUABLE_SYMBOLS_MAX_HISTORY_CANDIDATES', 180);
 const MAX_PRICE_AGE_HOURS = positiveEnv('VALUABLE_SYMBOLS_MAX_PRICE_AGE_HOURS', 72);
 const MAX_HISTORY_AGE_DAYS = positiveEnv('VALUABLE_SYMBOLS_MAX_HISTORY_AGE_DAYS', 7);
 const MAX_CODAL_REPORT_AGE_DAYS = positiveEnv('VALUABLE_SYMBOLS_MAX_CODAL_REPORT_AGE_DAYS', 540);
@@ -326,7 +327,8 @@ async function evaluateValuableSymbolsInternal({ limit = MAX_RESULTS, now = new 
     .filter(row => row && row.symbol && !row.isStale &&
       toNumber(row.lastPrice) > 0 && toNumber(row.closePrice) > 0 &&
       isFreshTimestamp(row.updatedAt, MAX_PRICE_AGE_HOURS * 60 * 60 * 1000, nowMs))
-    .sort((a, b) => (toNumber(b.value) || 0) - (toNumber(a.value) || 0));
+    .sort((a, b) => (toNumber(b.value) || 0) - (toNumber(a.value) || 0))
+    .slice(0, MAX_HISTORY_CANDIDATES);
   diagnostics.eligiblePrices = candidates.length;
   diagnostics.staleOrInvalidPrices = Math.max(0, diagnostics.marketRows - candidates.length);
   const results = [];
