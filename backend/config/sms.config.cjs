@@ -6,6 +6,7 @@ module.exports = {
     initialPassword: process.env.FARAZSMS_INITIAL_PASSWORD_PATTERN || "uAUi9KUJPh",
     otp: process.env.FARAZSMS_OTP_PATTERN || "WZ21k7HUZW",
     notification: process.env.FARAZSMS_NOTIFICATION_PATTERN || "",
+    referral: process.env.FARAZSMS_REFERRAL_PATTERN || "",
   },
   sender: process.env.FARAZSMS_LINE_NUMBER || "90008361",
   timeoutMs: Number(process.env.FARAZSMS_TIMEOUT_MS || 10000),
