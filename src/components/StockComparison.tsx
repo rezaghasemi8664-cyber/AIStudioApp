@@ -319,8 +319,8 @@ const StockComparison: React.FC<StockComparisonProps> = ({ currentUser, isOnline
                     {extraSymbols.map((symbol, index) => <input key={index} type="text" value={symbol} onChange={(e) => setExtraSymbols(items => items.map((item, i) => i === index ? e.target.value.toUpperCase() : item))} placeholder={`نماد ${index + 3}`} dir="rtl" className="flex-grow w-full border rounded-md px-4 py-3 text-lg focus:outline-none focus:ring-2" style={{ backgroundColor: 'var(--input-bg)', color: 'var(--input-color)', borderColor: 'var(--input-border)', '--tw-ring-color': 'var(--input-focus-ring)' } as React.CSSProperties} />)}
                     {extraSymbols.length < 3 && <button type="button" onClick={() => setExtraSymbols(items => [...items, ''])} className="px-4 py-3 rounded-md border border-cyan-500 text-cyan-600 dark:text-cyan-300 whitespace-nowrap">+ افزودن نماد</button>}
                     <button type="submit" disabled={loading || !symbol1.trim() || !symbol2.trim() || !isOnline} data-style-id="analysis-button" className="w-full sm:w-auto flex items-center justify-center gap-2 font-bold py-3 px-8 rounded-md hover:animate-subtle-bounce disabled:bg-gray-500 text-lg" style={{ backgroundColor: 'var(--analysis-button-bg)', color: 'var(--analysis-button-color)' }}>
-                        {loading ? <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin"></div> : <ClipboardDocumentIcon />}
-                        <span>مقایسه کن</span>
+                        {loading ? <span aria-hidden="true" className="h-5 w-5 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <ClipboardDocumentIcon />}
+                        <span>{loading ? 'در حال مقایسه نمادها…' : 'مقایسه کن'}</span>
                     </button>
                 </form>
             </div>
