@@ -1333,7 +1333,7 @@ function CandleChart({
 
   // Keep the chart readable on phones by scrolling instead of shrinking SVG text.
   const width = 1240;
-  const height = 520;
+  const height = 620;
   const left = 112;
   const right = 270;
   const top = 28;
