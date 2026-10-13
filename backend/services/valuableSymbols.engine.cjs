@@ -4,6 +4,9 @@
 const market = require('./sharedMarket.service.cjs');
 const codal = require('./codalIntelligence.service.cjs');
 const fundamentalAnalysis = require('./fundamental-analysis.v2.service.cjs');
+const prisma = require('../config/prisma.cjs');
+
+const PERSISTENCE_KEY = 'valuableSymbols.snapshot.v1';
 
 const MAX_RESULTS = 20;
 const MIN_HISTORY = 20;
@@ -13,6 +16,53 @@ const MAX_HISTORY_AGE_DAYS = positiveEnv('VALUABLE_SYMBOLS_MAX_HISTORY_AGE_DAYS'
 const MAX_CODAL_REPORT_AGE_DAYS = positiveEnv('VALUABLE_SYMBOLS_MAX_CODAL_REPORT_AGE_DAYS', 540);
 let cachedResults = [];
 let cachedEvaluatedAt = null;
+let persistenceReadAt = 0;
+let persistenceReadInFlight = null;
+
+async function getStoredValuableSymbols({ force = false } = {}) {
+  if (!force && Date.now() - persistenceReadAt < 5000 && cachedEvaluatedAt) {
+    return { results: cachedResults, evaluatedAt: cachedEvaluatedAt };
+  }
+  if (persistenceReadInFlight) return persistenceReadInFlight;
+  persistenceReadInFlight = (async () => {
+    const row = await prisma.appConfig.findUnique({ where: { key: PERSISTENCE_KEY } });
+    let payload = null;
+    try { payload = row?.value ? JSON.parse(row.value) : null; } catch (_) { payload = null; }
+    if (payload && Array.isArray(payload.results) && payload.results.length) {
+      cachedResults = payload.results.slice(0, MAX_RESULTS);
+      cachedEvaluatedAt = payload.evaluatedAt || null;
+    }
+    persistenceReadAt = Date.now();
+    return { results: cachedResults, evaluatedAt: cachedEvaluatedAt, snapshotUpdatedAt: payload?.snapshotUpdatedAt || null };
+  })();
+  try { return await persistenceReadInFlight; }
+  finally { persistenceReadInFlight = null; }
+}
+
+async function persistValuableSymbols(results, evaluatedAt) {
+  if (!Array.isArray(results) || !results.length) return false;
+  const payload = {
+    results: results.slice(0, MAX_RESULTS),
+    evaluatedAt,
+    snapshotUpdatedAt: results.reduce((latest, item) => {
+      const candidate = parseTimestamp(item?.marketUpdatedAt);
+      return candidate !== null && (latest === null || candidate > latest) ? candidate : latest;
+    }, null) === null ? null : new Date(results.reduce((latest, item) => {
+      const candidate = parseTimestamp(item?.marketUpdatedAt);
+      return candidate !== null && (latest === null || candidate > latest) ? candidate : latest;
+    }, null)).toISOString(),
+    source: 'shared-market-db+codal'
+  };
+  await prisma.appConfig.upsert({
+    where: { key: PERSISTENCE_KEY },
+    create: { key: PERSISTENCE_KEY, value: JSON.stringify(payload) },
+    update: { value: JSON.stringify(payload), updatedAt: new Date() }
+  });
+  cachedResults = payload.results;
+  cachedEvaluatedAt = evaluatedAt;
+  persistenceReadAt = Date.now();
+  return true;
+}
 
 function positiveEnv(name, fallback) {
   const value = Number(process.env[name]);
@@ -270,10 +320,15 @@ async function evaluateValuableSymbols({ limit = MAX_RESULTS, now = new Date() }
       continue;
     }
   }
-  cachedResults = results.sort((a, b) => b.score - a.score)
+  const rankedResults = results.sort((a, b) => b.score - a.score)
     .slice(0, Math.max(1, Math.min(Number(limit) || MAX_RESULTS, MAX_RESULTS)));
-  cachedEvaluatedAt = now.toISOString();
-  return cachedResults;
+  // Never replace a valid persisted list with an empty/failed evaluation.
+  if (rankedResults.length) {
+    await persistValuableSymbols(rankedResults, now.toISOString());
+    return cachedResults;
+  }
+  const stored = await getStoredValuableSymbols({ force: true });
+  return stored.results;
 }
 
 function getCachedValuableSymbols() {
@@ -281,6 +336,6 @@ function getCachedValuableSymbols() {
 }
 
 module.exports = {
-  evaluateValuableSymbols, getCachedValuableSymbols, analyzeTechnical, analyzeFundamental, analyzeFundamentalWithDocuments,
+  evaluateValuableSymbols, getCachedValuableSymbols, getStoredValuableSymbols, persistValuableSymbols, analyzeTechnical, analyzeFundamental, analyzeFundamentalWithDocuments,
   isFreshTimestamp, isFreshHistory, getReportAgeDays, getMarketSession
 };
