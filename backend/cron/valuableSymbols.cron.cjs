@@ -17,7 +17,7 @@ const MAX_SNAPSHOT_AGE_MS = 5 * 60 * 1000;
 const SNAPSHOT_SETTLE_MS = 45 * 1000;
 
 function registerValuableSymbolsCron() {
-  cron.schedule('*/2 * * * *', async () => {
+  cron.schedule('* * * * *', async () => {
     const marketOpen = isTehranMarketOpen();
     const now = Date.now();
     if (running) {
@@ -42,13 +42,19 @@ function registerValuableSymbolsCron() {
     }
 
     if (marketOpen) {
-      if (!activeSnapshot || !activeSnapshot.activatedAt) return;
-      const activatedAt = new Date(activeSnapshot.activatedAt).getTime();
-      if (!Number.isFinite(activatedAt) || now - activatedAt > MAX_SNAPSHOT_AGE_MS) {
-        console.log('[CRON][ValuableSymbols] Waiting for a recently activated verified market snapshot');
+      if (!activeSnapshot || !activeSnapshot.activatedAt) {
+        console.log('[CRON][ValuableSymbols] Waiting: no active verified market snapshot yet');
         return;
       }
-      if (now - activatedAt < SNAPSHOT_SETTLE_MS) return;
+      const activatedAt = new Date(activeSnapshot.activatedAt).getTime();
+      if (!Number.isFinite(activatedAt) || now - activatedAt > MAX_SNAPSHOT_AGE_MS) {
+        console.log('[CRON][ValuableSymbols] Waiting for a recently activated verified market snapshot', JSON.stringify({ snapshotId: activeSnapshot.id, activatedAt: activeSnapshot.activatedAt, ageMs: Number.isFinite(activatedAt) ? now - activatedAt : null }));
+        return;
+      }
+      if (now - activatedAt < SNAPSHOT_SETTLE_MS) {
+        console.log('[CRON][ValuableSymbols] Waiting for snapshot settle window', JSON.stringify({ snapshotId: activeSnapshot.id, ageMs: now - activatedAt, requiredMs: SNAPSHOT_SETTLE_MS }));
+        return;
+      }
       const activeId = Number(activeSnapshot.id);
       if (stored.snapshotId !== null && Number(stored.snapshotId) === activeId) {
         lastSuccessfullyAnalyzedSnapshotId = activeId;
