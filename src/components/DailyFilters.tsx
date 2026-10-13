@@ -194,7 +194,7 @@ const ProfessionalScreener: React.FC = () => {
             <p className="mt-1 text-xs text-slate-500">غربال نمادها با معیارهای قطعی بازار؛ بدون AI و بدون تولید داده مصنوعی{dataSource ? ` · منبع: ${dataSource}` : ''}</p>
           </div>
           <button onClick={() => void load(true)} disabled={refreshing} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-bold text-slate-200 hover:bg-white/[0.08] disabled:opacity-50">
-            {refreshing ? 'در حال بروزرسانی…' : 'بروزرسانی داده'}
+            {refreshing ? <span className="inline-flex items-center gap-2"><span aria-hidden="true" className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent align-[-3px]" />در حال بروزرسانی…</span> : 'بروزرسانی داده'}
           </button>
         </div>
       </header>
@@ -239,7 +239,7 @@ const ProfessionalScreener: React.FC = () => {
           <div className="rounded-2xl bg-white/[0.03] p-3"><div className="text-xs text-slate-500">آخرین بروزرسانی</div><div className="mt-1 text-sm font-black text-slate-200">{selected?.updatedAt ? new Date(selected.updatedAt).toLocaleTimeString('fa-IR') : '—'}</div></div>
         </div>
 
-        {loading ? <div className="py-16 text-center text-sm text-slate-500">در حال دریافت داده بازار…</div> : error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-8 text-center text-sm text-rose-300">{error}<button onClick={() => void load(true)} className="mr-3 rounded-xl bg-white/10 px-3 py-2">تلاش مجدد</button></div> : dataStatus === 'UNAVAILABLE' ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-10 text-center text-sm text-rose-300">داده واقعی غربالگر در حال حاضر از منبع بازار در دسترس نیست؛ هیچ مقدار ساختگی نمایش داده نمی‌شود.</div> : !rows.length ? <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-10 text-center text-sm text-slate-500">با معیارهای فعلی نمادی پیدا نشد.</div> : (
+        {loading ? <div className="py-16 text-center text-sm text-slate-500">در حال دریافت داده بازار…</div> : error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-8 text-center text-sm text-rose-300">{error}<button onClick={() => void load(true)} disabled={refreshing} className="mr-3 inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 disabled:opacity-50">{refreshing ? <span aria-hidden="true" className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : null}{refreshing ? 'در حال تلاش…' : 'تلاش مجدد'}</button></div> : dataStatus === 'UNAVAILABLE' ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-10 text-center text-sm text-rose-300">داده واقعی غربالگر در حال حاضر از منبع بازار در دسترس نیست؛ هیچ مقدار ساختگی نمایش داده نمی‌شود.</div> : !rows.length ? <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-10 text-center text-sm text-slate-500">با معیارهای فعلی نمادی پیدا نشد.</div> : (
           <div className="overflow-x-auto rounded-2xl border border-white/5">
             <table className="min-w-[1150px] w-full text-xs text-right">
               <thead className="bg-white/[0.03] text-slate-500"><tr>{['#','نماد','قدرت خرید','آخرین','پایانی','تغییر','حجم','ارزش','حجم ماه','P/E','خرید حقیقی','فروش حقیقی'].map((heading) => <th key={heading} className="px-3 py-3 font-bold">{heading}</th>)}</tr></thead>
