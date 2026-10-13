@@ -648,6 +648,7 @@ console.log('══════════════════════�
 // cannot be shadowed by a nested router-level fallback or catch-all middleware.
 // The aggregator remains mounted afterwards for the rest of the v1 API surface.
 mountRoute('/api/v1/admin', './routes/admin.routes.cjs', 'Admin Panel v1 alias (priority)');
+mountRoute('/api/v1/admin-notifications', './routes/adminNotifications.routes.cjs', 'Admin Notifications v1 alias');
 mountRoute('/api/v1/market', './routes/market.routes.cjs', 'Market Data v1 alias (priority)');
 mountRoute('/api/v1/settings', './routes/settings.routes.cjs', 'User Settings v1 alias (priority)');
 mountRoute('/api/v1/global-settings', './routes/globalSettings.routes.cjs', 'Global Settings v1 alias (priority)');
