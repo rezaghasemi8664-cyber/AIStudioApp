@@ -34,7 +34,7 @@ const CodalPeriodAnalysis: React.FC<Props> = ({ isOnline }) => {
     <section dir="rtl" className="page-shell codal-period-analysis-page space-y-5">
       <div className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4">
         <div><h2 className="font-black text-lg">تحلیل دوره‌ای کدال</h2><p className="text-xs text-gray-500 mt-1">مقایسه بر اساس تاریخ انتشار واقعی اطلاعیه‌های دریافتی</p></div>
-        <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading ? 'در حال دریافت…' : 'بروزرسانی'}</button>
+        <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading ? <span className="inline-flex items-center gap-2"><span aria-hidden="true" className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" />در حال دریافت داده‌ها…</span> : 'بروزرسانی'}</button>
       </div>
       {error && <div className="rounded-2xl border border-red-300 bg-red-50 dark:bg-red-950/20 p-4 text-red-700 dark:text-red-300">{error}</div>}
       {result && trend && sensitive && <>
