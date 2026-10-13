@@ -319,6 +319,7 @@ async function evaluateValuableSymbolsInternal({ limit = MAX_RESULTS, now = new 
     return (await getStoredValuableSymbols({ force: true })).results;
   }
   if (!marketSession.isOpen && !allowClosedRecovery) return (await getStoredValuableSymbols({ force: true })).results;
+  const diagnostics = { snapshotId, marketStatus: marketSession.status, marketRows: 0, eligiblePrices: 0, staleOrInvalidPrices: 0, historyRequests: 0, invalidHistory: 0, missingCurrentDayHistory: 0, invalidTechnical: 0, codalLookups: 0, invalidFundamentals: 0, candidateErrors: 0, persisted: false };
   const symbols = await market.getSymbols({ limit: 1200 });
   diagnostics.marketRows = Array.isArray(symbols) ? symbols.length : 0;
   const candidates = symbols
@@ -329,7 +330,6 @@ async function evaluateValuableSymbolsInternal({ limit = MAX_RESULTS, now = new 
   diagnostics.eligiblePrices = candidates.length;
   diagnostics.staleOrInvalidPrices = Math.max(0, diagnostics.marketRows - candidates.length);
   const results = [];
-  const diagnostics = { snapshotId, marketStatus: marketSession.status, marketRows: 0, eligiblePrices: 0, staleOrInvalidPrices: 0, historyRequests: 0, invalidHistory: 0, missingCurrentDayHistory: 0, invalidTechnical: 0, codalLookups: 0, invalidFundamentals: 0, candidateErrors: 0, persisted: false };
   let codalLookups = 0;
   for (const row of candidates) {
     if (results.length >= Math.max(1, Math.min(Number(limit) || MAX_RESULTS, MAX_RESULTS))) break;
