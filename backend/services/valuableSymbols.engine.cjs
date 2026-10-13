@@ -5,6 +5,7 @@ const market = require('./sharedMarket.service.cjs');
 const codal = require('./codalIntelligence.service.cjs');
 const fundamentalAnalysis = require('./fundamental-analysis.v2.service.cjs');
 const prisma = require('../config/prisma.cjs');
+const marketSnapshotService = require('./marketSnapshot.service.cjs');
 
 const PERSISTENCE_KEY = 'valuableSymbols.snapshot.v1';
 
@@ -18,10 +19,11 @@ let cachedResults = [];
 let cachedEvaluatedAt = null;
 let persistenceReadAt = 0;
 let persistenceReadInFlight = null;
+let evaluationInFlight = null;
 
 async function getStoredValuableSymbols({ force = false } = {}) {
   if (!force && Date.now() - persistenceReadAt < 5000 && cachedEvaluatedAt) {
-    return { results: cachedResults, evaluatedAt: cachedEvaluatedAt };
+    return { results: cachedResults, evaluatedAt: cachedEvaluatedAt, snapshotId: null };
   }
   if (persistenceReadInFlight) return persistenceReadInFlight;
   persistenceReadInFlight = (async () => {
@@ -33,17 +35,18 @@ async function getStoredValuableSymbols({ force = false } = {}) {
       cachedEvaluatedAt = payload.evaluatedAt || null;
     }
     persistenceReadAt = Date.now();
-    return { results: cachedResults, evaluatedAt: cachedEvaluatedAt, snapshotUpdatedAt: payload?.snapshotUpdatedAt || null };
+    return { results: cachedResults, evaluatedAt: cachedEvaluatedAt, snapshotId: payload?.snapshotId ?? null, snapshotUpdatedAt: payload?.snapshotUpdatedAt || null };
   })();
   try { return await persistenceReadInFlight; }
   finally { persistenceReadInFlight = null; }
 }
 
-async function persistValuableSymbols(results, evaluatedAt) {
+async function persistValuableSymbols(results, evaluatedAt, snapshotId = null) {
   if (!Array.isArray(results) || !results.length) return false;
   const payload = {
     results: results.slice(0, MAX_RESULTS),
     evaluatedAt,
+    snapshotId: snapshotId === null ? null : Number(snapshotId),
     snapshotUpdatedAt: results.reduce((latest, item) => {
       const candidate = parseTimestamp(item?.marketUpdatedAt);
       return candidate !== null && (latest === null || candidate > latest) ? candidate : latest;
@@ -101,6 +104,17 @@ function getMarketSession(now = new Date()) {
   const isOpen = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'].includes(values.weekday) &&
     minuteOfDay >= 540 && minuteOfDay < 750;
   return { status: isOpen ? 'OPEN' : 'CLOSED', isOpen };
+}
+
+function tehranDateKey(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', calendar: 'gregory' }).format(date);
+}
+
+function historyContainsCurrentMarketDay(history, now = new Date()) {
+  if (!Array.isArray(history) || !history.length) return false;
+  const latest = Math.max(...history.map(row => parseTimestamp(row && row.date)).filter(value => value !== null));
+  if (!Number.isFinite(latest)) return false;
+  return new Date(latest).toISOString().slice(0, 10) === tehranDateKey(now);
 }
 
 function isFreshHistory(history, now = Date.now()) {
@@ -282,8 +296,29 @@ async function analyzeFundamentalWithDocuments(items, now = new Date()) {
   };
 }
 
-async function evaluateValuableSymbols({ limit = MAX_RESULTS, now = new Date() } = {}) {
+async function evaluateValuableSymbols({ limit = MAX_RESULTS, now = new Date(), allowClosedRecovery = false } = {}) {
+  if (evaluationInFlight) return evaluationInFlight;
+  evaluationInFlight = evaluateValuableSymbolsInternal({ limit, now, allowClosedRecovery });
+  try { return await evaluationInFlight; }
+  finally { evaluationInFlight = null; }
+}
+
+async function evaluateValuableSymbolsInternal({ limit = MAX_RESULTS, now = new Date(), allowClosedRecovery = false } = {}) {
   const nowMs = now.getTime();
+  const marketSession = getMarketSession(now);
+  const activeSnapshot = await marketSnapshotService.getActiveSnapshot();
+  if (!activeSnapshot || !activeSnapshot.id || !activeSnapshot.activatedAt) {
+    return (await getStoredValuableSymbols({ force: true })).results;
+  }
+  const snapshotId = Number(activeSnapshot.id);
+  const activatedAtMs = parseTimestamp(activeSnapshot.activatedAt);
+  // During the session, only evaluate after a recently activated, verified snapshot.
+  // After hours, permit the last verified snapshot solely for empty-list recovery.
+  if (marketSession.isOpen && (!isFreshTimestamp(activeSnapshot.activatedAt, 5 * 60 * 1000, nowMs))) {
+    console.log('[VALUABLE SYMBOLS] Skipping: no recently activated market snapshot');
+    return (await getStoredValuableSymbols({ force: true })).results;
+  }
+  if (!marketSession.isOpen && !allowClosedRecovery) return (await getStoredValuableSymbols({ force: true })).results;
   const symbols = await market.getSymbols({ limit: 1200 });
   const candidates = symbols
     .filter(row => row && row.symbol && !row.isStale &&
@@ -292,13 +327,13 @@ async function evaluateValuableSymbols({ limit = MAX_RESULTS, now = new Date() }
     .sort((a, b) => (toNumber(b.value) || 0) - (toNumber(a.value) || 0));
   const results = [];
   let codalLookups = 0;
-  const marketSession = getMarketSession(now);
   for (const row of candidates) {
     if (results.length >= Math.max(1, Math.min(Number(limit) || MAX_RESULTS, MAX_RESULTS))) break;
     if (codalLookups >= MAX_CODAL_LOOKUPS) break;
     try {
       const history = await market.getSymbolHistory(row.symbol, 40);
       if (!isFreshHistory(history, nowMs)) continue;
+      if (marketSession.isOpen && !historyContainsCurrentMarketDay(history, now)) continue;
       const technical = analyzeTechnical(history, row.lastPrice);
       if (!technical) continue;
       codalLookups += 1;
@@ -311,6 +346,7 @@ async function evaluateValuableSymbols({ limit = MAX_RESULTS, now = new Date() }
         score: Math.round(technical.score * 0.6 + fundamental.score * 0.4),
         ...technical, fundamental, source: 'shared-market-db+codal',
         marketUpdatedAt: new Date(priceTimestamp).toISOString(),
+        marketSnapshotId: snapshotId,
         marketDataAgeMinutes: Math.max(0, Math.floor((nowMs - priceTimestamp) / 60000)),
         marketStatus: marketSession.status,
         evaluatedAt: now.toISOString()
@@ -322,9 +358,15 @@ async function evaluateValuableSymbols({ limit = MAX_RESULTS, now = new Date() }
   }
   const rankedResults = results.sort((a, b) => b.score - a.score)
     .slice(0, Math.max(1, Math.min(Number(limit) || MAX_RESULTS, MAX_RESULTS)));
+  // Do not publish results if a newer market snapshot became active mid-run.
+  const latestSnapshot = await marketSnapshotService.getActiveSnapshot();
+  if (!latestSnapshot || Number(latestSnapshot.id) !== snapshotId) {
+    console.log('[VALUABLE SYMBOLS] Discarding run because active snapshot changed during analysis');
+    return (await getStoredValuableSymbols({ force: true })).results;
+  }
   // Never replace a valid persisted list with an empty/failed evaluation.
   if (rankedResults.length) {
-    await persistValuableSymbols(rankedResults, now.toISOString());
+    await persistValuableSymbols(rankedResults, now.toISOString(), snapshotId);
     return cachedResults;
   }
   const stored = await getStoredValuableSymbols({ force: true });
@@ -337,5 +379,5 @@ function getCachedValuableSymbols() {
 
 module.exports = {
   evaluateValuableSymbols, getCachedValuableSymbols, getStoredValuableSymbols, persistValuableSymbols, analyzeTechnical, analyzeFundamental, analyzeFundamentalWithDocuments,
-  isFreshTimestamp, isFreshHistory, getReportAgeDays, getMarketSession
+  isFreshTimestamp, isFreshHistory, historyContainsCurrentMarketDay, getReportAgeDays, getMarketSession
 };
