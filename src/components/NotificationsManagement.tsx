@@ -23,19 +23,33 @@ const NotificationsManagement: React.FC<NotificationsManagementProps> = ({ isOnl
     const [message, setMessage] = useState('');
     const [recipientType, setRecipientType] = useState<'all' | 'specific'>('all');
     const [users, setUsers] = useState<StoredUser[]>([]);
+    const [usersLoading, setUsersLoading] = useState(false);
+    const [usersError, setUsersError] = useState('');
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
     const [attachment, setAttachment] = useState<File | null>(null);
     const [loading, setLoading] = useState(false);
     const { addNotification } = useNotification();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    useEffect(() => {
-        const fetchUsers = async () => {
+    const fetchUsers = async () => {
+        setUsersLoading(true);
+        setUsersError('');
+        try {
             const allUsers = await authService.getUsers();
             setUsers(allUsers);
-        };
+            if (allUsers.length === 0) {
+                setUsersError('فهرست کاربران خالی است یا کاربری برای نمایش وجود ندارد.');
+            }
+        } catch (error) {
+            console.error('[NotificationsManagement] دریافت فهرست کاربران ناموفق بود:', error);
+            setUsersError(error instanceof Error ? error.message : 'دریافت فهرست کاربران ناموفق بود. دسترسی مدیر و اتصال سرور را بررسی کنید.');
+        } finally {
+            setUsersLoading(false);
+        }
+    };
 
-        fetchUsers();
+    useEffect(() => {
+        void fetchUsers();
     }, []);
 
     const handleUserSelectionChange = (userId: string) => {
@@ -240,24 +254,40 @@ const NotificationsManagement: React.FC<NotificationsManagementProps> = ({ isOnl
                     {recipientType === 'specific' && (
                         <div className="border border-[var(--input-border)] rounded-lg p-4 max-h-60 overflow-y-auto">
                             <h4 className="font-semibold mb-2">لیست کاربران</h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                                {users.map(user => (
-                                    <label
-                                        key={user.id}
-                                        className="flex items-center gap-2 p-2 rounded-md hover:bg-[var(--app-bg)] cursor-pointer"
+                            {usersLoading ? (
+                                <p role="status" className="py-3 text-sm text-gray-500">در حال دریافت فهرست کاربران...</p>
+                            ) : usersError ? (
+                                <div role="alert" className="py-3 space-y-2">
+                                    <p className="text-sm text-amber-600 dark:text-amber-400">{usersError}</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => void fetchUsers()}
+                                        className="px-3 py-1.5 rounded-md text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600"
                                     >
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedUserIds.includes(user.id)}
-                                            onChange={() => handleUserSelectionChange(user.id)}
-                                            className="h-4 w-4 rounded bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-cyan-600 focus:ring-cyan-500"
-                                        />
-                                        <span className="text-sm">
-                                            {user.firstName} {user.lastName} ({user.username})
-                                        </span>
-                                    </label>
-                                ))}
-                            </div>
+                                        تلاش دوباره برای دریافت کاربران
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                    {users.map(user => (
+                                        <label
+                                            key={user.id}
+                                            className="flex items-center gap-2 p-2 rounded-md hover:bg-[var(--app-bg)] cursor-pointer"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedUserIds.includes(String(user.id))}
+                                                onChange={() => handleUserSelectionChange(String(user.id))}
+                                                className="h-4 w-4 rounded bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-cyan-600 focus:ring-cyan-500"
+                                            />
+                                            <span className="text-sm">
+                                                {(user.firstName || user.lastName) ? (String(user.firstName || "") + " " + String(user.lastName || "")).trim() : (user.username || user.email || ("کاربر " + user.id))}
+                                                {(user.username || user.email) ? " (" + (user.username || user.email) + ")" : ""}
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
 
