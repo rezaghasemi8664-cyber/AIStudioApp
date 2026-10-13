@@ -261,7 +261,7 @@ const OptionsMarket: React.FC = () => {
           disabled={loading}
           className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? 'در حال دریافت…' : 'به‌روزرسانی اطلاعات'}
+          {loading ? <span className="inline-flex items-center justify-center gap-2"><span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />در حال دریافت…</span> : 'به‌روزرسانی اطلاعات'}
         </button>
       </div>
 

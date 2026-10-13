@@ -22,7 +22,7 @@ const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
   const [readIds, setReadIds] = useState<string[]>(readReadIds);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [symbols, setSymbols] = useState<watchlistService.WatchlistSymbol[]>([]);
-  const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [evaluating, setEvaluating] = useState(false);
+  const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [evaluating, setEvaluating] = useState(false); const [busyAlertActions, setBusyAlertActions] = useState<string[]>([]);
   const dataStatus = useMemo<alertService.WatchlistAlertDataStatus>(() => { const statuses = history.map(item => item.dataStatus || item.snapshot?.dataStatus).filter(Boolean) as alertService.WatchlistAlertDataStatus[]; return statuses.includes('LIVE') ? 'LIVE' : (statuses.includes('CACHED') ? 'CACHED' : 'UNAVAILABLE'); }, [history]);
   const [symbol, setSymbol] = useState('');
   const [logic, setLogic] = useState<WatchlistAlertLogic>('AND');
@@ -67,14 +67,19 @@ const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
 
   const toggle = async (alert: WatchlistAlertRule) => {
     if (!isOnline) return addNotification('برای تغییر وضعیت هشدار باید آنلاین باشید.', 'error');
+    if (busyAlertActions.includes(alert.id)) return;
     const next = alert.status === 'disabled' ? 'armed' : 'disabled';
+    setBusyAlertActions(previous => [...previous, alert.id]);
     try { const updated = await alertService.updateAlert(alert.id, { status: next }); setAlerts(previous => previous.map(item => item.id === updated.id ? updated : item)); if (next === 'armed') await load(false); }
     catch (error: any) { addNotification(error?.response?.data?.message || 'تغییر وضعیت هشدار ناموفق بود.', 'error'); }
+    finally { setBusyAlertActions(previous => previous.filter(id => id !== alert.id)); }
   };
   const remove = async (id: string) => {
-    if (!isOnline || !window.confirm('آیا از حذف این هشدار اطمینان دارید؟')) return;
+    if (!isOnline || busyAlertActions.includes(id) || !window.confirm('آیا از حذف این هشدار اطمینان دارید؟')) return;
+    setBusyAlertActions(previous => [...previous, id]);
     try { await alertService.deleteAlert(id); setAlerts(previous => previous.filter(item => item.id !== id)); addNotification('هشدار حذف شد.', 'info'); }
     catch (error: any) { addNotification(error?.response?.data?.message || 'حذف هشدار ناموفق بود.', 'error'); }
+    finally { setBusyAlertActions(previous => previous.filter(itemId => itemId !== id)); }
   };
   const evaluate = async () => {
     if (!isOnline) return addNotification('برای بررسی هشدارها باید آنلاین باشید.', 'error'); setEvaluating(true);
@@ -108,7 +113,7 @@ const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
     </form>
 
     <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden">
-      {loading ? <div className="p-8 text-center text-gray-500">در حال دریافت هشدارها…</div> : alerts.length === 0 ? <div className="p-8 text-center text-gray-500">هنوز هشداری ایجاد نشده است.</div> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-800/80"><tr><th className="p-3 text-right">نماد</th><th className="p-3 text-right">منطق</th><th className="p-3 text-right">شروط</th><th className="p-3 text-right">وضعیت</th><th className="p-3 text-right">عملیات</th></tr></thead><tbody>{alerts.map(alert => { const list = alert.conditions?.length ? alert.conditions : [{ metric: alert.metric, operator: alert.operator, threshold: alert.threshold }]; return <tr key={alert.id} className="border-t border-[var(--color-border)]"><td className="p-3 font-bold">{alert.symbol}</td><td className="p-3 font-mono">{alert.logic || 'AND'}</td><td className="p-3"><div className="space-y-1">{list.map((condition, i) => <div key={`${alert.id}-${i}`} className="text-xs">{metricLabel(condition.metric)} {operatorLabel(condition.operator)} <b>{Number(condition.threshold).toLocaleString('fa-IR')}</b></div>)}</div></td><td className="p-3"><span className="px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-800">{statusLabel[alert.status]}</span></td><td className="p-3 flex gap-2"><button type="button" onClick={() => toggle(alert)} className="px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800">{alert.status === 'disabled' ? 'فعال‌سازی' : 'غیرفعال‌سازی'}</button><button type="button" onClick={() => remove(alert.id)} className="px-2.5 py-1.5 rounded-lg text-red-600 bg-red-50 dark:bg-red-950/20">حذف</button></td></tr>; })}</tbody></table></div>}
+      {loading ? <div className="p-8 text-center text-gray-500">در حال دریافت هشدارها…</div> : alerts.length === 0 ? <div className="p-8 text-center text-gray-500">هنوز هشداری ایجاد نشده است.</div> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-800/80"><tr><th className="p-3 text-right">نماد</th><th className="p-3 text-right">منطق</th><th className="p-3 text-right">شروط</th><th className="p-3 text-right">وضعیت</th><th className="p-3 text-right">عملیات</th></tr></thead><tbody>{alerts.map(alert => { const list = alert.conditions?.length ? alert.conditions : [{ metric: alert.metric, operator: alert.operator, threshold: alert.threshold }]; return <tr key={alert.id} className="border-t border-[var(--color-border)]"><td className="p-3 font-bold">{alert.symbol}</td><td className="p-3 font-mono">{alert.logic || 'AND'}</td><td className="p-3"><div className="space-y-1">{list.map((condition, i) => <div key={`${alert.id}-${i}`} className="text-xs">{metricLabel(condition.metric)} {operatorLabel(condition.operator)} <b>{Number(condition.threshold).toLocaleString('fa-IR')}</b></div>)}</div></td><td className="p-3"><span className="px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-800">{statusLabel[alert.status]}</span></td><td className="p-3 flex flex-wrap gap-2"><button type="button" onClick={() => void toggle(alert)} disabled={!isOnline || busyAlertActions.includes(alert.id)} className="inline-flex items-center justify-center gap-2 px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60">{busyAlertActions.includes(alert.id) ? <><span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-400/40 border-t-gray-600 dark:border-gray-500/40 dark:border-t-gray-200" />در حال اعمال…</> : (alert.status === 'disabled' ? 'فعال‌سازی' : 'غیرفعال‌سازی')}</button><button type="button" onClick={() => void remove(alert.id)} disabled={!isOnline || busyAlertActions.includes(alert.id)} className="inline-flex items-center justify-center gap-2 px-2.5 py-1.5 rounded-lg text-red-600 bg-red-50 dark:bg-red-950/20 disabled:cursor-not-allowed disabled:opacity-60">{busyAlertActions.includes(alert.id) ? <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-400/40 border-t-red-600" /> : null}{busyAlertActions.includes(alert.id) ? 'در حال حذف…' : 'حذف'}</button></td></tr>; })}</tbody></table></div>}
     </div>
 
     <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden">
