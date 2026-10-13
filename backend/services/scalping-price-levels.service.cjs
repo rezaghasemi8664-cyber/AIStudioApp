@@ -85,10 +85,24 @@ function calculateScalpingPriceLevels(candles, signal, currentPrice, market = {}
 
     const entryPrice = resistance + atr * 0.1;
     const targetPrice = entryPrice + atr * 2;
-    if (!(entryPrice > current && entryPrice <= allowedMax && support < entryPrice && targetPrice > entryPrice)) {
-      return reject('buy_entry_outside_band_or_invalid', { currentPrice: current, entryPrice, targetPrice, allowedMin, allowedMax });
+    if (entryPrice > current && entryPrice <= allowedMax && support < entryPrice && targetPrice > entryPrice) {
+      return { entryPrice: round(entryPrice), targetPrice: round(targetPrice), stopLossPrice: round(support), support: round(support), resistance: round(resistance), atr: round(atr), method: 'swing-resistance-atr' };
     }
-    return { entryPrice: round(entryPrice), targetPrice: round(targetPrice), stopLossPrice: round(support), support: round(support), resistance: round(resistance), atr: round(atr), method: 'swing-resistance-atr' };
+
+    // If a breakout trigger cannot fit inside today's legal price band, do not
+    // discard every candidate automatically: allow an at-market continuation
+    // only when current price is below resistance and the measured reward/risk
+    // remains acceptable. This is a real-price entry, not a trigger above limit.
+    const pullbackEntry = current;
+    const pullbackStop = Math.max(allowedMin, support - atr * 0.25);
+    const pullbackTarget = Math.min(resistance, allowedMax, pullbackEntry + atr * 1.5);
+    const pullbackRisk = pullbackEntry - pullbackStop;
+    const pullbackReward = pullbackTarget - pullbackEntry;
+    if (bullishCandle && pullbackEntry < resistance && pullbackStop < pullbackEntry &&
+        pullbackTarget > pullbackEntry && pullbackRisk > 0 && pullbackReward / pullbackRisk >= 1.2) {
+      return { entryPrice: round(pullbackEntry), targetPrice: round(pullbackTarget), stopLossPrice: round(pullbackStop), support: round(support), resistance: round(resistance), atr: round(atr), method: 'at-market-continuation-atr-v1' };
+    }
+    return reject('buy_entry_outside_band_or_invalid', { currentPrice: current, entryPrice, targetPrice, allowedMin, allowedMax });
   }
 
   if (signal === 'SELL') {
