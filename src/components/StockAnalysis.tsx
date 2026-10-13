@@ -1331,12 +1331,13 @@ function CandleChart({
     );
   }
 
-  const width = 1100;
-  const height = 500;
-  const left = 58;
-  const right = 170;
-  const top = 24;
-  const bottom = 42;
+  // Keep the chart readable on phones by scrolling instead of shrinking SVG text.
+  const width = 1240;
+  const height = 520;
+  const left = 112;
+  const right = 270;
+  const top = 28;
+  const bottom = 58;
   const plotWidth = width - left - right;
   const plotHeight = height - top - bottom;
   const allValues = [...candles.flatMap((c) => [Number(c.high), Number(c.low)]), ...levels.map((l) => l.price)].filter(Number.isFinite);
@@ -1352,6 +1353,26 @@ function CandleChart({
   const gridCount = 5;
   const isDark = theme === 'dark';
 
+  // Place close price-level labels on separate rows to prevent overlap.
+  const labelGap = 32;
+  const labelHalfHeight = 14;
+  const labelMinY = top + labelHalfHeight;
+  const labelMaxY = top + plotHeight - labelHalfHeight;
+  const positionedLevels = levels.map((level, index) => ({ level, index, actualY: yFor(level.price), labelY: yFor(level.price) }))
+    .filter((item) => item.actualY >= top - 2 && item.actualY <= top + plotHeight + 2)
+    .sort((a, b) => a.actualY - b.actualY);
+  positionedLevels.forEach((item, index) => {
+    item.labelY = Math.max(item.actualY, index === 0 ? labelMinY : positionedLevels[index - 1].labelY + labelGap);
+  });
+  if (positionedLevels.length) {
+    positionedLevels[positionedLevels.length - 1].labelY = Math.min(positionedLevels[positionedLevels.length - 1].labelY, labelMaxY);
+    for (let index = positionedLevels.length - 2; index >= 0; index -= 1) {
+      positionedLevels[index].labelY = Math.min(positionedLevels[index].labelY, positionedLevels[index + 1].labelY - labelGap);
+    }
+    positionedLevels.forEach((item) => { item.labelY = Math.max(labelMinY, Math.min(labelMaxY, item.labelY)); });
+  }
+  const levelLabelY = new Map(positionedLevels.map((item) => [item.index, item.labelY]));
+
   const levelStyle: Record<ChartLevel['tone'], { stroke: string; dash: string }> = {
     support: { stroke: '#059669', dash: '8 5' },
     resistance: { stroke: '#dc2626', dash: '8 5' },
@@ -1361,10 +1382,10 @@ function CandleChart({
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div className="text-[12px] font-semibold text-slate-500">نمودار کندلی + سطوح تکنیکال</div>
-        <div className="flex flex-wrap gap-2 text-[10px] font-bold">
+        <div className="text-[14px] font-bold text-slate-700">نمودار کندلی + سطوح تکنیکال</div>
+        <div className="flex flex-wrap gap-2 text-[12px] font-bold">
           <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">حمایت</span>
           <span className="rounded-full bg-rose-50 px-2 py-1 text-rose-700">مقاومت</span>
           <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700">ورود</span>
@@ -1372,8 +1393,8 @@ function CandleChart({
           <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-700">حد ضرر</span>
         </div>
       </div>
-      <div className="overflow-x-auto">
-        <svg viewBox={`0 0 ${width} ${height}`} className="h-auto min-w-[760px] w-full" role="img" aria-label="نمودار کندلی با خطوط حمایت، مقاومت، نقاط ورود، اهداف خروج و حد ضرر">
+      <div className="w-full overflow-x-auto rounded-lg" style={{ WebkitOverflowScrolling: "touch" }}>
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-auto min-w-[1000px] w-full" role="img" aria-label="نمودار کندلی با خطوط حمایت، مقاومت، نقاط ورود، اهداف خروج و حد ضرر">
           <rect x="0" y="0" width={width} height={height} rx="12" fill={isDark ? '#0f172a' : '#ffffff'} />
           {Array.from({ length: gridCount + 1 }, (_, i) => {
             const y = top + (i / gridCount) * plotHeight;
@@ -1381,7 +1402,7 @@ function CandleChart({
             return (
               <g key={`grid-${i}`}>
                 <line x1={left} x2={left + plotWidth} y1={y} y2={y} stroke={isDark ? '#334155' : '#e2e8f0'} strokeWidth="1" />
-                <text x={left - 8} y={y + 4} textAnchor="end" fontSize="10" fill={isDark ? '#cbd5e1' : '#64748b'}>{formatNumber(Math.round(price))}</text>
+                <text x={left - 8} y={y + 4} textAnchor="end" fontSize="13" fontWeight="600" fill={isDark ? '#e2e8f0' : '#334155'}>{formatNumber(Math.round(price))}</text>
               </g>
             );
           })}
@@ -1406,13 +1427,17 @@ function CandleChart({
           })}
           {levels.map((level, index) => {
             const y = yFor(level.price);
-            if (y < top - 2 || y > top + plotHeight + 2) return null;
+            const labelY = levelLabelY.get(index);
+            if (y < top - 2 || y > top + plotHeight + 2 || labelY === undefined) return null;
             const style = levelStyle[level.tone];
+            const labelX = left + plotWidth + 12;
+            const labelWidth = right - 22;
             return (
               <g key={`level-${level.tone}-${level.price}-${index}`}>
-                <line x1={left} x2={left + plotWidth + 6} y1={y} y2={y} stroke={style.stroke} strokeWidth={level.tone === 'entry' ? 2.2 : 1.8} strokeDasharray={style.dash} opacity="0.9" />
-                <rect x={left + plotWidth + 8} y={y - 11} width={right - 16} height="22" rx="6" fill={isDark ? '#020617' : '#ffffff'} stroke={style.stroke} strokeWidth="1.5" />
-                <text x={left + plotWidth + right - 22} y={y + 3.5} textAnchor="end" fontSize="10" fontWeight="800" fill={isDark ? '#f8fafc' : '#0f172a'}>{faNumber(Math.round(level.price).toLocaleString('en-US'))} — {level.label}</text>
+                <line x1={left} x2={left + plotWidth + 8} y1={y} y2={y} stroke={style.stroke} strokeWidth={level.tone === 'entry' ? 2.4 : 2} strokeDasharray={style.dash} opacity="0.95" />
+                {Math.abs(labelY - y) > 3 && <line x1={labelX} x2={labelX} y1={y} y2={labelY} stroke={style.stroke} strokeWidth="1.5" opacity="0.9" />}
+                <rect x={labelX} y={labelY - labelHalfHeight} width={labelWidth} height={labelHalfHeight * 2} rx="7" fill={isDark ? '#020617' : '#ffffff'} stroke={style.stroke} strokeWidth="1.8" />
+                <text x={labelX + labelWidth - 10} y={labelY + 4.5} textAnchor="end" fontSize="13" fontWeight="700" fill={isDark ? '#f8fafc' : '#0f172a'}>{faNumber(Math.round(level.price).toLocaleString('en-US'))} — {level.label}</text>
               </g>
             );
           })}
@@ -1420,7 +1445,7 @@ function CandleChart({
             const step = candles.length <= 12 ? 1 : Math.ceil(candles.length / 12);
             if (index % step !== 0 && index !== candles.length - 1) return null;
             return (
-              <text key={`date-${index}-${candle.date}`} x={xFor(index)} y={height - 12} textAnchor="middle" fontSize="9" fill={isDark ? '#cbd5e1' : '#475569'}>
+              <text key={`date-${index}-${candle.date}`} x={xFor(index)} y={height - 12} textAnchor="middle" fontSize="12" fontWeight="600" fill={isDark ? '#e2e8f0' : '#334155'}>
                 {candle.date}
               </text>
             );
