@@ -319,27 +319,33 @@ async function evaluateValuableSymbolsInternal({ limit = MAX_RESULTS, now = new 
     return (await getStoredValuableSymbols({ force: true })).results;
   }
   if (!marketSession.isOpen && !allowClosedRecovery) return (await getStoredValuableSymbols({ force: true })).results;
+  const diagnostics = { snapshotId, marketStatus: marketSession.status, marketRows: 0, eligiblePrices: 0, staleOrInvalidPrices: 0, historyRequests: 0, invalidHistory: 0, missingCurrentDayHistory: 0, invalidTechnical: 0, codalLookups: 0, invalidFundamentals: 0, candidateErrors: 0, persisted: false };
   const symbols = await market.getSymbols({ limit: 1200 });
+  diagnostics.marketRows = Array.isArray(symbols) ? symbols.length : 0;
   const candidates = symbols
     .filter(row => row && row.symbol && !row.isStale &&
       toNumber(row.lastPrice) > 0 && toNumber(row.closePrice) > 0 &&
       isFreshTimestamp(row.updatedAt, MAX_PRICE_AGE_HOURS * 60 * 60 * 1000, nowMs))
     .sort((a, b) => (toNumber(b.value) || 0) - (toNumber(a.value) || 0));
+  diagnostics.eligiblePrices = candidates.length;
+  diagnostics.staleOrInvalidPrices = Math.max(0, diagnostics.marketRows - candidates.length);
   const results = [];
   let codalLookups = 0;
   for (const row of candidates) {
     if (results.length >= Math.max(1, Math.min(Number(limit) || MAX_RESULTS, MAX_RESULTS))) break;
     if (codalLookups >= MAX_CODAL_LOOKUPS) break;
     try {
+      diagnostics.historyRequests += 1;
       const history = await market.getSymbolHistory(row.symbol, 40);
-      if (!isFreshHistory(history, nowMs)) continue;
-      if (marketSession.isOpen && !historyContainsCurrentMarketDay(history, now)) continue;
+      if (!isFreshHistory(history, nowMs)) { diagnostics.invalidHistory += 1; continue; }
+      if (marketSession.isOpen && !historyContainsCurrentMarketDay(history, now)) { diagnostics.missingCurrentDayHistory += 1; continue; }
       const technical = analyzeTechnical(history, row.lastPrice);
-      if (!technical) continue;
+      if (!technical) { diagnostics.invalidTechnical += 1; continue; }
       codalLookups += 1;
+      diagnostics.codalLookups = codalLookups;
       const reports = await codal.getReports({ symbol: row.symbol, limit: 30 });
       const fundamental = await analyzeFundamentalWithDocuments(reports.items, now);
-      if (!fundamental) continue;
+      if (!fundamental) { diagnostics.invalidFundamentals += 1; continue; }
       const priceTimestamp = parseTimestamp(row.updatedAt);
       results.push({
         symbol: row.symbol, name: row.name || row.symbol, sector: row.sector || null,
@@ -353,6 +359,8 @@ async function evaluateValuableSymbolsInternal({ limit = MAX_RESULTS, now = new 
       });
     } catch (error) {
       // Missing, malformed, or expired inputs disqualify the candidate; no synthetic fallback data.
+      diagnostics.candidateErrors += 1;
+      console.warn('[VALUABLE SYMBOLS] Candidate evaluation failed for ' + String(row?.symbol || 'unknown') + ': ' + error.message);
       continue;
     }
   }
@@ -367,9 +375,12 @@ async function evaluateValuableSymbolsInternal({ limit = MAX_RESULTS, now = new 
   // Never replace a valid persisted list with an empty/failed evaluation.
   if (rankedResults.length) {
     await persistValuableSymbols(rankedResults, now.toISOString(), snapshotId);
+    diagnostics.persisted = true;
+    console.log('[VALUABLE SYMBOLS] Evaluation diagnostics: ' + JSON.stringify({ ...diagnostics, rankedResults: rankedResults.length }));
     return cachedResults;
   }
   const stored = await getStoredValuableSymbols({ force: true });
+  console.warn('[VALUABLE SYMBOLS] Evaluation diagnostics: ' + JSON.stringify({ ...diagnostics, rankedResults: 0, storedResults: stored.results.length }));
   return stored.results;
 }
 
