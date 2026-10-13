@@ -86,6 +86,23 @@ describe('calculateScalpingPriceLevels', () => {
     })).toBeNull();
   });
 
+  test('uses a validated at-market continuation when a breakout trigger exceeds the daily ceiling', () => {
+    const candles = Array.from({ length: 30 }, () => ({
+      open: 1000, high: 1004, low: 1000, close: 1000, volume: 1000
+    }));
+    candles[candles.length - 1] = { open: 1000, high: 1004, low: 1000, close: 1001, volume: 1000 };
+    const levels = calculateScalpingPriceLevels(candles, 'BUY', 1001, {
+      allowedMin: 990, allowedMax: 1004, orderBook: { buy: [], sell: [] }
+    });
+    expect(levels).not.toBeNull();
+    expect(levels.method).toBe('at-market-continuation-atr-v1');
+    expect(levels.entryPrice).toBe(1001);
+    expect(levels.entryPrice).toBeLessThanOrEqual(1004);
+    expect(levels.targetPrice).toBeGreaterThan(levels.entryPrice);
+    expect(levels.stopLossPrice).toBeLessThan(levels.entryPrice);
+    expect((levels.targetPrice - levels.entryPrice) / (levels.entryPrice - levels.stopLossPrice)).toBeGreaterThanOrEqual(1.2);
+  });
+
   test('suppresses SELL when the breakdown entry is below the daily floor (thpardis scenario)', () => {
     const candles = makeCandles().map(c => ({ ...c, high: c.high + 3300, open: c.open + 3300, low: c.low + 3300, close: c.close + 3300 }));
     expect(calculateScalpingPriceLevels(candles, 'SELL', 4340, {
