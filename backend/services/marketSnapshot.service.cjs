@@ -271,7 +271,7 @@ async function publishMarketSnapshotInternal(symbols) {
 
     await prisma.$executeRaw`
       UPDATE [dbo].[MarketSnapshot]
-      SET [derivedJson]=${JSON.stringify(derived)}, [status]='VERIFIED', [verifiedAt]=SYSDATETIME()
+      SET [derivedJson]=${JSON.stringify(derived)}, [status]='VERIFIED', [verifiedAt]=SYSUTCDATETIME()
       WHERE [id]=${id} AND [status]='PREPARED'
     `;
 
@@ -327,7 +327,7 @@ async function publishMarketSnapshotInternal(symbols) {
 
       await tx.$executeRaw`
         UPDATE [dbo].[MarketSnapshot]
-        SET [status]='ACTIVE', [activatedAt]=SYSDATETIME()
+        SET [status]='ACTIVE', [activatedAt]=SYSUTCDATETIME()
         WHERE [id]=${id} AND [status]='VERIFIED'
       `;
     }, { maxWait: 15000, timeout: 120000 });
