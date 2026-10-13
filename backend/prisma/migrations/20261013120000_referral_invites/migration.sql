@@ -1,8 +1,6 @@
 ALTER TABLE [dbo].[User] ADD [referralCode] NVARCHAR(20) NULL;
 
-UPDATE [dbo].[User]
-SET [referralCode] = UPPER(LEFT(REPLACE(CONVERT(VARCHAR(36), NEWID()), '-', ''), 10))
-WHERE [referralCode] IS NULL;
+EXEC(N'UPDATE [dbo].[User] SET [referralCode] = UPPER(LEFT(REPLACE(CONVERT(VARCHAR(36), NEWID()), ''-'', ''''), 8)) WHERE [referralCode] IS NULL;');
 
 CREATE UNIQUE INDEX [UQ_User_referralCode] ON [dbo].[User]([referralCode]) WHERE [referralCode] IS NOT NULL;
 
