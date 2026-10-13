@@ -11,13 +11,12 @@ function isTehranMarketOpen(now = new Date()) {
 let running = false;
 let lastClosedEvaluationAt = 0;
 let lastSuccessfullyAnalyzedSnapshotId = null;
-let lastAttemptedSnapshotId = null;
 const CLOSED_MARKET_RETRY_MS = 30 * 60 * 1000;
 const MAX_SNAPSHOT_AGE_MS = 5 * 60 * 1000;
 const SNAPSHOT_SETTLE_MS = 45 * 1000;
 
 function registerValuableSymbolsCron() {
-  cron.schedule('* * * * *', async () => {
+  cron.schedule('*/3 * * * *', async () => {
     const marketOpen = isTehranMarketOpen();
     const now = Date.now();
     if (running) {
@@ -60,7 +59,7 @@ function registerValuableSymbolsCron() {
         lastSuccessfullyAnalyzedSnapshotId = activeId;
         return;
       }
-      if (lastSuccessfullyAnalyzedSnapshotId === activeId || lastAttemptedSnapshotId === activeId) return;
+      if (lastSuccessfullyAnalyzedSnapshotId === activeId) return;
     } else {
       // Outside market hours, retain a valid persisted list. Only try recovery
       // from the last verified snapshot when the persisted list is empty.
@@ -79,7 +78,6 @@ function registerValuableSymbolsCron() {
       if (marketOpen && activeSnapshot) {
         const currentSnapshot = await marketSnapshotService.getActiveSnapshot();
         if (currentSnapshot && Number(currentSnapshot.id) === Number(activeSnapshot.id)) {
-          lastAttemptedSnapshotId = Number(activeSnapshot.id);
           if (results.some(item => Number(item.marketSnapshotId) === Number(activeSnapshot.id))) {
             lastSuccessfullyAnalyzedSnapshotId = Number(activeSnapshot.id);
           }
