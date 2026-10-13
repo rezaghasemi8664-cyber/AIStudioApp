@@ -11,7 +11,8 @@ const PERSISTENCE_KEY = 'valuableSymbols.snapshot.v1';
 
 const MAX_RESULTS = 20;
 const MIN_HISTORY = 20;
-const MAX_CODAL_LOOKUPS = positiveEnv('VALUABLE_SYMBOLS_MAX_CODAL_LOOKUPS', 60);
+const MAX_CODAL_LOOKUPS = positiveEnv('VALUABLE_SYMBOLS_MAX_CODAL_LOOKUPS', 15);
+const MAX_HISTORY_CANDIDATES = positiveEnv('VALUABLE_SYMBOLS_MAX_HISTORY_CANDIDATES', 180);
 const MAX_PRICE_AGE_HOURS = positiveEnv('VALUABLE_SYMBOLS_MAX_PRICE_AGE_HOURS', 72);
 const MAX_HISTORY_AGE_DAYS = positiveEnv('VALUABLE_SYMBOLS_MAX_HISTORY_AGE_DAYS', 7);
 const MAX_CODAL_REPORT_AGE_DAYS = positiveEnv('VALUABLE_SYMBOLS_MAX_CODAL_REPORT_AGE_DAYS', 540);
@@ -20,6 +21,8 @@ let cachedEvaluatedAt = null;
 let persistenceReadAt = 0;
 let persistenceReadInFlight = null;
 let evaluationInFlight = null;
+let evaluationRunId = 0;
+const EVALUATION_TIMEOUT_MS = positiveEnv('VALUABLE_SYMBOLS_EVALUATION_TIMEOUT_MS', 8 * 60 * 1000);
 
 async function getStoredValuableSymbols({ force = false } = {}) {
   if (!force && Date.now() - persistenceReadAt < 5000 && cachedEvaluatedAt) {
@@ -296,18 +299,43 @@ async function analyzeFundamentalWithDocuments(items, now = new Date()) {
   };
 }
 
-async function evaluateValuableSymbols({ limit = MAX_RESULTS, now = new Date(), allowClosedRecovery = false } = {}) {
-  if (evaluationInFlight) return evaluationInFlight;
-  evaluationInFlight = evaluateValuableSymbolsInternal({ limit, now, allowClosedRecovery });
-  try { return await evaluationInFlight; }
-  finally { evaluationInFlight = null; }
+function assertEvaluationRun(runId) {
+  if (runId !== evaluationRunId) {
+    const error = new Error('Valuable-symbols evaluation exceeded its time limit and was superseded');
+    error.code = 'VALUABLE_SYMBOLS_RUN_SUPERSEDED';
+    throw error;
+  }
 }
 
-async function evaluateValuableSymbolsInternal({ limit = MAX_RESULTS, now = new Date(), allowClosedRecovery = false } = {}) {
+async function evaluateValuableSymbols({ limit = MAX_RESULTS, now = new Date(), allowClosedRecovery = false } = {}) {
+  if (evaluationInFlight) return evaluationInFlight;
+  const runId = ++evaluationRunId;
+  let timer;
+  const work = evaluateValuableSymbolsInternal({ limit, now, allowClosedRecovery, runId });
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      if (evaluationRunId === runId) evaluationRunId += 1;
+      const error = new Error('Valuable-symbols evaluation timed out');
+      error.code = 'VALUABLE_SYMBOLS_EVALUATION_TIMEOUT';
+      reject(error);
+    }, EVALUATION_TIMEOUT_MS);
+  });
+  const wrapped = Promise.race([work, timeout]).finally(() => {
+    clearTimeout(timer);
+    if (evaluationInFlight === wrapped) evaluationInFlight = null;
+  });
+  evaluationInFlight = wrapped;
+  return wrapped;
+}
+
+async function evaluateValuableSymbolsInternal({ limit = MAX_RESULTS, now = new Date(), allowClosedRecovery = false, runId } = {}) {
+  assertEvaluationRun(runId);
   const nowMs = now.getTime();
   const marketSession = getMarketSession(now);
   const activeSnapshot = await marketSnapshotService.getActiveSnapshot();
+  assertEvaluationRun(runId);
   if (!activeSnapshot || !activeSnapshot.id || !activeSnapshot.activatedAt) {
+    assertEvaluationRun(runId);
     return (await getStoredValuableSymbols({ force: true })).results;
   }
   const snapshotId = Number(activeSnapshot.id);
@@ -321,12 +349,14 @@ async function evaluateValuableSymbolsInternal({ limit = MAX_RESULTS, now = new 
   if (!marketSession.isOpen && !allowClosedRecovery) return (await getStoredValuableSymbols({ force: true })).results;
   const diagnostics = { snapshotId, marketStatus: marketSession.status, marketRows: 0, eligiblePrices: 0, staleOrInvalidPrices: 0, historyRequests: 0, invalidHistory: 0, missingCurrentDayHistory: 0, invalidTechnical: 0, codalLookups: 0, invalidFundamentals: 0, candidateErrors: 0, persisted: false };
   const symbols = await market.getSymbols({ limit: 1200 });
+  assertEvaluationRun(runId);
   diagnostics.marketRows = Array.isArray(symbols) ? symbols.length : 0;
   const candidates = symbols
     .filter(row => row && row.symbol && !row.isStale &&
       toNumber(row.lastPrice) > 0 && toNumber(row.closePrice) > 0 &&
       isFreshTimestamp(row.updatedAt, MAX_PRICE_AGE_HOURS * 60 * 60 * 1000, nowMs))
-    .sort((a, b) => (toNumber(b.value) || 0) - (toNumber(a.value) || 0));
+    .sort((a, b) => (toNumber(b.value) || 0) - (toNumber(a.value) || 0))
+    .slice(0, MAX_HISTORY_CANDIDATES);
   diagnostics.eligiblePrices = candidates.length;
   diagnostics.staleOrInvalidPrices = Math.max(0, diagnostics.marketRows - candidates.length);
   const results = [];
@@ -337,6 +367,7 @@ async function evaluateValuableSymbolsInternal({ limit = MAX_RESULTS, now = new 
     try {
       diagnostics.historyRequests += 1;
       const history = await market.getSymbolHistory(row.symbol, 40);
+      assertEvaluationRun(runId);
       if (!isFreshHistory(history, nowMs)) { diagnostics.invalidHistory += 1; continue; }
       if (marketSession.isOpen && !historyContainsCurrentMarketDay(history, now)) { diagnostics.missingCurrentDayHistory += 1; continue; }
       const technical = analyzeTechnical(history, row.lastPrice);
@@ -344,7 +375,9 @@ async function evaluateValuableSymbolsInternal({ limit = MAX_RESULTS, now = new 
       codalLookups += 1;
       diagnostics.codalLookups = codalLookups;
       const reports = await codal.getReports({ symbol: row.symbol, limit: 30 });
+      assertEvaluationRun(runId);
       const fundamental = await analyzeFundamentalWithDocuments(reports.items, now);
+      assertEvaluationRun(runId);
       if (!fundamental) { diagnostics.invalidFundamentals += 1; continue; }
       const priceTimestamp = parseTimestamp(row.updatedAt);
       results.push({
@@ -358,6 +391,7 @@ async function evaluateValuableSymbolsInternal({ limit = MAX_RESULTS, now = new 
         evaluatedAt: now.toISOString()
       });
     } catch (error) {
+      if (error?.code === 'VALUABLE_SYMBOLS_RUN_SUPERSEDED') throw error;
       // Missing, malformed, or expired inputs disqualify the candidate; no synthetic fallback data.
       diagnostics.candidateErrors += 1;
       console.warn('[VALUABLE SYMBOLS] Candidate evaluation failed for ' + String(row?.symbol || 'unknown') + ': ' + error.message);
@@ -368,6 +402,7 @@ async function evaluateValuableSymbolsInternal({ limit = MAX_RESULTS, now = new 
     .slice(0, Math.max(1, Math.min(Number(limit) || MAX_RESULTS, MAX_RESULTS)));
   // Do not publish results if a newer market snapshot became active mid-run.
   const latestSnapshot = await marketSnapshotService.getActiveSnapshot();
+  assertEvaluationRun(runId);
   if (!latestSnapshot || Number(latestSnapshot.id) !== snapshotId) {
     console.log('[VALUABLE SYMBOLS] Discarding run because active snapshot changed during analysis');
     return (await getStoredValuableSymbols({ force: true })).results;
