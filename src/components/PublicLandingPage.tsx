@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { trackMarketingVisit } from '../services/marketingAttribution';
 
 const features = [
   { title: 'تحلیل تکنیکال بورس', description: 'تحلیل روندهای قیمتی و داده‌های بازار برای شناخت بهتر رفتار نمادها و تصمیم‌گیری آگاهانه‌تر در بازار بورس.', icon: '◈' },
@@ -40,6 +41,10 @@ const steps = [
 ];
 
 const PublicLandingPage: React.FC = () => {
+  useEffect(() => {
+    void trackMarketingVisit();
+  }, []);
+
   const goToLogin = () => {
     window.location.href = '/login';
   };
