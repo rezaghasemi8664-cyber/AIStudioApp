@@ -391,6 +391,7 @@ async function evaluateValuableSymbolsInternal({ limit = MAX_RESULTS, now = new 
         evaluatedAt: now.toISOString()
       });
     } catch (error) {
+      if (error?.code === 'VALUABLE_SYMBOLS_RUN_SUPERSEDED') throw error;
       // Missing, malformed, or expired inputs disqualify the candidate; no synthetic fallback data.
       diagnostics.candidateErrors += 1;
       console.warn('[VALUABLE SYMBOLS] Candidate evaluation failed for ' + String(row?.symbol || 'unknown') + ': ' + error.message);
