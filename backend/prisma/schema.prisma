@@ -42,6 +42,7 @@ model User {
   lastAnalysisReset     DateTime?
   lastLoginAt           DateTime?
   loginCount            Int?                    @default(0)
+  referralCode           String                  @unique(map: "UQ_User_referralCode") @db.NVarChar(20)
 
   admin_scheduler_rules admin_scheduler_rules[]
   analysis              AnalysisHistory[]
@@ -62,6 +63,8 @@ model User {
   smsLogs                SmsLog[]
   subscriptions         Subscription[]
   userPermissions       UserPermission[]
+  referralInvitesSent   ReferralInvite[]         @relation("ReferralInviter")
+  referralRedemption    ReferralInvite?          @relation("ReferralRedeemer")
 
   @@index([isActive])
   @@index([isDeleted])
@@ -600,6 +603,25 @@ model Subscription {
   @@index([planId])
   @@index([userId, createdAt])
   @@map("Subscription")
+  @@schema("dbo")
+}
+
+
+model ReferralInvite {
+  id                Int       @id @default(autoincrement())
+  inviterId         Int
+  inviteeMobile     String    @db.NVarChar(20)
+  referralCode      String    @db.NVarChar(20)
+  status            String    @default("SENT") @db.NVarChar(20)
+  redeemedByUserId  Int?      @unique
+  createdAt         DateTime  @default(now())
+  redeemedAt        DateTime?
+  inviter           User      @relation("ReferralInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  redeemedBy        User?     @relation("ReferralRedeemer", fields: [redeemedByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([inviterId, inviteeMobile])
+  @@index([referralCode, inviteeMobile, status])
+  @@map("ReferralInvite")
   @@schema("dbo")
 }
 
