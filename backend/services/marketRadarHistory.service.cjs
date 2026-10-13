@@ -55,20 +55,29 @@ async function getHistory(inputRange) {
   // MarketTechnicalDaily is the durable daily index history. MarketSummary/MarketCurrent
   // may contain only a short retention window, so they must not be the primary source
   // for 3m/6m/1y charts.
-  let latestRow = null;
-  if (technicalModel) {
-    latestRow = await technicalModel.findFirst({ orderBy: { marketDate: 'desc' }, select: { marketDate: true } });
-  }
-  if (!latestRow && summaryModel) {
-    latestRow = await summaryModel.findFirst({ orderBy: { summaryDate: 'desc' }, select: { summaryDate: true } });
-  }
-  if (!latestRow && currentModel) {
-    latestRow = await currentModel.findFirst({ orderBy: { marketDate: 'desc' }, select: { marketDate: true } });
-  }
+  // Select the newest date across every available model. A stale but non-empty
+  // MarketTechnicalDaily table must not hide newer MarketSummary/MarketCurrent rows.
+  const [latestTechnical, latestSummary, latestCurrent] = await Promise.all([
+    technicalModel
+      ? technicalModel.findFirst({ orderBy: { marketDate: 'desc' }, select: { marketDate: true } })
+      : null,
+    summaryModel
+      ? summaryModel.findFirst({ orderBy: { summaryDate: 'desc' }, select: { summaryDate: true } })
+      : null,
+    currentModel
+      ? currentModel.findFirst({ orderBy: { marketDate: 'desc' }, select: { marketDate: true } })
+      : null
+  ]);
 
-  if (!latestRow) return { range, available: false, points: [], generatedAt: null };
+  const latestDates = [
+    latestTechnical?.marketDate,
+    latestSummary?.summaryDate,
+    latestCurrent?.marketDate
+  ].filter(Boolean).map((value) => new Date(value)).filter((value) => !Number.isNaN(value.getTime()));
 
-  const latestDate = new Date(latestRow.marketDate || latestRow.summaryDate);
+  if (!latestDates.length) return { range, available: false, points: [], generatedAt: null };
+
+  const latestDate = latestDates.reduce((latest, value) => value > latest ? value : latest);
   const startDate = startDateFor(range, latestDate);
 
   const [technicalRows, summaryRows, currentRows] = await Promise.all([
