@@ -41,16 +41,18 @@ const AdminMarketingAttributionPanel: React.FC = () => {
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">بازدید ثبت‌شده</div><div className="mt-1 text-2xl font-extrabold">{fmt(data?.visits || 0)}</div></div>
             <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">ثبت‌نام منتسب</div><div className="mt-1 text-2xl font-extrabold">{fmt(data?.registrationCount || 0)}</div></div>
-            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4 col-span-2"><div className="text-sm text-gray-500">نرخ تبدیل بازدید به ثبت‌نام</div><div className="mt-1 text-xl font-bold">{fmt(data?.conversionRatePercent || 0)}٪</div></div>
+            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">خرید اشتراک موفق</div><div className="mt-1 text-2xl font-extrabold">{fmt(data?.paidPurchaseCount || 0)}</div></div><div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">درآمد منتسب (ریال)</div><div className="mt-1 text-xl font-extrabold">{fmt(data?.revenueAmount || 0)}</div></div><div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4 col-span-2"><div className="text-sm text-gray-500">نرخ تبدیل بازدید به ثبت‌نام</div><div className="mt-1 text-xl font-bold">{fmt(data?.conversionRatePercent || 0)}٪</div></div>
           </div>
           <h4 className="mt-5 font-semibold">آخرین ثبت‌نام‌های منتسب</h4>
           <div className="mt-2 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-[var(--card-border-color)] text-right"><th className="p-2">شناسه کاربر</th><th className="p-2">زمان ثبت‌نام</th></tr></thead><tbody>
             {data?.recentRegistrations?.length ? data.recentRegistrations.slice().reverse().slice(0, 10).map((item, index) => <tr key={String(item.userId) + '-' + item.registeredAt + '-' + index} className="border-b border-[var(--card-border-color)]"><td className="p-2">{String(item.userId)}</td><td className="p-2 whitespace-nowrap">{dateFmt(item.registeredAt)}</td></tr>) : <tr><td colSpan={2} className="p-4 text-center text-gray-500">هنوز ثبت‌نام منتسبی ثبت نشده است.</td></tr>}
           </tbody></table></div>
+          <h4 className="mt-5 font-semibold">آخرین خریدهای منتسب</h4>
+          <div className="mt-2 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-[var(--card-border-color)] text-right"><th className="p-2">شناسه کاربر</th><th className="p-2">مبلغ (ریال)</th><th className="p-2">تاریخ پرداخت</th><th className="p-2">کد پیگیری</th></tr></thead><tbody>{data?.recentPurchases?.length ? data.recentPurchases.slice().reverse().slice(0, 10).map((item, index) => <tr key={item.paymentId + "-" + index} className="border-b border-[var(--card-border-color)]"><td className="p-2">{String(item.userId)}</td><td className="p-2 whitespace-nowrap">{fmt(item.amount)}</td><td className="p-2 whitespace-nowrap">{dateFmt(item.paidAt)}</td><td className="p-2">{item.refId || "—"}</td></tr>) : <tr><td colSpan={4} className="p-4 text-center text-gray-500">هنوز خرید منتسبی ثبت نشده است.</td></tr>}</tbody></table></div>
         </section>;
       })}
     </div>}
-    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">این گزارش فعلاً بازدید و ثبت‌نام منتسب را نمایش می‌دهد. خرید اشتراک و درآمد هر کانال در این گزارش ثبت نمی‌شوند و برای نمایش دقیق آن‌ها باید رهگیری پرداخت نیز تکمیل شود.</div>
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">خرید فقط پس از تأیید موفق زرین‌پال و در صورت وجود انتساب ثبت‌نام به یکی از کانال‌ها شمارش می‌شود. پرداخت‌های قبل از فعال‌شدن این قابلیت ممکن است سابقه انتساب نداشته باشند.</div>
   </div>;
 };
 export default AdminMarketingAttributionPanel;
