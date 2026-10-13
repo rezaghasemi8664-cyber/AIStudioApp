@@ -13,7 +13,11 @@ export interface MarketingAttributionChannelReport {
   visitCount: number;
   registrationCount: number;
   conversionRatePercent: number;
+  paidPurchaseCount: number;
+  revenueAmount: number;
+  currency: string;
   recentRegistrations: MarketingAttributionRegistration[];
+  recentPurchases: Array<{ paymentId: string; userId: number | string; planId: number | null; amount: number; currency: string; refId: string | null; paidAt: string; content: string }>;
 }
 export interface MarketingAttributionReport {
   generatedAt: string;

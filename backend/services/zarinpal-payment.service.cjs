@@ -4,6 +4,7 @@ const axios = require('axios');
 const { prisma } = require('../config/prisma.cjs');
 const subscriptionService = require('./subscription.service.cjs');
 const paymentReportService = require('./payment-report.service.cjs');
+const marketingAttribution = require('./marketingAttribution.service.cjs');
 
 const PROVIDER = 'zarinpal';
 const STATUS = Object.freeze({
@@ -218,6 +219,12 @@ function addMonths(date, months) {
   return result;
 }
 
+function trackMarketingPurchase(payment) {
+  try {
+    const result = marketingAttribution.recordPurchase({ userId: payment?.userId, paymentId: payment?.id, amount: Number(payment?.amount), currency: payment?.currency || 'IRR', paidAt: payment?.paidAt || new Date(), planId: payment?.planId, refId: payment?.refId });
+    if (!result.recorded && result.reason !== 'no-attribution') console.warn('[MARKETING_ATTRIBUTION] purchase not recorded:', result.reason);
+  } catch (error) { console.error('[MARKETING_ATTRIBUTION] purchase tracking failed:', error?.message || error); }
+}
 async function verifyAndActivate(authority, status) {
   const normalizedAuthority = String(authority || '').trim();
   if (!normalizedAuthority) throw Object.assign(new Error('Authority زرین‌پال دریافت نشد.'), { statusCode: 400 });
@@ -226,6 +233,7 @@ async function verifyAndActivate(authority, status) {
   if (!payment) throw Object.assign(new Error('تراکنش زرین‌پال پیدا نشد.'), { statusCode: 404 });
 
   if (payment.status === STATUS.VERIFIED && payment.subscriptionId) {
+    trackMarketingPurchase(payment);
     return { success: true, alreadyVerified: true, payment, subscriptionId: Number(payment.subscriptionId), refId: payment.refId };
   }
 
@@ -376,6 +384,10 @@ async function verifyAndActivate(authority, status) {
 
       return { subscriptionId, alreadyVerified: false };
     });
+
+    // Record campaign attribution only after payment verification and subscription activation.
+    const verifiedPayment = await getPaymentById(payment.id);
+    trackMarketingPurchase(verifiedPayment);
 
     // Keep the Shamsi reporting aggregates synchronized immediately after a verified payment.
     try { await paymentReportService.syncSummaries(now); }

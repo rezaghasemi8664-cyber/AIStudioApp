@@ -24,9 +24,9 @@ function readStore() {
   if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, JSON.stringify({ visits: [], registrations: [] }, null, 2), 'utf8');
   try {
     const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    return { visits: Array.isArray(parsed.visits) ? parsed.visits : [], registrations: Array.isArray(parsed.registrations) ? parsed.registrations : [] };
+    return { visits: Array.isArray(parsed.visits) ? parsed.visits : [], registrations: Array.isArray(parsed.registrations) ? parsed.registrations : [], purchases: Array.isArray(parsed.purchases) ? parsed.purchases : [] };
   } catch {
-    return { visits: [], registrations: [] };
+    return { visits: [], registrations: [], purchases: [] };
   }
 }
 
@@ -61,21 +61,39 @@ function recordRegistration({ userId, input }) {
   return { recorded: true };
 }
 
+function recordPurchase({ userId, paymentId, amount, currency = 'IRR', paidAt, planId, refId }) {
+  if (userId === undefined || userId === null || paymentId === undefined || paymentId === null) return { recorded: false, reason: 'missing-identity' };
+  const normalizedAmount = Number(amount);
+  if (!Number.isSafeInteger(normalizedAmount) || normalizedAmount <= 0) return { recorded: false, reason: 'invalid-amount' };
+  const store = readStore();
+  const registration = store.registrations.find(item => String(item.userId) === String(userId));
+  if (!registration) return { recorded: false, reason: 'no-attribution' };
+  const key = String(paymentId);
+  const existing = store.purchases.findIndex(item => String(item.paymentId) === key);
+  const record = { paymentId: key, userId, planId: planId == null ? null : Number(planId), amount: normalizedAmount, currency: String(currency || 'IRR').slice(0, 10), refId: refId == null ? null : String(refId).slice(0, 100), paidAt: paidAt ? new Date(paidAt).toISOString() : new Date().toISOString(), source: registration.source, medium: registration.medium, campaign: registration.campaign, content: registration.content };
+  if (existing >= 0) store.purchases[existing] = record; else store.purchases.push(record);
+  if (store.purchases.length > MAX_EVENTS) store.purchases = store.purchases.slice(-MAX_EVENTS);
+  writeStore(store);
+  return { recorded: true };
+}
 function getReport() {
   const store = readStore();
   const channels = {};
   for (const content of ALLOWED_CONTENT) {
     const visits = store.visits.filter(item => item.content === content);
     const registrations = store.registrations.filter(item => item.content === content);
+    const purchases = store.purchases.filter(item => item.content === content);
+    const revenueAmount = purchases.reduce((total, item) => total + Number(item.amount || 0), 0);
     channels[content] = {
-      visits: visits.length,
-      registrationCount: registrations.length,
-      visitCount: visits.length,
+      visits: visits.length, registrationCount: registrations.length, visitCount: visits.length,
       conversionRatePercent: visits.length ? Math.round((registrations.length / visits.length) * 10000) / 100 : 0,
-      recentRegistrations: registrations.slice(-100).map(({ userId, registeredAt, source, medium, campaign, content: channel }) => ({ userId, registeredAt, source, medium, campaign, content: channel }))
+      paidPurchaseCount: purchases.length, revenueAmount,
+      currency: purchases.find(item => item.currency)?.currency || 'IRR',
+      recentRegistrations: registrations.slice(-100).map(({ userId, registeredAt, source, medium, campaign, content: channel }) => ({ userId, registeredAt, source, medium, campaign, content: channel })),
+      recentPurchases: purchases.slice(-100).map(({ paymentId, userId, planId, amount, currency, refId, paidAt, content: channel }) => ({ paymentId, userId, planId, amount, currency, refId, paidAt, content: channel }))
     };
   }
   return { generatedAt: new Date().toISOString(), channels };
 }
 
-module.exports = { normalizeAttribution, recordVisit, recordRegistration, getReport };
+module.exports = { normalizeAttribution, recordVisit, recordRegistration, recordPurchase, getReport };
