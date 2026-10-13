@@ -6,10 +6,7 @@ SET [referralCode] = UPPER(LEFT(REPLACE(CONVERT(VARCHAR(36), NEWID()), '-', ''),
 WHERE [referralCode] IS NULL;
 GO
 
-ALTER TABLE [dbo].[User] ALTER COLUMN [referralCode] NVARCHAR(20) NOT NULL;
-GO
-
-CREATE UNIQUE INDEX [UQ_User_referralCode] ON [dbo].[User]([referralCode]);
+CREATE UNIQUE INDEX [UQ_User_referralCode] ON [dbo].[User]([referralCode]) WHERE [referralCode] IS NOT NULL;
 GO
 
 CREATE TABLE [dbo].[ReferralInvite] (
