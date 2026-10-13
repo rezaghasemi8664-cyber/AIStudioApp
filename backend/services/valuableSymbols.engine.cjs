@@ -11,7 +11,7 @@ const PERSISTENCE_KEY = 'valuableSymbols.snapshot.v1';
 
 const MAX_RESULTS = 20;
 const MIN_HISTORY = 20;
-const MAX_CODAL_LOOKUPS = positiveEnv('VALUABLE_SYMBOLS_MAX_CODAL_LOOKUPS', 20);
+const MAX_CODAL_LOOKUPS = positiveEnv('VALUABLE_SYMBOLS_MAX_CODAL_LOOKUPS', 15);
 const MAX_HISTORY_CANDIDATES = positiveEnv('VALUABLE_SYMBOLS_MAX_HISTORY_CANDIDATES', 180);
 const MAX_PRICE_AGE_HOURS = positiveEnv('VALUABLE_SYMBOLS_MAX_PRICE_AGE_HOURS', 72);
 const MAX_HISTORY_AGE_DAYS = positiveEnv('VALUABLE_SYMBOLS_MAX_HISTORY_AGE_DAYS', 7);
@@ -22,7 +22,7 @@ let persistenceReadAt = 0;
 let persistenceReadInFlight = null;
 let evaluationInFlight = null;
 let evaluationRunId = 0;
-const EVALUATION_TIMEOUT_MS = positiveEnv('VALUABLE_SYMBOLS_EVALUATION_TIMEOUT_MS', 6 * 60 * 1000);
+const EVALUATION_TIMEOUT_MS = positiveEnv('VALUABLE_SYMBOLS_EVALUATION_TIMEOUT_MS', 8 * 60 * 1000);
 
 async function getStoredValuableSymbols({ force = false } = {}) {
   if (!force && Date.now() - persistenceReadAt < 5000 && cachedEvaluatedAt) {
