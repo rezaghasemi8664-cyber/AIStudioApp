@@ -25,4 +25,4 @@ jobs:
       - name: Install backend dependencies
         run: npm ci
       - name: Run backend Jest tests
-        run: npm test -- --runInBand tests/scalping-price-levels.test.js tests/valuable-symbols-engine.test.js tests/valuable-symbols-price-refresh.test.js
+        run: npm test -- --runInBand tests/market-history-date.test.js tests/scalping-price-levels.test.js tests/valuable-symbols-engine.test.js tests/valuable-symbols-price-refresh.test.js

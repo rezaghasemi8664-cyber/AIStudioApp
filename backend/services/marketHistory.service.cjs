@@ -3,6 +3,7 @@
 const prisma = require("../config/prisma.cjs");
 const env = require("../config/env.cjs");
 const { jalaliToGregorianDate } = require("../utils/jalaliDate.cjs");
+const { parseTseDate } = require("../utils/marketHistoryDate.cjs");
 
 const BRS_API_KEY = env.BRS_API_KEY || "";
 const BRS_TIMEOUT_MS = parseInt(env.BRS_TIMEOUT_MS, 10) || 15000;
@@ -120,36 +121,6 @@ async function brsRequest(url, options = {}) {
   }
 
   throw lastError;
-}
-
-function parseTseDate(value) {
-  if (!value) return null;
-
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value;
-  }
-
-  if (typeof value === "number") {
-    value = String(value);
-  }
-
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const raw = value.trim();
-
-  if (/^\d{8}$/.test(raw)) {
-    const year = raw.slice(0, 4);
-    const month = raw.slice(4, 6);
-    const day = raw.slice(6, 8);
-    const iso = `${year}-${month}-${day}T00:00:00Z`;
-    const parsed = new Date(iso);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }
-
-  const parsed = new Date(raw);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function safeParseJson(value) {
