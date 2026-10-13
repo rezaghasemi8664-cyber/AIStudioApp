@@ -26,14 +26,20 @@ function getUserId(req) {
 }
 
 function generateReferralCode() {
-  return require('crypto').randomBytes(5).toString('hex').toUpperCase();
+  const crypto = require('crypto');
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let index = 0; index < 8; index += 1) {
+    code += alphabet[crypto.randomInt(0, alphabet.length)];
+  }
+  return code;
 }
 
 async function ensureReferralCode(userId) {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { referralCode: true } });
     if (!user) throw new Error('کاربر یافت نشد');
-    if (user.referralCode) return user.referralCode;
+    if (/^[A-Z0-9]{8}$/.test(String(user.referralCode || ''))) return user.referralCode;
     const code = generateReferralCode();
     try {
       const updated = await prisma.user.update({ where: { id: userId }, data: { referralCode: code }, select: { referralCode: true } });
@@ -95,7 +101,7 @@ router.post('/send', authMiddleware, async (req, res) => {
       return res.status(409).json({ success: false, message: 'برای این شماره قبلاً هدیه ثبت شده است' });
     }
 
-    const referralCode = inviter.referralCode || await ensureReferralCode(userId);
+    const referralCode = await ensureReferralCode(userId);
     await smsService.sendPattern({
       userId,
       mobile,
