@@ -2786,6 +2786,39 @@ const clearCurrentAnalysis = () => {
             ) : null}
           </div>
 
+          {isAnalyzing ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="relative overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-l from-blue-50 via-white to-cyan-50 px-5 py-6 shadow-sm dark:border-blue-800 dark:from-slate-900 dark:via-slate-900 dark:to-blue-950/50 sm:px-8 sm:py-8"
+            >
+              <div className="absolute inset-x-0 top-0 h-1 overflow-hidden bg-blue-100 dark:bg-slate-800">
+                <div className="h-full w-1/3 animate-[analysis-progress_1.6s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500" />
+              </div>
+              <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:justify-center sm:gap-5 sm:text-right">
+                <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-blue-600/10 dark:bg-blue-400/10">
+                  <span className="absolute inset-1 animate-ping rounded-xl border border-blue-400/50" />
+                  <svg className="h-9 w-9 animate-spin text-blue-600 dark:text-blue-300" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle className="opacity-20" cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" />
+                    <path className="opacity-90" d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="text-base font-extrabold text-slate-900 dark:text-white">در حال تحلیل هوشمند نماد {selectedSymbol.trim() || 'انتخاب‌شده'}</div>
+                  <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">در حال بررسی داده‌های بازار و آماده‌سازی نتیجه تحلیل هستیم.</p>
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs font-semibold text-blue-700 dark:text-blue-300 sm:justify-start">
+                    <span className="rounded-full bg-blue-100 px-3 py-1 dark:bg-blue-900/60">دریافت داده‌ها</span>
+                    <span className="text-blue-300 dark:text-blue-700">•</span>
+                    <span className="rounded-full bg-cyan-100 px-3 py-1 text-cyan-800 dark:bg-cyan-950/70 dark:text-cyan-200">محاسبه شاخص‌ها</span>
+                    <span className="text-blue-300 dark:text-blue-700">•</span>
+                    <span className="rounded-full bg-indigo-100 px-3 py-1 text-indigo-800 dark:bg-indigo-950/70 dark:text-indigo-200">آماده‌سازی گزارش</span>
+                  </div>
+                </div>
+              </div>
+              <style>{`@keyframes analysis-progress { 0% { transform: translateX(300%); } 100% { transform: translateX(-300%); } }`}</style>
+            </div>
+          ) : null}
+
           {analysisError ? (
             <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] font-semibold text-rose-700">
               {analysisError}
