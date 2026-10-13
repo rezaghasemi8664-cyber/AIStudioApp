@@ -157,6 +157,10 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('roniya:request-start'));
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -252,14 +256,23 @@ async function enrichStockAnalysisResponse(response: any): Promise<any> {
 
 api.interceptors.response.use(
   async (response) => {
-    response.data = normalizeMoneyFlowPayload(response.data);
-    response = await enrichStockAnalysisResponse(response);
-    if (configIsStockAnalysis(response.config?.url)) {
-      response.data = normalizeFundamentalAnalysisPayload(response.data);
+    try {
+      response.data = normalizeMoneyFlowPayload(response.data);
+      response = await enrichStockAnalysisResponse(response);
+      if (configIsStockAnalysis(response.config?.url)) {
+        response.data = normalizeFundamentalAnalysisPayload(response.data);
+      }
+      return response;
+    } finally {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('roniya:request-finish'));
+      }
     }
-    return response;
   },
   (error: AxiosError) => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('roniya:request-finish'));
+    }
     const status = error.response?.status;
 
     if (status === 401) {
