@@ -10,6 +10,7 @@ export interface MarketingAttribution {
 
 const STORAGE_KEY = 'roniyaMarketingAttribution';
 const ALLOWED_CONTENT = new Set(['bursebazaar', 'arzonlineinfo']);
+let visitRequestInFlight: Promise<void> | null = null;
 
 function clean(value: string | null, maxLength = 100): string {
   return String(value || '').trim().slice(0, maxLength);
@@ -51,15 +52,36 @@ export function getStoredMarketingAttribution(): MarketingAttribution | null {
 export async function trackMarketingVisit(): Promise<void> {
   const attribution = captureMarketingAttribution();
   if (!attribution) return;
+
   const sessionKey = `roniyaMarketingVisitTracked:${attribution.campaign}:${attribution.content}`;
   try {
     if (window.sessionStorage.getItem(sessionKey) === '1') return;
-    window.sessionStorage.setItem(sessionKey, '1');
-    const response = await post('/marketing-attribution/visit', { attribution });
-    if (!response.success) window.sessionStorage.removeItem(sessionKey);
-  } catch (error) {
-    try { window.sessionStorage.removeItem(sessionKey); } catch {}
-    console.warn('[MarketingAttribution] visit tracking failed:', error);
+  } catch {
+    // Continue with best-effort tracking if sessionStorage is unavailable.
+  }
+
+  // Avoid duplicate requests from React StrictMode or multiple components in the same page.
+  if (visitRequestInFlight) return visitRequestInFlight;
+
+  visitRequestInFlight = (async () => {
+    try {
+      const response = await post<{ recorded?: boolean }>('/marketing-attribution/visit', { attribution });
+      if (response.success && response.data?.recorded === true) {
+        try { window.sessionStorage.setItem(sessionKey, '1'); } catch {}
+      } else {
+        try { window.sessionStorage.removeItem(sessionKey); } catch {}
+        console.warn('[MarketingAttribution] visit was not recorded by the server:', response.message || response.data);
+      }
+    } catch (error) {
+      try { window.sessionStorage.removeItem(sessionKey); } catch {}
+      console.warn('[MarketingAttribution] visit tracking failed:', error);
+    }
+  })();
+
+  try {
+    await visitRequestInFlight;
+  } finally {
+    visitRequestInFlight = null;
   }
 }
 
