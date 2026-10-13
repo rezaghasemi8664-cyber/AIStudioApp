@@ -26,7 +26,7 @@ function setCookies(req,res,a,r) { const o=getCookieOptions(req); res.cookie('ac
 function clearCookies(req,res){const o=getCookieOptions(req);res.clearCookie('accessToken',o);res.clearCookie('token',o);res.clearCookie('refreshToken',o);}
 function parseId(v){if(v===undefined||v===null||String(v).trim()==='')return null;return /^\d+$/.test(String(v).trim())?Number(v):String(v).trim();}
 function remainingDays(start,end,months){let finish=end?new Date(end):null;if(!finish&&start&&months>0){finish=new Date(start);finish.setMonth(finish.getMonth()+months);}if(!finish||isNaN(finish.getTime()))return 0;return Math.max(0,Math.ceil((finish.getTime()-Date.now())/86400000));}function subscriptionDurationDays(start,end,months){const s=start?new Date(start):null,e=end?new Date(end):null;if(s&&!isNaN(s.getTime())&&e&&!isNaN(e.getTime()))return Math.max(0,Math.ceil((e.getTime()-s.getTime())/86400000));if(s&&!isNaN(s.getTime())&&months>0){const legacyEnd=new Date(s);legacyEnd.setMonth(legacyEnd.getMonth()+months);return Math.max(0,Math.ceil((legacyEnd.getTime()-s.getTime())/86400000));}return 0;}
-const USER_SELECT={id:true,username:true,email:true,passwordHash:true,passwordEncrypted:true,passwordChangedAt:true,name:true,firstName:true,lastName:true,phone:true,mobile:true,nationalId:true,bio:true,avatar:true,isActive:true,isDeleted:true,roleId:true,subscriptionStart:true,subscriptionEnd:true,subscriptionMonths:true,subscriptionType:true,analysisLimit:true,analysisLimit24h:true,analysisUsed24h:true,lastAnalysisReset:true,lastLoginAt:true,loginCount:true,createdAt:true,updatedAt:true,Role:{select:{id:true,name:true,title:true}}};
+const USER_SELECT={id:true,username:true,email:true,passwordHash:true,passwordEncrypted:true,passwordChangedAt:true,name:true,firstName:true,lastName:true,phone:true,mobile:true,nationalId:true,bio:true,avatar:true,isActive:true,isDeleted:true,roleId:true,subscriptionStart:true,subscriptionEnd:true,subscriptionMonths:true,subscriptionType:true,analysisLimit:true,analysisLimit24h:true,analysisUsed24h:true,lastAnalysisReset:true,lastLoginAt:true,loginCount:true,referralCode:true,createdAt:true,updatedAt:true,Role:{select:{id:true,name:true,title:true}}};
 const PUBLIC_SELECT={...USER_SELECT,passwordHash:false,passwordEncrypted:false,passwordChangedAt:false};
 async function getEffectiveSubscription(userId){
   const now=new Date();
@@ -48,7 +48,173 @@ function tokens(u){const role=u.Role||u.role,p={userId:u.id,sub:u.id,username:u.
 function required(v){return typeof v==='string'&&v.trim()!=='';}
 async function login(req,res){try{const id=normalizeEmail(req.body?.email||req.body?.username),password=String(req.body?.password||'');if(!required(id)||!password)return res.status(400).json({success:false,message:'ایمیل و کلمه عبور الزامی است'});const u=await prisma.user.findFirst({where:{OR:[{email:id},{username:id}],isDeleted:false},select:USER_SELECT});if(!u)return res.status(401).json({success:false,message:'ایمیل یا کلمه عبور اشتباه است'});if(!u.isActive)return res.status(403).json({success:false,message:'حساب کاربری غیرفعال است'});if(!(await bcrypt.compare(password,u.passwordHash)))return res.status(401).json({success:false,message:'ایمیل یا کلمه عبور اشتباه است'});const maintenanceRow=await prisma.globalSetting.findUnique({where:{key:'maintenance.policy'}}).catch(()=>null);if(maintenanceRow&&maintenanceRow.category==='maintenance'){let policy={};try{policy=JSON.parse(maintenanceRow.value)||{};}catch(_){}const roleName=String(u.Role?.name||'').toUpperCase();const isAdmin=roleName==='ADMIN'||roleName==='SUPERADMIN'||u.roleId===2;if(policy.enabled===true&&!(policy.allowAdmins!==false&&isAdmin))return res.status(503).json({success:false,code:'MAINTENANCE_MODE',maintenance:true,message:String(policy.message||'سامانه موقتاً در حال نگهداری است.').slice(0,500)});}const effective=await getEffectiveSubscription(u.id);const effectiveUser=mergeEffectiveSubscription(u,effective);const t=tokens(u);setCookies(req,res,t.accessToken,t.refreshToken);await prisma.user.update({where:{id:u.id},data:{lastLoginAt:new Date(),loginCount:{increment:1}}}).catch(()=>{});return res.json({success:true,message:'ورود موفق',data:{user:formatUser({...effectiveUser,lastLoginAt:new Date()}),token:t.accessToken,accessToken:t.accessToken,refreshToken:t.refreshToken}});}catch(e){console.error('[AUTH] login',e);return res.status(500).json({success:false,message:'خطای سرور'});}}
 function generatePassword(){const letters='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz',digits='23456789';let out='';for(let i=0;i<8;i++)out+=letters[crypto.randomInt(letters.length)];for(let i=0;i<4;i++)out+=digits[crypto.randomInt(digits.length)];return out.split('').sort(()=>crypto.randomInt(3)-1).join('');}
-async function register(req,res){let createdId=null;try{const maintenanceRow=await prisma.globalSetting.findUnique({where:{key:'maintenance.policy'}}).catch(()=>null);if(maintenanceRow&&maintenanceRow.category==='maintenance'){let policy={};try{policy=JSON.parse(maintenanceRow.value)||{};}catch(_){}if(policy.enabled===true)return res.status(503).json({success:false,code:'MAINTENANCE_MODE',maintenance:true,message:String(policy.message||'سامانه موقتاً در حال نگهداری است.').slice(0,500)});}const email=normalizeEmail(req.body?.email),name=String(req.body?.name||[req.body?.firstName,req.body?.lastName].filter(Boolean).join(' ')).trim(),rawPhone=String(req.body?.phone||req.body?.mobile||'').trim();if(!required(email))return res.status(400).json({success:false,message:'ایمیل الزامی است'});if(!required(rawPhone))return res.status(400).json({success:false,message:'شماره موبایل الزامی است'});let phone;try{phone=smsService.normalizeMobile(rawPhone);}catch(_){phone=null;}if(!phone)return res.status(400).json({success:false,message:'شماره موبایل معتبر نیست'});const valid=await validateEmail(email);if(!valid.valid)return res.status(400).json({success:false,message:'ایمیل واردشده معتبر نیست'});const existing=await prisma.user.findFirst({where:{OR:[{email},{username:email},{phone},{mobile:phone}]},select:{id:true,email:true,username:true,phone:true,mobile:true,isDeleted:true}});if(existing)return res.status(409).json({success:false,message:'ایمیل یا شماره موبایل قبلا ثبت شده است'});const role=await prisma.role.findFirst({where:{name:'USER'}}),password=generatePassword(),passwordHash=await bcrypt.hash(password,12),passwordEncrypted=encryptPassword(password),start=new Date();const u=await prisma.user.create({data:{username:email,email,passwordHash,passwordEncrypted,name:name||email,phone,mobile:phone,roleId:role?.id||1,isActive:true,isDeleted:false,subscriptionStart:null,subscriptionEnd:null,subscriptionMonths:0,subscriptionType:'free'},select:USER_SELECT});createdId=u.id;const trial=await subscriptionService.createTrialForUser(createdId,start);const trialStart=trial?.startsAt||null;const trialEnd=trial?.expiresAt||null;const trialUser=trial?await prisma.user.update({where:{id:createdId},data:{subscriptionStart:trialStart,subscriptionEnd:trialEnd,subscriptionMonths:0,subscriptionType:'free'},select:USER_SELECT}):u;try{await smsService.sendInitialPassword({userId:createdId,mobile:phone,password});}catch(smsError){await prisma.user.delete({where:{id:createdId}}).catch(()=>{});console.error('[AUTH] registration initial-password SMS failed',smsError);return res.status(502).json({success:false,message:'ارسال رمز اولیه از طریق پیامک انجام نشد. لطفاً تنظیمات سرویس پیامک را بررسی کرده و دوباره تلاش کنید'});}try{marketingAttribution.recordRegistration({userId:createdId,input:req.body?.attribution});}catch(attributionError){console.error('[MARKETING_ATTRIBUTION] registration tracking failed',attributionError.message);}return res.status(201).json({success:true,message:'ثبت‌نام با موفقیت انجام شد. رمز اولیه از طریق پیامک ارسال گردید',data:{user:formatUser(trialUser),smsSent:true}});}catch(e){console.error('[AUTH] register',e);if(e.code==='P2002')return res.status(409).json({success:false,message:'ایمیل یا شماره موبایل قبلا ثبت شده است'});return res.status(500).json({success:false,message:'خطای سرور در ثبت نام'});}}
+
+function generateReferralCode() { return crypto.randomBytes(5).toString('hex').toUpperCase(); }
+async function generateUniqueReferralCode() {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const code = generateReferralCode();
+    const existing = await prisma.user.findUnique({ where: { referralCode: code }, select: { id: true } });
+    if (!existing) return code;
+  }
+  throw new Error('ساخت کد معرف یکتا ناموفق بود');
+}
+async function grantReferralReward(inviteId, newUserId) {
+  return prisma.$transaction(async (tx) => {
+    const invite = await tx.referralInvite.findUnique({ where: { id: inviteId } });
+    if (!invite || invite.status !== 'SENT') throw new Error('کد معرف قبلاً استفاده شده یا معتبر نیست');
+    const now = new Date();
+    const inviter = await tx.user.findUnique({
+      where: { id: invite.inviterId },
+      select: { id: true, subscriptionStart: true, subscriptionEnd: true, subscriptionMonths: true, subscriptionType: true },
+    });
+    if (!inviter) throw new Error('کاربر معرف یافت نشد');
+    const active = await tx.subscription.findFirst({
+      where: { userId: inviter.id, status: 'ACTIVE', startsAt: { lte: now }, expiresAt: { gt: now } },
+      orderBy: { expiresAt: 'desc' },
+    });
+    const legacyEnd = inviter.subscriptionEnd ? new Date(inviter.subscriptionEnd) : null;
+    const candidates = [active?.expiresAt, legacyEnd].filter((date) => date && date > now);
+    const baseEnd = candidates.reduce((latest, date) => !latest || date > latest ? date : latest, null) || now;
+    const expiresAt = new Date(baseEnd.getTime() + 5 * 86400000);
+    const startsAt = active?.startsAt || (legacyEnd && legacyEnd > now && inviter.subscriptionStart ? inviter.subscriptionStart : now);
+
+    if (active) {
+      await tx.subscription.update({ where: { id: active.id }, data: { expiresAt } });
+    } else {
+      await tx.subscription.create({
+        data: { userId: inviter.id, planId: null, type: 'ADMIN', status: 'ACTIVE', startsAt, expiresAt },
+      });
+    }
+
+    await tx.user.update({
+      where: { id: inviter.id },
+      data: {
+        subscriptionStart: startsAt,
+        subscriptionEnd: expiresAt,
+        subscriptionMonths: 0,
+        subscriptionType: active?.type || inviter.subscriptionType || 'ADMIN',
+      },
+    });
+
+    const claimed = await tx.referralInvite.updateMany({
+      where: { id: invite.id, status: 'SENT', redeemedByUserId: null },
+      data: { status: 'REDEEMED', redeemedByUserId: Number(newUserId), redeemedAt: now },
+    });
+    if (claimed.count !== 1) throw new Error('این دعوت قبلاً استفاده شده است');
+
+    await tx.notification.create({
+      data: {
+        userId: inviter.id,
+        title: 'هدیه اشتراک رایگان',
+        message: 'کاربر گرامی شما ۵ روز هدیه اشتراک رایگان از طریق ثبت نام با کد معرف شما دریافت نموده اید',
+        type: 'success',
+      },
+    });
+    return { expiresAt };
+  });
+}
+
+async function register(req,res){
+  let createdId = null;
+  try {
+    const maintenanceRow = await prisma.globalSetting.findUnique({ where: { key: 'maintenance.policy' } }).catch(() => null);
+    if (maintenanceRow && maintenanceRow.category === 'maintenance') {
+      let policy = {};
+      try { policy = JSON.parse(maintenanceRow.value) || {}; } catch (_) {}
+      if (policy.enabled === true) return res.status(503).json({ success: false, code: 'MAINTENANCE_MODE', maintenance: true, message: String(policy.message || 'سامانه موقتاً در حال نگهداری است.').slice(0, 500) });
+    }
+
+    const email = normalizeEmail(req.body?.email);
+    const name = String(req.body?.name || [req.body?.firstName, req.body?.lastName].filter(Boolean).join(' ')).trim();
+    const rawPhone = String(req.body?.phone || req.body?.mobile || '').trim();
+    const referralCodeInput = String(req.body?.referralCode || '').trim().toUpperCase();
+    if (!required(email)) return res.status(400).json({ success: false, message: 'ایمیل الزامی است' });
+    if (!required(rawPhone)) return res.status(400).json({ success: false, message: 'شماره موبایل الزامی است' });
+
+    let phone;
+    try { phone = smsService.normalizeMobile(rawPhone); } catch (_) { phone = null; }
+    if (!phone) return res.status(400).json({ success: false, message: 'شماره موبایل معتبر نیست' });
+
+    const valid = await validateEmail(email);
+    if (!valid.valid) return res.status(400).json({ success: false, message: 'ایمیل واردشده معتبر نیست' });
+
+    const existing = await prisma.user.findFirst({
+      where: { OR: [{ email }, { username: email }, { phone }, { mobile: phone }] },
+      select: { id: true, email: true, username: true, phone: true, mobile: true, isDeleted: true },
+    });
+    if (existing) return res.status(409).json({ success: false, message: 'ایمیل یا شماره موبایل قبلا ثبت شده است' });
+
+    let referralInvite = null;
+    if (referralCodeInput) {
+      referralInvite = await prisma.referralInvite.findFirst({
+        where: { referralCode: referralCodeInput, inviteeMobile: phone, status: 'SENT', redeemedByUserId: null },
+      });
+      if (!referralInvite) return res.status(400).json({ success: false, message: 'کد معرف برای این شماره موبایل معتبر نیست یا قبلاً استفاده شده است' });
+      const inviter = await prisma.user.findUnique({ where: { id: referralInvite.inviterId }, select: { id: true, mobile: true, phone: true } });
+      const inviterPhones = [inviter?.mobile, inviter?.phone].filter(Boolean);
+      if (inviterPhones.some((value) => { try { return smsService.normalizeMobile(value) === phone; } catch (_) { return false; } })) {
+        return res.status(400).json({ success: false, message: 'استفاده از کد معرف برای شماره موبایل خودتان مجاز نیست' });
+      }
+    }
+
+    const role = await prisma.role.findFirst({ where: { name: 'USER' } });
+    const password = generatePassword();
+    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordEncrypted = encryptPassword(password);
+    const start = new Date();
+    const referralCode = await generateUniqueReferralCode();
+    const u = await prisma.user.create({
+      data: {
+        username: email, email, passwordHash, passwordEncrypted, name: name || email,
+        phone, mobile: phone, referralCode, roleId: role?.id || 1,
+        isActive: true, isDeleted: false, subscriptionStart: null, subscriptionEnd: null,
+        subscriptionMonths: 0, subscriptionType: 'free',
+      },
+      select: USER_SELECT,
+    });
+    createdId = u.id;
+
+    const trial = await subscriptionService.createTrialForUser(createdId, start);
+    const trialStart = trial?.startsAt || null;
+    const trialEnd = trial?.expiresAt || null;
+    const trialUser = trial ? await prisma.user.update({
+      where: { id: createdId },
+      data: { subscriptionStart: trialStart, subscriptionEnd: trialEnd, subscriptionMonths: 0, subscriptionType: 'free' },
+      select: USER_SELECT,
+    }) : u;
+
+    try {
+      await smsService.sendInitialPassword({ userId: createdId, mobile: phone, password });
+    } catch (smsError) {
+      await prisma.user.delete({ where: { id: createdId } }).catch(() => {});
+      console.error('[AUTH] registration initial-password SMS failed', smsError);
+      return res.status(502).json({ success: false, message: 'ارسال رمز اولیه از طریق پیامک انجام نشد. لطفاً تنظیمات سرویس پیامک را بررسی کرده و دوباره تلاش کنید' });
+    }
+
+    if (referralInvite) {
+      try {
+        await grantReferralReward(referralInvite.id, createdId);
+      } catch (rewardError) {
+        await prisma.user.delete({ where: { id: createdId } }).catch(() => {});
+        console.error('[AUTH] referral reward transaction failed', rewardError);
+        return res.status(500).json({ success: false, message: 'ثبت هدیه کد معرف انجام نشد؛ لطفاً دوباره تلاش کنید' });
+      }
+    }
+
+    try { marketingAttribution.recordRegistration({ userId: createdId, input: req.body?.attribution }); }
+    catch (attributionError) { console.error('[MARKETING_ATTRIBUTION] registration tracking failed', attributionError.message); }
+
+    return res.status(201).json({
+      success: true,
+      message: referralInvite ? 'ثبت‌نام با موفقیت انجام شد و هدیه کد معرف ثبت گردید. رمز اولیه پیامک شد' : 'ثبت‌نام با موفقیت انجام شد. رمز اولیه از طریق پیامک ارسال گردید',
+      data: { user: formatUser(trialUser), smsSent: true, referralRewardDays: referralInvite ? 5 : 0 },
+    });
+  } catch (e) {
+    console.error('[AUTH] register', e);
+    if (e.code === 'P2002') return res.status(409).json({ success: false, message: 'ایمیل، شماره موبایل یا کد معرف قبلا ثبت شده است' });
+    return res.status(500).json({ success: false, message: 'خطای سرور در ثبت نام' });
+  }
+}
 async function verify(req,res){try{const auth=req.headers.authorization||'',tok=auth.startsWith('Bearer ')?auth.slice(7):req.cookies?.accessToken||req.cookies?.token;if(!tok)return res.status(401).json({success:false,valid:false,message:'توکن ارائه نشده'});const d=jwt.verify(tok,secret('access')),u=await prisma.user.findUnique({where:{id:parseId(d.userId||d.sub)},select:PUBLIC_SELECT});if(!u||!u.isActive||u.isDeleted)return res.status(401).json({success:false,valid:false,message:'کاربر یافت نشد یا غیرفعال است'});const effective=await getEffectiveSubscription(u.id);return res.json({success:true,valid:true,data:{user:formatUser(mergeEffectiveSubscription(u,effective))}});}catch(e){return res.status(401).json({success:false,valid:false,message:'توکن نامعتبر'});}}
 async function me(req,res){try{const id=parseId(req.user?.userId||req.user?.id||req.user?.sub);if(!id)return res.status(401).json({success:false,message:'شناسه کاربر نامعتبر'});const u=await prisma.user.findUnique({where:{id},select:PUBLIC_SELECT});if(!u)return res.status(404).json({success:false,message:'کاربر یافت نشد'});const effective=await getEffectiveSubscription(u.id);return res.json({success:true,data:{user:formatUser(mergeEffectiveSubscription(u,effective))}});}catch(e){return res.status(500).json({success:false,message:'خطای سرور'});}}
 async function updateProfile(req,res){try{const id=parseId(req.user?.userId||req.user?.id||req.user?.sub);if(!id)return res.status(401).json({success:false,message:'شناسه کاربر نامعتبر است'});const b=req.body||{},d={};for(const k of ['firstName','lastName','phone','mobile','nationalId','bio','avatar'])if(b[k]!==undefined)d[k]=(typeof b[k]==='string'?b[k].trim():b[k])||null;if(b.name!==undefined)d.name=String(b.name||'').trim()||null;else if(b.firstName!==undefined||b.lastName!==undefined)d.name=[b.firstName,b.lastName].filter(Boolean).join(' ').trim()||null;if(b.email!==undefined)d.email=normalizeEmail(b.email)||null;if(!Object.keys(d).length)return res.status(400).json({success:false,message:'داده‌ای برای به‌روزرسانی ارسال نشده'});const u=await prisma.user.update({where:{id},data:d,select:PUBLIC_SELECT});return res.json({success:true,message:'پروفایل به‌روزرسانی شد',data:{user:formatUser(u)}});}catch(e){return res.status(e.code==='P2002'?409:500).json({success:false,message:e.code==='P2002'?'ایمیل تکراری است':'خطا در به‌روزرسانی پروفایل'});}}
