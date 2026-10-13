@@ -51,7 +51,7 @@ router.get('/signals', authenticate, async (_req, res) => {
         lastEvaluatedAt: cached.evaluatedAt,
         marketStatus: session.status,
         maxPriceAgeHours: Number(process.env.VALUABLE_SYMBOLS_MAX_PRICE_AGE_HOURS) || 72,
-        available: !stale,
+        available: refreshedResults.length > 0,
         pricesRefreshedFromSharedMarket: true
       }
     });
