@@ -11,8 +11,10 @@ function toPositiveNumber(value) {
 
 /**
  * Refresh cached recommendation prices from the shared market snapshot before
- * returning them to clients. Fundamental/technical screening remains cached,
- * but stale prices are never silently presented as current prices.
+ * returning them to clients. Fundamental/technical screening remains cached.
+ * During closed hours, a row marked stale by the live market worker may still
+ * be the latest valid persisted price; age and technical-risk checks remain
+ * mandatory, and the caller labels the market as closed.
  */
 function refreshValuableSymbolPrices(results, marketRows, now = new Date(), marketOpen = false) {
   const nowMs = now instanceof Date ? now.getTime() : new Date(now).getTime();
@@ -34,7 +36,7 @@ function refreshValuableSymbolPrices(results, marketRows, now = new Date(), mark
     const timestamp = row && row.updatedAt ? new Date(row.updatedAt).getTime() : NaN;
     const ageMs = nowMs - timestamp;
 
-    if (!row || row.isStale || currentPrice === null ||
+    if (!row || (marketOpen && row.isStale) || currentPrice === null ||
         !Number.isFinite(timestamp) || ageMs < -5 * 60 * 1000 || ageMs > maxAgeMs) {
       return [];
     }
