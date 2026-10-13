@@ -1331,13 +1331,14 @@ function CandleChart({
     );
   }
 
-  // Keep the chart readable on phones by scrolling instead of shrinking SVG text.
-  const width = 1240;
-  const height = 620;
-  const left = 112;
-  const right = 270;
-  const top = 28;
-  const bottom = 58;
+  // Reserve a wide, dedicated rail for readable two-line level labels.
+  // The SVG scrolls horizontally on narrow screens instead of clipping text.
+  const width = 1420;
+  const height = 660;
+  const left = 124;
+  const right = 360;
+  const top = 32;
+  const bottom = 64;
   const plotWidth = width - left - right;
   const plotHeight = height - top - bottom;
   const allValues = [...candles.flatMap((c) => [Number(c.high), Number(c.low)]), ...levels.map((l) => l.price)].filter(Number.isFinite);
@@ -1353,9 +1354,9 @@ function CandleChart({
   const gridCount = 5;
   const isDark = theme === 'dark';
 
-  // Place close price-level labels on separate rows to prevent overlap.
-  const labelGap = 32;
-  const labelHalfHeight = 14;
+  // Each level label has room for a price and a title on separate lines.
+  const labelHalfHeight = 25;
+  const labelGap = labelHalfHeight * 2 + 7;
   const labelMinY = top + labelHalfHeight;
   const labelMaxY = top + plotHeight - labelHalfHeight;
   const positionedLevels = levels.map((level, index) => ({ level, index, actualY: yFor(level.price), labelY: yFor(level.price) }))
@@ -1394,7 +1395,7 @@ function CandleChart({
         </div>
       </div>
       <div className="w-full overflow-x-auto rounded-lg" style={{ WebkitOverflowScrolling: "touch" }}>
-        <svg viewBox={`0 0 ${width} ${height}`} className="h-auto min-w-[1000px] w-full" role="img" aria-label="نمودار کندلی با خطوط حمایت، مقاومت، نقاط ورود، اهداف خروج و حد ضرر">
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-auto min-w-[1120px] w-full" role="img" aria-label="نمودار کندلی با خطوط حمایت، مقاومت، نقاط ورود، اهداف خروج و حد ضرر">
           <rect x="0" y="0" width={width} height={height} rx="12" fill={isDark ? '#0f172a' : '#ffffff'} />
           {Array.from({ length: gridCount + 1 }, (_, i) => {
             const y = top + (i / gridCount) * plotHeight;
@@ -1436,8 +1437,9 @@ function CandleChart({
               <g key={`level-${level.tone}-${level.price}-${index}`}>
                 <line x1={left} x2={left + plotWidth + 8} y1={y} y2={y} stroke={style.stroke} strokeWidth={level.tone === 'entry' ? 2.4 : 2} strokeDasharray={style.dash} opacity="0.95" />
                 {Math.abs(labelY - y) > 3 && <line x1={labelX} x2={labelX} y1={y} y2={labelY} stroke={style.stroke} strokeWidth="1.5" opacity="0.9" />}
-                <rect x={labelX} y={labelY - labelHalfHeight} width={labelWidth} height={labelHalfHeight * 2} rx="7" fill={isDark ? '#020617' : '#ffffff'} stroke={style.stroke} strokeWidth="1.8" />
-                <text x={labelX + labelWidth - 10} y={labelY + 4.5} textAnchor="end" fontSize="13" fontWeight="700" fill={isDark ? '#f8fafc' : '#0f172a'}>{faNumber(Math.round(level.price).toLocaleString('en-US'))} — {level.label}</text>
+                <rect x={labelX} y={labelY - labelHalfHeight} width={labelWidth} height={labelHalfHeight * 2} rx="8" fill={isDark ? '#020617' : '#ffffff'} stroke={style.stroke} strokeWidth="2" />
+                <text x={labelX + labelWidth - 12} y={labelY - 3} textAnchor="end" fontSize="16" fontWeight="800" fill={isDark ? '#f8fafc' : '#0f172a'}>{faNumber(Math.round(level.price).toLocaleString('en-US'))}</text>
+                <text x={labelX + labelWidth - 12} y={labelY + 17} textAnchor="end" fontSize="15" fontWeight="800" fill={style.stroke}>{level.label}</text>
               </g>
             );
           })}
