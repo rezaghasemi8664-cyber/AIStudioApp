@@ -36,7 +36,7 @@ const CodalSensitiveEvents: React.FC<Props> = ({ isOnline }) => {
   return <section dir="rtl" className="page-shell codal-sensitive-events-page space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4">
       <div><h3 className="font-black text-lg">رویدادهای حساس کدال</h3><p className="text-xs text-gray-500 mt-1">فقط بر اساس دسته‌بندی قطعی اطلاعیه‌های واقعی کدال؛ بدون تحلیل هوش مصنوعی</p></div>
-      <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading ? 'در حال دریافت…' : 'به‌روزرسانی'}</button>
+      <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading ? <span className="inline-flex items-center gap-2"><span aria-hidden="true" className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" />در حال دریافت رویدادها…</span> : 'به‌روزرسانی'}</button>
     </div>
     {error && <div className="rounded-2xl border border-red-300 bg-red-50 dark:bg-red-950/20 p-4 text-red-700 dark:text-red-300">{error}</div>}
     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
