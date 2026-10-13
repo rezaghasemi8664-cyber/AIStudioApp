@@ -79,8 +79,9 @@ function calculateScalpingPriceLevels(candles, signal, currentPrice, market = {}
       if (stopLossPrice < entryPrice && targetPrice > entryPrice && targetPrice <= allowedMax && risk > 0 && reward / risk >= 1.2) {
         return { entryPrice: round(entryPrice), targetPrice: round(targetPrice), stopLossPrice: round(stopLossPrice), support: round(support), resistance: round(resistance), atr: round(atr), method: 'support-rebound-atr-v1' };
       }
-      // A detected but poorly balanced bounce is not an actionable opportunity.
-      return reject('buy_rebound_risk_reward_invalid', { currentPrice: current, support, resistance, atr, stopLossPrice, targetPrice });
+      // If the rebound setup fails its risk/reward check, continue to evaluate
+      // the independent breakout/continuation setup below instead of rejecting
+      // the symbol before checking whether that setup is valid.
     }
 
     const entryPrice = resistance + atr * 0.1;
