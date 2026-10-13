@@ -1,5 +1,17 @@
 'use strict';
 
+jest.mock('../config/prisma.cjs', () => ({
+  appConfig: {
+    findUnique: jest.fn().mockResolvedValue(null),
+    upsert: jest.fn().mockResolvedValue({})
+  }
+}));
+jest.mock('../services/marketSnapshot.service.cjs', () => ({
+  getActiveSnapshot: jest.fn().mockResolvedValue({
+    id: 1,
+    activatedAt: '2026-10-12T08:00:00.000Z'
+  })
+}));
 jest.mock('../services/sharedMarket.service.cjs', () => ({
   getSymbols: jest.fn(),
   getSymbolHistory: jest.fn()
