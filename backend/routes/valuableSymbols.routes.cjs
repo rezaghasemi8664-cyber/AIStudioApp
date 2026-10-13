@@ -31,9 +31,10 @@ router.get('/status', authenticate, async (_req, res) => {
 });
 
 router.get('/signals', authenticate, async (_req, res) => {
-  const cached = await getStoredValuableSymbols();
   const session = getMarketSession();
+  let cached = { results: [], evaluatedAt: null };
   try {
+    cached = await getStoredValuableSymbols();
     // Recommendation fundamentals may be cached, but the displayed price and
     // derived entry/target levels must come from the latest shared market row.
     const marketRows = await market.getSymbols({ limit: 1200 });
