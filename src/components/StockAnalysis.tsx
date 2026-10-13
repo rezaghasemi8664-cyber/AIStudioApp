@@ -1331,12 +1331,11 @@ function CandleChart({
     );
   }
 
-  // Reserve a wide, dedicated rail for readable two-line level labels.
-  // The SVG scrolls horizontally on narrow screens instead of clipping text.
+  // Keep the level-label rail compact and center every value/title inside its box.
   const width = 1420;
   const height = 660;
   const left = 124;
-  const right = 360;
+  const right = 260;
   const top = 32;
   const bottom = 64;
   const plotWidth = width - left - right;
@@ -1354,7 +1353,7 @@ function CandleChart({
   const gridCount = 5;
   const isDark = theme === 'dark';
 
-  // Each level label has room for a price and a title on separate lines.
+  // Two clearly separated lines, vertically centered in a compact label box.
   const labelHalfHeight = 25;
   const labelGap = labelHalfHeight * 2 + 7;
   const labelMinY = top + labelHalfHeight;
@@ -1432,14 +1431,14 @@ function CandleChart({
             if (y < top - 2 || y > top + plotHeight + 2 || labelY === undefined) return null;
             const style = levelStyle[level.tone];
             const labelX = left + plotWidth + 12;
-            const labelWidth = right - 22;
+            const labelWidth = right - 28;
             return (
               <g key={`level-${level.tone}-${level.price}-${index}`}>
                 <line x1={left} x2={left + plotWidth + 8} y1={y} y2={y} stroke={style.stroke} strokeWidth={level.tone === 'entry' ? 2.4 : 2} strokeDasharray={style.dash} opacity="0.95" />
                 {Math.abs(labelY - y) > 3 && <line x1={labelX} x2={labelX} y1={y} y2={labelY} stroke={style.stroke} strokeWidth="1.5" opacity="0.9" />}
                 <rect x={labelX} y={labelY - labelHalfHeight} width={labelWidth} height={labelHalfHeight * 2} rx="8" fill={isDark ? '#020617' : '#ffffff'} stroke={style.stroke} strokeWidth="2" />
-                <text x={labelX + labelWidth - 12} y={labelY - 3} textAnchor="end" fontSize="16" fontWeight="800" fill={isDark ? '#f8fafc' : '#0f172a'}>{faNumber(Math.round(level.price).toLocaleString('en-US'))}</text>
-                <text x={labelX + labelWidth - 12} y={labelY + 17} textAnchor="end" fontSize="15" fontWeight="800" fill={style.stroke}>{level.label}</text>
+                <text x={labelX + labelWidth / 2} y={labelY - 5} textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="800" fill={isDark ? '#f8fafc' : '#0f172a'}>{faNumber(Math.round(level.price).toLocaleString('en-US'))}</text>
+                <text x={labelX + labelWidth / 2} y={labelY + 16} textAnchor="middle" dominantBaseline="middle" direction="rtl" unicodeBidi="plaintext" fontSize="17" fontWeight="800" fill={style.stroke}>{level.label}</text>
               </g>
             );
           })}
