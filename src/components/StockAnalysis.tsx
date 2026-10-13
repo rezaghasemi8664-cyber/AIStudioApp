@@ -1468,6 +1468,24 @@ export default function StockAnalysis() {
   const [analysisData, setAnalysisData] = useState<UnifiedAnalysisResult | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState(0);
+
+  // The analysis endpoint does not expose server-side progress events, so this
+  // is a conservative visual estimate that advances while the request runs and
+  // stays below completion until the request actually finishes.
+  useEffect(() => {
+    if (!isAnalyzing) {
+      setAnalysisProgress(0);
+      return;
+    }
+
+    setAnalysisProgress(4);
+    const progressTimer = window.setInterval(() => {
+      setAnalysisProgress((current) => Math.min(94, current + (current < 55 ? 2 : current < 80 ? 0.8 : 0.25)));
+    }, 500);
+
+    return () => window.clearInterval(progressTimer);
+  }, [isAnalyzing]);
   const [analysisHistory, setAnalysisHistory] = useState<AnalysisHistoryItem[]>([]);
   const [analysisHistoryStats, setAnalysisHistoryStats] = useState<AnalysisHistoryStats | null>(null);
   const [showHistoryLimitWarning, setShowHistoryLimitWarning] = useState(false);
@@ -2796,12 +2814,29 @@ const clearCurrentAnalysis = () => {
                 <div className="h-full w-1/3 animate-[analysis-progress_1.6s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500" />
               </div>
               <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:justify-center sm:gap-5 sm:text-right">
-                <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-blue-600/10 dark:bg-blue-400/10">
-                  <span className="absolute inset-1 animate-ping rounded-xl border border-blue-400/50" />
-                  <svg className="h-9 w-9 animate-spin text-blue-600 dark:text-blue-300" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <circle className="opacity-20" cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" />
-                    <path className="opacity-90" d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                <div
+                  className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full"
+                  role="progressbar"
+                  aria-label="پیشرفت تخمینی تحلیل"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(analysisProgress)}
+                >
+                  <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                    <circle cx="32" cy="32" r="27" stroke="currentColor" strokeWidth="4" className="text-blue-100 dark:text-slate-700" />
+                    <circle
+                      cx="32"
+                      cy="32"
+                      r="27"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      strokeLinecap="round"
+                      className="text-blue-600 transition-[stroke-dashoffset] duration-500 ease-out dark:text-cyan-300"
+                      strokeDasharray={2 * Math.PI * 27}
+                      strokeDashoffset={(2 * Math.PI * 27) * (1 - analysisProgress / 100)}
+                    />
                   </svg>
+                  <span className="text-xs font-extrabold tabular-nums text-blue-700 dark:text-cyan-200">{Math.round(analysisProgress)}٪</span>
                 </div>
                 <div>
                   <div className="text-base font-extrabold text-slate-900 dark:text-white">در حال تحلیل هوشمند نماد {selectedSymbol.trim() || 'انتخاب‌شده'}</div>
