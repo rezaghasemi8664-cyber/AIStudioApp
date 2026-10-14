@@ -4,7 +4,7 @@ Optional independent consumer of persisted market data. It does not modify the s
 
 ## Secure configuration
 
-Set the bot token (environment variable name is `TELEGRAM_BOT_` followed by `TOKEN`) and `TELEGRAM_CHANNEL_ID` in the protected server environment, never in source control or chat. The channel target may be a username such as `@RoniyaAnalyzer` or a numeric chat ID. `TELEGRAM_TIMEOUT_MS` is optional and defaults to 15000 milliseconds.
+Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHANNEL_ID` in the protected server environment, never in source control or chat. The channel target may be a username such as `@RoniyaAnalyzer` or a numeric chat ID. `TELEGRAM_TIMEOUT_MS` is optional and defaults to 15000 milliseconds.
 
 The bot must be a channel administrator with Telegram Bot API `can_post_messages` rights. The Telegram Desktop UI may label this right differently; `Manage Messages` alone does not prove that posting is permitted.
 

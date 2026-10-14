@@ -246,6 +246,7 @@ async function publishScalpingOpportunitiesIfAny(now = new Date()) {
     isFresh(item.updatedAt, MAX_INDEX_AGE_MS, now.getTime()) &&
     (!item.expiresAt || new Date(item.expiresAt).getTime() > now.getTime())
   );
+  if (!valid.length) return { skipped: true, reason: 'NO_FRESH_ACTIVE_SCALPING_OPPORTUNITIES' };
   const previous = state.scalpingOpportunities && typeof state.scalpingOpportunities === 'object'
     ? state.scalpingOpportunities : {};
   const changes = [];
