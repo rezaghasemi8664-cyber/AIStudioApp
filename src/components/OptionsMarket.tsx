@@ -183,7 +183,7 @@ const OptionsMarket: React.FC = () => {
         throw new Error(result.message || 'دریافت اطلاعات بازار آپشن ناموفق بود.');
       }
       setContracts(result.data);
-      setLastUpdated(new Date());
+      setLastUpdated(new Date((result as any).fetchedAt || Date.now()));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'خطا در دریافت اطلاعات بازار آپشن.');
     } finally {
@@ -193,6 +193,9 @@ const OptionsMarket: React.FC = () => {
 
   useEffect(() => {
     void loadContracts();
+    // Poll the database-backed endpoint only; this never triggers a BRS fetch or analysis.
+    const timer = window.setInterval(() => void loadContracts(), 15000);
+    return () => window.clearInterval(timer);
   }, [loadContracts]);
 
   const baseSymbols = useMemo(
