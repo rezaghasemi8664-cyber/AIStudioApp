@@ -293,7 +293,7 @@ async function publishScalpingOpportunitiesIfAny(now = new Date()) {
       lines.push('');
     }
     lines.push('فقط داده‌های تازه و فرصت‌های فعال نمایش داده شده‌اند؛ این پیام تضمین سود نیست.');
-    await sendTelegramMessage(lines.join('\\n').slice(0, 3900));
+    await sendTelegramMessage(lines.join('\n').slice(0, 3900));
   }
   await saveState({ ...state, scalpingOpportunities: next, scalpingCheckedAt: now.toISOString() });
   return { published: changes.length > 0, changes: changes.length };
