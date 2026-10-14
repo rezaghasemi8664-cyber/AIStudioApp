@@ -36,7 +36,7 @@ function readStore() {
       purchases: Array.isArray(parsed.purchases) ? parsed.purchases : [],
     };
   } catch {
-    return { visits: [], registrations: [], purchases: [] };
+    return { visits: [], clicks: [], registrations: [], purchases: [] };
   }
 }
 
