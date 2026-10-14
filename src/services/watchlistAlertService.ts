@@ -36,6 +36,7 @@ export interface WatchlistAlertHistoryItem {
 
 export async function getAlerts(): Promise<WatchlistAlertRule[]> { const response = await api.get(BASE_PATH); const data = unwrap<{ alerts?: WatchlistAlertRule[] }>(response); return Array.isArray(data?.alerts) ? data.alerts : []; }
 export async function getAlertHistory(): Promise<WatchlistAlertHistoryItem[]> { const response = await api.get(`${BASE_PATH}/history`); const data = unwrap<{ history?: WatchlistAlertHistoryItem[] }>(response); return Array.isArray(data?.history) ? data.history : []; }
+export async function deleteAlertHistoryItem(id: string): Promise<void> { await api.delete(`${BASE_PATH}/history/${encodeURIComponent(id)}`); }
 export async function createAlert(input: CreateWatchlistAlertInput): Promise<WatchlistAlertRule> { const response = await api.post(BASE_PATH, input); return unwrap<WatchlistAlertRule>(response); }
 export async function updateAlert(id: string, input: Partial<CreateWatchlistAlertInput>): Promise<WatchlistAlertRule> { const response = await api.put(`${BASE_PATH}/${encodeURIComponent(id)}`, input); return unwrap<WatchlistAlertRule>(response); }
 export async function deleteAlert(id: string): Promise<void> { await api.delete(`${BASE_PATH}/${encodeURIComponent(id)}`); }

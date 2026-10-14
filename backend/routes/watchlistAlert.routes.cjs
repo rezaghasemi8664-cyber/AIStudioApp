@@ -29,6 +29,19 @@ router.get('/history', async (req, res) => {
   }
 });
 
+router.delete('/history/:id', async (req, res) => {
+  try {
+    const userId = alertService.getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
+    const deleted = await alertService.deleteHistoryItem(userId, req.params.id);
+    if (!deleted) return res.status(404).json({ success: false, message: 'هشدار تاریخچه پیدا نشد.' });
+    return res.json({ success: true, data: { id: String(req.params.id) } });
+  } catch (error) {
+    console.error('[WATCHLIST-ALERT] HISTORY DELETE failed:', error);
+    return res.status(500).json({ success: false, message: 'حذف هشدار تاریخچه ناموفق بود.' });
+  }
+});
+
 router.post('/', async (req, res) => {
   try {
     const userId = alertService.getUserId(req);
