@@ -92,6 +92,14 @@ async function writeHistory(userId, history) {
   await prisma.userPreference.upsert({ where: { userId_key: { userId, key: HISTORY_KEY } }, create: { userId, key: HISTORY_KEY, value: JSON.stringify(history.slice(0, HISTORY_LIMIT)) }, update: { value: JSON.stringify(history.slice(0, HISTORY_LIMIT)) } });
 }
 
+async function deleteHistoryItem(userId, id) {
+  const history = await readHistory(userId);
+  const next = history.filter(item => String(item.id) !== String(id));
+  if (next.length === history.length) return false;
+  await writeHistory(userId, next);
+  return true;
+}
+
 async function createRule(userId, input) {
   const rule = normalizeRule(input);
   if (!rule) throw new Error('قانون هشدار نامعتبر است.');
@@ -168,6 +176,23 @@ async function evaluateArmedRules(userId) {
     await writeRules(userId, rules); const history = await readHistory(userId);
     const entries = triggered.map(item => ({ id: `${item.rule.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, ruleId: item.rule.id, symbol: item.rule.symbol, metric: item.rule.metric, operator: item.rule.operator, threshold: item.rule.threshold, value: item.snapshot.value, triggeredAt: item.rule.triggeredAt, logic: item.rule.logic, conditions: item.conditions, snapshot: item.snapshot, dataStatus: item.snapshot.dataStatus, source: item.snapshot.source, stale: item.snapshot.stale }));
     await writeHistory(userId, [...entries.reverse(), ...history]);
+    if (prisma.notification?.create) {
+      for (const entry of entries) {
+        try {
+          await prisma.notification.create({
+            data: {
+              userId,
+              title: 'هشدار دیده‌بان صادر شد',
+              message: `هشدار دیده‌بان برای نماد ${entry.symbol} فعال شد. برای مشاهده جزئیات، این اعلان را باز کنید.`,
+              type: `wa:${entry.id}`,
+              isRead: false,
+            },
+          });
+        } catch (error) {
+          console.error('[WATCHLIST-ALERT] notification creation failed:', error.message);
+        }
+      }
+    }
   }
   return { checked: armed.length, triggered };
 }
@@ -178,4 +203,4 @@ async function evaluateAllUsers() {
 
 if (!global.__roniyaWatchlistAlertScheduler) { global.__roniyaWatchlistAlertScheduler = setInterval(() => { void evaluateAllUsers(); }, AUTO_EVALUATE_MS); if (typeof global.__roniyaWatchlistAlertScheduler.unref === 'function') global.__roniyaWatchlistAlertScheduler.unref(); }
 
-module.exports = { getUserId, readRules, readHistory, createRule, updateRule, deleteRule, evaluateArmedRules };
+module.exports = { getUserId, readRules, readHistory, deleteHistoryItem, createRule, updateRule, deleteRule, evaluateArmedRules };
