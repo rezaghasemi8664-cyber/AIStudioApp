@@ -1043,7 +1043,7 @@ try {
     // بدون این خط، registerMarketCron (ذخیره اسنپ‌شات هر ۲ دقیقه در MarketHistory)
     // و کرون‌های scalping/usage هیچ‌وقت اجرا نمی‌شدند، پس جدول MarketHistory
     // هیچ داده‌ی تازه‌ای نداشت و تحلیل بازار ساعت ۱۲:۳۵ همیشه داده‌ی خالی/قدیمی می‌دید.
-    startCronJobs();
+    startCronJobs(io);
     console.log('[SERVER] ✅ Market/Scalping/Usage cron jobs started (via cron/index.cjs)');
   } else {
     console.log('[SERVER] ℹ️ MarketSummary cron not started (cronEnabled=' + cronEnabled + ', NODE_APP_INSTANCE=' + String(pm2Instance) + ')');

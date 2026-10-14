@@ -680,3 +680,17 @@ model admin_scheduler_rules {
   User            User      @relation(fields: [createdBy], references: [id], onUpdate: NoAction, map: "FK_admin_scheduler_rules_user")
   @@schema("dbo")
 }
+
+model OptionMarketCurrent {
+  id             Int      @id
+  contractCount  Int
+  contractsJson  String   @db.NVarChar(Max)
+  analysisJson   String   @db.NVarChar(Max)
+  source         String   @db.NVarChar(50)
+  fetchedAt      DateTime
+  analyzedAt     DateTime
+  updatedAt      DateTime @default(dbgenerated("sysdatetime()"))
+
+  @@map("OptionMarketCurrent")
+  @@schema("dbo")
+}
