@@ -120,7 +120,7 @@ function getReport() {
     const purchases = store.purchases.filter(item => item.content === content);
     const revenueAmount = purchases.reduce((total, item) => total + Number(item.amount || 0), 0);
     channels[content] = {
-      visits: visits.length, registrationCount: registrations.length, visitCount: visits.length,
+      visits: visits.length, visitCount: visits.length, clickCount: clicks.length, registrationCount: registrations.length,
       conversionRatePercent: clicks.length ? Math.round((registrations.length / clicks.length) * 10000) / 100 : 0,
       paidPurchaseCount: purchases.length, revenueAmount,
       currency: purchases.find(item => item.currency)?.currency || 'IRR',
