@@ -5,6 +5,7 @@ const { registerMarketCron } = require('./market.cron.cjs');
 const { registerUsageCron } = require('./usage.cron.cjs');
 const { registerMarketTechnicalDailyCron } = require('./marketTechnicalDaily.cron.cjs');
 const { registerValuableSymbolsCron } = require('./valuableSymbols.cron.cjs');
+const { registerOptionsMarketCron } = require('./optionsMarket.cron.cjs');
 
 let cronStarted = false;
 
@@ -35,7 +36,7 @@ function safeRegister(name, fn) {
   }
 }
 
-function startCronJobs() {
+function startCronJobs(io) {
   if (cronStarted) {
     console.log('[CRON] Cron jobs already started, skipping duplicate registration');
     return;
@@ -48,7 +49,8 @@ function startCronJobs() {
     safeRegister('market-history', registerMarketCron),
     safeRegister('usage', registerUsageCron),
     safeRegister('market-technical-daily', registerMarketTechnicalDailyCron),
-    safeRegister('valuable-symbols-independent', registerValuableSymbolsCron)
+    safeRegister('valuable-symbols-independent', registerValuableSymbolsCron),
+    safeRegister('options-market-auto-refresh', () => registerOptionsMarketCron(io))
   ];
 
   cronStarted = true;
