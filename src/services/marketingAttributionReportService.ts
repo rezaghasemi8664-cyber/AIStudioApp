@@ -11,6 +11,7 @@ export interface MarketingAttributionRegistration {
 export interface MarketingAttributionChannelReport {
   visits: number;
   visitCount: number;
+  clickCount: number;
   registrationCount: number;
   conversionRatePercent: number;
   paidPurchaseCount: number;
