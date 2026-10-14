@@ -431,6 +431,7 @@ const App: React.FC = () => {
   const [isExpired, setIsExpired] = useState(false);
   const [onlineUserCount, setOnlineUserCount] = useState(0);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [pendingWatchlistAlertId, setPendingWatchlistAlertId] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [viewingNotification, setViewingNotification] = useState<AppNotification | null>(null);
@@ -476,6 +477,8 @@ const App: React.FC = () => {
         const mapped = notificationsResult.data.map(item => ({
           id: String(item.id),
           message: item.message,
+          title: item.title,
+          type: item.type,
           timestamp: Date.parse(item.createdAt) || Date.now(),
           recipientUserId: user.id,
           read: item.read,
@@ -1060,7 +1063,14 @@ const App: React.FC = () => {
   const handleToggleNotifications = useCallback(() => setIsNotificationsOpen(prev => !prev), []);
 
   const handleViewNotification = useCallback((notification: AppNotification) => {
-    setViewingNotification(notification);
+    const watchlistAlertMatch = notification.type?.match(/^wa:(.+)$/);
+    if (watchlistAlertMatch) {
+      setPendingWatchlistAlertId(watchlistAlertMatch[1]);
+      setIsNotificationsOpen(false);
+      handleTabClick('portfolio');
+    } else {
+      setViewingNotification(notification);
+    }
     if (!notification.read && currentUser) {
       if (typeof notificationService.markSingleNotificationAsRead === 'function') {
         void notificationService.markSingleNotificationAsRead(notification.id).then(() => {
@@ -1070,7 +1080,7 @@ const App: React.FC = () => {
         });
       }
     }
-  }, [currentUser, refreshUnreadCount]);
+  }, [currentUser, refreshUnreadCount, handleTabClick]);
 
   const handleDeleteNotification = useCallback(async (notificationId: string) => {
     if (!currentUser) return;
@@ -1104,7 +1114,7 @@ const App: React.FC = () => {
         );
       case 'analysis': return <StockAnalysis />;
       case 'scalping': return <Scalping isOnline={isOnline} />;
-      case 'portfolio': return <Portfolio onAlertChange={setPortfolioAlert} currentUser={currentUser} isOnline={isOnline} />;
+      case 'portfolio': return <Portfolio onAlertChange={setPortfolioAlert} currentUser={currentUser} isOnline={isOnline} focusWatchlistAlertId={pendingWatchlistAlertId} onWatchlistAlertFocused={() => setPendingWatchlistAlertId(null)} />;
       case 'traderJournal': return <TraderJournal />;
       case 'codalIntelligence': return <CodalIntelligence isOnline={isOnline} />;
       case 'comparison': return <StockComparison currentUser={currentUser} isOnline={isOnline} />;
