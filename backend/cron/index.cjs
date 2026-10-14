@@ -6,6 +6,7 @@ const { registerUsageCron } = require('./usage.cron.cjs');
 const { registerMarketTechnicalDailyCron } = require('./marketTechnicalDaily.cron.cjs');
 const { registerValuableSymbolsCron } = require('./valuableSymbols.cron.cjs');
 const { registerOptionsMarketCron } = require('./optionsMarket.cron.cjs');
+const { registerTelegramPublisherCron } = require('./telegramPublisher.cron.cjs');
 
 let cronStarted = false;
 
@@ -50,7 +51,8 @@ function startCronJobs(io) {
     safeRegister('usage', registerUsageCron),
     safeRegister('market-technical-daily', registerMarketTechnicalDailyCron),
     safeRegister('valuable-symbols-independent', registerValuableSymbolsCron),
-    safeRegister('options-market-auto-refresh', () => registerOptionsMarketCron(io))
+    safeRegister('options-market-auto-refresh', () => registerOptionsMarketCron(io)),
+    safeRegister('telegram-channel-publisher', registerTelegramPublisherCron)
   ];
 
   cronStarted = true;
