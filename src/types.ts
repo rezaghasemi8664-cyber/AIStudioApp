@@ -122,7 +122,7 @@ export interface ChangePasswordResponse { message: string; }
 export interface SettingsProps { currentUser: User; initialTab?: string; onUserAccessChange?: (isDisconnected: boolean) => void; }
 export interface PasswordChangeFormProps { onPasswordChange: (currentPass: string, newPass: string) => Promise<void>; }
 export interface AnalysisHistoryItem { symbol: string; timestamp: number; result: AnalysisResult; summary?: string; }
-export interface AppNotification { id: string; message: string; timestamp: number; recipientUserId: string; read: boolean; attachment?: { name: string; type: string; data: string; }; }
+export interface AppNotification { id: string; message: string; timestamp: number; recipientUserId: string; read: boolean; title?: string | null; type?: string; attachment?: { name: string; type: string; data: string; }; }
 export interface Notification { id: number; message: string; type: 'success' | 'info' | 'error' | 'warning'; }
 export interface MarketIndexData { value: number | null; changeValue: number | null; changePercent: number | null; isMarketOpen: boolean | null; equalWeightedValue: number | null; equalWeightedChangeValue: number | null; equalWeightedChangePercent: number | null; }
 export interface MarketIndexCache { data: MarketIndexData; timestamp: number; }
