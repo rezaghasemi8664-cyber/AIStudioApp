@@ -131,7 +131,7 @@ function renderValuableChanges(changes, date = new Date()) {
     'تاریخ: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, dateStyle: 'short' }).format(date),
     ''
   ];
-  for (const change of changes.slice(0, 10)) {
+  for (const change of changes.slice(0, 20)) {
     const item = change.item;
     lines.push((change.type === 'new' ? '🆕 ورود به فهرست' : '⬆️ افزایش امتیاز مهم') + ': ' + (item.name || item.symbol) + ' (' + item.symbol + ')');
     lines.push('امتیاز: ' + formatNumber(item.score, 0) + (change.type === 'score' ? '؛ قبلی: ' + formatNumber(change.previousScore, 0) : ''));
@@ -202,6 +202,12 @@ async function publishIndexIfScheduled(now = new Date()) {
 async function publishValuableChangesIfAny(now = new Date()) {
   if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
   const state = await loadState();
+  const marketDate = getCurrentMarketDateUtc(now);
+  const currentMarket = await prisma.marketCurrent.findUnique({ where: { marketDate } });
+  if (!currentMarket || currentMarket.isStale || String(currentMarket.marketStatus || '').toUpperCase() !== 'OPEN' ||
+      !(toNumber(currentMarket.overallIndex) > 0) || !isFresh(currentMarket.updatedAt, MAX_INDEX_AGE_MS, now.getTime())) {
+    return { skipped: true, reason: 'NO_FRESH_CURRENT_MARKET_SNAPSHOT' };
+  }
   const stored = await getStoredValuableSymbols({ force: true });
   if (!stored?.evaluatedAt || !isFresh(stored.evaluatedAt, MAX_VALUABLE_EVALUATION_AGE_MS, now.getTime())) {
     return { skipped: true, reason: 'VALUABLE_RESULTS_STALE' };
@@ -222,6 +228,10 @@ async function publishTodaySummaryIfReady(now = new Date()) {
   if (!isTradingWeekday(now)) return { skipped: true, reason: 'NON_TRADING_WEEKDAY' };
   const state = await loadState();
   const summaryDate = getCurrentMarketDateUtc(now);
+  const marketSnapshot = await prisma.marketCurrent.findUnique({ where: { marketDate: summaryDate } });
+  if (!marketSnapshot || marketSnapshot.isStale || !(toNumber(marketSnapshot.overallIndex) > 0)) {
+    return { skipped: true, reason: 'NO_TODAY_MARKET_SNAPSHOT' };
+  }
   const row = await prisma.marketSummary.findUnique({ where: { summaryDate } });
   if (!row) return { skipped: true, reason: 'NO_TODAY_SUMMARY' };
   const createdAt = row.createdAt || row.date;
