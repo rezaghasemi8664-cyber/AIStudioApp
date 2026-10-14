@@ -116,29 +116,31 @@ function enrichOptionContracts(contracts, symbols) {
 
 router.get('/options', userAuth, async function getOptionContracts(_req, res) {
   try {
-    const result = await sharedBrsService.getOptionContracts();
-    const contracts = Array.isArray(result && result.data) ? result.data : [];
-    let symbols = [];
-    try {
-      symbols = await sharedMarketService.getSymbols({ limit: 10000 });
-    } catch (marketError) {
-      console.warn('[BRS] Shared market spot prices unavailable for options:', marketError.message);
+    const snapshot = await require('../services/optionsMarketSnapshot.service.cjs').getCurrentOptionsMarket();
+    if (!snapshot) {
+      return res.status(503).json({
+        success: false,
+        code: 'OPTIONS_SNAPSHOT_NOT_READY',
+        message: 'هنوز اولین نسخه معتبر بازار آپشن در دیتابیس آماده نشده است.'
+      });
     }
-    const data = enrichOptionContracts(contracts, symbols);
     return res.json({
       success: true,
-      data,
-      total: data.length,
-      source: result && result._meta ? result._meta.source : 'brs-option',
-      cached: !!(result && result._cached),
-      meta: result && result._meta ? result._meta : null
+      data: snapshot.contracts,
+      total: snapshot.contractCount,
+      source: snapshot.source,
+      cached: true,
+      fetchedAt: snapshot.fetchedAt,
+      analyzedAt: snapshot.analyzedAt,
+      updatedAt: snapshot.updatedAt,
+      analysis: snapshot.analysis
     });
   } catch (error) {
-    console.error('[BRS] GET /options error:', error.message);
-    return res.status(502).json({
+    console.error('[BRS] GET /options database snapshot error:', error.message);
+    return res.status(500).json({
       success: false,
-      code: 'BRS_OPTION_FETCH_FAILED',
-      message: 'خطا در دریافت اطلاعات اختیار معامله از BRS'
+      code: 'OPTIONS_SNAPSHOT_READ_FAILED',
+      message: 'خواندن اطلاعات ذخیره‌شده بازار آپشن ناموفق بود.'
     });
   }
 });
@@ -194,4 +196,5 @@ router.get('/symbol/:symbol/candles', userAuth, async function (req, res) {
   }
 });
 
+router.enrichOptionContracts = enrichOptionContracts;
 module.exports = router;
