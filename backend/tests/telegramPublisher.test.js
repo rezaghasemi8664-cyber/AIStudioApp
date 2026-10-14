@@ -3,7 +3,7 @@
 const {
   INDEX_SLOTS, isTradingWeekday, isTradingSession, tehranDateKey, tehranSlot,
   isFresh, formatPercent, normalizeValuableResults, getImportantSymbolChanges,
-  renderSummaryMessage
+  renderSummaryMessage, renderIndexMessage
 } = require('../services/telegramPublisher.service.cjs');
 
 describe('Telegram publisher helpers', () => {
@@ -52,6 +52,21 @@ describe('Telegram publisher helpers', () => {
     expect(changes.map(item => [item.type, item.item.symbol])).toEqual([
       ['score', 'الف'], ['new', 'پ']
     ]);
+  });
+  test('renders both index levels with numeric and percentage changes', () => {
+    const message = renderIndexMessage({
+      overallIndex: 10100,
+      overallChange: 100,
+      equalIndex: 9900,
+      equalChange: -100,
+      dataJson: JSON.stringify({ changePercent: 1, equalWeightedChangePercent: -1 })
+    }, new Date('2026-10-10T06:00:00.000Z'));
+    expect(message).toContain('شاخص کل:');
+    expect(message).toContain('شاخص هم‌وزن:');
+    expect(message).toContain('تغییر عددی: +');
+    expect(message).toContain('تغییر درصدی: +۱٪');
+    expect(message).toContain('تغییر درصدی: -۱٪');
+    expect(message).toContain('ساعت تهران: 09:30');
   });
   test('requires a complete summary before rendering a post', () => {
     expect(renderSummaryMessage({ content: 'خلاصه ناقص' })).toBeNull();
