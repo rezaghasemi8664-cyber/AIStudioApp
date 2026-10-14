@@ -27,7 +27,7 @@ const AdminMarketingAttributionPanel: React.FC = () => {
   return <div className="space-y-5">
     <div className="rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><h2 className="text-lg font-bold">آمار تبلیغات تلگرام</h2><p className="mt-1 text-sm text-gray-500">آمار بر اساس پارامترهای معتبر لینک تبلیغاتی ثبت می‌شود؛ بازدید یکتا به معنی بازدید ثبت‌شده در هر نشست تبلیغاتی است.</p></div>
+        <div><h2 className="text-lg font-bold">آمار تبلیغات تلگرام</h2><p className="mt-1 text-sm text-gray-500">بازدید فقط پس از ثبت‌نام منتسب و اولین ورود موفق کاربر شمرده می‌شود؛ مشاهده صفحه ورود بدون ثبت‌نام و ورود، بازدید محسوب نمی‌شود.</p></div>
         <button onClick={() => void load()} disabled={loading} className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50">{loading ? 'در حال بروزرسانی…' : 'بروزرسانی آمار'}</button>
       </div>
       {report && <p className="mt-3 text-xs text-gray-500">آخرین دریافت: {dateFmt(report.generatedAt)}</p>}
@@ -41,7 +41,7 @@ const AdminMarketingAttributionPanel: React.FC = () => {
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">بازدید ثبت‌شده</div><div className="mt-1 text-2xl font-extrabold">{fmt(data?.visits || 0)}</div></div>
             <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">ثبت‌نام منتسب</div><div className="mt-1 text-2xl font-extrabold">{fmt(data?.registrationCount || 0)}</div></div>
-            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">خرید اشتراک موفق</div><div className="mt-1 text-2xl font-extrabold">{fmt(data?.paidPurchaseCount || 0)}</div></div><div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">درآمد منتسب (ریال)</div><div className="mt-1 text-xl font-extrabold">{fmt(data?.revenueAmount || 0)}</div></div><div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4 col-span-2"><div className="text-sm text-gray-500">نرخ تبدیل بازدید به ثبت‌نام</div><div className="mt-1 text-xl font-bold">{fmt(data?.conversionRatePercent || 0)}٪</div></div>
+            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">خرید اشتراک موفق</div><div className="mt-1 text-2xl font-extrabold">{fmt(data?.paidPurchaseCount || 0)}</div></div><div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">درآمد منتسب (ریال)</div><div className="mt-1 text-xl font-extrabold">{fmt(data?.revenueAmount || 0)}</div></div><div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4 col-span-2"><div className="text-sm text-gray-500">نرخ تبدیل کلیک تبلیغاتی به ثبت‌نام</div><div className="mt-1 text-xl font-bold">{fmt(data?.conversionRatePercent || 0)}٪</div></div>
           </div>
           <h4 className="mt-5 font-semibold">آخرین ثبت‌نام‌های منتسب</h4>
           <div className="mt-2 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-[var(--card-border-color)] text-right"><th className="p-2">شناسه کاربر</th><th className="p-2">زمان ثبت‌نام</th></tr></thead><tbody>
