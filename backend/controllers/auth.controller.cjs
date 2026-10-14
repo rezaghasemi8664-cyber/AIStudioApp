@@ -207,7 +207,7 @@ async function register(req,res){
       }
     }
 
-    try { marketingAttribution.recordRegistration({ userId: createdId, input: req.body?.attribution || getMarketingAttributionFromRequest(req) }); }
+    try { marketingAttribution.recordRegistration({ userId: createdId, input: marketingAttribution.normalizeAttribution(req.body?.attribution) || getMarketingAttributionFromRequest(req) }); }
     catch (attributionError) { console.error('[MARKETING_ATTRIBUTION] registration tracking failed', attributionError.message); }
 
     return res.status(201).json({
