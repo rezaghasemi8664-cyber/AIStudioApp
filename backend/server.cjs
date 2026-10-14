@@ -659,6 +659,8 @@ mountRoute('/api/v1/subscriptions', './routes/subscriptions.routes.cjs', 'Subscr
 mountRoute('/api/v1/site-analytics', './routes/siteAnalytics.routes.cjs', 'Site Analytics v1 alias (priority)');
 mountRoute('/api/v1/marketing-attribution', './routes/marketingAttribution.routes.cjs', 'Marketing attribution v1 alias');
 
+// Keep this explicit alias before the broad /api/v1 aggregator; its fallback can intercept referral requests.
+mountRoute('/api/v1/referrals', './routes/referral.routes.cjs', 'Referral Invites v1 alias (priority)');
 mountRoute('/api/v1', './routes/v1/index.cjs', 'API v1 Root');
 // Compatibility aliases for reverse proxies that strip the /api prefix.
 // This keeps /api/v1/* requests functional when Nginx forwards them as /v1/*.
@@ -671,7 +673,6 @@ mountRoute('/api/v1/auth',     './routes/auth.routes.cjs',             'Auth v1 
 mountRoute('/api/profile',     './routes/profile.routes.cjs',          'User Profile');
 mountRoute('/api/v1/profile',  './routes/profile.routes.cjs',          'User Profile v1 alias');
 mountRoute('/api/referrals',     './routes/referral.routes.cjs', 'Referral Invites');
-mountRoute('/api/v1/referrals',  './routes/referral.routes.cjs', 'Referral Invites v1 alias');
 
 mountRoute('/api/users',       './routes/user.routes.cjs',             'User Management');
 mountRoute('/api/v1/users',    './routes/user.routes.cjs',             'User Management v1 alias');
