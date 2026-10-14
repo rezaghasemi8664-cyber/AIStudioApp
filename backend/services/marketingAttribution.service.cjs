@@ -24,7 +24,17 @@ function readStore() {
   if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, JSON.stringify({ visits: [], registrations: [] }, null, 2), 'utf8');
   try {
     const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    return { visits: Array.isArray(parsed.visits) ? parsed.visits : [], registrations: Array.isArray(parsed.registrations) ? parsed.registrations : [], purchases: Array.isArray(parsed.purchases) ? parsed.purchases : [] };
+    const legacyVisits = Array.isArray(parsed.visits) ? parsed.visits : [];
+    // Older versions counted every landing-page click as a visit. Keep those as clicks,
+    // and only retain visits linked to a registered user who successfully logged in.
+    const visits = legacyVisits.filter(item => item && item.userId !== undefined && item.userId !== null);
+    const legacyClicks = legacyVisits.filter(item => !item || item.userId === undefined || item.userId === null);
+    return {
+      visits,
+      clicks: Array.isArray(parsed.clicks) ? parsed.clicks : legacyClicks,
+      registrations: Array.isArray(parsed.registrations) ? parsed.registrations : [],
+      purchases: Array.isArray(parsed.purchases) ? parsed.purchases : [],
+    };
   } catch {
     return { visits: [], registrations: [], purchases: [] };
   }
@@ -40,11 +50,35 @@ function writeStore(store) {
 function recordVisit(input) {
   const attribution = normalizeAttribution(input);
   if (!attribution) return { recorded: false };
+  // A landing-page hit is a click, not a qualified visit. It must not inflate
+  // the visitor count until this attributed registrant successfully logs in.
   const store = readStore();
-  store.visits.push({ id: crypto.randomBytes(12).toString('hex'), ...attribution, visitedAt: new Date().toISOString() });
+  store.clicks.push({ id: crypto.randomBytes(12).toString('hex'), ...attribution, clickedAt: new Date().toISOString() });
+  if (store.clicks.length > MAX_EVENTS) store.clicks = store.clicks.slice(-MAX_EVENTS);
+  writeStore(store);
+  return { recorded: true, counted: false };
+}
+
+function recordAuthenticatedVisit({ userId }) {
+  if (userId === undefined || userId === null) return { recorded: false, reason: 'missing-identity' };
+  const store = readStore();
+  const key = String(userId);
+  const registration = store.registrations.find(item => String(item.userId) === key);
+  if (!registration) return { recorded: false, reason: 'no-attribution' };
+  if (store.visits.some(item => String(item.userId) === key)) return { recorded: false, reason: 'already-counted' };
+
+  store.visits.push({
+    id: crypto.randomBytes(12).toString('hex'),
+    userId,
+    source: registration.source,
+    medium: registration.medium,
+    campaign: registration.campaign,
+    content: registration.content,
+    visitedAt: new Date().toISOString(),
+  });
   if (store.visits.length > MAX_EVENTS) store.visits = store.visits.slice(-MAX_EVENTS);
   writeStore(store);
-  return { recorded: true };
+  return { recorded: true, counted: true };
 }
 
 function recordRegistration({ userId, input }) {
@@ -80,13 +114,14 @@ function getReport() {
   const store = readStore();
   const channels = {};
   for (const content of ALLOWED_CONTENT) {
-    const visits = store.visits.filter(item => item.content === content);
+    const visits = store.visits.filter(item => item.content === content && item.userId !== undefined && item.userId !== null);
+    const clicks = store.clicks.filter(item => item.content === content);
     const registrations = store.registrations.filter(item => item.content === content);
     const purchases = store.purchases.filter(item => item.content === content);
     const revenueAmount = purchases.reduce((total, item) => total + Number(item.amount || 0), 0);
     channels[content] = {
       visits: visits.length, registrationCount: registrations.length, visitCount: visits.length,
-      conversionRatePercent: visits.length ? Math.round((registrations.length / visits.length) * 10000) / 100 : 0,
+      conversionRatePercent: clicks.length ? Math.round((registrations.length / clicks.length) * 10000) / 100 : 0,
       paidPurchaseCount: purchases.length, revenueAmount,
       currency: purchases.find(item => item.currency)?.currency || 'IRR',
       recentRegistrations: registrations.slice(-100).map(({ userId, registeredAt, source, medium, campaign, content: channel }) => ({ userId, registeredAt, source, medium, campaign, content: channel })),
@@ -96,4 +131,4 @@ function getReport() {
   return { generatedAt: new Date().toISOString(), channels };
 }
 
-module.exports = { normalizeAttribution, recordVisit, recordRegistration, recordPurchase, getReport };
+module.exports = { normalizeAttribution, recordVisit, recordAuthenticatedVisit, recordRegistration, recordPurchase, getReport };
