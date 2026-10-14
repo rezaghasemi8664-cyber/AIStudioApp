@@ -1,29 +1,37 @@
-﻿// src/api/config.ts
+// src/api/config.ts
 const isDev = import.meta.env.DEV;
 const envApiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
 
 const fallbackApiBaseUrl = isDev
   ? 'http://localhost:3001/api/v1'
-  : 'https://roniya-analyzer.ir/api/v1';
+  : '/api/v1';
 
-const base = envApiBaseUrl || fallbackApiBaseUrl;
+// In production, use the current site origin so browser API calls do not
+// depend on cross-origin CORS or on the apex/www hostname being reachable
+// through the same network path. Keep the configurable absolute URL for dev.
+const base = isDev
+  ? envApiBaseUrl || fallbackApiBaseUrl
+  : fallbackApiBaseUrl;
 
-// اعتبارسنجی ساختار URL
-let parsed: URL;
-try {
-  parsed = new URL(base);
-} catch {
-  throw new Error(`Invalid API base URL: "${base}"`);
+let normalized: string;
+if (base.startsWith('/')) {
+  normalized = base.replace(/\/+$/, '');
+} else {
+  let parsed: URL;
+  try {
+    parsed = new URL(base);
+  } catch {
+    throw new Error(`Invalid API base URL: "${base}"`);
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error('Invalid API base URL protocol. Must be http or https');
+  }
+
+  normalized = parsed.toString().replace(/\/+$/, '');
 }
 
-if (!['http:', 'https:'].includes(parsed.protocol)) {
-  throw new Error('Invalid API base URL protocol. Must be http or https');
-}
-
-// حذف اسلش پایانی
-const normalized = parsed.toString().replace(/\/+$/, '');
-
-// اختیاری: اطمینان از وجود /api/v1
+// Optional: ensure /api/v1 is present.
 if (!/\/api\/v1$/i.test(normalized)) {
   console.warn(`[API CONFIG] Base URL does not end with /api/v1: ${normalized}`);
 }
