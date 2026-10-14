@@ -6,7 +6,7 @@ import type { WatchlistAlertMetric, WatchlistAlertOperator, WatchlistAlertRule, 
 import type { WatchlistAlertHistoryItem } from '../services/watchlistAlertService';
 import * as watchlistService from '../services/watchlistService';
 
-interface Props { isOnline: boolean; }
+interface Props { isOnline: boolean; focusAlertId?: string | null; onAlertFocused?: () => void; }
 const READ_HISTORY_KEY = 'roniya_watchlist_alert_history_read';
 const metricLabel = (metric: WatchlistAlertMetric) => WATCHLIST_ALERT_METRICS.find(item => item.value === metric)?.label || metric;
 const operatorLabel = (operator: WatchlistAlertOperator) => WATCHLIST_ALERT_OPERATORS.find(item => item.value === operator)?.label || operator;
@@ -15,7 +15,7 @@ const dataStatusLabel: Record<alertService.WatchlistAlertDataStatus, string> = {
 const readReadIds = (): string[] => { try { const value = JSON.parse(localStorage.getItem(READ_HISTORY_KEY) || '[]'); return Array.isArray(value) ? value.map(String) : []; } catch { return []; } };
 const persistReadIds = (ids: string[]) => { try { localStorage.setItem(READ_HISTORY_KEY, JSON.stringify(ids.slice(-500))); } catch { /* ignore */ } };
 
-const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
+const WatchlistAlerts: React.FC<Props> = ({ isOnline, focusAlertId, onAlertFocused }) => {
   const { addNotification } = useNotification();
   const [alerts, setAlerts] = useState<WatchlistAlertRule[]>([]);
   const [history, setHistory] = useState<WatchlistAlertHistoryItem[]>([]);
@@ -50,6 +50,35 @@ const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
   const removeCondition = (index: number) => setConditions(prev => prev.length <= 1 ? prev : prev.filter((_, i) => i !== index));
   const markRead = (id: string) => { if (readIds.includes(id)) return; const next = [...readIds, id]; setReadIds(next); persistReadIds(next); };
   const markAllRead = () => { const next = history.map(item => item.id); setReadIds(next); persistReadIds(next); addNotification('همه هشدارهای تاریخچه خوانده شدند.', 'success'); };
+
+  const removeHistoryItem = async (id: string) => {
+    if (!isOnline || !readIds.includes(id)) return;
+    if (!window.confirm('آیا از حذف این هشدار خوانده‌شده از تاریخچه اطمینان دارید؟')) return;
+    try {
+      await alertService.deleteAlertHistoryItem(id);
+      setHistory(previous => previous.filter(item => item.id !== id));
+      const nextReadIds = readIds.filter(readId => readId !== id);
+      setReadIds(nextReadIds); persistReadIds(nextReadIds);
+      if (expandedId === id) setExpandedId(null);
+      addNotification('هشدار از تاریخچه حذف شد.', 'success');
+    } catch (error: any) {
+      addNotification(error?.response?.data?.message || 'حذف هشدار از تاریخچه ناموفق بود.', 'error');
+    }
+  };
+
+  useEffect(() => {
+    if (!focusAlertId || !history.length) return;
+    const target = history.find(item => String(item.id) === String(focusAlertId));
+    if (!target) return;
+    setExpandedId(target.id);
+    const knownReadIds = readReadIds();
+    if (!knownReadIds.includes(target.id)) {
+      const nextReadIds = [...knownReadIds, target.id];
+      setReadIds(nextReadIds); persistReadIds(nextReadIds);
+    }
+    document.getElementById(`watchlist-alert-${target.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    onAlertFocused?.();
+  }, [focusAlertId, history, onAlertFocused]);
 
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -118,7 +147,7 @@ const WatchlistAlerts: React.FC<Props> = ({ isOnline }) => {
 
     <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden">
       <div className="px-4 py-3 border-b border-[var(--color-border)] flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-black">مرکز اعلان‌های هشدار</h3><p className="text-xs text-gray-500 mt-1">Triggerهای واقعی موتور هشدار، با وضعیت خوانده‌شده و Snapshot بازار</p></div><div className="flex items-center gap-2"><span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300 text-xs font-bold">{stats.unread.toLocaleString('fa-IR')} خوانده‌نشده</span><button type="button" onClick={markAllRead} disabled={!stats.unread} className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-xs font-bold disabled:opacity-40">همه را خواندم</button></div></div>
-      {history.length === 0 ? <div className="p-8 text-center text-gray-500">هنوز هیچ هشداری فعال نشده است.</div> : <div className="divide-y divide-[var(--color-border)]">{history.map(item => { const unread = !readIds.includes(item.id); const expanded = expandedId === item.id; return <div key={item.id} className={unread ? 'bg-amber-50/70 dark:bg-amber-950/10' : ''}><button type="button" onClick={() => { markRead(item.id); setExpandedId(expanded ? null : item.id); }} className="w-full text-right px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition"><div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-4"><span className={`w-2.5 h-2.5 rounded-full shrink-0 ${unread ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'}`} /><span className="text-xs text-gray-500 whitespace-nowrap">{new Date(item.triggeredAt).toLocaleString('fa-IR')}</span><span className={`px-2 py-1 rounded-lg text-[11px] font-bold watchlist-alert-data-${item.dataStatus || item.snapshot?.dataStatus || 'UNAVAILABLE'}`}>{dataStatusLabel[item.dataStatus || item.snapshot?.dataStatus || 'UNAVAILABLE']}</span><span className="font-black">{item.symbol}</span><span className="text-sm">{item.logic || 'AND'} · {item.conditions?.length || 1} شرط</span><span className="mr-auto text-xs text-cyan-600">{expanded ? 'بستن جزئیات' : 'مشاهده جزئیات'}</span></div></button>{expanded && <div className="px-4 pb-4 space-y-3"><div className="rounded-xl bg-gray-50 dark:bg-gray-800/70 p-3 grid grid-cols-2 md:grid-cols-6 gap-3 text-xs"><div><span className="text-gray-500">قیمت آخر</span><b className="block mt-1">{item.snapshot?.lastPrice != null ? item.snapshot.lastPrice.toLocaleString('fa-IR') : '—'}</b></div><div><span className="text-gray-500">درصد آخر</span><b className="block mt-1">{item.snapshot?.lastChangePercent != null ? `${item.snapshot.lastChangePercent.toLocaleString('fa-IR')}٪` : '—'}</b></div><div><span className="text-gray-500">حجم</span><b className="block mt-1">{item.snapshot?.volume != null ? item.snapshot.volume.toLocaleString('fa-IR') : '—'}</b></div><div><span className="text-gray-500">قیمت پایانی</span><b className="block mt-1">{item.snapshot?.closePrice != null ? item.snapshot.closePrice.toLocaleString('fa-IR') : '—'}</b></div><div><span className="text-gray-500">زمان Snapshot</span><b className="block mt-1">{item.snapshot?.capturedAt ? new Date(item.snapshot.capturedAt).toLocaleString('fa-IR') : '—'}</b></div><div><span className="text-gray-500">منبع</span><b className="block mt-1">{item.source || item.snapshot?.source || '—'}</b></div></div>{item.conditions?.length ? <div className="rounded-xl border border-[var(--color-border)] p-3 space-y-2"><div className="font-bold text-sm">نتیجه شروط</div>{item.conditions.map((condition, i) => <div key={`${item.id}-condition-${i}`} className="flex flex-wrap items-center gap-2 text-xs"><span>{metricLabel(condition.metric)}</span><span>{operatorLabel(condition.operator)}</span><b>{Number(condition.threshold).toLocaleString('fa-IR')}</b><span>→ {condition.value == null ? 'داده موجود نیست' : Number(condition.value).toLocaleString('fa-IR')}</span><span className={`px-2 py-1 rounded-lg ${condition.matched ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : 'bg-gray-100 dark:bg-gray-800'}`}>{condition.matched ? 'برقرار' : 'برقرار نیست'}</span></div>)}</div> : null}</div>}</div>; })}</div>}
+      {history.length === 0 ? <div className="p-8 text-center text-gray-500">هنوز هیچ هشداری فعال نشده است.</div> : <div className="divide-y divide-[var(--color-border)]">{history.map(item => { const unread = !readIds.includes(item.id); const expanded = expandedId === item.id; return <div key={item.id} id={`watchlist-alert-${item.id}`} className={unread ? 'bg-amber-50/70 dark:bg-amber-950/10' : ''}><button type="button" onClick={() => { markRead(item.id); setExpandedId(expanded ? null : item.id); }} className="w-full text-right px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition"><div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-4"><span className={`w-2.5 h-2.5 rounded-full shrink-0 ${unread ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'}`} /><span className="text-xs text-gray-500 whitespace-nowrap">{new Date(item.triggeredAt).toLocaleString('fa-IR')}</span><span className={`px-2 py-1 rounded-lg text-[11px] font-bold watchlist-alert-data-${item.dataStatus || item.snapshot?.dataStatus || 'UNAVAILABLE'}`}>{dataStatusLabel[item.dataStatus || item.snapshot?.dataStatus || 'UNAVAILABLE']}</span><span className="font-black">{item.symbol}</span><span className="text-sm">{item.logic || 'AND'} · {item.conditions?.length || 1} شرط</span><span className="mr-auto text-xs text-cyan-600">{expanded ? 'بستن جزئیات' : 'مشاهده جزئیات'}</span></div></button>{expanded && <div className="px-4 pb-4 space-y-3"><div className="rounded-xl bg-gray-50 dark:bg-gray-800/70 p-3 grid grid-cols-2 md:grid-cols-6 gap-3 text-xs"><div><span className="text-gray-500">قیمت آخر</span><b className="block mt-1">{item.snapshot?.lastPrice != null ? item.snapshot.lastPrice.toLocaleString('fa-IR') : '—'}</b></div><div><span className="text-gray-500">درصد آخر</span><b className="block mt-1">{item.snapshot?.lastChangePercent != null ? `${item.snapshot.lastChangePercent.toLocaleString('fa-IR')}٪` : '—'}</b></div><div><span className="text-gray-500">حجم</span><b className="block mt-1">{item.snapshot?.volume != null ? item.snapshot.volume.toLocaleString('fa-IR') : '—'}</b></div><div><span className="text-gray-500">قیمت پایانی</span><b className="block mt-1">{item.snapshot?.closePrice != null ? item.snapshot.closePrice.toLocaleString('fa-IR') : '—'}</b></div><div><span className="text-gray-500">زمان Snapshot</span><b className="block mt-1">{item.snapshot?.capturedAt ? new Date(item.snapshot.capturedAt).toLocaleString('fa-IR') : '—'}</b></div><div><span className="text-gray-500">منبع</span><b className="block mt-1">{item.source || item.snapshot?.source || '—'}</b></div></div>{item.conditions?.length ? <div className="rounded-xl border border-[var(--color-border)] p-3 space-y-2"><div className="font-bold text-sm">نتیجه شروط</div>{item.conditions.map((condition, i) => <div key={`${item.id}-condition-${i}`} className="flex flex-wrap items-center gap-2 text-xs"><span>{metricLabel(condition.metric)}</span><span>{operatorLabel(condition.operator)}</span><b>{Number(condition.threshold).toLocaleString('fa-IR')}</b><span>→ {condition.value == null ? 'داده موجود نیست' : Number(condition.value).toLocaleString('fa-IR')}</span><span className={`px-2 py-1 rounded-lg ${condition.matched ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : 'bg-gray-100 dark:bg-gray-800'}`}>{condition.matched ? 'برقرار' : 'برقرار نیست'}</span></div>)}</div> : null}</div>}{!unread && <div className="px-4 pb-3 flex justify-end"><button type="button" onClick={() => void removeHistoryItem(item.id)} disabled={!isOnline} className="rounded-lg px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-950/20 disabled:opacity-50">حذف هشدار خوانده‌شده</button></div>}</div>; })}</div>}
     </div>
   </div>;
 };
