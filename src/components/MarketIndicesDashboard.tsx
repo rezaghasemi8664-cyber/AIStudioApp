@@ -23,7 +23,7 @@ function calculateScore(data: MarketRadarSnapshot | null): Score {
   const breadth = data.breadth;
   if (breadth?.available && breadth.total > 0) {
     const directional = breadth.positive + breadth.negative;
-    if (directional > 0) components.push({ score: Math.max(0, Math.min(100, 50 + ((breadth.positive - breadth.negative) / directional) * 50)), weight: 45 });
+    if (directional > 0) components.push({ score: Math.max(0, Math.min(100, 50 + ((breadth.positive - breadth.negative) / directional) * 50)), weight: 35 });
   }
   const main = data.indices.find(item => /کل/.test(item.name) && !/هم.?وزن/.test(item.name));
   const equal = data.indices.find(item => /هم.?وزن/.test(item.name));
@@ -31,13 +31,20 @@ function calculateScore(data: MarketRadarSnapshot | null): Score {
     const equalScore = equal?.changePercent != null && Number.isFinite(equal.changePercent)
       ? Math.max(0, Math.min(100, 50 + (equal.changePercent * 12))) : null;
     const mainScore = Math.max(0, Math.min(100, 50 + (main.changePercent * 12)));
-    components.push({ score: equalScore == null ? mainScore : (mainScore * 0.6 + equalScore * 0.4), weight: 35 });
+    components.push({ score: equalScore == null ? mainScore : (mainScore * 0.6 + equalScore * 0.4), weight: 30 });
   }
   if (breadth?.sectors.available && breadth.sectors.rows.length) {
     const sectors = breadth.sectors.rows.filter(row => Number.isFinite(row.changePercent));
     if (sectors.length) {
       const average = sectors.reduce((sum, row) => sum + row.changePercent, 0) / sectors.length;
-      components.push({ score: Math.max(0, Math.min(100, 50 + average * 10)), weight: 20 });
+      components.push({ score: Math.max(0, Math.min(100, 50 + average * 10)), weight: 15 });
+    }
+  }
+  const flow = breadth?.realFlow;
+  if (flow?.moneyFlowAvailable && flow.totalRealBuyValue != null && flow.totalRealSellValue != null) {
+    const grossFlow = flow.totalRealBuyValue + flow.totalRealSellValue;
+    if (grossFlow > 0) {
+      components.push({ score: Math.max(0, Math.min(100, 50 + ((flow.totalRealBuyValue - flow.totalRealSellValue) / grossFlow) * 50)), weight: 20 });
     }
   }
   const weight = components.reduce((sum, item) => sum + item.weight, 0);
@@ -60,6 +67,16 @@ function buildAlerts(data: MarketRadarSnapshot | null, previous: MarketRadarSnap
   if (breadth?.available && breadth.total > 0) {
     if (breadth.negativePercent >= 70) alerts.push({ title: 'غلبه نمادهای منفی', detail: `${fa(breadth.negativePercent, 1)}٪ از نمادهای طبقه‌بندی‌شده منفی‌اند.`, kind: 'warning' });
     if (breadth.positivePercent >= 70) alerts.push({ title: 'گستردگی مثبت بازار', detail: `${fa(breadth.positivePercent, 1)}٪ از نمادهای طبقه‌بندی‌شده مثبت‌اند.`, kind: 'info' });
+  }
+  if (breadth?.realFlow?.moneyFlowAvailable && breadth.realFlow.netRealMoneyFlow != null) {
+    if (breadth.realFlow.netRealMoneyFlow < 0) alerts.push({ title: 'خروج خالص پول حقیقی', detail: `خالص ارزش خرید و فروش حقیقی ${fa(Math.abs(breadth.realFlow.netRealMoneyFlow))} ریال منفی است.`, kind: 'warning' });
+    else if (breadth.realFlow.netRealMoneyFlow > 0) alerts.push({ title: 'ورود خالص پول حقیقی', detail: `خالص ارزش خرید و فروش حقیقی ${fa(breadth.realFlow.netRealMoneyFlow)} ریال مثبت است.`, kind: 'info' });
+  }
+  if (breadth?.abnormalVolume?.available && breadth.abnormalVolume.count > 0) {
+    alerts.push({ title: 'افزایش غیرعادی حجم', detail: `${fa(breadth.abnormalVolume.count)} نماد حجم معاملاتی حداقل ${fa(breadth.abnormalVolume.multiplier)} برابر میانگین ماهانه دارند.`, kind: 'info' });
+  }
+  if (breadth?.queues?.available && breadth.queues.sell > breadth.queues.buy && breadth.queues.sell > 0) {
+    alerts.push({ title: 'غلبه صف‌های فروش', detail: `تعداد صف فروش (${fa(breadth.queues.sell)}) از صف خرید (${fa(breadth.queues.buy)}) بیشتر است.`, kind: 'warning' });
   }
   if (previous?.breadth?.total && breadth?.total) {
     const delta = breadth.positivePercent - previous.breadth.positivePercent;
