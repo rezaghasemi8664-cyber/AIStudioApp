@@ -477,6 +477,17 @@ function normalizeMarketSnapshot(input) {
   const date = raw.date || "";
   const time = raw.time || "";
   const state = raw.state || raw.marketState || raw.status || "";
+  const sourceIndex = isPlainObject(raw._raw) ? raw._raw : {};
+  const priceIndex = toFiniteNumber(
+    raw.priceIndex ?? raw.indexPrice ?? raw.index_price ?? raw.price_index ??
+    sourceIndex.priceIndex ?? sourceIndex.indexPrice ?? sourceIndex.index_price ?? sourceIndex.price_index,
+    null
+  );
+  const freeFloatIndex = toFiniteNumber(
+    raw.freeFloatIndex ?? raw.indexFreeFloat ?? raw.index_freeFloat ?? raw.free_float_index ??
+    sourceIndex.freeFloatIndex ?? sourceIndex.indexFreeFloat ?? sourceIndex.index_freeFloat ?? sourceIndex.free_float_index,
+    null
+  );
 
   return {
     date,
@@ -489,6 +500,8 @@ function normalizeMarketSnapshot(input) {
     indexEqualWeight,
     index_equalWeight_change: indexEqualWeightChange,
     indexEqualWeightChange,
+    priceIndex,
+    freeFloatIndex,
     mv: marketValue,
     marketValue,
     tno: tradeCount,
