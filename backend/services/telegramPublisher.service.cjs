@@ -200,7 +200,7 @@ async function publishIndexIfScheduled(now = new Date(), suppliedSettings) {
     return { skipped: true, reason: 'NO_FRESH_CURRENT_MARKET_SNAPSHOT' };
   }
 
-  await sendTelegramMessage(renderIndexMessage(row, now));
+  await sendAndRecord('index', renderIndexMessage(row, now), now);
   await saveState({ ...state, lastIndexSlot: daySlot });
   return { published: true, slot: daySlot };
 }
