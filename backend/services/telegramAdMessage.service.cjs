@@ -18,7 +18,7 @@ function defaultSettings() {
 function normalize(value) {
   const src = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const days = Array.isArray(src.days) ? [...new Set(src.days.map(String).filter(d => DAYS.includes(d)))] : defaultSettings().days;
-  const times = Array.isArray(src.times) ? [...new Set(src.times.map(String).filter(t => /^([01]\\d|2[0-3]):[0-5]\\d$/.test(t)))].sort() : ['10:00'];
+  const times = Array.isArray(src.times) ? [...new Set(src.times.map(String).filter(t => /^([01]\d|2[0-3]):[0-5]\d$/.test(t)))].sort() : ['10:00'];
   const text = String(src.text || '').trim();
   const imageDataUrl = String(src.imageDataUrl || '');
   return { enabled: src.enabled === true, text: text.slice(0, 1024), imageDataUrl, days, times, timezone: TIMEZONE };
@@ -31,13 +31,13 @@ function validate(value, { requireImage = false } = {}) {
   if (data.text.length > 1024) throw new Error('متن تبلیغاتی همراه عکس حداکثر باید ۱۰۲۴ نویسه باشد؛ محدودیت تلگرام برای کپشن عکس است.');
   if (requireImage && !data.imageDataUrl) throw new Error('لطفاً عکس تبلیغ را پیوست کنید.');
   if (data.imageDataUrl) {
-    const match = data.imageDataUrl.match(/^data:(image\\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+    const match = data.imageDataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
     if (!match) throw new Error('فرمت عکس معتبر نیست؛ فقط JPG، PNG یا WEBP مجاز است.');
     const bytes = Buffer.from(match[2], 'base64');
     if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) throw new Error('حجم عکس باید حداکثر ۵ مگابایت باشد.');
   }
   if (value.enabled === true && (!data.days.length || !data.times.length)) throw new Error('برای زمان‌بندی انتشار، حداقل یک روز و یک ساعت انتخاب کنید.');
-  if (Array.isArray(value.times) && value.times.some(t => !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(t)))) throw new Error('یکی از ساعت‌های انتشار نامعتبر است.');
+  if (Array.isArray(value.times) && value.times.some(t => !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(t)))) throw new Error('یکی از ساعت‌های انتشار نامعتبر است.');
   if (Array.isArray(value.days) && value.days.some(d => !DAYS.includes(String(d)))) throw new Error('یکی از روزهای انتشار نامعتبر است.');
   return data;
 }
@@ -75,14 +75,14 @@ function persianError(error) {
   if (/ETIMEDOUT|timeout|AbortError/i.test(raw)) return 'ارتباط با تلگرام بیش از حد طول کشید؛ اتصال سرور را بررسی و دوباره تلاش کنید.';
   if (/fetch failed|ECONNRESET|ENOTFOUND|EAI_AGAIN/i.test(raw)) return 'ارتباط سرور با تلگرام برقرار نشد؛ دسترسی اینترنت سرور به api.telegram.org را بررسی کنید.';
   if (/IMAGE_REQUIRED/.test(raw)) return 'لطفاً عکس تبلیغ را پیوست کنید.';
-  return 'انتشار در تلگرام ناموفق بود. جزئیات فنی: ' + raw.replace(/^TELEGRAM_SEND_FAILED:\\s*/, '').slice(0, 250);
+  return 'انتشار در تلگرام ناموفق بود. جزئیات فنی: ' + raw.replace(/^TELEGRAM_SEND_FAILED:\s*/, '').slice(0, 250);
 }
 
 async function publish(value, now = new Date(), source = 'manual') {
   const settings = validate(value, { requireImage: true });
-  const title = settings.text.split('\\n')[0].slice(0, 180) || 'پیام تبلیغاتی کانال رونیا';
+  const title = settings.text.split('\n')[0].slice(0, 180) || 'پیام تبلیغاتی کانال رونیا';
   try {
-    const match = settings.imageDataUrl.match(/^data:(image\\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+    const match = settings.imageDataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
     const result = await sendTelegramPhoto(Buffer.from(match[2], 'base64'), match[1], settings.text);
     try { await recordTelegramPublisherMessage('custom-ad', 'success', { messageTitle: title + (source === 'scheduled' ? ' (زمان‌بندی‌شده)' : '') }, now); } catch (_) {}
     return { success: true, message: 'پیام تبلیغاتی با موفقیت در کانال تلگرام رونیا منتشر شد.', messageId: result?.message_id || null };
