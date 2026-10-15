@@ -1,11 +1,10 @@
-﻿'use strict';
+'use strict';
 
 var express = require('express');
 var router = express.Router();
 
 var marketHistoryController = require('../controllers/marketHistory.controller.cjs');
 var marketSummaryController = require('../controllers/marketSummary.controller.cjs');
-var marketRadarHistoryController = require('../controllers/marketRadarHistory.controller.cjs');
 var marketSummaryService = require('../services/marketSummary.service.cjs');
 var allSymbolsSnapshotService = require('../services/allSymbolsSnapshot.service.cjs');
 
@@ -14,9 +13,6 @@ router.get('/index', marketHistoryController.getMarketIndex);
 
 // خلاصه بازار
 router.get('/summary', marketSummaryController.getLatestMarketSummary);
-
-// تاریخچه واقعی رادار بازار از MarketSummary - بدون داده ساختگی و بدون هوش مصنوعی
-router.get('/history/radar', marketRadarHistoryController.getHistory);
 
 // داده‌های رشد/افت/حجم و breadth فقط از دیتابیس مشترک خوانده می‌شوند.
 // درخواست کاربر نباید مستقیماً به BRS/TSETMC متصل شود.
