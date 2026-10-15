@@ -36,6 +36,7 @@ function validate(value, { requireImage = false } = {}) {
     const bytes = Buffer.from(match[2], 'base64');
     if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) throw new Error('حجم عکس باید حداکثر ۵ مگابایت باشد.');
   }
+  if (value.enabled === true && !data.imageDataUrl) throw new Error('برای فعال‌کردن انتشار زمان‌بندی‌شده، عکس تبلیغ را پیوست کنید.');
   if (value.enabled === true && (!data.days.length || !data.times.length)) throw new Error('برای زمان‌بندی انتشار، حداقل یک روز و یک ساعت انتخاب کنید.');
   if (Array.isArray(value.times) && value.times.some(t => !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(t)))) throw new Error('یکی از ساعت‌های انتشار نامعتبر است.');
   if (Array.isArray(value.days) && value.days.some(d => !DAYS.includes(String(d)))) throw new Error('یکی از روزهای انتشار نامعتبر است.');
