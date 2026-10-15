@@ -553,6 +553,10 @@ function normalizeMarketSnapshot(input) {
     sourceIndex.freeFloatIndex ?? sourceIndex.indexFreeFloat ?? sourceIndex.index_freeFloat ?? sourceIndex.free_float_index,
     null
   );
+  const priceIndexChange = toFiniteNumber(raw.priceIndexChange ?? raw.indexPriceChange ?? raw.index_price_change ?? sourceIndex.priceIndexChange ?? sourceIndex.indexPriceChange ?? sourceIndex.index_price_change, null);
+  const priceIndexChangePercent = toFiniteNumber(raw.priceIndexChangePercent ?? raw.indexPriceChangePercent ?? raw.index_price_change_percent ?? sourceIndex.priceIndexChangePercent ?? sourceIndex.indexPriceChangePercent ?? sourceIndex.index_price_change_percent, null);
+  const freeFloatIndexChange = toFiniteNumber(raw.freeFloatIndexChange ?? raw.indexFreeFloatChange ?? raw.index_freeFloat_change ?? sourceIndex.freeFloatIndexChange ?? sourceIndex.indexFreeFloatChange ?? sourceIndex.index_freeFloat_change, null);
+  const freeFloatIndexChangePercent = toFiniteNumber(raw.freeFloatIndexChangePercent ?? raw.indexFreeFloatChangePercent ?? raw.index_freeFloat_change_percent ?? sourceIndex.freeFloatIndexChangePercent ?? sourceIndex.indexFreeFloatChangePercent ?? sourceIndex.index_freeFloat_change_percent, null);
 
   return {
     date,
@@ -566,7 +570,11 @@ function normalizeMarketSnapshot(input) {
     index_equalWeight_change: indexEqualWeightChange,
     indexEqualWeightChange,
     priceIndex,
+    priceIndexChange,
+    priceIndexChangePercent,
     freeFloatIndex,
+    freeFloatIndexChange,
+    freeFloatIndexChangePercent,
     mv: marketValue,
     marketValue,
     tno: tradeCount,
