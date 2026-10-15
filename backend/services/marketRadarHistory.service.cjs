@@ -47,8 +47,9 @@ async function getHistory(inputRange) {
   const summaryModel = prisma?.MarketSummary || prisma?.marketSummary;
   const technicalModel = prisma?.MarketTechnicalDaily || prisma?.marketTechnicalDaily;
   const currentModel = prisma?.MarketCurrent || prisma?.marketCurrent;
+  const intradayModel = prisma?.MarketIndexIntradaySnapshot || prisma?.marketIndexIntradaySnapshot;
 
-  if (!summaryModel && !technicalModel && !currentModel) {
+  if (!summaryModel && !technicalModel && !currentModel && !intradayModel) {
     throw new Error('[MarketRadarHistory] No market history model is available.');
   }
 
@@ -57,7 +58,7 @@ async function getHistory(inputRange) {
   // for 3m/6m/1y charts.
   // Select the newest date across every available model. A stale but non-empty
   // MarketTechnicalDaily table must not hide newer MarketSummary/MarketCurrent rows.
-  const [latestTechnical, latestSummary, latestCurrent] = await Promise.all([
+  const [latestTechnical, latestSummary, latestCurrent, latestIntraday] = await Promise.all([
     technicalModel
       ? technicalModel.findFirst({ orderBy: { marketDate: 'desc' }, select: { marketDate: true } })
       : null,
@@ -66,13 +67,17 @@ async function getHistory(inputRange) {
       : null,
     currentModel
       ? currentModel.findFirst({ orderBy: { marketDate: 'desc' }, select: { marketDate: true } })
+      : null,
+    intradayModel
+      ? intradayModel.findFirst({ orderBy: { capturedAt: 'desc' }, select: { marketDate: true } })
       : null
   ]);
 
   const latestDates = [
     latestTechnical?.marketDate,
     latestSummary?.summaryDate,
-    latestCurrent?.marketDate
+    latestCurrent?.marketDate,
+    latestIntraday?.marketDate
   ].filter(Boolean).map((value) => new Date(value)).filter((value) => !Number.isNaN(value.getTime()));
 
   if (!latestDates.length) return { range, available: false, points: [], generatedAt: null };
@@ -80,7 +85,7 @@ async function getHistory(inputRange) {
   const latestDate = latestDates.reduce((latest, value) => value > latest ? value : latest);
   const startDate = startDateFor(range, latestDate);
 
-  const [technicalRows, summaryRows, currentRows] = await Promise.all([
+  const [technicalRows, summaryRows, currentRows, intradayRows] = await Promise.all([
     technicalModel
       ? technicalModel.findMany({
           where: { marketDate: { gte: startDate, lte: latestDate } },
@@ -101,8 +106,31 @@ async function getHistory(inputRange) {
           orderBy: { marketDate: 'asc' },
           select: { marketDate: true, overallIndex: true, equalIndex: true, totalValue: true, totalVolume: true, totalTrades: true }
         })
+      : [],
+    range === '1d' && intradayModel
+      ? intradayModel.findMany({
+          where: { marketDate: latestDate },
+          orderBy: { capturedAt: 'asc' },
+          select: { capturedAt: true, overallIndex: true, equalIndex: true, totalValue: true, totalVolume: true, totalTrades: true }
+        })
       : []
   ]);
+
+  if (range === '1d' && intradayRows.length) {
+    return {
+      range,
+      available: true,
+      points: intradayRows.map(row => ({
+        timestamp: new Date(row.capturedAt).toISOString(),
+        index: toNumber(row.overallIndex),
+        equalWeightedIndex: toNumber(row.equalIndex),
+        totalValue: toNumber(row.totalValue),
+        totalVolume: toNumber(row.totalVolume),
+        totalTrades: toNumber(row.totalTrades)
+      })),
+      generatedAt: new Date().toISOString()
+    };
+  }
 
   const byDate = new Map();
 
