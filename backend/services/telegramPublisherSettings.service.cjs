@@ -116,7 +116,7 @@ function isBeforeEndTime(date, endTime) {
 }
 
 function getDueIntervalSlot(date, startTime, intervalMinutes, graceMinutes = 2) {
-  const match = /^([01]\\d|2[0-3]):([0-5]\\d)$/.exec(String(startTime || ''));
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(startTime || ''));
   if (!match) return null;
   const p = tehranParts(date);
   const current = Number(p.hour) * 60 + Number(p.minute);
