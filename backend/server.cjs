@@ -658,6 +658,7 @@ mountRoute('/api/v1/valuable-symbols', './routes/valuableSymbols.routes.cjs', 'V
 mountRoute('/api/v1/subscriptions', './routes/subscriptions.routes.cjs', 'Subscriptions v1 alias (priority)');
 mountRoute('/api/v1/site-analytics', './routes/siteAnalytics.routes.cjs', 'Site Analytics v1 alias (priority)');
 mountRoute('/api/v1/marketing-attribution', './routes/marketingAttribution.routes.cjs', 'Marketing attribution v1 alias');
+mountRoute('/api/v1/telegram-publisher-admin', './routes/telegramPublisherAdmin.routes.cjs', 'Telegram Publisher Admin v1 alias (priority)');
 
 // Keep this explicit alias before the broad /api/v1 aggregator; its fallback can intercept referral requests.
 mountRoute('/api/v1/referrals', './routes/referral.routes.cjs', 'Referral Invites v1 alias (priority)');
