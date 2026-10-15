@@ -23,7 +23,7 @@ export interface MarketingAttributionChannelReport {
 }
 export interface MarketingAttributionReport {
   generatedAt: string;
-  channels: Record<'bursebazaar' | 'arzonlineinfo', MarketingAttributionChannelReport>;
+  channels: Record<'bursebazaar' | 'arzonlineinfo' | 'roniya', MarketingAttributionChannelReport>;
 }
 export async function getMarketingAttributionReport(): Promise<MarketingAttributionReport> {
   const response = await get<MarketingAttributionReport>('/marketing-attribution/report');
