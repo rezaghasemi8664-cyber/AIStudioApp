@@ -1080,15 +1080,39 @@ function mapAllSymbolsItem(item) {
     low: toNumber(item.pmin != null ? item.pmin : item.low),
     allowedMin: toNumber(item.tmin),
     allowedMax: toNumber(item.tmax),
+    // Preserve all five BRSAPI order-book levels. Missing levels stay null
+    // and are filtered out instead of being represented as fabricated zeros.
     orderBook: {
-      buy: [{ price: toNumber(item.pd1), volume: toInt(item.qd1) }],
-      sell: [{ price: toNumber(item.po1), volume: toInt(item.qo1) }]
+      buy: Array.from({ length: 5 }, function (_, index) {
+        var level = index + 1;
+        return {
+          level: level,
+          price: toNumber(item['pd' + level]),
+          volume: toInt(item['qd' + level]),
+          count: toInt(item['zd' + level])
+        };
+      }).filter(function (level) {
+        return level.price != null || level.volume != null || level.count != null;
+      }),
+      sell: Array.from({ length: 5 }, function (_, index) {
+        var level = index + 1;
+        return {
+          level: level,
+          price: toNumber(item['po' + level]),
+          volume: toInt(item['qo' + level]),
+          count: toInt(item['zo' + level])
+        };
+      }).filter(function (level) {
+        return level.price != null || level.volume != null || level.count != null;
+      })
     },
     tradeCount: toInt(item.tno != null ? item.tno : item.count),
     tradeVolume: tradeVolume,
     tradeValue: tradeValue,
     averagePrice: avgPrice,
     shares: toNumber(item.z),
+    // BRSAPI may supply free-float percentage as ff; keep it unavailable when absent.
+    freeFloatPercent: toNumber(item.ff),
     baseVolume: toInt(item.bvol),
     marketCap: toNumber(item.mv),
     eps: toNumber(item.eps),
@@ -1097,8 +1121,8 @@ function mapAllSymbolsItem(item) {
     realSellVolume: nz(toInt(item.Sell_I_Volume), 0),
     realBuyValue: toNumber(item.Buy_I_Value != null ? item.Buy_I_Value : item.buy_I_Value),
     realSellValue: toNumber(item.Sell_I_Value != null ? item.Sell_I_Value : item.sell_I_Value),
-    realBuyCount: nz(toInt(item.Buy_CountI), 0),
-    realSellCount: nz(toInt(item.Sell_CountI), 0),
+    realBuyCount: toInt(item.Buy_CountI),
+    realSellCount: toInt(item.Sell_CountI),
     volumeAvg1m: toInt(item.tvol_avg_1m != null ? item.tvol_avg_1m : item.volumeAvg1m),
     instBuyVolume: nz(toInt(item.Buy_N_Volume), 0),
     instSellVolume: nz(toInt(item.Sell_N_Volume), 0),

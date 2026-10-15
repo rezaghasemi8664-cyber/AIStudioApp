@@ -90,6 +90,10 @@ function normalizeBRSRow(row) {
     sector: text(row, ['sector', 'cs', 'sectorName', 'industryName', 'groupName']),
     realBuyVolume: first(row, ['realBuyVolume', 'Buy_I_Volume', 'buy_I_Volume']) || 0,
     realSellVolume: first(row, ['realSellVolume', 'Sell_I_Volume', 'sell_I_Volume']) || 0,
+    realBuyValue: first(row, ['realBuyValue', 'Buy_I_Value', 'buy_I_Value']),
+    realSellValue: first(row, ['realSellValue', 'Sell_I_Value', 'sell_I_Value']),
+    realBuyCount: first(row, ['realBuyCount', 'Buy_CountI', 'buy_CountI']),
+    realSellCount: first(row, ['realSellCount', 'Sell_CountI', 'sell_CountI']),
     legalBuyVolume: first(row, ['instBuyVolume', 'legalBuyVolume', 'Buy_N_Volume', 'buy_N_Volume']) || 0,
     legalSellVolume: first(row, ['instSellVolume', 'legalSellVolume', 'Sell_N_Volume', 'sell_N_Volume']) || 0,
   };
@@ -166,30 +170,57 @@ function moneyFlowFromRows(rows) {
   let sellVolume = 0;
   let buyValue = 0;
   let sellValue = 0;
+  let buyValueRows = 0;
+  let sellValueRows = 0;
+  let buyCount = 0;
+  let sellCount = 0;
+  let buyCountRows = 0;
+  let sellCountRows = 0;
   let matchedSymbols = 0;
 
   for (const row of rows) {
     if (row.realBuyVolume <= 0 && row.realSellVolume <= 0) continue;
-    const price = row.last ?? row.close ?? 0;
     buyVolume += row.realBuyVolume;
     sellVolume += row.realSellVolume;
-    buyValue += row.realBuyVolume * price;
-    sellValue += row.realSellVolume * price;
+    // Use actual BRSAPI investor values when supplied; do not estimate them
+    // from last price and volume because that can misstate transaction values.
+    if (row.realBuyValue !== null && row.realBuyValue !== undefined) {
+      buyValue += row.realBuyValue;
+      buyValueRows += 1;
+    }
+    if (row.realSellValue !== null && row.realSellValue !== undefined) {
+      sellValue += row.realSellValue;
+      sellValueRows += 1;
+    }
+    if (row.realBuyCount !== null && row.realBuyCount !== undefined) {
+      buyCount += row.realBuyCount;
+      buyCountRows += 1;
+    }
+    if (row.realSellCount !== null && row.realSellCount !== undefined) {
+      sellCount += row.realSellCount;
+      sellCountRows += 1;
+    }
     matchedSymbols += 1;
   }
 
   if (!matchedSymbols) return null;
+  const hasBuyValue = buyValueRows > 0;
+  const hasSellValue = sellValueRows > 0;
+  const hasBuyCount = buyCountRows > 0;
+  const hasSellCount = sellCountRows > 0;
   return {
     available: true,
     buyVolume,
     sellVolume,
     netVolume: buyVolume - sellVolume,
-    buyValue,
-    sellValue,
-    netValue: buyValue - sellValue,
-    buyCount: null,
-    sellCount: null,
+    buyValue: hasBuyValue ? buyValue : null,
+    sellValue: hasSellValue ? sellValue : null,
+    netValue: hasBuyValue && hasSellValue ? buyValue - sellValue : null,
+    buyCount: hasBuyCount ? buyCount : null,
+    sellCount: hasSellCount ? sellCount : null,
     matchedSymbols,
+    valueCoverageSymbols: { buy: buyValueRows, sell: sellValueRows },
+    countCoverageSymbols: { buy: buyCountRows, sell: sellCountRows },
     source: 'brs-all-symbols',
   };
 }
