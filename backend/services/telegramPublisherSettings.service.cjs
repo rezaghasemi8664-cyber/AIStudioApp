@@ -115,13 +115,21 @@ function isBeforeEndTime(date, endTime) {
   return current < end;
 }
 
-function isIntervalDue(date, startTime, intervalMinutes) {
-  const [startHour, startMinute] = String(startTime || '09:15').split(':').map(Number);
+function getDueIntervalSlot(date, startTime, intervalMinutes, graceMinutes = 2) {
+  const match = /^([01]\\d|2[0-3]):([0-5]\\d)$/.exec(String(startTime || ''));
+  if (!match) return null;
   const p = tehranParts(date);
   const current = Number(p.hour) * 60 + Number(p.minute);
-  const start = startHour * 60 + startMinute;
+  const start = Number(match[1]) * 60 + Number(match[2]);
   const interval = boundedInteger(intervalMinutes, 60, 1, 720);
-  return current >= start && (current - start) % interval === 0;
+  if (current < start) return null;
+  const scheduled = start + Math.floor((current - start) / interval) * interval;
+  if (current - scheduled > Math.max(0, Number(graceMinutes) || 0)) return null;
+  return String(Math.floor(scheduled / 60)).padStart(2, '0') + ':' + String(scheduled % 60).padStart(2, '0');
+}
+
+function isIntervalDue(date, startTime, intervalMinutes) {
+  return getDueIntervalSlot(date, startTime, intervalMinutes, 0) !== null;
 }
 
 async function readJsonConfig(key, fallback) {
@@ -185,7 +193,7 @@ async function recordTelegramPublisherMessage(type, status, details = {}, now = 
 
 module.exports = {
   SETTINGS_KEY, HISTORY_KEY, TIMEZONE, WEEKDAYS, TRADING_DAYS, DEFAULT_SETTINGS,
-  tehranParts, tehranDateKey, tehranTime, isAllowedWeekday, isIntervalDue, isBeforeEndTime,
+  tehranParts, tehranDateKey, tehranTime, isAllowedWeekday, isIntervalDue, getDueIntervalSlot, isBeforeEndTime,
   normalizeSettings, validateSettings, getTelegramPublisherSettings,
   saveTelegramPublisherSettings, getTelegramPublisherHistory, recordTelegramPublisherMessage
 };
