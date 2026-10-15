@@ -26,7 +26,14 @@ function registerTelegramPublisherCron() {
         console.warn('[CRON][TelegramPublisher] Skipping tick: credentials or channel target are not configured.');
         return;
       }
-      await runTelegramPublisherTick();
+      const result = await runTelegramPublisherTick();
+      const outcomes = Array.isArray(result?.outcomes) ? result.outcomes : [];
+      const summary = outcomes.map(item => {
+        if (item.error) return item.name + '=ERROR(' + item.error + ')';
+        if (item.published || item.success === true) return item.name + '=PUBLISHED';
+        return item.name + '=SKIPPED(' + String(item.reason || 'NO_CHANGE') + ')';
+      }).join(' | ');
+      console.log('[CRON][TelegramPublisher] Tick completed at ' + new Date().toISOString() + ': ' + (summary || 'no outcomes'));
     } catch (error) {
       console.error('[CRON][TelegramPublisher] Tick failed:', error?.message || error);
     } finally {
