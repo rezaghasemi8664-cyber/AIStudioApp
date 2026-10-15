@@ -40,7 +40,9 @@ function normalizeSymbol(item) {
     allowedMin: toNumber(item.allowedMin),
     allowedMax: toNumber(item.allowedMax),
     legalBuyVolume: item.instBuyVolume == null ? 0 : Math.trunc(Number(item.instBuyVolume)),
-    legalSellVolume: item.instSellVolume == null ? 0 : Math.trunc(Number(item.instSellVolume))
+    legalSellVolume: item.instSellVolume == null ? 0 : Math.trunc(Number(item.instSellVolume)),
+    legalBuyValue: item.instBuyValue == null || item.instBuyValue === '' ? null : toNumber(item.instBuyValue),
+    legalSellValue: item.instSellValue == null || item.instSellValue === '' ? null : toNumber(item.instSellValue)
   };
 }
 
@@ -88,7 +90,8 @@ function buildDerived(symbols, generatedAt) {
     realBuyCount: row.realBuyCount, realSellCount: row.realSellCount,
     volumeAvg1m: row.volumeAvg1m, orderBook: row.orderBook,
     allowedMin: row.allowedMin, allowedMax: row.allowedMax,
-    legalBuyVolume: row.legalBuyVolume, legalSellVolume: row.legalSellVolume
+    legalBuyVolume: row.legalBuyVolume, legalSellVolume: row.legalSellVolume,
+    legalBuyValue: row.legalBuyValue, legalSellValue: row.legalSellValue
   });
 
   const gainers = valid.filter(r => r.radarChangePercent > 0)
@@ -111,6 +114,12 @@ function buildDerived(symbols, generatedAt) {
   const realSellerCount = moneyFlowRows.reduce((sum,row) => sum + Math.max(0,Number(row.realSellCount||0)),0);
   const averageRealBuyPerBuyer = realBuyerCount > 0 ? totalRealBuyValue / realBuyerCount : null;
   const averageRealSellPerSeller = realSellerCount > 0 ? totalRealSellValue / realSellerCount : null;
+  const legalMoneyFlowRows = valid.filter(row => Number.isFinite(row.legalBuyValue) && Number.isFinite(row.legalSellValue));
+  const totalLegalBuyValue = legalMoneyFlowRows.reduce((sum,row) => sum + Math.max(0,row.legalBuyValue),0);
+  const totalLegalSellValue = legalMoneyFlowRows.reduce((sum,row) => sum + Math.max(0,row.legalSellValue),0);
+  const legalVolumeRows = valid.filter(row => Number.isFinite(row.legalBuyVolume) && Number.isFinite(row.legalSellVolume));
+  const totalLegalBuyVolume = legalVolumeRows.reduce((sum,row) => sum + Math.max(0,Number(row.legalBuyVolume||0)),0);
+  const totalLegalSellVolume = legalVolumeRows.reduce((sum,row) => sum + Math.max(0,Number(row.legalSellVolume||0)),0);
   const abnormalVolumeRows = valid.filter(row =>
     Number.isFinite(row.volumeAvg1m) && row.volumeAvg1m > 0 &&
     Number.isFinite(row.volume) && row.volume >= row.volumeAvg1m * 2
@@ -180,6 +189,13 @@ function buildDerived(symbols, generatedAt) {
         realSellerCount:moneyFlowRows.length ? realSellerCount : null,
         averageRealBuyPerBuyer, averageRealSellPerSeller,
         perCapitaRatio:averageRealBuyPerBuyer != null && averageRealSellPerSeller > 0 ? averageRealBuyPerBuyer/averageRealSellPerSeller : null,
+        legalFlowAvailable:legalMoneyFlowRows.length > 0,
+        legalFlowRows:legalMoneyFlowRows.length,
+        totalLegalBuyValue:legalMoneyFlowRows.length ? totalLegalBuyValue : null,
+        totalLegalSellValue:legalMoneyFlowRows.length ? totalLegalSellValue : null,
+        netLegalMoneyFlow:legalMoneyFlowRows.length ? totalLegalBuyValue-totalLegalSellValue : null,
+        legalVolumeAvailable:legalVolumeRows.length > 0,
+        totalLegalBuyVolume, totalLegalSellVolume,
         unit:moneyFlowRows.length ? 'rial' : 'volume'
       },
       abnormalVolume:{available:valid.some(row => Number.isFinite(row.volumeAvg1m) && row.volumeAvg1m > 0),count:abnormalVolumeRows.length,multiplier:2,baseline:'BRS monthly average volume'},
