@@ -3,8 +3,8 @@ export type MarketRadarHistoryRange = '1d' | '1w' | '1m' | '3m' | '6m' | '1y';
 export interface MarketRadarIndex {
   name: string;
   value: number | null;
-  changeValue: number;
-  changePercent: number;
+  changeValue: number | null;
+  changePercent: number | null;
 }
 
 export interface MarketRadarMover {

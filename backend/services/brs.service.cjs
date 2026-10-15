@@ -1101,7 +1101,9 @@ function mapAllSymbolsItem(item) {
     realSellCount: nz(toInt(item.Sell_CountI), 0),
     volumeAvg1m: toInt(item.tvol_avg_1m != null ? item.tvol_avg_1m : item.volumeAvg1m),
     instBuyVolume: nz(toInt(item.Buy_N_Volume), 0),
-    instSellVolume: nz(toInt(item.Sell_N_Volume), 0)
+    instSellVolume: nz(toInt(item.Sell_N_Volume), 0),
+    instBuyValue: toNumber(item.Buy_N_Value != null ? item.Buy_N_Value : item.buy_N_Value),
+    instSellValue: toNumber(item.Sell_N_Value != null ? item.Sell_N_Value : item.sell_N_Value)
   };
 
   result.lastClosePrice = result.closingPrice;

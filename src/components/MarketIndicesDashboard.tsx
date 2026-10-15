@@ -148,6 +148,8 @@ const MarketIndicesDashboard: React.FC = () => {
   const breadth = data?.breadth ?? null;
   const mainIndex = data?.indices.find(item => /کل/.test(item.name) && !/هم.?وزن/.test(item.name));
   const equalIndex = data?.indices.find(item => /هم.?وزن/.test(item.name));
+  const priceIndex = data?.indices.find(item => /شاخص قیمت|price index/i.test(item.name));
+  const freeFloatIndex = data?.indices.find(item => /آزاد\s*شناور|free.?float/i.test(item.name));
   const lastUpdated = breadth?.generatedAt ? new Intl.DateTimeFormat('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(breadth.generatedAt)) : 'زمان منبع نامشخص';
   const marketLabel = breadth?.available && breadth.total > 0 ? breadth.positive > breadth.negative ? 'مثبت' : breadth.negative > breadth.positive ? 'منفی' : 'متعادل' : 'نامشخص';
 
@@ -162,8 +164,8 @@ const MarketIndicesDashboard: React.FC = () => {
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <Metric label="شاخص کل بورس" value={fa(mainIndex?.value, 2)} change={mainIndex?.changePercent ?? null} sub={mainIndex ? `تغییر: ${fa(mainIndex.changeValue, 2)}` : 'داده معتبر موجود نیست'} />
       <Metric label="شاخص کل هم‌وزن" value={fa(equalIndex?.value, 2)} change={equalIndex?.changePercent ?? null} sub={equalIndex ? `تغییر: ${fa(equalIndex.changeValue, 2)}` : 'داده معتبر موجود نیست'} />
-      <Metric label="شاخص قیمت" value="در دسترس نیست" sub="در قرارداد داده فعلی تأیید نشده" />
-      <Metric label="شاخص آزاد شناور" value="در دسترس نیست" sub="در قرارداد داده فعلی تأیید نشده" />
+      <Metric label="شاخص قیمت" value={priceIndex?.value == null ? 'در دسترس نیست' : fa(priceIndex.value, 2)} change={priceIndex?.changePercent ?? null} sub={priceIndex ? `تغییر: ${fa(priceIndex.changeValue, 2)}` : 'در پاسخ معتبر منبع موجود نیست'} />
+      <Metric label="شاخص آزاد شناور" value={freeFloatIndex?.value == null ? 'در دسترس نیست' : fa(freeFloatIndex.value, 2)} change={freeFloatIndex?.changePercent ?? null} sub={freeFloatIndex ? `تغییر: ${fa(freeFloatIndex.changeValue, 2)}` : 'در پاسخ معتبر منبع موجود نیست'} />
       <Metric label="ارزش کل معاملات" value={data?.totalValue == null ? '—' : fa(data.totalValue)} sub="واحد طبق منبع داده" />
       <Metric label="حجم کل معاملات" value={data?.totalVolume == null ? '—' : fa(data.totalVolume)} />
       <Metric label="تعداد معاملات" value={data?.totalTrades == null ? '—' : fa(data.totalTrades)} />
