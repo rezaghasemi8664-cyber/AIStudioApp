@@ -18,11 +18,12 @@ export interface MarketingAttributionChannelReport {
   revenueAmount: number;
   currency: string;
   recentRegistrations: MarketingAttributionRegistration[];
+  recentClicks: Array<{ id: string; clickedAt: string; source: string; medium: string; campaign: string; content: string }>;
   recentPurchases: Array<{ paymentId: string; userId: number | string; planId: number | null; amount: number; currency: string; refId: string | null; paidAt: string; content: string }>;
 }
 export interface MarketingAttributionReport {
   generatedAt: string;
-  channels: Record<'bursebazaar' | 'arzonlineinfo', MarketingAttributionChannelReport>;
+  channels: Record<'bursebazaar' | 'arzonlineinfo' | 'roniya', MarketingAttributionChannelReport>;
 }
 export async function getMarketingAttributionReport(): Promise<MarketingAttributionReport> {
   const response = await get<MarketingAttributionReport>('/marketing-attribution/report');

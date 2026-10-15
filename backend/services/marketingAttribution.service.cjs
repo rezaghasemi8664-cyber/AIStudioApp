@@ -6,7 +6,7 @@ const crypto = require('crypto');
 
 const dataDir = path.join(__dirname, '..', 'data');
 const filePath = path.join(dataDir, 'marketing-attribution.json');
-const ALLOWED_CONTENT = new Set(['bursebazaar', 'arzonlineinfo']);
+const ALLOWED_CONTENT = new Set(['bursebazaar', 'arzonlineinfo', 'roniya']);
 const MAX_EVENTS = 100000;
 
 function normalizeAttribution(input) {
@@ -125,7 +125,8 @@ function getReport() {
       paidPurchaseCount: purchases.length, revenueAmount,
       currency: purchases.find(item => item.currency)?.currency || 'IRR',
       recentRegistrations: registrations.slice(-100).map(({ userId, registeredAt, source, medium, campaign, content: channel }) => ({ userId, registeredAt, source, medium, campaign, content: channel })),
-      recentPurchases: purchases.slice(-100).map(({ paymentId, userId, planId, amount, currency, refId, paidAt, content: channel }) => ({ paymentId, userId, planId, amount, currency, refId, paidAt, content: channel }))
+      recentPurchases: purchases.slice(-100).map(({ paymentId, userId, planId, amount, currency, refId, paidAt, content: channel }) => ({ paymentId, userId, planId, amount, currency, refId, paidAt, content: channel })),
+      recentClicks: clicks.slice(-100).map(({ id, clickedAt, source, medium, campaign, content: channel }) => ({ id, clickedAt, source, medium, campaign, content: channel }))
     };
   }
   return { generatedAt: new Date().toISOString(), channels };

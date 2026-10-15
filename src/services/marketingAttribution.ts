@@ -9,7 +9,7 @@ export interface MarketingAttribution {
 }
 
 const STORAGE_KEY = 'roniyaMarketingAttribution';
-const ALLOWED_CONTENT = new Set(['bursebazaar', 'arzonlineinfo']);
+const ALLOWED_CONTENT = new Set(['bursebazaar', 'arzonlineinfo', 'roniya']);
 let visitRequestInFlight: Promise<void> | null = null;
 
 function clean(value: string | null, maxLength = 100): string {
