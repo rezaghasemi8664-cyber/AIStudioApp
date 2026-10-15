@@ -7,11 +7,12 @@ const ranges: Array<{ value: MarketRadarHistoryRange; label: string }> = [
   { value: '3m', label: '۳ ماه' }, { value: '6m', label: '۶ ماه' }, { value: '1y', label: '۱ سال' },
 ];
 
-type Metric = 'index' | 'equalWeightedIndex' | 'value' | 'volume';
+type Metric = 'index' | 'equalWeightedIndex' | 'value' | 'cumulativeValue' | 'volume';
 const metrics: Array<{ value: Metric; label: string; key: keyof MarketRadarHistoryPoint; format: 'number' | 'compact' }> = [
   { value: 'index', label: 'شاخص کل', key: 'index', format: 'number' },
   { value: 'equalWeightedIndex', label: 'شاخص هم‌وزن', key: 'equalWeightedIndex', format: 'number' },
-  { value: 'value', label: 'ارزش معاملات', key: 'totalValue', format: 'compact' },
+  { value: 'value', label: 'ارزش معاملات هر نقطه/روز', key: 'totalValue', format: 'compact' },
+  { value: 'cumulativeValue', label: 'ارزش معاملات تجمعی', key: 'totalValue', format: 'compact' },
   { value: 'volume', label: 'حجم معاملات', key: 'totalVolume', format: 'compact' },
 ];
 
@@ -73,7 +74,16 @@ const MarketRadarHistory: React.FC = () => {
   }, [range]);
 
   const selectedMetric = metrics.find((item) => item.value === metric) ?? metrics[0];
-  const values = useMemo(() => data?.points.map((point) => point[selectedMetric.key] as number | null) ?? [], [data, selectedMetric.key]);
+  const values = useMemo(() => {
+    const raw = data?.points.map((point) => point[selectedMetric.key] as number | null) ?? [];
+    if (metric !== 'cumulativeValue') return raw;
+    let runningTotal = 0;
+    return raw.map((value) => {
+      if (!valueIsValid(value)) return null;
+      runningTotal += Math.max(0, value);
+      return runningTotal;
+    });
+  }, [data, selectedMetric.key, metric]);
   const equalValues = useMemo(() => data?.points.map((point) => point.equalWeightedIndex) ?? [], [data]);
   const validValues = values.filter(valueIsValid);
   const validEqualValues = equalValues.filter(valueIsValid);
@@ -83,7 +93,7 @@ const MarketRadarHistory: React.FC = () => {
   const lastEqualValid = [...equalValues].reverse().find(valueIsValid) ?? null;
   const lastValue = lastValid;
   const hoveredPoint = hovered && data?.points[hovered.index];
-  const hoveredValue = hoveredPoint ? hoveredPoint[selectedMetric.key] as number | null : null;
+  const hoveredValue = hovered && values[hovered.index] !== undefined ? values[hovered.index] : null;
   const hoveredEqual = hoveredPoint?.equalWeightedIndex ?? null;
   const valueLabel = (value: number | null | undefined) => selectedMetric.format === 'compact' ? compactFa(value) : fa(value, 2);
   const rangeChange = percentChange(firstValid, lastValue);
@@ -100,7 +110,7 @@ const MarketRadarHistory: React.FC = () => {
 
   return <article dir="rtl" className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-      <div><h2 className="font-black text-[var(--color-text-primary)]">روند تاریخی بازار</h2><p className="mt-1 text-xs text-slate-500">{range === '1d' && data?.granularity === 'intraday' ? 'نقاط زمان‌دار جلسه جاری از ثبت‌های واقعی شاخص؛ بدون تولید یا برآورد داده' : 'داده روزانه واقعی از پایگاه بازار؛ بدون تولید یا برآورد داده'}</p></div>
+      <div><h2 className="font-black text-[var(--color-text-primary)]">روند تاریخی بازار</h2><p className="mt-1 text-xs text-slate-500">{range === '1d' && data?.granularity === 'intraday' ? 'نقاط زمان‌دار جلسه جاری از ثبت‌های واقعی شاخص؛ ارزش تجمعی از جمع همین نقاط محاسبه می‌شود.' : 'داده روزانه واقعی از پایگاه بازار؛ در حالت تجمعی، ارزش نقاط موجود در بازه با هم جمع می‌شود.'}</p></div>
       <div className="flex flex-wrap gap-2">{ranges.map((item) => <button key={item.value} onClick={() => setRange(item.value)} className={`rounded-xl px-3 py-2 text-sm font-black transition ${range === item.value ? 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-400/30' : 'border border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.06]'}`}>{item.label}</button>)}</div>
     </div>
 
