@@ -5,14 +5,25 @@ const {
   isFresh, formatPercent, normalizeValuableResults, getImportantSymbolChanges,
   renderSummaryMessage, renderIndexMessage
 } = require('../services/telegramPublisher.service.cjs');
-const { DEFAULT_SETTINGS, normalizeSettings, validateSettings, isAllowedWeekday, isIntervalDue } = require('../services/telegramPublisherSettings.service.cjs');
+const { DEFAULT_SETTINGS, normalizeSettings, validateSettings, isAllowedWeekday, isIntervalDue, isBeforeEndTime } = require('../services/telegramPublisherSettings.service.cjs');
 
 describe('Telegram publisher helpers', () => {
   test('uses configurable Tehran index intervals', () => {
     expect(DEFAULT_SETTINGS.index.startTime).toBe('09:15');
+    expect(DEFAULT_SETTINGS.valuable.endTime).toBe('12:30');
+    expect(DEFAULT_SETTINGS.scalping.endTime).toBe('12:30');
+    expect(DEFAULT_SETTINGS.index.endTime).toBe('12:30');
     expect(isIntervalDue(new Date('2026-10-10T05:45:00.000Z'), '09:15', 60)).toBe(true);
     expect(isIntervalDue(new Date('2026-10-10T06:45:00.000Z'), '09:15', 60)).toBe(true);
     expect(isIntervalDue(new Date('2026-10-10T06:30:00.000Z'), '09:15', 60)).toBe(false);
+  });
+  test('stops configured publication at the Tehran end time, including the exact minute', () => {
+    const beforeEnd = new Date('2026-10-10T08:59:00.000Z'); // 12:29 Tehran
+    const atEnd = new Date('2026-10-10T09:00:00.000Z'); // 12:30 Tehran
+    expect(isBeforeEndTime(beforeEnd, '12:30')).toBe(true);
+    expect(isBeforeEndTime(atEnd, '12:30')).toBe(false);
+    expect(isBeforeEndTime(new Date('2026-10-10T07:00:00.000Z'), '11:00')).toBe(true);
+    expect(isBeforeEndTime(new Date('2026-10-10T07:00:00.000Z'), 'invalid')).toBe(false);
   });
   test('normalizes publisher settings and applies selected Tehran weekdays', () => {
     const settings = normalizeSettings({ valuable: { enabled: false, intervalMinutes: 30, days: ['Sat'], maxSymbolsPerMessage: 5 } });
@@ -25,6 +36,10 @@ describe('Telegram publisher helpers', () => {
     expect(() => validateSettings(invalidInterval)).toThrow('فاصله انتشار');
     const invalidLimit = { ...DEFAULT_SETTINGS, scalping: { ...DEFAULT_SETTINGS.scalping, maxSymbolsPerMessage: 21 } };
     expect(() => validateSettings(invalidLimit)).toThrow('حداکثر نماد');
+  });
+  test('rejects invalid configured publication end times', () => {
+    const invalid = { ...DEFAULT_SETTINGS, valuable: { ...DEFAULT_SETTINGS.valuable, endTime: '25:00' } };
+    expect(() => validateSettings(invalid)).toThrow('زمان پایان انتشار');
   });
   test('uses Tehran local time for session and date calculations', () => {
     const duringSession = new Date('2026-10-10T05:45:00.000Z');
