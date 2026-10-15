@@ -131,18 +131,23 @@ function buildDerived(symbols, generatedAt) {
   const sectorsMap = new Map();
   for (const row of valid) {
     const name = String(row.sector || '').trim() || 'سایر / صنعت نامشخص';
-    const s = sectorsMap.get(name) || {symbols:0,positive:0,negative:0,neutral:0,sumPct:0,value:0};
+    const s = sectorsMap.get(name) || {symbols:0,positive:0,negative:0,neutral:0,sumPct:0,value:0,realMoneyFlow:0,moneyFlowRows:0};
     s.symbols++;
     if (row.radarChangePercent > 0) s.positive++;
     else if (row.radarChangePercent < 0) s.negative++;
     else s.neutral++;
     s.sumPct += row.radarChangePercent;
     s.value += Number(row.value || 0);
+    if (Number.isFinite(row.realBuyValue) && Number.isFinite(row.realSellValue)) {
+      s.realMoneyFlow += row.realBuyValue - row.realSellValue;
+      s.moneyFlowRows += 1;
+    }
     sectorsMap.set(name,s);
   }
   const sectors = [...sectorsMap.entries()].map(([name,s]) => ({
     name, symbols:s.symbols, positive:s.positive, negative:s.negative, neutral:s.neutral,
-    changePercent:s.symbols ? s.sumPct/s.symbols : 0, value:s.value, rank:0
+    changePercent:s.symbols ? s.sumPct/s.symbols : 0, value:s.value,
+    realMoneyFlow:s.moneyFlowRows ? s.realMoneyFlow : null, moneyFlowRows:s.moneyFlowRows, rank:0
   })).filter(r => Number.isFinite(r.changePercent));
   sectors.sort((a,b) => b.changePercent-a.changePercent);
   sectors.forEach((r,i)=>{r.rank=i+1;});
