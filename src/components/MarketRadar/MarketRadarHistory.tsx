@@ -90,14 +90,17 @@ const MarketRadarHistory: React.FC = () => {
   const equalRangeChange = percentChange(validEqualValues[0], lastEqualValid);
   const rangeChangeLabel = rangeChange === null ? '—' : `${rangeChange >= 0 ? '+' : ''}${fa(rangeChange, 2)}٪`;
   const equalRangeChangeLabel = equalRangeChange === null ? '—' : `${equalRangeChange >= 0 ? '+' : ''}${fa(equalRangeChange, 2)}٪`;
-  // For 1d, the first point is only the previous-session baseline and must not affect today's high/low.
-  const extremaValues = range === '1d' && values.length > 1 ? values.slice(1).filter(valueIsValid) : validValues;
+  const pointDateLabel = (value: string) => data?.granularity === 'intraday'
+    ? new Intl.DateTimeFormat('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
+    : dateFa(value);
+  // Daily fallback may include the previous-session baseline; intraday points are all from the current session.
+  const extremaValues = range === '1d' && data?.granularity !== 'intraday' && values.length > 1 ? values.slice(1).filter(valueIsValid) : validValues;
   const high = extremaValues.length ? Math.max(...extremaValues) : null;
   const low = extremaValues.length ? Math.min(...extremaValues) : null;
 
   return <article dir="rtl" className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-      <div><h2 className="font-black text-[var(--color-text-primary)]">روند تاریخی بازار</h2><p className="mt-1 text-xs text-slate-500">داده روزانه واقعی از MarketSummary؛ بدون تولید یا برآورد داده</p></div>
+      <div><h2 className="font-black text-[var(--color-text-primary)]">روند تاریخی بازار</h2><p className="mt-1 text-xs text-slate-500">{range === '1d' && data?.granularity === 'intraday' ? 'نقاط زمان‌دار جلسه جاری از ثبت‌های واقعی شاخص؛ بدون تولید یا برآورد داده' : 'داده روزانه واقعی از پایگاه بازار؛ بدون تولید یا برآورد داده'}</p></div>
       <div className="flex flex-wrap gap-2">{ranges.map((item) => <button key={item.value} onClick={() => setRange(item.value)} className={`rounded-xl px-3 py-2 text-sm font-black transition ${range === item.value ? 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-400/30' : 'border border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.06]'}`}>{item.label}</button>)}</div>
     </div>
 
@@ -111,12 +114,12 @@ const MarketRadarHistory: React.FC = () => {
       <div className="mt-5 overflow-x-auto rounded-2xl border border-white/5 bg-black/5 p-2">
         <div className="relative" style={{ minWidth: `${chartWidth}px` }}>
           <svg viewBox={`0 0 ${chartWidth} 270`} className="h-72 w-full text-sky-400" role="img" aria-label={`نمودار تاریخی ${selectedMetric.label}`} onMouseLeave={() => setHovered(null)}>
-            <ChartLine width={chartWidth} values={values} secondaryValues={metric === 'index' && compareIndex ? equalValues : undefined} pointDates={data.points.map((point) => dateFa(point.timestamp))} pointLabel={selectedMetric.label} onPoint={(index, x, y) => setHovered({ index, x, y })} />
+            <ChartLine width={chartWidth} values={values} secondaryValues={metric === 'index' && compareIndex ? equalValues : undefined} pointDates={data.points.map((point) => pointDateLabel(point.timestamp))} pointLabel={selectedMetric.label} onPoint={(index, x, y) => setHovered({ index, x, y })} />
             {hovered && hoveredPoint && <g pointerEvents="none">
               <line x1={hovered.x} x2={hovered.x} y1="25" y2="245" stroke="currentColor" strokeOpacity="0.2" strokeDasharray="4 4" />
               <circle cx={hovered.x} cy={hovered.y} r="7" fill="currentColor" />
               <rect x={Math.min(Math.max(hovered.x - 112, 8), chartWidth - 232)} y={Math.max(hovered.y - 88, 8)} width="224" height={metric === 'index' && compareIndex ? 76 : 58} rx="12" fill="var(--color-surface)" stroke="currentColor" strokeOpacity="0.25" />
-              <text x={Math.min(Math.max(hovered.x, 120), chartWidth - 120)} y={Math.max(hovered.y - 61, 25)} textAnchor="middle" className="fill-[var(--color-text-primary)] text-[14px] font-black" direction="rtl">تاریخ: {dateFa(hoveredPoint.timestamp)}</text>
+              <text x={Math.min(Math.max(hovered.x, 120), chartWidth - 120)} y={Math.max(hovered.y - 61, 25)} textAnchor="middle" className="fill-[var(--color-text-primary)] text-[14px] font-black" direction="rtl">زمان: {pointDateLabel(hoveredPoint.timestamp)}</text>
               <text x={Math.min(Math.max(hovered.x, 120), 640)} y={Math.max(hovered.y - 41, 45)} textAnchor="middle" className="fill-sky-500 text-[14px] font-black dark:fill-sky-300">{selectedMetric.label}: {valueLabel(hoveredValue)}</text>
               {metric === 'index' && compareIndex && <text x={Math.min(Math.max(hovered.x, 120), 640)} y={Math.max(hovered.y - 21, 65)} textAnchor="middle" className="fill-violet-500 text-[14px] font-black dark:fill-violet-300">هم‌وزن: {fa(hoveredEqual, 2)}</text>}
             </g>}
