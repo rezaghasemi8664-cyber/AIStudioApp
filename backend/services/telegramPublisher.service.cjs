@@ -8,7 +8,6 @@ const { getTelegramPublisherSettings, isAllowedWeekday, isIntervalDue, recordTel
 
 const STATE_KEY = 'telegram.publisher.state.v1';
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
-const INDEX_SLOTS = new Set(['09:15', '10:00', '11:00', '12:15']);
 const MAX_INDEX_AGE_MS = 5 * 60 * 1000;
 const MAX_SYMBOL_PRICE_AGE_MS = 5 * 60 * 1000;
 const MAX_VALUABLE_EVALUATION_AGE_MS = 10 * 60 * 1000;
@@ -400,7 +399,7 @@ async function runTelegramPublisherTick(now = new Date()) {
 }
 
 module.exports = {
-  STATE_KEY, INDEX_SLOTS, isTradingWeekday, isTradingSession, tehranDateKey, tehranSlot,
+  STATE_KEY, isTradingWeekday, isTradingSession, tehranDateKey, tehranSlot,
   isFresh, formatPercent, normalizeValuableResults, getImportantSymbolChanges,
   renderValuableChanges, renderIndexMessage, renderSummaryMessage,
   publishIndexIfScheduled, publishValuableChangesIfAny, publishScalpingOpportunitiesIfAny, publishTodaySummaryIfReady,
