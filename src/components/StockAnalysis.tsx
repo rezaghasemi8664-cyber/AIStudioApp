@@ -625,14 +625,21 @@ function normalizeAnalysisShape(input: unknown): UnifiedAnalysisResult | null {
   if (!input || typeof input !== 'object') return null;
 
   const source = input as Record<string, any>;
-  const marketData = source.marketData ?? {};
+  // Quote fields may be returned in `market`, `marketData.market`, or the
+  // canonical `marketData` object depending on the analysis endpoint/version.
+  // Merge them so an empty wrapper cannot hide the actual price fields.
+  const marketData = {
+    ...(source.marketData?.market ?? {}),
+    ...(source.market ?? {}),
+    ...(source.marketData ?? {}),
+  };
   const rawHistory = source.marketHistory ?? marketData.marketHistory ?? [];
   const lastHistoryRecord = getLastHistoryRecord(rawHistory) ?? {};
   const scores = source.scores ?? {};
   const signals = source.signals ?? {};
   const explanations = source.explanations ?? {};
 
-  const sourceMetrics = normalizeMarketMetrics(source.marketMetrics ?? source);
+  const sourceMetrics = normalizeMarketMetrics(source.marketMetrics ?? source.market ?? source);
   const mdMetrics = normalizeMarketMetrics(marketData.marketMetrics ?? marketData);
   const mhMetrics = normalizeMarketMetrics(lastHistoryRecord.marketMetrics ?? lastHistoryRecord.metrics ?? lastHistoryRecord);
 
@@ -2271,7 +2278,11 @@ const clearCurrentAnalysis = () => {
     const md = (analysisData?.marketData ?? {}) as any;
     const mm = (resolvedMarketMetrics ?? {}) as any;
     const raw = (analysisData?.rawData ?? analysisData) as any;
-    const rawMarketData = raw?.marketData ?? {};
+    const rawMarketData = {
+      ...(raw?.marketData?.market ?? {}),
+      ...(raw?.market ?? {}),
+      ...(raw?.marketData ?? {}),
+    };
     const rawPayload = raw?.analysisPayload ?? {};
 
     // Canonical TSETMC/BRS mapping
