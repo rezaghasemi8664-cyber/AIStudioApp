@@ -8,6 +8,12 @@ const fa = (value: number | null | undefined, digits = 0) => value == null || !N
 const pct = (value: number | null | undefined) => value == null || !Number.isFinite(value) ? '—' : `${value > 0 ? '+' : value < 0 ? '−' : ''}${fa(Math.abs(value), 2)}٪`;
 const tone = (value: number | null | undefined) => value == null ? 'text-slate-500' : value > 0 ? 'text-emerald-500 dark:text-emerald-300' : value < 0 ? 'text-rose-500 dark:text-rose-300' : 'text-slate-500';
 const card = 'rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-5';
+const isSnapshotStale = (snapshot: MarketRadarSnapshot | null) => {
+  const raw = snapshot?.breadth?.generatedAt;
+  if (!raw) return true;
+  const time = new Date(raw).getTime();
+  return !Number.isFinite(time) || Date.now() - time > 150_000;
+};
 const isTehranSession = (date = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Tehran', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(date);
   const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
@@ -22,7 +28,7 @@ function calculateScore(data: MarketRadarSnapshot | null): Score {
   const breadth = data.breadth;
   if (breadth?.available && breadth.total > 0) {
     const directional = breadth.positive + breadth.negative;
-    if (directional > 0) components.push({ score: Math.max(0, Math.min(100, 50 + ((breadth.positive - breadth.negative) / directional) * 50)), weight: 40 });
+    if (directional > 0) components.push({ score: Math.max(0, Math.min(100, 50 + ((breadth.positive - breadth.negative) / directional) * 50)), weight: 45 });
   }
   const main = data.indices.find(item => /کل/.test(item.name) && !/هم.?وزن/.test(item.name));
   const equal = data.indices.find(item => /هم.?وزن/.test(item.name));
@@ -30,13 +36,13 @@ function calculateScore(data: MarketRadarSnapshot | null): Score {
     const equalScore = equal?.changePercent != null && Number.isFinite(equal.changePercent)
       ? Math.max(0, Math.min(100, 50 + (equal.changePercent * 12))) : null;
     const mainScore = Math.max(0, Math.min(100, 50 + (main.changePercent * 12)));
-    components.push({ score: equalScore == null ? mainScore : (mainScore * 0.6 + equalScore * 0.4), weight: 25 });
+    components.push({ score: equalScore == null ? mainScore : (mainScore * 0.6 + equalScore * 0.4), weight: 35 });
   }
   if (breadth?.sectors.available && breadth.sectors.rows.length) {
     const sectors = breadth.sectors.rows.filter(row => Number.isFinite(row.changePercent));
     if (sectors.length) {
       const average = sectors.reduce((sum, row) => sum + row.changePercent, 0) / sectors.length;
-      components.push({ score: Math.max(0, Math.min(100, 50 + average * 10)), weight: 15 });
+      components.push({ score: Math.max(0, Math.min(100, 50 + average * 10)), weight: 20 });
     }
   }
   const weight = components.reduce((sum, item) => sum + item.weight, 0);
@@ -95,7 +101,7 @@ const MarketIndicesDashboard: React.FC = () => {
       previousRef.current = snapshot;
       dataRef.current = snapshot;
       setData(snapshot);
-      setStale(Boolean(snapshot.stale));
+      setStale(isSnapshotStale(snapshot));
       writeMarketRadarCache(snapshot);
     } catch (err) {
       console.error('[MarketIndicesDashboard] refresh failed:', err);
@@ -147,7 +153,7 @@ const MarketIndicesDashboard: React.FC = () => {
         <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-black text-[var(--color-text-primary)]">وضعیت کلی بازار رونیا</h2><p className="mt-1 text-xs text-slate-500">{score.detail}</p></div><span className={`rounded-full px-3 py-1 text-sm font-black ${score.value == null ? 'bg-slate-500/10 text-slate-500' : score.value >= 60 ? 'bg-emerald-500/10 text-emerald-500' : score.value <= 40 ? 'bg-rose-500/10 text-rose-500' : 'bg-amber-500/10 text-amber-500'}`}>{score.label}</span></div>
         <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center"><div className="flex h-28 w-28 shrink-0 flex-col items-center justify-center rounded-full border-8 border-sky-500/30"><strong className="text-3xl font-black tabular-nums text-[var(--color-text-primary)]">{score.value == null ? '—' : fa(score.value)}</strong><span className="text-xs text-slate-500">از ۱۰۰</span></div><div className="flex-1"><div className="h-3 overflow-hidden rounded-full bg-slate-500/15"><div className={`h-full rounded-full ${score.value == null ? 'bg-slate-400' : score.value >= 60 ? 'bg-emerald-500' : score.value <= 40 ? 'bg-rose-500' : 'bg-amber-500'}`} style={{ width: `${score.value ?? 0}%` }} /></div><div className="mt-2 flex justify-between text-xs text-slate-500"><span>تمایل منفی</span><span>متعادل</span><span>تمایل مثبت</span></div><p className="mt-3 text-sm text-slate-500">پوشش معیارهای معتبر: {fa(score.coverage)}٪ · وضعیت بر اساس قواعد شفاف و داده‌های موجود محاسبه می‌شود.</p></div></div>
       </article>
-      <article className={card}><h2 className="text-lg font-black text-[var(--color-text-primary)]">قدرت و گستردگی بازار</h2><div className="mt-4 grid grid-cols-2 gap-3"><div className="rounded-2xl bg-emerald-500/10 p-3"><div className="text-sm font-bold text-emerald-600">مثبت</div><div className="mt-1 text-2xl font-black text-emerald-500">{fa(breadth?.positive)}</div><div className="text-xs text-slate-500">{pct(breadth?.positivePercent)}</div></div><div className="rounded-2xl bg-rose-500/10 p-3"><div className="text-sm font-bold text-rose-600">منفی</div><div className="mt-1 text-2xl font-black text-rose-500">{fa(breadth?.negative)}</div><div className="text-xs text-slate-500">{pct(breadth?.negativePercent == null ? null : -breadth.negativePercent)}</div></div></div><div className="mt-4 text-sm text-slate-500">وضعیت پهنا: <b className={tone(breadth ? breadth.positive - breadth.negative : null)}>{marketLabel}</b></div><div className="mt-3 text-xs text-slate-500">نسبت صعود به نزول: {breadth?.advanceDeclineRatio == null ? '—' : fa(breadth.advanceDeclineRatio, 2)} · حجم حقیقی خالص: {fa((data as any)?.realFlow?.netRealBuyVolume)} <span className="block mt-1">جریان حقیقی به ارزش ریالی، سرانه حقیقی، صف خرید/فروش و حجم غیرعادی در این API تأیید نشده‌اند و عمداً حدس زده نمی‌شوند.</span></div></article>
+      <article className={card}><h2 className="text-lg font-black text-[var(--color-text-primary)]">قدرت و گستردگی بازار</h2><div className="mt-4 grid grid-cols-2 gap-3"><div className="rounded-2xl bg-emerald-500/10 p-3"><div className="text-sm font-bold text-emerald-600">مثبت</div><div className="mt-1 text-2xl font-black text-emerald-500">{fa(breadth?.positive)}</div><div className="text-xs text-slate-500">{pct(breadth?.positivePercent)}</div></div><div className="rounded-2xl bg-rose-500/10 p-3"><div className="text-sm font-bold text-rose-600">منفی</div><div className="mt-1 text-2xl font-black text-rose-500">{fa(breadth?.negative)}</div><div className="text-xs text-slate-500">{pct(breadth?.negativePercent == null ? null : -breadth.negativePercent)}</div></div></div><div className="mt-4 text-sm text-slate-500">وضعیت پهنا: <b className={tone(breadth ? breadth.positive - breadth.negative : null)}>{marketLabel}</b></div><div className="mt-3 text-xs text-slate-500">نسبت صعود به نزول: {breadth?.advanceDeclineRatio == null ? '—' : fa(breadth.advanceDeclineRatio, 2)} · خالص حجم حقیقی: در قرارداد داده این تب موجود نیست <span className="block mt-1">جریان حقیقی به ارزش ریالی، سرانه حقیقی، صف خرید/فروش و حجم غیرعادی در این API تأیید نشده‌اند و عمداً حدس زده نمی‌شوند.</span></div></article>
     </div>
 
     <article className={card}><div className="mb-4"><h2 className="text-lg font-black text-[var(--color-text-primary)]">هشدارهای تحلیلی</h2><p className="mt-1 text-xs text-slate-500">هشدارها بر اساس قواعد و داده‌های همین دریافت ساخته می‌شوند؛ سیگنال خرید یا فروش نیستند.</p></div>{alerts.length ? <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{alerts.map((alert, index) => <div key={`${alert.title}-${index}`} className={`rounded-2xl border p-4 ${alert.kind === 'warning' ? 'border-amber-500/20 bg-amber-500/5' : 'border-sky-500/20 bg-sky-500/5'}`}><div className={`font-black ${alert.kind === 'warning' ? 'text-amber-500' : 'text-sky-500'}`}>{alert.title}</div><p className="mt-2 text-sm leading-6 text-[var(--color-text-primary)]">{alert.detail}</p></div>)}</div> : <p className="rounded-2xl bg-slate-500/5 p-4 text-sm text-slate-500">در داده‌های فعلی هشدار فعالی شناسایی نشد؛ این به معنی نبود ریسک نیست.</p>}</article>
