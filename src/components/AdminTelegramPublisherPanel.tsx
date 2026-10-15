@@ -16,6 +16,10 @@ const DEFAULT_SETTINGS: TelegramPublisherSettings = {
   index: { enabled: true, intervalMinutes: 60, startTime: '09:15', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] },
   summary: { enabled: true, publishTime: '13:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] }
 };
+const formatTehranDate = (value: string) => {
+  try { return new Intl.DateTimeFormat('fa-IR', { dateStyle: 'long', timeZone: 'Asia/Tehran' }).format(new Date(value + 'T12:00:00Z')); }
+  catch { return value; }
+};
 const formatDate = (value: string) => {
   try { return new Intl.DateTimeFormat('fa-IR', { dateStyle: 'short', timeStyle: 'short', hour12: false, timeZone: 'Asia/Tehran' }).format(new Date(value)); }
   catch { return value; }
@@ -135,7 +139,7 @@ const AdminTelegramPublisherPanel: React.FC = () => {
     </div>
     <section className={cardClass}>
       <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-extrabold">تاریخچه پیام‌های امروز</h3><p className="mt-1 text-xs text-gray-500">تاریخچه فقط مربوط به امروز به وقت تهران است؛ با شروع روز جدید، تاریخچه روز قبل از این فهرست پاک می‌شود.</p></div><button type="button" onClick={() => void refreshHistory()} className="rounded-xl border border-[var(--card-border-color)] px-3 py-2 text-sm">بروزرسانی تاریخچه</button></div>
-      <div className="mt-3 text-sm text-gray-500">تاریخ تهران: <b>{history?.date || '—'}</b> · تعداد پیام‌ها: <b>{(history?.entries || []).length.toLocaleString('fa-IR')}</b></div>
+      <div className="mt-3 text-sm text-gray-500">تاریخ تهران: <b>{history?.date ? formatTehranDate(history.date) : '—'}</b> · تعداد پیام‌ها: <b>{(history?.entries || []).length.toLocaleString('fa-IR')}</b></div>
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[650px] text-right text-sm">
           <thead><tr className="border-b border-[var(--card-border-color)] text-gray-500"><th className="p-3">زمان تهران</th><th className="p-3">نوع پیام</th><th className="p-3">نتیجه</th><th className="p-3">عنوان پیام</th><th className="p-3">خطا</th></tr></thead>
