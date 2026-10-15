@@ -9,6 +9,7 @@
  */
 
 var brs = require('./brs.service.cjs');
+var allSymbolsSnapshot = require('./allSymbolsSnapshot.service.cjs');
 var codal = require('./codal.provider.cjs');
 var fundamental = require('./fundamental-analysis.v2.service.cjs');
 
@@ -238,6 +239,116 @@ async function getFundamentalData(symbolClean) {
   }
 }
 
+function tehranDateKey(date) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tehran',
+    calendar: 'gregory'
+  }).format(date || new Date());
+}
+
+function isTehranMarketOpen(date) {
+  var parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Tehran',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(date || new Date());
+  var values = Object.fromEntries(parts.map(function (part) { return [part.type, part.value]; }));
+  var minute = Number(values.hour || 0) * 60 + Number(values.minute || 0);
+  return ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'].includes(values.weekday) &&
+    minute >= 9 * 60 && minute < 12 * 60 + 30;
+}
+
+function buildSnapshotMarketResult(snapshotResult) {
+  if (!snapshotResult || snapshotResult.status !== 'FOUND' || !snapshotResult.symbol) return null;
+  var item = snapshotResult.symbol;
+  var lastPrice = toFinite(item.lastPrice, item.lastTradedPrice, item.pDrCotVal, item.pl);
+  var closingPrice = toFinite(item.closingPrice, item.closePrice, item.pClosing, item.pc);
+  if (lastPrice == null || lastPrice <= 0 || closingPrice == null || closingPrice <= 0) return null;
+
+  var updatedAt = snapshotResult.snapshotUpdatedAt ? new Date(snapshotResult.snapshotUpdatedAt) : null;
+  if (!updatedAt || !Number.isFinite(updatedAt.getTime())) return null;
+  var ageMs = Date.now() - updatedAt.getTime();
+  if (ageMs < 0) return null;
+
+  // During trading, only consume a recently refreshed quote. Outside trading,
+  // accept the same Tehran day's verified snapshot for after-hours analysis.
+  var sameTehranDay = snapshotResult.snapshotDate === tehranDateKey(new Date());
+  var fresh = isTehranMarketOpen(new Date())
+    ? ageMs <= 5 * 60 * 1000
+    : sameTehranDay && ageMs <= 24 * 60 * 60 * 1000;
+  if (!fresh) return null;
+
+  var market = Object.assign({}, item, {
+    symbol: String(item.symbol || '').trim(),
+    name: item.name || item.symbol,
+    lastPrice: lastPrice,
+    lastTradedPrice: lastPrice,
+    pDrCotVal: lastPrice,
+    pl: lastPrice,
+    lastChange: toFinite(item.lastChange, item.change, item.plc),
+    lastChangePercent: toFinite(item.lastChangePercent, item.changePercent, item.plp),
+    plp: toFinite(item.lastChangePercent, item.changePercent, item.plp),
+    closingPrice: closingPrice,
+    closePrice: closingPrice,
+    pClosing: closingPrice,
+    pc: closingPrice,
+    closingChange: toFinite(item.closingChange, item.closeChange),
+    closingChangePercent: toFinite(item.closingChangePercent, item.closeChangePercent, item.pcp),
+    closeChangePercent: toFinite(item.closingChangePercent, item.closeChangePercent, item.pcp),
+    pcp: toFinite(item.closingChangePercent, item.closeChangePercent, item.pcp),
+    allowedMin: toFinite(item.allowedMin),
+    allowedMax: toFinite(item.allowedMax),
+    pe: toFinite(item.pe),
+    eps: toFinite(item.eps),
+    tradeCount: toFinite(item.tradeCount),
+    tradedVolume: toFinite(item.tradeVolume, item.volume, item.tvol),
+    volume: toFinite(item.tradeVolume, item.volume, item.tvol),
+    tvol: toFinite(item.tradeVolume, item.volume, item.tvol),
+    trading: Object.assign({}, item.trading || {}, {
+      volume: toFinite(item.tradeVolume, item.volume, item.tvol),
+      tradeCount: toFinite(item.tradeCount, item.count, item.tno),
+      value: toFinite(item.tradedValue != null ? item.tradedValue : item.value)
+    }),
+    moneyFlow: Object.assign({}, item.moneyFlow || {}, {
+      real: Object.assign({}, item.moneyFlow && item.moneyFlow.real || {}, {
+        buyVolume: toFinite(item.realBuyVolume),
+        sellVolume: toFinite(item.realSellVolume)
+      }),
+      legal: Object.assign({}, item.moneyFlow && (item.moneyFlow.legal || item.moneyFlow.institutional) || {}, {
+        buyVolume: toFinite(item.instBuyVolume),
+        sellVolume: toFinite(item.instSellVolume)
+      })
+    })
+  });
+
+  return {
+    data: market,
+    _meta: {
+      source: 'all-symbols-snapshot',
+      cacheHit: true,
+      snapshotDate: snapshotResult.snapshotDate,
+      snapshotUpdatedAt: updatedAt.toISOString(),
+      snapshotAgeMs: ageMs,
+      symbolCount: snapshotResult.symbolCount,
+      baseSource: snapshotResult.source || 'brsapi-allsymbols'
+    }
+  };
+}
+
+async function getMarketResult(symbolClean) {
+  try {
+    var snapshot = await allSymbolsSnapshot.searchSymbol(symbolClean);
+    var snapshotResult = buildSnapshotMarketResult(snapshot);
+    if (snapshotResult) return snapshotResult;
+  } catch (error) {
+    // Snapshot reads are an optimization; they must never block the existing BRS path.
+    console.warn('[ANALYSIS DATA] AllSymbols snapshot unavailable; falling back to BRS:', error && error.message);
+  }
+  return brs.getSymbolData(symbolClean);
+}
+
 async function getMarketData(symbol, options) {
   var opts = options || {};
   var symbolClean = String(symbol || '').trim();
@@ -262,7 +373,7 @@ async function getMarketData(symbol, options) {
   // latest candle represents the actual traded/current price. Adjusted history
   // is retained separately for any consumers that explicitly need it.
   var results = await Promise.all([
-    brs.getSymbolData(symbolClean),
+    getMarketResult(symbolClean),
     brs.getSymbolHistory(symbolClean, historyCount),
     brs.getAdjustedDailyCandlestick(symbolClean, historyCount),
     suppliedFundamental || getFundamentalData(symbolClean)
@@ -291,7 +402,7 @@ async function getMarketData(symbol, options) {
     fundamentalAnalysis: fundamentalAnalysis,
     dataQuality: buildQuality(candles, history, marketResult, fundamentalStatus, historyMeta, fundamentalAnalysis),
     sources: {
-      market: 'BRS',
+      market: getMeta(marketResult) && getMeta(marketResult).source === 'all-symbols-snapshot' ? 'AllSymbolsSnapshot' : 'BRS',
       history: 'BRS',
       fundamental: fundamentalStatus,
       fundamentalRequest: fundamentalResult.error
