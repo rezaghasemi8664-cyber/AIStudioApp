@@ -4,7 +4,7 @@ const prisma = require('../config/prisma.cjs');
 const { getStoredValuableSymbols } = require('./valuableSymbols.engine.cjs');
 const { sendTelegramMessage, getTelegramConfig } = require('./telegramBotApi.service.cjs');
 const sharedMarketService = require('./sharedMarket.service.cjs');
-const { getTelegramPublisherSettings, isAllowedWeekday, isIntervalDue, recordTelegramPublisherMessage } = require('./telegramPublisherSettings.service.cjs');
+const { getTelegramPublisherSettings, getTelegramPublisherHistory, isAllowedWeekday, isIntervalDue, recordTelegramPublisherMessage } = require('./telegramPublisherSettings.service.cjs');
 
 const STATE_KEY = 'telegram.publisher.state.v1';
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
@@ -381,6 +381,7 @@ async function sendAndRecord(type, message, now = new Date()) {
 async function runTelegramPublisherTick(now = new Date()) {
   const config = getTelegramConfig();
   if (!config.token || !config.chatId) return { skipped: true, reason: 'TELEGRAM_NOT_CONFIGURED' };
+  await getTelegramPublisherHistory(now); // Rolls over the single-day history at Tehran midnight.
   const settings = await getTelegramPublisherSettings();
   const outcomes = [];
   for (const [name, fn] of [
