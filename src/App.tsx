@@ -85,7 +85,6 @@ const UserProfile = lazy(() => import('./components/UserProfile'));
 const UserManagement = lazy(() => import('./components/UserManagement'));
 const NotificationsManagement = lazy(() => import('./components/NotificationsManagement'));
 const Settings = lazy(() => import('./components/Settings'));
-const MarketRadar = lazy(() => import('./components/MarketRadar/MarketRadar'));
 const MarketIndicesDashboard = lazy(() => import('./components/MarketIndicesDashboard'));
 const StrategyLab = lazy(() => import('./components/StrategyLab'));
 const PaperTrading = lazy(() => import('./components/PaperTrading'));
@@ -106,7 +105,6 @@ type Tab =
   | 'settings'
   | 'notifications'
   | 'profile'
-  | 'marketRadar'
   | 'marketIndices'
   | 'strategyLab'
   | 'paperTrading'
@@ -365,7 +363,6 @@ const BackgroundTabLoader: React.FC<{
       { key: 'traderJournal', node: <TraderJournal /> },
       { key: 'codalIntelligence', node: <CodalIntelligence isOnline={isOnline} /> },
       { key: 'comparison', node: <StockComparison currentUser={currentUser} isOnline={isOnline} /> },
-      { key: 'marketRadar', node: <MarketRadar /> },
       { key: 'marketIndices', node: <MarketIndicesDashboard /> },
       { key: 'strategyLab', node: <StrategyLab isOnline={isOnline} /> },
       { key: 'paperTrading', node: <PaperTrading isOnline={isOnline} /> },
@@ -1122,7 +1119,6 @@ const App: React.FC = () => {
       case 'traderJournal': return <TraderJournal />;
       case 'codalIntelligence': return <CodalIntelligence isOnline={isOnline} />;
       case 'comparison': return <StockComparison currentUser={currentUser} isOnline={isOnline} />;
-      case 'marketRadar': return <MarketRadar />;
       case 'marketIndices': return <MarketIndicesDashboard />;
       case 'optionsMarket': return <OptionsMarket />;
       case 'strategyLab':
@@ -1223,7 +1219,6 @@ const App: React.FC = () => {
         <nav className="app-nav min-w-0 -mx-3 sm:-mx-4 lg:-mx-6 mb-4 sm:mb-6" aria-label="ناوبری اصلی"><div className="app-nav-scroll w-full max-w-full min-w-0 flex flex-nowrap items-center overflow-x-auto overflow-y-hidden overscroll-x-contain whitespace-nowrap border-b border-gray-200 dark:border-gray-700 [scrollbar-width:thin] [-webkit-overflow-scrolling:touch]">
           <TabButton tab="dashboard" label="داشبورد" icon={<PresentationChartLineIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="analysis" label="تحلیل سهام" icon={<MagnifyingGlassIcon />} alertType="none" locked={isExpired && isSubscriptionRestrictedTab('analysis')} activeTab={activeTab} onTabClick={handleTabClick} />
-          <TabButton tab="marketRadar" label="رادار بازار" icon={<ChartBarIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="marketIndices" label="شاخص‌های بازار" icon={<ChartBarIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="optionsMarket" label="بازار آپشن" icon={<ChartBarIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="roniaAssistant" label="دستیار رونیا" icon={<PresentationChartLineIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
