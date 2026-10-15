@@ -239,7 +239,7 @@ async function publishValuableChangesIfAny(now = new Date(), suppliedSettings) {
     if (toNumber(item.stopLoss) > 0) lines.push('سطح ابطال/حمایت: ' + formatNumber(item.stopLoss));
     lines.push('');
   }
-  lines.push('اطلاعات بر پایه داده‌های تازه سامانه است؛ سیگنال قطعی یا تضمین سود نیست.');
+  lines.push('این پیام بازتاب آخرین داده‌های ذخیره‌شده است؛ زمان هر قیمت را بررسی کنید. سیگنال قطعی یا تضمین سود نیست.');
 
   await sendAndRecord('valuable', lines.join('\n').slice(0, 3900), now);
   const nextMap = {};
@@ -266,13 +266,6 @@ async function publishScalpingOpportunitiesIfAny(now = new Date(), suppliedSetti
   const slot = tehranDateKey(now) + '@' + scheduledTime;
   const state = await loadState();
   if (state.lastScalpingSlot === slot) return { skipped: true, reason: 'ALREADY_PUBLISHED_THIS_SLOT' };
-
-  const marketDate = getCurrentMarketDateUtc(now);
-  const market = await prisma.marketCurrent.findUnique({ where: { marketDate } });
-  if (!market || market.isStale || String(market.marketStatus || '').toUpperCase() !== 'OPEN' ||
-      !(toNumber(market.overallIndex) > 0) || !isFresh(market.updatedAt, MAX_INDEX_AGE_MS, now.getTime())) {
-    return { skipped: true, reason: 'NO_FRESH_CURRENT_MARKET_SNAPSHOT' };
-  }
 
   const rows = await prisma.marketScalpingOpportunity.findMany({
     where: { status: 'ACTIVE', OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
@@ -306,7 +299,7 @@ async function publishScalpingOpportunitiesIfAny(now = new Date(), suppliedSetti
     if (item.recommendationText) lines.push(String(item.recommendationText).slice(0, 250));
     lines.push('');
   }
-  lines.push('فقط داده‌های تازه و فرصت‌های فعال نمایش داده شده‌اند؛ این پیام تضمین سود نیست.');
+  lines.push('فرصت‌های منقضی‌شده حذف شده‌اند؛ داده‌های نمایش‌داده‌شده آخرین رکوردهای ذخیره‌شده هستند و تضمین سود نیستند.');
 
   await sendAndRecord('scalping', lines.join('\n').slice(0, 3900), now);
   const next = {};
