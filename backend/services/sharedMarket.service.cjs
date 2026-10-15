@@ -70,6 +70,18 @@ function isTradingCalendarDay(date = new Date()) {
 
 function normalizeMarketCurrent(row) {
   if (!row) return null;
+  let rawSnapshot = null;
+  if (row.dataJson) {
+    try { rawSnapshot = JSON.parse(row.dataJson); } catch (_) { rawSnapshot = null; }
+  }
+  const numericOrNull = (...values) => {
+    for (const value of values) {
+      if (value === null || value === undefined || value === '') continue;
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return null;
+  };
   const marketWindow = getTehranMarketWindow();
   const calendarOpen = marketWindow.isTradingDay;
   return {
@@ -80,6 +92,8 @@ function normalizeMarketCurrent(row) {
     overallChange: decimalToNumber(row.overallChange),
     equalIndex: decimalToNumber(row.equalIndex),
     equalChange: decimalToNumber(row.equalChange),
+    priceIndex: numericOrNull(rawSnapshot?.priceIndex, rawSnapshot?.indexPrice, rawSnapshot?.index_price, rawSnapshot?.price_index),
+    freeFloatIndex: numericOrNull(rawSnapshot?.freeFloatIndex, rawSnapshot?.indexFreeFloat, rawSnapshot?.index_freeFloat, rawSnapshot?.free_float_index),
     totalTrades: row.totalTrades == null ? null : Number(row.totalTrades),
     totalVolume: row.totalVolume == null ? null : Number(row.totalVolume),
     totalValue: decimalToNumber(row.totalValue),
