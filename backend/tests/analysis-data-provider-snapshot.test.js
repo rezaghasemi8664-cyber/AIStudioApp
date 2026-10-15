@@ -33,6 +33,10 @@ describe('analysis market quote source', () => {
     brs.getAdjustedDailyCandlestick.mockResolvedValue({ data: [], _meta: { source: 'adjusted-history' } });
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   test('uses a fresh same-day AllSymbols snapshot for quote fields and retains BRS history', async () => {
     const now = new Date();
     snapshot.searchSymbol.mockResolvedValue({
@@ -79,7 +83,9 @@ describe('analysis market quote source', () => {
     expect(result.meta.market.source).toBe('all-symbols-snapshot');
   });
 
-  test('falls back to BRS when the snapshot is stale or invalid', async () => {
+  test('falls back to BRS for an old snapshot during expected market hours', async () => {
+    // Sunday at 09:30 Tehran time: the market is expected to be open.
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-18T06:00:00.000Z'));
     const old = new Date(Date.now() - 48 * 60 * 60 * 1000);
     snapshot.searchSymbol.mockResolvedValue({
       status: 'FOUND',
@@ -98,6 +104,27 @@ describe('analysis market quote source', () => {
     expect(brs.getSymbolData).toHaveBeenCalledWith('فولاد');
     expect(result.sources.market).toBe('BRS');
     expect(result.market.lastPrice).toBe(456);
+  });
+
+  test('uses the latest valid snapshot across multiple closed days', async () => {
+    // Saturday at 15:30 Tehran time, after two days without a market refresh.
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-17T12:00:00.000Z'));
+    const old = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    snapshot.searchSymbol.mockResolvedValue({
+      status: 'FOUND',
+      symbol: { symbol: 'فولاد', lastPrice: 12345, closingPrice: 12300 },
+      snapshotDate: tehranDateKey(old),
+      snapshotUpdatedAt: old.toISOString(),
+      symbolCount: 1300,
+      source: 'brsapi-allsymbols'
+    });
+
+    const result = await provider.getMarketData('فولاد');
+
+    expect(result.sources.market).toBe('AllSymbolsSnapshot');
+    expect(result.market.lastPrice).toBe(12345);
+    expect(result.market.closingPrice).toBe(12300);
+    expect(brs.getSymbolData).not.toHaveBeenCalled();
   });
 
   test('falls back to BRS when the snapshot lookup fails', async () => {
