@@ -26,11 +26,25 @@ function formatDate(value?: string): string {
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString('fa-IR-u-ca-persian', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
-function Metric({ label, value, note }: { label: string; value: string; note?: string }) {
+function formatSignedNumber(value: number | null | undefined, digits = 0): string {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+  const number = Number(value);
+  const sign = number > 0 ? '+' : number < 0 ? '−' : '';
+  return sign + formatNumber(Math.abs(number), digits);
+}
+function changeColor(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(Number(value)) || Number(value) === 0) {
+    return 'text-slate-500 dark:text-slate-400';
+  }
+  return Number(value) > 0
+    ? 'text-emerald-600 dark:text-emerald-400'
+    : 'text-rose-600 dark:text-rose-400';
+}
+function Metric({ label, value, note, noteColor }: { label: string; value: string; note?: string; noteColor?: string }) {
   return <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
     <div className="text-[11px] font-semibold leading-5 text-slate-500 dark:text-slate-400">{label}</div>
     <div className="mt-1 break-words text-[15px] font-extrabold leading-7 text-slate-900 dark:text-slate-100">{value}</div>
-    {note ? <div className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">{note}</div> : null}
+    {note ? <div className={`mt-1 text-[11px] font-bold ${noteColor || 'text-slate-500 dark:text-slate-400'}`}>{note}</div> : null}
   </div>;
 }
 export default function SymbolSearchSnapshot() {
@@ -55,8 +69,8 @@ export default function SymbolSearchSnapshot() {
     { title: 'اطلاعات پایه و قیمت', metrics: [
       { label: 'نام نماد', value: item?.name || '—' },
       { label: 'گروه صنعت', value: item?.industryName || '—' },
-      { label: 'آخرین قیمت', value: formatNumber(item?.lastPrice), note: 'تغییر: ' + formatNumber(item?.lastChange) + ' (' + formatNumber(item?.lastChangePercent, 2) + '٪)' },
-      { label: 'قیمت پایانی', value: formatNumber(item?.closingPrice), note: 'تغییر: ' + formatNumber(item?.closingChange) + ' (' + formatNumber(item?.closingChangePercent, 2) + '٪)' },
+      { label: 'آخرین قیمت', value: formatNumber(item?.lastPrice), note: 'تغییر: ' + formatSignedNumber(item?.lastChange) + ' (' + formatSignedNumber(item?.lastChangePercent, 2) + '٪)', noteColor: changeColor(item?.lastChange ?? item?.lastChangePercent) },
+      { label: 'قیمت پایانی', value: formatNumber(item?.closingPrice), note: 'تغییر: ' + formatSignedNumber(item?.closingChange) + ' (' + formatSignedNumber(item?.closingChangePercent, 2) + '٪)', noteColor: changeColor(item?.closingChange ?? item?.closingChangePercent) },
       { label: 'آستانه مجاز بالا', value: formatNumber(item?.allowedMax) },
       { label: 'آستانه مجاز پایین', value: formatNumber(item?.allowedMin) },
       { label: 'P/E', value: formatNumber(item?.pe, 2) },
