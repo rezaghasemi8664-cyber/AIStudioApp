@@ -303,6 +303,22 @@ model MarketCurrent {
   @@schema("dbo")
 }
 
+model MarketIndexIntradaySnapshot {
+  id             Int      @id @default(autoincrement())
+  marketDate     DateTime @db.Date
+  capturedAt     DateTime @default(now()) @db.DateTime2
+  overallIndex   Decimal? @db.Decimal(20, 4)
+  equalIndex     Decimal? @db.Decimal(20, 4)
+  totalTrades    BigInt?
+  totalVolume    BigInt?
+  totalValue     Decimal? @db.Decimal(24, 2)
+  source         String?  @db.NVarChar(50)
+
+  @@index([marketDate, capturedAt])
+  @@map("MarketIndexIntradaySnapshot")
+  @@schema("dbo")
+}
+
 model MarketSymbolCurrent {
   id              Int      @id @default(autoincrement())
   symbol          String   @unique @db.NVarChar(100)
