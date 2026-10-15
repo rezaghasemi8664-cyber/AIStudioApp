@@ -98,17 +98,36 @@ async function publish(value, now = new Date(), source = 'manual') {
 
 async function publishScheduledIfDue(now = new Date()) {
   const settings = await getSettings();
-  if (!settings.enabled || !settings.text || !settings.imageDataUrl || !settings.days.includes(tehranParts(now).weekday)) return { skipped: true };
   const parts = tehranParts(now);
-  const time = (parts.hour === '24' ? '00' : parts.hour) + ':' + parts.minute;
-  if (!settings.times.includes(time)) return { skipped: true };
-  const runKey = tehranDateKey(now) + '@' + time;
+  if (!settings.enabled || !settings.text || !settings.imageDataUrl || !settings.days.includes(parts.weekday)) {
+    return { skipped: true, reason: 'DISABLED_OR_DAY_NOT_ENABLED' };
+  }
+
+  // Recover a scheduled ad if a tick/restart/database delay missed the exact
+  // minute. Use the original scheduled time as the idempotency key.
+  const currentMinutes = Number(parts.hour === '24' ? '0' : parts.hour) * 60 + Number(parts.minute);
+  const dueTimes = settings.times
+    .map(time => ({ time, minutes: Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5)) }))
+    .filter(item => currentMinutes >= item.minutes && currentMinutes - item.minutes <= 5)
+    .sort((a, b) => a.minutes - b.minutes);
+
+  if (!dueTimes.length) return { skipped: true, reason: 'NO_SCHEDULED_AD_DUE' };
   const state = await readConfig(STATE_KEY, { attempted: [] });
   const attempted = Array.isArray(state.attempted) ? state.attempted : [];
-  if (attempted.includes(runKey)) return { skipped: true, reason: 'ALREADY_ATTEMPTED' };
-  await writeConfig(STATE_KEY, { attempted: [...attempted, runKey].slice(-1000) });
-  try { return await publish(settings, now, 'scheduled'); }
-  catch (error) { console.error('[TelegramPublisher][CustomAd] Scheduled send failed:', error.message); return { success: false, error: error.message }; }
+  const due = dueTimes.find(item => !attempted.includes(tehranDateKey(now) + '@' + item.time));
+  if (!due) return { skipped: true, reason: 'ALREADY_ATTEMPTED' };
+
+  const runKey = tehranDateKey(now) + '@' + due.time;
+  try {
+    const result = await publish(settings, now, 'scheduled');
+    await writeConfig(STATE_KEY, { attempted: [...attempted, runKey].slice(-1000) });
+    return { ...result, scheduledTime: due.time, recoveredLateTick: due.time !== ((parts.hour === '24' ? '00' : parts.hour) + ':' + parts.minute) };
+  } catch (error) {
+    // Do not mark a failed attempt as complete; retry during the five-minute
+    // grace window and preserve the failure in publication history.
+    console.error('[TelegramPublisher][CustomAd] Scheduled send failed:', error.message);
+    return { success: false, error: error.message, scheduledTime: due.time };
+  }
 }
 
 module.exports = { SETTINGS_KEY, STATE_KEY, TIMEZONE, MAX_IMAGE_BYTES, defaultSettings, normalize, validate, getSettings, saveSettings, persianError, publish, publishScheduledIfDue };

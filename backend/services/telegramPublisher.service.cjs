@@ -5,7 +5,7 @@ const { getStoredValuableSymbols } = require('./valuableSymbols.engine.cjs');
 const { sendTelegramMessage, getTelegramConfig } = require('./telegramBotApi.service.cjs');
 const sharedMarketService = require('./sharedMarket.service.cjs');
 const telegramAdMessageService = require('./telegramAdMessage.service.cjs');
-const { getTelegramPublisherSettings, getTelegramPublisherHistory, isAllowedWeekday, isIntervalDue, isBeforeEndTime, recordTelegramPublisherMessage } = require('./telegramPublisherSettings.service.cjs');
+const { getTelegramPublisherSettings, getTelegramPublisherHistory, isAllowedWeekday, isIntervalDue, getDueIntervalSlot, isBeforeEndTime, recordTelegramPublisherMessage } = require('./telegramPublisherSettings.service.cjs');
 
 const STATE_KEY = 'telegram.publisher.state.v1';
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
@@ -187,11 +187,11 @@ async function publishIndexIfScheduled(now = new Date(), suppliedSettings) {
   if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
   if (!isBeforeEndTime(now, schedule.endTime)) return { skipped: true, reason: 'PUBLISHING_END_TIME_REACHED' };
   if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
-  const slot = tehranSlot(now);
-  if (!isIntervalDue(now, schedule.startTime, schedule.intervalMinutes)) return { skipped: true, reason: 'NOT_AN_INDEX_SLOT' };
+  const scheduledTime = getDueIntervalSlot(now, schedule.startTime, schedule.intervalMinutes, 2);
+  if (!scheduledTime) return { skipped: true, reason: 'NOT_AN_INDEX_SLOT' };
 
   const state = await loadState();
-  const daySlot = tehranDateKey(now) + '@' + slot;
+  const daySlot = tehranDateKey(now) + '@' + scheduledTime;
   if (state.lastIndexSlot === daySlot) return { skipped: true, reason: 'ALREADY_PUBLISHED' };
 
   const row = await prisma.marketCurrent.findUnique({ where: { marketDate: getCurrentMarketDateUtc(now) } });
@@ -213,17 +213,20 @@ async function publishValuableChangesIfAny(now = new Date(), suppliedSettings) {
   if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
   if (!isBeforeEndTime(now, schedule.endTime)) return { skipped: true, reason: 'PUBLISHING_END_TIME_REACHED' };
   if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
-  if (!isIntervalDue(now, schedule.startTime, schedule.intervalMinutes)) return { skipped: true, reason: 'NOT_IN_PUBLISH_CYCLE' };
+  const scheduledTime = getDueIntervalSlot(now, schedule.startTime, schedule.intervalMinutes, 2);
+  if (!scheduledTime) return { skipped: true, reason: 'NOT_IN_PUBLISH_CYCLE' };
+
+  const slot = tehranDateKey(now) + '@' + scheduledTime;
   const state = await loadState();
-  if (state.lastValuablePublishedAt && ageMs(state.lastValuablePublishedAt, now.getTime()) < schedule.intervalMinutes * 60 * 1000) {
-    return { skipped: true, reason: 'PUBLISH_INTERVAL_NOT_ELAPSED' };
-  }
+  if (state.lastValuableSlot === slot) return { skipped: true, reason: 'ALREADY_PUBLISHED_THIS_SLOT' };
+
   const marketDate = getCurrentMarketDateUtc(now);
   const currentMarket = await prisma.marketCurrent.findUnique({ where: { marketDate } });
   if (!currentMarket || currentMarket.isStale || String(currentMarket.marketStatus || '').toUpperCase() !== 'OPEN' ||
       !(toNumber(currentMarket.overallIndex) > 0) || !isFresh(currentMarket.updatedAt, MAX_INDEX_AGE_MS, now.getTime())) {
     return { skipped: true, reason: 'NO_FRESH_CURRENT_MARKET_SNAPSHOT' };
   }
+
   const stored = await getStoredValuableSymbols({ force: true });
   if (!stored?.evaluatedAt || !isFresh(stored.evaluatedAt, MAX_VALUABLE_EVALUATION_AGE_MS, now.getTime())) {
     return { skipped: true, reason: 'VALUABLE_RESULTS_STALE' };
@@ -231,27 +234,35 @@ async function publishValuableChangesIfAny(now = new Date(), suppliedSettings) {
   const current = normalizeValuableResults(stored.results, now.getTime());
   if (!current.length) return { skipped: true, reason: 'NO_FRESH_VALUABLE_RESULTS' };
 
-  const previousMap = state.valuableSymbols && typeof state.valuableSymbols === 'object' ? state.valuableSymbols : {};
-  const changes = getImportantSymbolChanges(current, previousMap);
+  const selected = current.slice(0, schedule.maxSymbolsPerMessage);
+  const lines = [
+    '📊 رونیا | نمادهای ارزنده',
+    'تاریخ: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, dateStyle: 'short' }).format(now),
+    'ساعت تهران: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false }).format(now),
+    'فهرست به‌روزشده بر اساس آخرین ارزیابی معتبر سامانه',
+    ''
+  ];
+  for (const item of selected) {
+    lines.push('🔹 ' + (item.name || item.symbol) + ' (' + item.symbol + ')');
+    lines.push('امتیاز: ' + formatNumber(item.score, 0) + ' | قیمت: ' + formatNumber(item.currentPrice));
+    if (toNumber(item.targetPrice) > 0) lines.push('هدف محاسباتی: ' + formatNumber(item.targetPrice));
+    if (toNumber(item.stopLoss) > 0) lines.push('سطح ابطال/حمایت: ' + formatNumber(item.stopLoss));
+    lines.push('');
+  }
+  lines.push('اطلاعات بر پایه داده‌های تازه سامانه است؛ سیگنال قطعی یا تضمین سود نیست.');
+
+  await sendAndRecord('valuable', lines.join('\n').slice(0, 3900), now);
   const nextMap = {};
   for (const item of current) nextMap[item.symbol] = { score: toNumber(item.score) };
-  let sentCount = 0;
-  if (changes.length) {
-    const selected = changes.slice(0, schedule.maxSymbolsPerMessage);
-    await sendAndRecord('valuable', renderValuableChanges(selected, now, schedule.maxSymbolsPerMessage), now);
-    sentCount = selected.length;
-    for (const pending of changes.slice(schedule.maxSymbolsPerMessage)) {
-      const symbol = String(pending.item.symbol || '').trim();
-      if (symbol && previousMap[symbol]) nextMap[symbol] = previousMap[symbol];
-      else if (symbol) delete nextMap[symbol];
-    }
-  }
-  const nextState = { ...state, valuableSymbols: nextMap, valuableEvaluatedAt: stored.evaluatedAt };
-  if (sentCount) nextState.lastValuablePublishedAt = now.toISOString();
-  await saveState(nextState);
-  return { published: sentCount > 0, changes: sentCount, pendingChanges: Math.max(0, changes.length - sentCount) };
+  await saveState({
+    ...state,
+    valuableSymbols: nextMap,
+    valuableEvaluatedAt: stored.evaluatedAt,
+    lastValuableSlot: slot,
+    lastValuablePublishedAt: now.toISOString()
+  });
+  return { published: true, symbols: selected.length, slot };
 }
-
 
 async function publishScalpingOpportunitiesIfAny(now = new Date(), suppliedSettings) {
   const settings = suppliedSettings || await getTelegramPublisherSettings();
@@ -260,7 +271,13 @@ async function publishScalpingOpportunitiesIfAny(now = new Date(), suppliedSetti
   if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
   if (!isBeforeEndTime(now, schedule.endTime)) return { skipped: true, reason: 'PUBLISHING_END_TIME_REACHED' };
   if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
-  if (!isIntervalDue(now, schedule.startTime, schedule.intervalMinutes)) return { skipped: true, reason: 'NOT_IN_PUBLISH_CYCLE' };
+  const scheduledTime = getDueIntervalSlot(now, schedule.startTime, schedule.intervalMinutes, 2);
+  if (!scheduledTime) return { skipped: true, reason: 'NOT_IN_PUBLISH_CYCLE' };
+
+  const slot = tehranDateKey(now) + '@' + scheduledTime;
+  const state = await loadState();
+  if (state.lastScalpingSlot === slot) return { skipped: true, reason: 'ALREADY_PUBLISHED_THIS_SLOT' };
+
   const marketDate = getCurrentMarketDateUtc(now);
   const market = await prisma.marketCurrent.findUnique({ where: { marketDate } });
   if (!market || market.isStale || String(market.marketStatus || '').toUpperCase() !== 'OPEN' ||
@@ -268,7 +285,6 @@ async function publishScalpingOpportunitiesIfAny(now = new Date(), suppliedSetti
     return { skipped: true, reason: 'NO_FRESH_CURRENT_MARKET_SNAPSHOT' };
   }
 
-  const state = await loadState();
   const rows = await sharedMarketService.getScalpingOpportunities({
     status: 'ACTIVE',
     marketDate,
@@ -280,67 +296,48 @@ async function publishScalpingOpportunitiesIfAny(now = new Date(), suppliedSetti
     (!item.expiresAt || new Date(item.expiresAt).getTime() > now.getTime())
   );
   if (!valid.length) return { skipped: true, reason: 'NO_FRESH_ACTIVE_SCALPING_OPPORTUNITIES' };
-  const previous = state.scalpingOpportunities && typeof state.scalpingOpportunities === 'object'
-    ? state.scalpingOpportunities : {};
-  if (state.lastScalpingPublishedAt && ageMs(state.lastScalpingPublishedAt, now.getTime()) < schedule.intervalMinutes * 60 * 1000) {
-    return { skipped: true, reason: 'PUBLISH_INTERVAL_NOT_ELAPSED' };
+
+  const selected = valid.slice(0, schedule.maxSymbolsPerMessage);
+  const lines = [
+    '⚡ رونیا | فرصت‌های نوسان‌گیری',
+    'تاریخ: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, dateStyle: 'short' }).format(now),
+    'ساعت تهران: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false }).format(now),
+    'فهرست به‌روزشده فرصت‌های فعال',
+    ''
+  ];
+  for (const item of selected) {
+    lines.push('🔹 ' + (item.name || item.symbol) + ' (' + item.symbol + ')');
+    lines.push('نوع سیگنال: ' + (item.signal || 'نامشخص') + ' | امتیاز: ' + formatNumber(item.score, 0));
+    lines.push('قیمت فعلی ثبت‌شده: ' + formatNumber(item.currentPrice));
+    if (toNumber(item.entryPrice) > 0) lines.push('ورود محاسباتی: ' + formatNumber(item.entryPrice));
+    if (toNumber(item.takeProfit) > 0) lines.push('هدف محاسباتی: ' + formatNumber(item.takeProfit));
+    if (toNumber(item.stopLoss) > 0) lines.push('سطح ابطال: ' + formatNumber(item.stopLoss));
+    if (item.recommendationText) lines.push(String(item.recommendationText).slice(0, 250));
+    lines.push('');
   }
-  const changes = [];
+  lines.push('فقط داده‌های تازه و فرصت‌های فعال نمایش داده شده‌اند؛ این پیام تضمین سود نیست.');
+
+  await sendAndRecord('scalping', lines.join('\n').slice(0, 3900), now);
   const next = {};
   for (const item of valid) {
     const symbol = String(item.symbol).trim();
     if (!symbol) continue;
-    const signature = {
+    next[symbol] = {
       signal: String(item.signal || '').toUpperCase(),
       entryPrice: toNumber(item.entryPrice),
       takeProfit: toNumber(item.takeProfit),
       stopLoss: toNumber(item.stopLoss),
       score: toNumber(item.score)
     };
-    const old = previous[symbol];
-    const priceDelta = old && old.entryPrice > 0 && signature.entryPrice !== null
-      ? Math.abs(signature.entryPrice - old.entryPrice) / old.entryPrice : 0;
-    const changedMaterially = old && (
-      old.signal !== signature.signal ||
-      priceDelta >= 0.02 ||
-      (signature.score !== null && old.score !== null && signature.score - old.score >= IMPORTANT_SCORE_DELTA)
-    );
-    if (!old) changes.push({ type: 'new', item, signature });
-    else if (changedMaterially) changes.push({ type: 'changed', item, signature, old });
-    next[symbol] = signature;
   }
-
-  if (changes.length) {
-    const lines = [
-      '⚡ رونیا | فرصت‌های نوسان‌گیری',
-      'تاریخ: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, dateStyle: 'short' }).format(now),
-      'ساعت تهران: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false }).format(now),
-      ''
-    ];
-    for (const change of changes.slice(0, schedule.maxSymbolsPerMessage)) {
-      const item = change.item;
-      lines.push((change.type === 'new' ? '🆕 فرصت فعال' : '🔄 تغییر مهم') + ': ' + (item.name || item.symbol) + ' (' + item.symbol + ')');
-      lines.push('نوع سیگنال: ' + (item.signal || 'نامشخص') + ' | امتیاز: ' + formatNumber(item.score, 0));
-      lines.push('قیمت فعلی ثبت‌شده: ' + formatNumber(item.currentPrice));
-      if (toNumber(item.entryPrice) > 0) lines.push('ورود محاسباتی: ' + formatNumber(item.entryPrice));
-      if (toNumber(item.takeProfit) > 0) lines.push('هدف محاسباتی: ' + formatNumber(item.takeProfit));
-      if (toNumber(item.stopLoss) > 0) lines.push('سطح ابطال: ' + formatNumber(item.stopLoss));
-      if (item.recommendationText) lines.push(String(item.recommendationText).slice(0, 350));
-      lines.push('');
-    }
-    lines.push('فقط داده‌های تازه و فرصت‌های فعال نمایش داده شده‌اند؛ این پیام تضمین سود نیست.');
-    await sendAndRecord('scalping', lines.join('\n').slice(0, 3900), now);
-    const sent = changes.slice(0, schedule.maxSymbolsPerMessage);
-    for (const pending of changes.slice(schedule.maxSymbolsPerMessage)) {
-      const symbol = String(pending.item.symbol || '').trim();
-      if (symbol && previous[symbol]) next[symbol] = previous[symbol];
-      else if (symbol) delete next[symbol];
-    }
-    await saveState({ ...state, scalpingOpportunities: next, scalpingCheckedAt: now.toISOString(), lastScalpingPublishedAt: now.toISOString() });
-    return { published: true, changes: sent.length, pendingChanges: Math.max(0, changes.length - sent.length) };
-  }
-  await saveState({ ...state, scalpingOpportunities: next, scalpingCheckedAt: now.toISOString() });
-  return { published: false, changes: 0 };
+  await saveState({
+    ...state,
+    scalpingOpportunities: next,
+    scalpingCheckedAt: now.toISOString(),
+    lastScalpingSlot: slot,
+    lastScalpingPublishedAt: now.toISOString()
+  });
+  return { published: true, symbols: selected.length, slot };
 }
 
 async function publishTodaySummaryIfReady(now = new Date(), suppliedSettings) {
