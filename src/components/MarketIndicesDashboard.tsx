@@ -80,7 +80,6 @@ const Metric: React.FC<{ label: string; value: string; sub?: string; change?: nu
 const MarketIndicesDashboard: React.FC = () => {
   const [data, setData] = useState<MarketRadarSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
   const [selectedSector, setSelectedSector] = useState<MarketRadarSector | null>(null);
@@ -88,8 +87,7 @@ const MarketIndicesDashboard: React.FC = () => {
   const dataRef = useRef<MarketRadarSnapshot | null>(null);
   const [previous, setPrevious] = useState<MarketRadarSnapshot | null>(null);
 
-  const refresh = useCallback(async (manual = false) => {
-    if (manual) setRefreshing(true);
+  const refresh = useCallback(async () => {
     setError(null);
     try {
       const cached = readMarketRadarCache();
@@ -108,14 +106,14 @@ const MarketIndicesDashboard: React.FC = () => {
       const cached = readMarketRadarCache();
       if (cached) { dataRef.current = cached.snapshot; setData(cached.snapshot); setStale(true); }
       else if (!dataRef.current) setError('داده معتبر بازار در دسترس نیست. لطفاً بعداً دوباره تلاش کنید.');
-    } finally { setLoading(false); setRefreshing(false); }
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => {
     let active = true;
     void refresh();
     const timer = window.setInterval(() => {
-      if (active && isTehranSession()) void refresh();
+      if (active) void refresh();
     }, 120_000);
     return () => { active = false; window.clearInterval(timer); };
   }, [refresh]);
@@ -129,12 +127,11 @@ const MarketIndicesDashboard: React.FC = () => {
   const marketLabel = breadth?.available && breadth.total > 0 ? breadth.positive > breadth.negative ? 'مثبت' : breadth.negative > breadth.positive ? 'منفی' : 'متعادل' : 'نامشخص';
 
   if (loading && !data) return <section dir="rtl" className={`${card} animate-pulse text-slate-500`}>در حال دریافت داده‌های معتبر بازار…</section>;
-  if (error && !data) return <section dir="rtl" className={`${card} text-center`}><p className="text-rose-500">{error}</p><button onClick={() => void refresh(true)} className="mt-4 rounded-xl bg-sky-600 px-4 py-2 font-bold text-white">تلاش مجدد</button></section>;
+  if (error && !data) return <section dir="rtl" className={`${card} text-center`}><p className="text-rose-500">{error}</p><p className="mt-2 text-xs text-slate-500">سامانه به‌صورت خودکار دوباره دیتابیس را بررسی می‌کند؛ درخواست مستقیم به BRS انجام نمی‌شود.</p></section>;
 
   return <section dir="rtl" className="page-shell space-y-5">
     <header className={`${card} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
-      <div><div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-black text-[var(--color-text-primary)]">شاخص‌های بازار</h1><span className={`rounded-full px-3 py-1 text-xs font-bold ${data?.marketOpen ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-500/10 text-slate-500'}`}>{data?.marketOpen ? 'بازار باز' : 'بازار بسته / خارج از جلسه'}</span><span className={`rounded-full px-3 py-1 text-xs font-bold ${stale ? 'bg-amber-500/10 text-amber-500' : 'bg-sky-500/10 text-sky-500'}`}>{stale ? 'داده ذخیره‌شده یا قدیمی' : 'آخرین پاسخ سرویس مشترک'}</span></div><p className="mt-2 text-xs text-slate-500">زمان ثبت داده در منبع: {lastUpdated} · بررسی خودکار هر دو دقیقه در ساعات معاملات تهران · بدون داده ساختگی</p></div>
-      <button onClick={() => void refresh(true)} disabled={refreshing} className="rounded-xl border border-[var(--color-border)] px-4 py-2 text-sm font-bold text-[var(--color-text-primary)] disabled:opacity-50">{refreshing ? 'در حال دریافت…' : 'بروزرسانی دستی'}</button>
+      <div><div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-black text-[var(--color-text-primary)]">شاخص‌های بازار</h1><span className={`rounded-full px-3 py-1 text-xs font-bold ${data?.marketOpen ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-500/10 text-slate-500'}`}>{data?.marketOpen ? 'بازار باز' : 'بازار بسته / خارج از جلسه'}</span><span className={`rounded-full px-3 py-1 text-xs font-bold ${stale ? 'bg-amber-500/10 text-amber-500' : 'bg-sky-500/10 text-sky-500'}`}>{stale ? 'داده ذخیره‌شده یا قدیمی' : 'داده خوانده‌شده از دیتابیس مشترک'}</span></div><p className="mt-2 text-xs text-slate-500">زمان ثبت داده در منبع: {lastUpdated} · خواندن خودکار از دیتابیس هر دو دقیقه · بدون درخواست مستقیم BRS یا اجرای تحلیل سمت سرور</p></div>
     </header>
 
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
