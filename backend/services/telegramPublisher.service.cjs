@@ -3,7 +3,6 @@
 const prisma = require('../config/prisma.cjs');
 const { getStoredValuableSymbols } = require('./valuableSymbols.engine.cjs');
 const { sendTelegramMessage, getTelegramConfig } = require('./telegramBotApi.service.cjs');
-const sharedMarketService = require('./sharedMarket.service.cjs');
 const telegramAdMessageService = require('./telegramAdMessage.service.cjs');
 const { getTelegramPublisherSettings, getTelegramPublisherHistory, isAllowedWeekday, isIntervalDue, getDueIntervalSlot, isBeforeEndTime, recordTelegramPublisherMessage } = require('./telegramPublisherSettings.service.cjs');
 
@@ -98,13 +97,11 @@ async function saveState(state) {
   });
 }
 
-function normalizeValuableResults(results, now = Date.now()) {
+function normalizeValuableResults(results) {
   if (!Array.isArray(results)) return [];
   return results.filter(item =>
-    item && item.symbol &&
-    String(item.marketStatus || '').toUpperCase() === 'OPEN' &&
-    toNumber(item.currentPrice) > 0 &&
-    isFresh(item.marketUpdatedAt, MAX_SYMBOL_PRICE_AGE_MS, now)
+    item && item.symbol && toNumber(item.currentPrice) > 0 &&
+    item.marketUpdatedAt && Number.isFinite(new Date(item.marketUpdatedAt).getTime())
   ).slice(0, 20);
 }
 
@@ -161,7 +158,7 @@ function renderIndexMessage(row, date = new Date()) {
   const signedPercent = value => value === null ? 'ناموجود' : (value > 0 ? '+' : '') + formatNumber(value, 2) + '٪';
   return [
     '📈 رونیا | گزارش شاخص‌های بورس',
-    'تاریخ: ' + day + ' | ساعت تهران: ' + time,
+    'زمان ثبت آخرین داده در دیتابیس: ' + day + ' | ساعت تهران: ' + time,
     '',
     'شاخص کل: ' + formatNumber(overall, 0),
     'تغییر عددی: ' + signed(overallChange) + ' | تغییر درصدی: ' + signedPercent(overallPercent),
@@ -173,11 +170,17 @@ function renderIndexMessage(row, date = new Date()) {
   ].join('\n');
 }
 
-function renderSummaryMessage(row, date = new Date()) {
+function renderSummaryMessage(row) {
   const content = String(row?.content || row?.summary || '').trim();
   if (!content || !/تحلیل تکنیکال و چشم‌انداز کوتاه‌مدت/.test(content)) return null;
-  const day = new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, dateStyle: 'short' }).format(date);
-  return ('🧾 رونیا | خلاصه نهایی بازار بورس\nتاریخ: ' + day + '\n\n' + content).slice(0, 3900);
+  const sourceDate = row?.summaryDate || row?.date || row?.createdAt;
+  if (!sourceDate || !Number.isFinite(new Date(sourceDate).getTime())) return null;
+  const formatDateTime = value => new Intl.DateTimeFormat('fa-IR', {
+    timeZone: TEHRAN_TIMEZONE, dateStyle: 'short', hour: '2-digit', minute: '2-digit', hour12: false
+  }).format(new Date(value));
+  const created = row?.createdAt || row?.date || sourceDate;
+  return ('🧾 رونیا | آخرین خلاصه ذخیره‌شده بازار بورس\nتاریخ بازار: ' + formatDateTime(sourceDate) +
+    '\nزمان ثبت خلاصه در دیتابیس: ' + formatDateTime(created) + '\n\n' + content).slice(0, 3900);
 }
 
 async function publishIndexIfScheduled(now = new Date(), suppliedSettings) {
@@ -186,7 +189,6 @@ async function publishIndexIfScheduled(now = new Date(), suppliedSettings) {
   if (!schedule.enabled) return { skipped: true, reason: 'DISABLED_BY_ADMIN' };
   if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
   if (!isBeforeEndTime(now, schedule.endTime)) return { skipped: true, reason: 'PUBLISHING_END_TIME_REACHED' };
-  if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
   const scheduledTime = getDueIntervalSlot(now, schedule.startTime, schedule.intervalMinutes, 2);
   if (!scheduledTime) return { skipped: true, reason: 'NOT_AN_INDEX_SLOT' };
 
@@ -194,14 +196,12 @@ async function publishIndexIfScheduled(now = new Date(), suppliedSettings) {
   const daySlot = tehranDateKey(now) + '@' + scheduledTime;
   if (state.lastIndexSlot === daySlot) return { skipped: true, reason: 'ALREADY_PUBLISHED' };
 
-  const row = await prisma.marketCurrent.findUnique({ where: { marketDate: getCurrentMarketDateUtc(now) } });
-  if (!row || row.isStale || String(row.marketStatus || '').toUpperCase() !== 'OPEN' ||
-      !isFresh(row.updatedAt, MAX_INDEX_AGE_MS, now.getTime()) ||
-      !(toNumber(row.overallIndex) > 0) || !(toNumber(row.equalIndex) > 0)) {
-    return { skipped: true, reason: 'NO_FRESH_CURRENT_MARKET_SNAPSHOT' };
+  const row = await prisma.marketCurrent.findFirst({ orderBy: [{ updatedAt: 'desc' }, { marketDate: 'desc' }] });
+  if (!row || !(toNumber(row.overallIndex) > 0) || !(toNumber(row.equalIndex) > 0)) {
+    return { skipped: true, reason: 'NO_VALID_STORED_MARKET_SNAPSHOT' };
   }
 
-  await sendAndRecord('index', renderIndexMessage(row, now), now);
+  await sendAndRecord('index', renderIndexMessage(row, row.updatedAt || now), now);
   await saveState({ ...state, lastIndexSlot: daySlot });
   return { published: true, slot: daySlot };
 }
@@ -212,7 +212,6 @@ async function publishValuableChangesIfAny(now = new Date(), suppliedSettings) {
   if (!schedule.enabled) return { skipped: true, reason: 'DISABLED_BY_ADMIN' };
   if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
   if (!isBeforeEndTime(now, schedule.endTime)) return { skipped: true, reason: 'PUBLISHING_END_TIME_REACHED' };
-  if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
   const scheduledTime = getDueIntervalSlot(now, schedule.startTime, schedule.intervalMinutes, 2);
   if (!scheduledTime) return { skipped: true, reason: 'NOT_IN_PUBLISH_CYCLE' };
 
@@ -220,31 +219,22 @@ async function publishValuableChangesIfAny(now = new Date(), suppliedSettings) {
   const state = await loadState();
   if (state.lastValuableSlot === slot) return { skipped: true, reason: 'ALREADY_PUBLISHED_THIS_SLOT' };
 
-  const marketDate = getCurrentMarketDateUtc(now);
-  const currentMarket = await prisma.marketCurrent.findUnique({ where: { marketDate } });
-  if (!currentMarket || currentMarket.isStale || String(currentMarket.marketStatus || '').toUpperCase() !== 'OPEN' ||
-      !(toNumber(currentMarket.overallIndex) > 0) || !isFresh(currentMarket.updatedAt, MAX_INDEX_AGE_MS, now.getTime())) {
-    return { skipped: true, reason: 'NO_FRESH_CURRENT_MARKET_SNAPSHOT' };
-  }
-
   const stored = await getStoredValuableSymbols({ force: true });
-  if (!stored?.evaluatedAt || !isFresh(stored.evaluatedAt, MAX_VALUABLE_EVALUATION_AGE_MS, now.getTime())) {
-    return { skipped: true, reason: 'VALUABLE_RESULTS_STALE' };
-  }
-  const current = normalizeValuableResults(stored.results, now.getTime());
+  if (!stored?.evaluatedAt) return { skipped: true, reason: 'NO_STORED_VALUABLE_EVALUATION' };
+  const current = normalizeValuableResults(stored.results);
   if (!current.length) return { skipped: true, reason: 'NO_FRESH_VALUABLE_RESULTS' };
 
   const selected = current.slice(0, schedule.maxSymbolsPerMessage);
   const lines = [
-    '📊 رونیا | نمادهای ارزنده',
-    'تاریخ: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, dateStyle: 'short' }).format(now),
-    'ساعت تهران: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false }).format(now),
-    'فهرست به‌روزشده بر اساس آخرین ارزیابی معتبر سامانه',
+    '📊 رونیا | آخرین فهرست ذخیره‌شده نمادهای ارزنده',
+    'زمان ارزیابی ثبت‌شده: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, dateStyle: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(stored.evaluatedAt)),
+    'قیمت هر نماد همراه با زمان ثبت قیمت اصلی آن نمایش داده می‌شود.',
     ''
   ];
   for (const item of selected) {
     lines.push('🔹 ' + (item.name || item.symbol) + ' (' + item.symbol + ')');
-    lines.push('امتیاز: ' + formatNumber(item.score, 0) + ' | قیمت: ' + formatNumber(item.currentPrice));
+    lines.push('امتیاز: ' + formatNumber(item.score, 0) + ' | آخرین قیمت ثبت‌شده: ' + formatNumber(item.currentPrice));
+    lines.push('زمان ثبت قیمت: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, dateStyle: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(item.marketUpdatedAt)));
     if (toNumber(item.targetPrice) > 0) lines.push('هدف محاسباتی: ' + formatNumber(item.targetPrice));
     if (toNumber(item.stopLoss) > 0) lines.push('سطح ابطال/حمایت: ' + formatNumber(item.stopLoss));
     lines.push('');
@@ -270,7 +260,6 @@ async function publishScalpingOpportunitiesIfAny(now = new Date(), suppliedSetti
   if (!schedule.enabled) return { skipped: true, reason: 'DISABLED_BY_ADMIN' };
   if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
   if (!isBeforeEndTime(now, schedule.endTime)) return { skipped: true, reason: 'PUBLISHING_END_TIME_REACHED' };
-  if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
   const scheduledTime = getDueIntervalSlot(now, schedule.startTime, schedule.intervalMinutes, 2);
   if (!scheduledTime) return { skipped: true, reason: 'NOT_IN_PUBLISH_CYCLE' };
 
@@ -285,30 +274,32 @@ async function publishScalpingOpportunitiesIfAny(now = new Date(), suppliedSetti
     return { skipped: true, reason: 'NO_FRESH_CURRENT_MARKET_SNAPSHOT' };
   }
 
-  const rows = await sharedMarketService.getScalpingOpportunities({
-    status: 'ACTIVE',
-    marketDate,
-    limit: 50
+  const rows = await prisma.marketScalpingOpportunity.findMany({
+    where: { status: 'ACTIVE', OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+    orderBy: [{ updatedAt: 'desc' }, { marketDate: 'desc' }],
+    take: 100
   });
-  const valid = (Array.isArray(rows) ? rows : []).filter(item =>
-    item && item.symbol && toNumber(item.currentPrice) > 0 &&
-    isFresh(item.updatedAt, MAX_INDEX_AGE_MS, now.getTime()) &&
-    (!item.expiresAt || new Date(item.expiresAt).getTime() > now.getTime())
-  );
+  const latestBySymbol = new Map();
+  for (const item of rows) {
+    const symbol = String(item?.symbol || '').trim();
+    if (!symbol || latestBySymbol.has(symbol) || !(toNumber(item.currentPrice) > 0)) continue;
+    latestBySymbol.set(symbol, item);
+  }
+  const valid = [...latestBySymbol.values()];
   if (!valid.length) return { skipped: true, reason: 'NO_FRESH_ACTIVE_SCALPING_OPPORTUNITIES' };
 
   const selected = valid.slice(0, schedule.maxSymbolsPerMessage);
   const lines = [
-    '⚡ رونیا | فرصت‌های نوسان‌گیری',
-    'تاریخ: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, dateStyle: 'short' }).format(now),
-    'ساعت تهران: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false }).format(now),
-    'فهرست به‌روزشده فرصت‌های فعال',
+    '⚡ رونیا | آخرین فرصت‌های ذخیره‌شده نوسان‌گیری',
+    'این فهرست از رکوردهای ذخیره‌شده دیتابیس تهیه شده؛ زمان ثبت هر فرصت درج شده است.',
     ''
   ];
   for (const item of selected) {
     lines.push('🔹 ' + (item.name || item.symbol) + ' (' + item.symbol + ')');
     lines.push('نوع سیگنال: ' + (item.signal || 'نامشخص') + ' | امتیاز: ' + formatNumber(item.score, 0));
-    lines.push('قیمت فعلی ثبت‌شده: ' + formatNumber(item.currentPrice));
+    lines.push('آخرین قیمت ثبت‌شده: ' + formatNumber(item.currentPrice));
+    lines.push('تاریخ بازار: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, dateStyle: 'short' }).format(new Date(item.marketDate)) +
+      ' | زمان ثبت فرصت: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, dateStyle: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(item.updatedAt)));
     if (toNumber(item.entryPrice) > 0) lines.push('ورود محاسباتی: ' + formatNumber(item.entryPrice));
     if (toNumber(item.takeProfit) > 0) lines.push('هدف محاسباتی: ' + formatNumber(item.takeProfit));
     if (toNumber(item.stopLoss) > 0) lines.push('سطح ابطال: ' + formatNumber(item.stopLoss));
@@ -347,20 +338,11 @@ async function publishTodaySummaryIfReady(now = new Date(), suppliedSettings) {
   if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
   if (tehranSlot(now) < schedule.publishTime) return { skipped: true, reason: 'BEFORE_SUMMARY_SLOT' };
   const state = await loadState();
-  const summaryDate = getCurrentMarketDateUtc(now);
-  const marketSnapshot = await prisma.marketCurrent.findUnique({ where: { marketDate: summaryDate } });
-  if (!marketSnapshot || marketSnapshot.isStale || !(toNumber(marketSnapshot.overallIndex) > 0)) {
-    return { skipped: true, reason: 'NO_TODAY_MARKET_SNAPSHOT' };
-  }
-  const row = await prisma.marketSummary.findUnique({ where: { summaryDate } });
-  if (!row) return { skipped: true, reason: 'NO_TODAY_SUMMARY' };
-  const createdAt = row.createdAt || row.date;
-  if (!createdAt || !isFresh(createdAt, 24 * 60 * 60 * 1000, now.getTime())) {
-    return { skipped: true, reason: 'SUMMARY_NOT_CREATED_TODAY' };
-  }
+  const row = await prisma.marketSummary.findFirst({ orderBy: [{ summaryDate: 'desc' }, { createdAt: 'desc' }] });
+  if (!row) return { skipped: true, reason: 'NO_STORED_MARKET_SUMMARY' };
   const identity = tehranDateKey(now) + '#' + String(row.id);
   if (state.lastSummaryIdentity === identity) return { skipped: true, reason: 'ALREADY_PUBLISHED' };
-  const message = renderSummaryMessage(row, now);
+  const message = renderSummaryMessage(row);
   if (!message) return { skipped: true, reason: 'SUMMARY_INCOMPLETE' };
   await sendAndRecord('summary', message, now);
   await saveState({ ...state, lastSummaryIdentity: identity });
