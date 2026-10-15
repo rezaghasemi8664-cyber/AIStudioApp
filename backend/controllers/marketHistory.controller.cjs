@@ -288,7 +288,7 @@ function extractDbSnapshot(snapshot) {
  */
 function normalizeIndexName(value) {
   return String(value || '')
-    .replace(/[\\u200c\\u200f\\u0640\\s()[\\]،,._-]/g, '')
+    .replace(/[\u200c\u200f\u0640\s()[\]،,._-]/g, '')
     .replace(/ي/g, 'ی')
     .replace(/ك/g, 'ک');
 }
