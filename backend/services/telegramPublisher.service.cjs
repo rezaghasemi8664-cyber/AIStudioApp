@@ -5,7 +5,7 @@ const { getStoredValuableSymbols } = require('./valuableSymbols.engine.cjs');
 const { sendTelegramMessage, getTelegramConfig } = require('./telegramBotApi.service.cjs');
 const sharedMarketService = require('./sharedMarket.service.cjs');
 const telegramAdMessageService = require('./telegramAdMessage.service.cjs');
-const { getTelegramPublisherSettings, getTelegramPublisherHistory, isAllowedWeekday, isIntervalDue, isBeforeEndTime, recordTelegramPublisherMessage } = require('./telegramPublisherSettings.service.cjs');
+const { getTelegramPublisherSettings, getTelegramPublisherHistory, isAllowedWeekday, isIntervalDue, getDueIntervalSlot, isBeforeEndTime, recordTelegramPublisherMessage } = require('./telegramPublisherSettings.service.cjs');
 
 const STATE_KEY = 'telegram.publisher.state.v1';
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
@@ -187,11 +187,11 @@ async function publishIndexIfScheduled(now = new Date(), suppliedSettings) {
   if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
   if (!isBeforeEndTime(now, schedule.endTime)) return { skipped: true, reason: 'PUBLISHING_END_TIME_REACHED' };
   if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
-  const slot = tehranSlot(now);
-  if (!isIntervalDue(now, schedule.startTime, schedule.intervalMinutes)) return { skipped: true, reason: 'NOT_AN_INDEX_SLOT' };
+  const scheduledTime = getDueIntervalSlot(now, schedule.startTime, schedule.intervalMinutes, 2);
+  if (!scheduledTime) return { skipped: true, reason: 'NOT_AN_INDEX_SLOT' };
 
   const state = await loadState();
-  const daySlot = tehranDateKey(now) + '@' + slot;
+  const daySlot = tehranDateKey(now) + '@' + scheduledTime;
   if (state.lastIndexSlot === daySlot) return { skipped: true, reason: 'ALREADY_PUBLISHED' };
 
   const row = await prisma.marketCurrent.findUnique({ where: { marketDate: getCurrentMarketDateUtc(now) } });
@@ -213,9 +213,10 @@ async function publishValuableChangesIfAny(now = new Date(), suppliedSettings) {
   if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
   if (!isBeforeEndTime(now, schedule.endTime)) return { skipped: true, reason: 'PUBLISHING_END_TIME_REACHED' };
   if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
-  if (!isIntervalDue(now, schedule.startTime, schedule.intervalMinutes)) return { skipped: true, reason: 'NOT_IN_PUBLISH_CYCLE' };
+  const scheduledTime = getDueIntervalSlot(now, schedule.startTime, schedule.intervalMinutes, 2);
+  if (!scheduledTime) return { skipped: true, reason: 'NOT_IN_PUBLISH_CYCLE' };
 
-  const slot = tehranDateKey(now) + '@' + tehranSlot(now);
+  const slot = tehranDateKey(now) + '@' + scheduledTime;
   const state = await loadState();
   if (state.lastValuableSlot === slot) return { skipped: true, reason: 'ALREADY_PUBLISHED_THIS_SLOT' };
 
@@ -270,9 +271,10 @@ async function publishScalpingOpportunitiesIfAny(now = new Date(), suppliedSetti
   if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
   if (!isBeforeEndTime(now, schedule.endTime)) return { skipped: true, reason: 'PUBLISHING_END_TIME_REACHED' };
   if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
-  if (!isIntervalDue(now, schedule.startTime, schedule.intervalMinutes)) return { skipped: true, reason: 'NOT_IN_PUBLISH_CYCLE' };
+  const scheduledTime = getDueIntervalSlot(now, schedule.startTime, schedule.intervalMinutes, 2);
+  if (!scheduledTime) return { skipped: true, reason: 'NOT_IN_PUBLISH_CYCLE' };
 
-  const slot = tehranDateKey(now) + '@' + tehranSlot(now);
+  const slot = tehranDateKey(now) + '@' + scheduledTime;
   const state = await loadState();
   if (state.lastScalpingSlot === slot) return { skipped: true, reason: 'ALREADY_PUBLISHED_THIS_SLOT' };
 
