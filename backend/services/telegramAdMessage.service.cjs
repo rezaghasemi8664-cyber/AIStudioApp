@@ -21,7 +21,7 @@ function normalize(value) {
   const times = Array.isArray(src.times) ? [...new Set(src.times.map(String).filter(t => /^([01]\d|2[0-3]):[0-5]\d$/.test(t)))].sort() : ['10:00'];
   const text = String(src.text || '').trim();
   const imageDataUrl = String(src.imageDataUrl || '');
-  return { enabled: src.enabled === true, text: text.slice(0, 1024), imageDataUrl, days, times, timezone: TIMEZONE };
+  return { enabled: src.enabled === true, text, imageDataUrl, days, times, timezone: TIMEZONE };
 }
 
 function validate(value, { requireImage = false } = {}) {
@@ -100,7 +100,7 @@ async function publishScheduledIfDue(now = new Date()) {
   const settings = await getSettings();
   if (!settings.enabled || !settings.text || !settings.imageDataUrl || !settings.days.includes(tehranParts(now).weekday)) return { skipped: true };
   const parts = tehranParts(now);
-  const time = parts.hour + ':' + parts.minute;
+  const time = (parts.hour === '24' ? '00' : parts.hour) + ':' + parts.minute;
   if (!settings.times.includes(time)) return { skipped: true };
   const runKey = tehranDateKey(now) + '@' + time;
   const state = await readConfig(STATE_KEY, { attempted: [] });
