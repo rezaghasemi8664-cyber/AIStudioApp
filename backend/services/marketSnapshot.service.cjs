@@ -323,14 +323,24 @@ async function addHistoricalValueComparison(derived, symbols) {
   }).format(new Date());
   const [year, month, day] = marketDateKey.split('-').map(Number);
   const marketDate = new Date(Date.UTC(year, month - 1, day));
-  const rows = await prisma.$queryRaw`
-    SELECT TOP 20 CAST([date] AS date) AS [marketDate],
-      SUM(CAST([value] AS decimal(38,0))) AS [totalValue]
-    FROM [dbo].[MarketDaily]
-    WHERE [date] < ${marketDate} AND [value] IS NOT NULL
-    GROUP BY CAST([date] AS date)
-    ORDER BY CAST([date] AS date) DESC
-  `;
+  let rows = [];
+  try {
+    rows = await prisma.$queryRaw`
+      SELECT TOP 20 CAST([date] AS date) AS [marketDate],
+        SUM(CAST([value] AS decimal(38,0))) AS [totalValue]
+      FROM [dbo].[MarketDaily]
+      WHERE [date] < ${marketDate} AND [value] IS NOT NULL
+      GROUP BY CAST([date] AS date)
+      ORDER BY CAST([date] AS date) DESC
+    `;
+  } catch (error) {
+    derived.breadth.marketValueVsAverage = {
+      available: false, currentValue: 0, historicalAverage: null, changePercent: null,
+      sampleDays: 0, baseline: 'previous trading-day totals from MarketDaily'
+    };
+    console.warn('[MARKET SNAPSHOT] historical traded-value comparison unavailable:', error.message);
+    return;
+  }
   const dailyValues = (Array.isArray(rows) ? rows : [])
     .map(row => Number(row.totalValue))
     .filter(value => Number.isFinite(value) && value > 0);
