@@ -4,6 +4,7 @@ const prisma = require('../config/prisma.cjs');
 const { getStoredValuableSymbols } = require('./valuableSymbols.engine.cjs');
 const { sendTelegramMessage, getTelegramConfig } = require('./telegramBotApi.service.cjs');
 const sharedMarketService = require('./sharedMarket.service.cjs');
+const telegramAdMessageService = require('./telegramAdMessage.service.cjs');
 const { getTelegramPublisherSettings, getTelegramPublisherHistory, isAllowedWeekday, isIntervalDue, recordTelegramPublisherMessage } = require('./telegramPublisherSettings.service.cjs');
 
 const STATE_KEY = 'telegram.publisher.state.v1';
@@ -384,6 +385,8 @@ async function runTelegramPublisherTick(now = new Date()) {
   await getTelegramPublisherHistory(now); // Rolls over the single-day history at Tehran midnight.
   const settings = await getTelegramPublisherSettings();
   const outcomes = [];
+  try { outcomes.push({ name: 'custom-ad', ...(await telegramAdMessageService.publishScheduledIfDue(now)) }); }
+  catch (error) { console.error('[CRON][TelegramPublisher] custom-ad failed:', error?.message || error); outcomes.push({ name: 'custom-ad', error: error?.code || 'PUBLISH_FAILED' }); }
   for (const [name, fn] of [
     ['index', publishIndexIfScheduled],
     ['valuable', publishValuableChangesIfAny],

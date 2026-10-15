@@ -45,4 +45,38 @@ async function sendTelegramMessage(text, options = {}) {
   return payload.result;
 }
 
-module.exports = { getTelegramConfig, sendTelegramMessage };
+
+async function sendTelegramPhoto(buffer, mimeType, caption, options = {}) {
+  const { token, chatId } = getTelegramConfig();
+  if (!token || !chatId) {
+    const error = new Error('TELEGRAM_NOT_CONFIGURED');
+    error.code = 'TELEGRAM_NOT_CONFIGURED';
+    throw error;
+  }
+  if (!Buffer.isBuffer(buffer) || !buffer.length) throw new Error('IMAGE_REQUIRED');
+  const endpoint = [TELEGRAM_API_BASE, '/bot', token, '/sendPhoto'].join('');
+  const form = new FormData();
+  form.append('chat_id', chatId);
+  form.append('caption', String(caption || '').trim().slice(0, 1024));
+  form.append('disable_notification', options.disableNotification === true ? 'true' : 'false');
+  const type = String(mimeType || 'image/jpeg');
+  const extension = type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg';
+  form.append('photo', new Blob([buffer], { type }), 'roniya-ad.' + extension);
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    body: form,
+    signal: AbortSignal.timeout(Number(process.env.TELEGRAM_TIMEOUT_MS) || 20000)
+  });
+  let payload;
+  try { payload = await response.json(); } catch (_) { payload = null; }
+  if (!response.ok || !payload || payload.ok !== true) {
+    const description = String(payload?.description || ('HTTP_' + response.status));
+    const error = new Error('TELEGRAM_SEND_FAILED: ' + description);
+    error.code = 'TELEGRAM_SEND_FAILED';
+    error.status = response.status;
+    throw error;
+  }
+  return payload.result;
+}
+
+module.exports = { getTelegramConfig, sendTelegramMessage, sendTelegramPhoto };

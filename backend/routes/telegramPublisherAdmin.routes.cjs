@@ -10,6 +10,7 @@ const {
   saveTelegramPublisherSettings,
   getTelegramPublisherHistory
 } = require('../services/telegramPublisherSettings.service.cjs');
+const telegramAdMessageService = require('../services/telegramAdMessage.service.cjs');
 
 const router = express.Router();
 router.use(authMiddleware, requireAdmin);
@@ -69,6 +70,40 @@ router.get('/history', async (req, res) => {
   } catch (error) {
     console.error('[TelegramPublisherAdmin] Read history failed:', error?.message || error);
     return res.status(500).json({ success: false, message: 'دریافت تاریخچه انتشار تلگرام ناموفق بود.' });
+  }
+});
+
+
+router.get('/ad-message', async (_req, res) => {
+  try { return res.json({ success: true, data: await telegramAdMessageService.getSettings(), timezone: 'Asia/Tehran' }); }
+  catch (error) {
+    console.error('[TelegramPublisherAdmin] Read ad message failed:', error?.message || error);
+    return res.status(500).json({ success: false, message: 'دریافت پیام تبلیغاتی ناموفق بود.' });
+  }
+});
+
+router.put('/ad-message', async (req, res) => {
+  try {
+    const data = await telegramAdMessageService.saveSettings(req.body);
+    await audit(req, 'save-ad-message', 200, { updatedBy: userId(req), enabled: data.enabled, days: data.days, times: data.times, hasImage: Boolean(data.imageDataUrl) });
+    return res.json({ success: true, message: 'پیام تبلیغاتی و زمان‌بندی آن ذخیره شد.', data, timezone: 'Asia/Tehran' });
+  } catch (error) {
+    const message = String(error?.message || '');
+    const badRequest = /نامعتبر|وارد کنید|باید|مجاز|انتشار|ساعت|روز|پیوست|نویسه|حجم|فرمت/.test(message);
+    await audit(req, 'save-ad-message', badRequest ? 400 : 500, { error: message.slice(0, 300) });
+    return res.status(badRequest ? 400 : 500).json({ success: false, message: badRequest ? message : 'ذخیره پیام تبلیغاتی ناموفق بود.' });
+  }
+});
+
+router.post('/ad-message/publish-now', async (req, res) => {
+  try {
+    const result = await telegramAdMessageService.publish(req.body, new Date(), 'manual');
+    await audit(req, 'publish-ad-message-now', 200, { published: true, updatedBy: userId(req) });
+    return res.json({ success: true, message: result.message, data: result });
+  } catch (error) {
+    const message = String(error?.message || 'انتشار در تلگرام ناموفق بود.');
+    await audit(req, 'publish-ad-message-now', 502, { error: message.slice(0, 300), updatedBy: userId(req) });
+    return res.status(502).json({ success: false, message });
   }
 });
 
