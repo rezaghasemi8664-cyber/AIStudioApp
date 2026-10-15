@@ -52,3 +52,29 @@ export async function getTelegramPublisherHistory(): Promise<TelegramPublisherHi
   const response = await apiClient.get<TelegramPublisherHistory>(`${BASE}/history`);
   return unwrap(response, 'دریافت تاریخچه انتشار تلگرام ناموفق بود.');
 }
+
+
+export interface TelegramAdMessageSettings {
+  enabled: boolean;
+  text: string;
+  imageDataUrl: string;
+  days: TehranWeekday[];
+  times: string[];
+  timezone: 'Asia/Tehran';
+}
+export const DEFAULT_TELEGRAM_AD_MESSAGE: TelegramAdMessageSettings = {
+  enabled: false, text: '', imageDataUrl: '',
+  days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'], times: ['10:00'], timezone: 'Asia/Tehran'
+};
+export async function getTelegramAdMessageSettings(): Promise<TelegramAdMessageSettings> {
+  const response = await apiClient.get<TelegramAdMessageSettings>(`${BASE}/ad-message`);
+  return unwrap(response, 'دریافت پیام تبلیغاتی ناموفق بود.');
+}
+export async function saveTelegramAdMessageSettings(settings: TelegramAdMessageSettings): Promise<TelegramAdMessageSettings> {
+  const response = await apiClient.put<TelegramAdMessageSettings>(`${BASE}/ad-message`, settings);
+  return unwrap(response, 'ذخیره پیام تبلیغاتی ناموفق بود.');
+}
+export async function publishTelegramAdMessageNow(settings: TelegramAdMessageSettings): Promise<{ message: string; messageId?: number | null }> {
+  const response = await apiClient.post<{ message: string; messageId?: number | null }>(`${BASE}/ad-message/publish-now`, settings);
+  return unwrap(response, 'انتشار فوری پیام تبلیغاتی ناموفق بود.');
+}
