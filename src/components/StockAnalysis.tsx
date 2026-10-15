@@ -4,6 +4,7 @@ import api from '../api/apiClient';
 import { getLatestSummary, getSummaryHistory } from '../services/marketSummaryService';
 import { exportElementToPdf } from '../utils/exportToPdf';
 import AnalysisDataQualityCard from './AnalysisDataQualityCard';
+import SymbolSearchSnapshot from './SymbolSearchSnapshot';
 import toast from 'react-hot-toast';
 import * as analysisHistoryService from '../services/analysisHistoryService';
 import {
@@ -46,7 +47,7 @@ type MarketSummary = {
   updatedAt?: string | null;
 };
 
-type ActiveTab = 'analysis' | 'marketSummary' | 'history';
+type ActiveTab = 'analysis' | 'symbolSearch' | 'marketSummary' | 'history';
 
 type UnifiedMarketData = {
   closingPrice: number | null;
@@ -2650,6 +2651,19 @@ const clearCurrentAnalysis = () => {
 
   <button
     type="button"
+    onClick={() => setActiveTab('symbolSearch')}
+    className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-[13px] font-bold transition-colors ${
+      activeTab === 'symbolSearch'
+        ? 'border-blue-500 bg-blue-50 text-blue-800'
+        : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+    }`}
+  >
+    <MarketIcon size={16} />
+    جستجوی نماد
+  </button>
+
+  <button
+    type="button"
     onClick={() => setActiveTab('marketSummary')}
     className={`relative flex items-center gap-2 rounded-lg border px-4 py-2 text-[13px] font-bold transition-colors ${
       activeTab === 'marketSummary'
@@ -2688,6 +2702,8 @@ const clearCurrentAnalysis = () => {
     </span>
   </button>
 </div>
+
+      {activeTab === 'symbolSearch' && <SymbolSearchSnapshot />}
 
       {activeTab === 'marketSummary' && (
   <div
