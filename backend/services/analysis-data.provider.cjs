@@ -263,8 +263,8 @@ function isTehranMarketOpen(date) {
 function buildSnapshotMarketResult(snapshotResult) {
   if (!snapshotResult || snapshotResult.status !== 'FOUND' || !snapshotResult.symbol) return null;
   var item = snapshotResult.symbol;
-  var lastPrice = toFinite(item.lastPrice);
-  var closingPrice = toFinite(item.closingPrice);
+  var lastPrice = toFinite(item.lastPrice, item.lastTradedPrice, item.pDrCotVal, item.pl);
+  var closingPrice = toFinite(item.closingPrice, item.closePrice, item.pClosing, item.pc);
   if (lastPrice == null || lastPrice <= 0 || closingPrice == null || closingPrice <= 0) return null;
 
   var updatedAt = snapshotResult.snapshotUpdatedAt ? new Date(snapshotResult.snapshotUpdatedAt) : null;
@@ -287,28 +287,28 @@ function buildSnapshotMarketResult(snapshotResult) {
     lastTradedPrice: lastPrice,
     pDrCotVal: lastPrice,
     pl: lastPrice,
-    lastChange: toFinite(item.lastChange),
-    lastChangePercent: toFinite(item.lastChangePercent),
-    plp: toFinite(item.lastChangePercent),
+    lastChange: toFinite(item.lastChange, item.change, item.plc),
+    lastChangePercent: toFinite(item.lastChangePercent, item.changePercent, item.plp),
+    plp: toFinite(item.lastChangePercent, item.changePercent, item.plp),
     closingPrice: closingPrice,
     closePrice: closingPrice,
     pClosing: closingPrice,
     pc: closingPrice,
-    closingChange: toFinite(item.closingChange),
-    closingChangePercent: toFinite(item.closingChangePercent),
-    closeChangePercent: toFinite(item.closingChangePercent),
-    pcp: toFinite(item.closingChangePercent),
+    closingChange: toFinite(item.closingChange, item.closeChange),
+    closingChangePercent: toFinite(item.closingChangePercent, item.closeChangePercent, item.pcp),
+    closeChangePercent: toFinite(item.closingChangePercent, item.closeChangePercent, item.pcp),
+    pcp: toFinite(item.closingChangePercent, item.closeChangePercent, item.pcp),
     allowedMin: toFinite(item.allowedMin),
     allowedMax: toFinite(item.allowedMax),
     pe: toFinite(item.pe),
     eps: toFinite(item.eps),
     tradeCount: toFinite(item.tradeCount),
-    tradedVolume: toFinite(item.tradeVolume),
-    volume: toFinite(item.tradeVolume),
-    tvol: toFinite(item.tradeVolume),
+    tradedVolume: toFinite(item.tradeVolume, item.volume, item.tvol),
+    volume: toFinite(item.tradeVolume, item.volume, item.tvol),
+    tvol: toFinite(item.tradeVolume, item.volume, item.tvol),
     trading: Object.assign({}, item.trading || {}, {
-      volume: toFinite(item.tradeVolume),
-      tradeCount: toFinite(item.tradeCount),
+      volume: toFinite(item.tradeVolume, item.volume, item.tvol),
+      tradeCount: toFinite(item.tradeCount, item.count, item.tno),
       value: toFinite(item.tradedValue != null ? item.tradedValue : item.value)
     }),
     moneyFlow: Object.assign({}, item.moneyFlow || {}, {
