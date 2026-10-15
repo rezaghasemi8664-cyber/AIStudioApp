@@ -10,8 +10,8 @@ const TRADING_DAYS = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'];
 
 const DEFAULT_SETTINGS = Object.freeze({
   timezone: TIMEZONE,
-  valuable: { enabled: true, intervalMinutes: 15, endTime: '12:30', days: TRADING_DAYS, maxSymbolsPerMessage: 10 },
-  scalping: { enabled: true, intervalMinutes: 5, endTime: '12:30', days: TRADING_DAYS, maxSymbolsPerMessage: 10 },
+  valuable: { enabled: true, intervalMinutes: 15, startTime: '09:00', endTime: '12:30', days: TRADING_DAYS, maxSymbolsPerMessage: 10 },
+  scalping: { enabled: true, intervalMinutes: 5, startTime: '09:00', endTime: '12:30', days: TRADING_DAYS, maxSymbolsPerMessage: 10 },
   index: { enabled: true, intervalMinutes: 60, startTime: '09:15', endTime: '12:30', days: TRADING_DAYS },
   summary: { enabled: true, publishTime: '13:30', days: TRADING_DAYS }
 });
@@ -57,10 +57,12 @@ function normalizeSettings(value) {
     };
   };
   const valuable = normalizeGroup('valuable', DEFAULT_SETTINGS.valuable);
+  valuable.startTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(valuable.startTime)) ? String(valuable.startTime) : DEFAULT_SETTINGS.valuable.startTime;
   valuable.endTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(valuable.endTime)) ? String(valuable.endTime) : DEFAULT_SETTINGS.valuable.endTime;
   valuable.intervalMinutes = boundedInteger(valuable.intervalMinutes, DEFAULT_SETTINGS.valuable.intervalMinutes, 1, 720);
   valuable.maxSymbolsPerMessage = boundedInteger(valuable.maxSymbolsPerMessage, DEFAULT_SETTINGS.valuable.maxSymbolsPerMessage, 1, 20);
   const scalping = normalizeGroup('scalping', DEFAULT_SETTINGS.scalping);
+  scalping.startTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(scalping.startTime)) ? String(scalping.startTime) : DEFAULT_SETTINGS.scalping.startTime;
   scalping.endTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(scalping.endTime)) ? String(scalping.endTime) : DEFAULT_SETTINGS.scalping.endTime;
   scalping.intervalMinutes = boundedInteger(scalping.intervalMinutes, DEFAULT_SETTINGS.scalping.intervalMinutes, 1, 720);
   scalping.maxSymbolsPerMessage = boundedInteger(scalping.maxSymbolsPerMessage, DEFAULT_SETTINGS.scalping.maxSymbolsPerMessage, 1, 20);
@@ -91,6 +93,9 @@ function validateSettings(value) {
   }
   for (const groupName of ['valuable', 'scalping', 'index']) {
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(value[groupName].endTime || ''))) throw new Error('زمان پایان انتشار بخش‌ها نامعتبر است.');
+  }
+  for (const groupName of ['valuable', 'scalping']) {
+    if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(value[groupName].startTime || ''))) throw new Error('زمان شروع چرخه انتشار نامعتبر است.');
   }
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(value.index.startTime || ''))) throw new Error('زمان شروع انتشار شاخص‌ها نامعتبر است.');
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(value.summary.publishTime || ''))) throw new Error('زمان انتشار خلاصه بازار نامعتبر است.');
