@@ -4,6 +4,7 @@ const prisma = require('../config/prisma.cjs');
 const { getStoredValuableSymbols } = require('./valuableSymbols.engine.cjs');
 const { sendTelegramMessage, getTelegramConfig } = require('./telegramBotApi.service.cjs');
 const sharedMarketService = require('./sharedMarket.service.cjs');
+const { getTelegramPublisherSettings, isAllowedWeekday, isIntervalDue, recordTelegramPublisherMessage } = require('./telegramPublisherSettings.service.cjs');
 
 const STATE_KEY = 'telegram.publisher.state.v1';
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
@@ -126,13 +127,13 @@ function getImportantSymbolChanges(currentResults, previousMap = {}) {
   return changes;
 }
 
-function renderValuableChanges(changes, date = new Date()) {
+function renderValuableChanges(changes, date = new Date(), maxSymbols = 20) {
   const lines = [
     '📊 رونیا | تغییرات مهم نمادهای ارزنده',
     'تاریخ: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, dateStyle: 'short' }).format(date),
     ''
   ];
-  for (const change of changes.slice(0, 20)) {
+  for (const change of changes.slice(0, maxSymbols)) {
     const item = change.item;
     lines.push((change.type === 'new' ? '🆕 ورود به فهرست' : '⬆️ افزایش امتیاز مهم') + ': ' + (item.name || item.symbol) + ' (' + item.symbol + ')');
     lines.push('امتیاز: ' + formatNumber(item.score, 0) + (change.type === 'score' ? '؛ قبلی: ' + formatNumber(change.previousScore, 0) : ''));
@@ -179,10 +180,14 @@ function renderSummaryMessage(row, date = new Date()) {
   return ('🧾 رونیا | خلاصه نهایی بازار بورس\nتاریخ: ' + day + '\n\n' + content).slice(0, 3900);
 }
 
-async function publishIndexIfScheduled(now = new Date()) {
+async function publishIndexIfScheduled(now = new Date(), suppliedSettings) {
+  const settings = suppliedSettings || await getTelegramPublisherSettings();
+  const schedule = settings.index;
+  if (!schedule.enabled) return { skipped: true, reason: 'DISABLED_BY_ADMIN' };
+  if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
   if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
   const slot = tehranSlot(now);
-  if (!INDEX_SLOTS.has(slot)) return { skipped: true, reason: 'NOT_AN_INDEX_SLOT' };
+  if (!isIntervalDue(now, schedule.startTime, schedule.intervalMinutes)) return { skipped: true, reason: 'NOT_AN_INDEX_SLOT' };
 
   const state = await loadState();
   const daySlot = tehranDateKey(now) + '@' + slot;
@@ -200,9 +205,16 @@ async function publishIndexIfScheduled(now = new Date()) {
   return { published: true, slot: daySlot };
 }
 
-async function publishValuableChangesIfAny(now = new Date()) {
+async function publishValuableChangesIfAny(now = new Date(), suppliedSettings) {
+  const settings = suppliedSettings || await getTelegramPublisherSettings();
+  const schedule = settings.valuable;
+  if (!schedule.enabled) return { skipped: true, reason: 'DISABLED_BY_ADMIN' };
+  if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
   if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
   const state = await loadState();
+  if (state.lastValuablePublishedAt && ageMs(state.lastValuablePublishedAt, now.getTime()) < schedule.intervalMinutes * 60 * 1000) {
+    return { skipped: true, reason: 'PUBLISH_INTERVAL_NOT_ELAPSED' };
+  }
   const marketDate = getCurrentMarketDateUtc(now);
   const currentMarket = await prisma.marketCurrent.findUnique({ where: { marketDate } });
   if (!currentMarket || currentMarket.isStale || String(currentMarket.marketStatus || '').toUpperCase() !== 'OPEN' ||
@@ -220,13 +232,29 @@ async function publishValuableChangesIfAny(now = new Date()) {
   const changes = getImportantSymbolChanges(current, previousMap);
   const nextMap = {};
   for (const item of current) nextMap[item.symbol] = { score: toNumber(item.score) };
-  if (changes.length) await sendTelegramMessage(renderValuableChanges(changes, now));
-  await saveState({ ...state, valuableSymbols: nextMap, valuableEvaluatedAt: stored.evaluatedAt });
-  return { published: changes.length > 0, changes: changes.length };
+  let sentCount = 0;
+  if (changes.length) {
+    const selected = changes.slice(0, schedule.maxSymbolsPerMessage);
+    await sendAndRecord('valuable', renderValuableChanges(selected, now, schedule.maxSymbolsPerMessage), now);
+    sentCount = selected.length;
+    for (const pending of changes.slice(schedule.maxSymbolsPerMessage)) {
+      const symbol = String(pending.item.symbol || '').trim();
+      if (symbol && previousMap[symbol]) nextMap[symbol] = previousMap[symbol];
+      else if (symbol) delete nextMap[symbol];
+    }
+  }
+  const nextState = { ...state, valuableSymbols: nextMap, valuableEvaluatedAt: stored.evaluatedAt };
+  if (sentCount) nextState.lastValuablePublishedAt = now.toISOString();
+  await saveState(nextState);
+  return { published: sentCount > 0, changes: sentCount, pendingChanges: Math.max(0, changes.length - sentCount) };
 }
 
 
-async function publishScalpingOpportunitiesIfAny(now = new Date()) {
+async function publishScalpingOpportunitiesIfAny(now = new Date(), suppliedSettings) {
+  const settings = suppliedSettings || await getTelegramPublisherSettings();
+  const schedule = settings.scalping;
+  if (!schedule.enabled) return { skipped: true, reason: 'DISABLED_BY_ADMIN' };
+  if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
   if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
   const marketDate = getCurrentMarketDateUtc(now);
   const market = await prisma.marketCurrent.findUnique({ where: { marketDate } });
@@ -249,6 +277,9 @@ async function publishScalpingOpportunitiesIfAny(now = new Date()) {
   if (!valid.length) return { skipped: true, reason: 'NO_FRESH_ACTIVE_SCALPING_OPPORTUNITIES' };
   const previous = state.scalpingOpportunities && typeof state.scalpingOpportunities === 'object'
     ? state.scalpingOpportunities : {};
+  if (state.lastScalpingPublishedAt && ageMs(state.lastScalpingPublishedAt, now.getTime()) < schedule.intervalMinutes * 60 * 1000) {
+    return { skipped: true, reason: 'PUBLISH_INTERVAL_NOT_ELAPSED' };
+  }
   const changes = [];
   const next = {};
   for (const item of valid) {
@@ -281,7 +312,7 @@ async function publishScalpingOpportunitiesIfAny(now = new Date()) {
       'ساعت تهران: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false }).format(now),
       ''
     ];
-    for (const change of changes.slice(0, 10)) {
+    for (const change of changes.slice(0, schedule.maxSymbolsPerMessage)) {
       const item = change.item;
       lines.push((change.type === 'new' ? '🆕 فرصت فعال' : '🔄 تغییر مهم') + ': ' + (item.name || item.symbol) + ' (' + item.symbol + ')');
       lines.push('نوع سیگنال: ' + (item.signal || 'نامشخص') + ' | امتیاز: ' + formatNumber(item.score, 0));
@@ -293,14 +324,26 @@ async function publishScalpingOpportunitiesIfAny(now = new Date()) {
       lines.push('');
     }
     lines.push('فقط داده‌های تازه و فرصت‌های فعال نمایش داده شده‌اند؛ این پیام تضمین سود نیست.');
-    await sendTelegramMessage(lines.join('\n').slice(0, 3900));
+    await sendAndRecord('scalping', lines.join('\n').slice(0, 3900), now);
+    const sent = changes.slice(0, schedule.maxSymbolsPerMessage);
+    for (const pending of changes.slice(schedule.maxSymbolsPerMessage)) {
+      const symbol = String(pending.item.symbol || '').trim();
+      if (symbol && previous[symbol]) next[symbol] = previous[symbol];
+      else if (symbol) delete next[symbol];
+    }
+    await saveState({ ...state, scalpingOpportunities: next, scalpingCheckedAt: now.toISOString(), lastScalpingPublishedAt: now.toISOString() });
+    return { published: true, changes: sent.length, pendingChanges: Math.max(0, changes.length - sent.length) };
   }
   await saveState({ ...state, scalpingOpportunities: next, scalpingCheckedAt: now.toISOString() });
-  return { published: changes.length > 0, changes: changes.length };
+  return { published: false, changes: 0 };
 }
 
-async function publishTodaySummaryIfReady(now = new Date()) {
-  if (!isTradingWeekday(now)) return { skipped: true, reason: 'NON_TRADING_WEEKDAY' };
+async function publishTodaySummaryIfReady(now = new Date(), suppliedSettings) {
+  const settings = suppliedSettings || await getTelegramPublisherSettings();
+  const schedule = settings.summary;
+  if (!schedule.enabled) return { skipped: true, reason: 'DISABLED_BY_ADMIN' };
+  if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
+  if (tehranSlot(now) !== schedule.publishTime) return { skipped: true, reason: 'NOT_SUMMARY_SLOT' };
   const state = await loadState();
   const summaryDate = getCurrentMarketDateUtc(now);
   const marketSnapshot = await prisma.marketCurrent.findUnique({ where: { marketDate: summaryDate } });
@@ -317,14 +360,29 @@ async function publishTodaySummaryIfReady(now = new Date()) {
   if (state.lastSummaryIdentity === identity) return { skipped: true, reason: 'ALREADY_PUBLISHED' };
   const message = renderSummaryMessage(row, now);
   if (!message) return { skipped: true, reason: 'SUMMARY_INCOMPLETE' };
-  await sendTelegramMessage(message);
+  await sendAndRecord('summary', message, now);
   await saveState({ ...state, lastSummaryIdentity: identity });
   return { published: true, identity };
+}
+
+async function sendAndRecord(type, message, now = new Date()) {
+  const messageTitle = String(message || '').split('\n')[0].slice(0, 180);
+  try {
+    const result = await sendTelegramMessage(message);
+    try { await recordTelegramPublisherMessage(type, 'success', { messageTitle }, now); }
+    catch (error) { console.error('[CRON][TelegramPublisher] History write failed:', error?.message || error); }
+    return result;
+  } catch (error) {
+    try { await recordTelegramPublisherMessage(type, 'failure', { messageTitle, error: error?.message || 'PUBLISH_FAILED' }, now); }
+    catch (historyError) { console.error('[CRON][TelegramPublisher] Failure history write failed:', historyError?.message || historyError); }
+    throw error;
+  }
 }
 
 async function runTelegramPublisherTick(now = new Date()) {
   const config = getTelegramConfig();
   if (!config.token || !config.chatId) return { skipped: true, reason: 'TELEGRAM_NOT_CONFIGURED' };
+  const settings = await getTelegramPublisherSettings();
   const outcomes = [];
   for (const [name, fn] of [
     ['index', publishIndexIfScheduled],
@@ -332,7 +390,7 @@ async function runTelegramPublisherTick(now = new Date()) {
     ['scalping', publishScalpingOpportunitiesIfAny],
     ['summary', publishTodaySummaryIfReady]
   ]) {
-    try { outcomes.push({ name, ...(await fn(now)) }); }
+    try { outcomes.push({ name, ...(await fn(now, settings)) }); }
     catch (error) {
       console.error('[CRON][TelegramPublisher] ' + name + ' failed:', error?.message || error);
       outcomes.push({ name, error: error?.code || 'PUBLISH_FAILED' });
@@ -346,5 +404,5 @@ module.exports = {
   isFresh, formatPercent, normalizeValuableResults, getImportantSymbolChanges,
   renderValuableChanges, renderIndexMessage, renderSummaryMessage,
   publishIndexIfScheduled, publishValuableChangesIfAny, publishScalpingOpportunitiesIfAny, publishTodaySummaryIfReady,
-  runTelegramPublisherTick
+  runTelegramPublisherTick, sendAndRecord
 };
