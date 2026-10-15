@@ -99,9 +99,10 @@ async function publish(value, now = new Date(), source = 'manual') {
 async function publishScheduledIfDue(now = new Date()) {
   const settings = await getSettings();
   const parts = tehranParts(now);
-  if (!settings.enabled || !settings.text || !settings.imageDataUrl || !settings.days.includes(parts.weekday)) {
-    return { skipped: true, reason: 'DISABLED_OR_DAY_NOT_ENABLED' };
-  }
+  if (!settings.enabled) return { skipped: true, reason: 'DISABLED_BY_ADMIN' };
+  if (!settings.text) return { skipped: true, reason: 'AD_TEXT_MISSING' };
+  if (!settings.imageDataUrl) return { skipped: true, reason: 'AD_IMAGE_MISSING' };
+  if (!settings.days.includes(parts.weekday)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
 
   // Recover a scheduled ad if a tick/restart/database delay missed the exact
   // minute. Use the original scheduled time as the idempotency key.
