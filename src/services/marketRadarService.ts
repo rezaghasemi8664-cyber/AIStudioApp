@@ -50,15 +50,15 @@ function normalizeIndexRows(payload: unknown): MarketRadarIndex[] {
   if (priceIndex !== null) result.push({
     name: 'شاخص قیمت',
     value: priceIndex,
-    changeValue: numberFrom(root, ['priceIndexChange', 'indexPriceChange', 'index_price_change'], 0) ?? 0,
-    changePercent: numberFrom(root, ['priceIndexChangePercent', 'indexPriceChangePercent', 'index_price_change_percent'], 0) ?? 0
+    changeValue: numberFrom(root, ['priceIndexChange', 'indexPriceChange', 'index_price_change']),
+    changePercent: numberFrom(root, ['priceIndexChangePercent', 'indexPriceChangePercent', 'index_price_change_percent'])
   });
   const freeFloatIndex = numberFrom(root, ['freeFloatIndex', 'indexFreeFloat', 'index_freeFloat', 'free_float_index']);
   if (freeFloatIndex !== null) result.push({
     name: 'شاخص آزاد شناور',
     value: freeFloatIndex,
-    changeValue: numberFrom(root, ['freeFloatIndexChange', 'indexFreeFloatChange', 'index_freeFloat_change'], 0) ?? 0,
-    changePercent: numberFrom(root, ['freeFloatIndexChangePercent', 'indexFreeFloatChangePercent', 'index_freeFloat_change_percent'], 0) ?? 0
+    changeValue: numberFrom(root, ['freeFloatIndexChange', 'indexFreeFloatChange', 'index_freeFloat_change']),
+    changePercent: numberFrom(root, ['freeFloatIndexChangePercent', 'indexFreeFloatChangePercent', 'index_freeFloat_change_percent'])
   });
   return result;
 }
