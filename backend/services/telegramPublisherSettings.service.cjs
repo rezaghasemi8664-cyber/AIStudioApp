@@ -10,9 +10,9 @@ const TRADING_DAYS = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'];
 
 const DEFAULT_SETTINGS = Object.freeze({
   timezone: TIMEZONE,
-  valuable: { enabled: true, intervalMinutes: 15, days: TRADING_DAYS, maxSymbolsPerMessage: 10 },
-  scalping: { enabled: true, intervalMinutes: 5, days: TRADING_DAYS, maxSymbolsPerMessage: 10 },
-  index: { enabled: true, intervalMinutes: 60, startTime: '09:15', days: TRADING_DAYS },
+  valuable: { enabled: true, intervalMinutes: 15, endTime: '12:30', days: TRADING_DAYS, maxSymbolsPerMessage: 10 },
+  scalping: { enabled: true, intervalMinutes: 5, endTime: '12:30', days: TRADING_DAYS, maxSymbolsPerMessage: 10 },
+  index: { enabled: true, intervalMinutes: 60, startTime: '09:15', endTime: '12:30', days: TRADING_DAYS },
   summary: { enabled: true, publishTime: '13:30', days: TRADING_DAYS }
 });
 
@@ -57,14 +57,17 @@ function normalizeSettings(value) {
     };
   };
   const valuable = normalizeGroup('valuable', DEFAULT_SETTINGS.valuable);
+  valuable.endTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(valuable.endTime)) ? String(valuable.endTime) : DEFAULT_SETTINGS.valuable.endTime;
   valuable.intervalMinutes = boundedInteger(valuable.intervalMinutes, DEFAULT_SETTINGS.valuable.intervalMinutes, 1, 720);
   valuable.maxSymbolsPerMessage = boundedInteger(valuable.maxSymbolsPerMessage, DEFAULT_SETTINGS.valuable.maxSymbolsPerMessage, 1, 20);
   const scalping = normalizeGroup('scalping', DEFAULT_SETTINGS.scalping);
+  scalping.endTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(scalping.endTime)) ? String(scalping.endTime) : DEFAULT_SETTINGS.scalping.endTime;
   scalping.intervalMinutes = boundedInteger(scalping.intervalMinutes, DEFAULT_SETTINGS.scalping.intervalMinutes, 1, 720);
   scalping.maxSymbolsPerMessage = boundedInteger(scalping.maxSymbolsPerMessage, DEFAULT_SETTINGS.scalping.maxSymbolsPerMessage, 1, 20);
   const index = normalizeGroup('index', DEFAULT_SETTINGS.index);
   index.intervalMinutes = boundedInteger(index.intervalMinutes, DEFAULT_SETTINGS.index.intervalMinutes, 1, 720);
   index.startTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(index.startTime)) ? String(index.startTime) : DEFAULT_SETTINGS.index.startTime;
+  index.endTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(index.endTime)) ? String(index.endTime) : DEFAULT_SETTINGS.index.endTime;
   const summary = normalizeGroup('summary', DEFAULT_SETTINGS.summary);
   summary.publishTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(summary.publishTime)) ? String(summary.publishTime) : DEFAULT_SETTINGS.summary.publishTime;
   return { timezone: TIMEZONE, valuable, scalping, index, summary };
@@ -86,6 +89,9 @@ function validateSettings(value) {
     const n = Number(value[groupName].maxSymbolsPerMessage);
     if (!Number.isInteger(n) || n < 1 || n > 20) throw new Error('حداکثر نماد هر پیام باید بین ۱ تا ۲۰ باشد.');
   }
+  for (const groupName of ['valuable', 'scalping', 'index']) {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(value[groupName].endTime || ''))) throw new Error('زمان پایان انتشار بخش‌ها نامعتبر است.');
+  }
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(value.index.startTime || ''))) throw new Error('زمان شروع انتشار شاخص‌ها نامعتبر است.');
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(value.summary.publishTime || ''))) throw new Error('زمان انتشار خلاصه بازار نامعتبر است.');
   return normalizeSettings(value);
@@ -93,6 +99,15 @@ function validateSettings(value) {
 
 function isAllowedWeekday(date, days) {
   return allowedDays(days, []).includes(tehranParts(date).weekday);
+}
+
+function isBeforeEndTime(date, endTime) {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(endTime || ''));
+  if (!match) return false;
+  const p = tehranParts(date);
+  const current = Number(p.hour) * 60 + Number(p.minute);
+  const end = Number(match[1]) * 60 + Number(match[2]);
+  return current < end;
 }
 
 function isIntervalDue(date, startTime, intervalMinutes) {
@@ -165,7 +180,7 @@ async function recordTelegramPublisherMessage(type, status, details = {}, now = 
 
 module.exports = {
   SETTINGS_KEY, HISTORY_KEY, TIMEZONE, WEEKDAYS, TRADING_DAYS, DEFAULT_SETTINGS,
-  tehranParts, tehranDateKey, tehranTime, isAllowedWeekday, isIntervalDue,
+  tehranParts, tehranDateKey, tehranTime, isAllowedWeekday, isIntervalDue, isBeforeEndTime,
   normalizeSettings, validateSettings, getTelegramPublisherSettings,
   saveTelegramPublisherSettings, getTelegramPublisherHistory, recordTelegramPublisherMessage
 };
