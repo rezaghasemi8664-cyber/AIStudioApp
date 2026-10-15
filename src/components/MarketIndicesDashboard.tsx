@@ -86,7 +86,7 @@ const MarketIndicesDashboard: React.FC = () => {
     setError(null);
     try {
       const cached = readMarketRadarCache();
-      if (!manual && !dataRef.current && cached) { dataRef.current = cached.snapshot; setData(cached.snapshot); setStale(!cached.fresh); }
+      if (!dataRef.current && cached) { dataRef.current = cached.snapshot; setData(cached.snapshot); setStale(!cached.fresh); }
       const snapshot = await getMarketRadarSnapshot();
       if (previousRef.current && previousRef.current.fetchedAt !== snapshot.fetchedAt) {
         setPrevious(previousRef.current);
