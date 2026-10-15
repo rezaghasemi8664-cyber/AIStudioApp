@@ -82,6 +82,7 @@ export interface MarketRadarHistoryPoint {
 
 export interface MarketRadarHistory {
   range: MarketRadarHistoryRange;
+  granularity?: 'intraday' | 'daily';
   available: boolean;
   points: MarketRadarHistoryPoint[];
   generatedAt: string | null;
