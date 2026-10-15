@@ -78,8 +78,9 @@ const MarketRadarHistory: React.FC = () => {
     const raw = data?.points.map((point) => point[selectedMetric.key] as number | null) ?? [];
     if (metric !== 'cumulativeValue') return raw;
     let runningTotal = 0;
-    return raw.map((value) => {
-      if (!valueIsValid(value)) return null;
+    const baselineIndex = range === '1d' && data?.granularity !== 'intraday' && raw.length > 1 ? 1 : 0;
+    return raw.map((value, index) => {
+      if (index < baselineIndex || !valueIsValid(value)) return null;
       runningTotal += Math.max(0, value);
       return runningTotal;
     });
