@@ -89,7 +89,7 @@ function normalizeBRSRow(row) {
     flow: first(row, ['flow', 'market', 'flowId']),
     sector: text(row, ['sector', 'cs', 'sectorName', 'industryName', 'groupName']),
     realBuyVolume: first(row, ['realBuyVolume', 'Buy_I_Volume', 'buy_I_Volume']) || 0,
-    realSellVolume: first(row, ['realSellVolume', 'Sell_I_Volume', 'buy_I_Volume']) || 0,
+    realSellVolume: first(row, ['realSellVolume', 'Sell_I_Volume', 'sell_I_Volume']) || 0,
     realBuyValue: first(row, ['realBuyValue', 'Buy_I_Value', 'buy_I_Value']),
     realSellValue: first(row, ['realSellValue', 'Sell_I_Value', 'sell_I_Value']),
     realBuyCount: first(row, ['realBuyCount', 'Buy_CountI', 'buy_CountI']),
