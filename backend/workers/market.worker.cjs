@@ -206,6 +206,11 @@ async function updateSymbolsAndMovers() {
       sector: item.sector || null,
       realBuyVolume: int(item.realBuyVolume, 0),
       realSellVolume: int(item.realSellVolume, 0),
+      realBuyValue: num(item.realBuyValue ?? item.moneyFlow?.real?.buyValue),
+      realSellValue: num(item.realSellValue ?? item.moneyFlow?.real?.sellValue),
+      realBuyCount: int(item.realBuyCount ?? item.moneyFlow?.real?.buyCount, 0),
+      realSellCount: int(item.realSellCount ?? item.moneyFlow?.real?.sellCount, 0),
+      volumeAvg1m: int(item.volumeAvg1m ?? item.trading?.volumeAvg1m),
       legalBuyVolume: int(item.instBuyVolume, 0),
       legalSellVolume: int(item.instSellVolume, 0)
     };
