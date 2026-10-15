@@ -272,12 +272,10 @@ function buildSnapshotMarketResult(snapshotResult) {
   var ageMs = Date.now() - updatedAt.getTime();
   if (ageMs < 0) return null;
 
-  // During trading, only consume a recently refreshed quote. Outside trading,
-  // accept the same Tehran day's verified snapshot for after-hours analysis.
-  var sameTehranDay = snapshotResult.snapshotDate === tehranDateKey(new Date());
-  var fresh = isTehranMarketOpen(new Date())
-    ? ageMs <= 5 * 60 * 1000
-    : sameTehranDay && ageMs <= 24 * 60 * 60 * 1000;
+  // During expected trading hours, require a recent quote. Outside those
+  // hours, use the latest valid database snapshot regardless of its age: the
+  // market may be closed for multiple consecutive days or public holidays.
+  var fresh = isTehranMarketOpen(new Date()) ? ageMs <= 5 * 60 * 1000 : true;
   if (!fresh) return null;
 
   var market = Object.assign({}, item, {
