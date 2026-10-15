@@ -1,14 +1,30 @@
 'use strict';
 
 const {
-  INDEX_SLOTS, isTradingWeekday, isTradingSession, tehranDateKey, tehranSlot,
+  isTradingWeekday, isTradingSession, tehranDateKey, tehranSlot,
   isFresh, formatPercent, normalizeValuableResults, getImportantSymbolChanges,
   renderSummaryMessage, renderIndexMessage
 } = require('../services/telegramPublisher.service.cjs');
+const { DEFAULT_SETTINGS, normalizeSettings, validateSettings, isAllowedWeekday, isIntervalDue } = require('../services/telegramPublisherSettings.service.cjs');
 
 describe('Telegram publisher helpers', () => {
-  test('uses the configured Tehran index slots', () => {
-    expect([...INDEX_SLOTS]).toEqual(['09:15', '10:00', '11:00', '12:15']);
+  test('uses configurable Tehran index intervals', () => {
+    expect(DEFAULT_SETTINGS.index.startTime).toBe('09:15');
+    expect(isIntervalDue(new Date('2026-10-10T05:45:00.000Z'), '09:15', 60)).toBe(true);
+    expect(isIntervalDue(new Date('2026-10-10T06:45:00.000Z'), '09:15', 60)).toBe(true);
+    expect(isIntervalDue(new Date('2026-10-10T06:30:00.000Z'), '09:15', 60)).toBe(false);
+  });
+  test('normalizes publisher settings and applies selected Tehran weekdays', () => {
+    const settings = normalizeSettings({ valuable: { enabled: false, intervalMinutes: 30, days: ['Sat'], maxSymbolsPerMessage: 5 } });
+    expect(settings.valuable).toMatchObject({ enabled: false, intervalMinutes: 30, days: ['Sat'], maxSymbolsPerMessage: 5 });
+    expect(isAllowedWeekday(new Date('2026-10-10T05:45:00.000Z'), settings.valuable.days)).toBe(true);
+    expect(isAllowedWeekday(new Date('2026-10-11T05:45:00.000Z'), settings.valuable.days)).toBe(false);
+  });
+  test('rejects invalid publisher intervals and symbol limits', () => {
+    const invalidInterval = { ...DEFAULT_SETTINGS, valuable: { ...DEFAULT_SETTINGS.valuable, intervalMinutes: 0 } };
+    expect(() => validateSettings(invalidInterval)).toThrow('فاصله انتشار');
+    const invalidLimit = { ...DEFAULT_SETTINGS, scalping: { ...DEFAULT_SETTINGS.scalping, maxSymbolsPerMessage: 21 } };
+    expect(() => validateSettings(invalidLimit)).toThrow('حداکثر نماد');
   });
   test('uses Tehran local time for session and date calculations', () => {
     const duringSession = new Date('2026-10-10T05:45:00.000Z');
@@ -65,8 +81,8 @@ describe('Telegram publisher helpers', () => {
     expect(message).toContain('شاخص هم‌وزن:');
     expect(message).toContain('تغییر عددی: +');
     expect(message).toContain('تغییر درصدی: +۱٪');
-    expect(message).toContain('تغییر درصدی: -۱٪');
-    expect(message).toContain('ساعت تهران: 09:30');
+    expect(message.replace(/[\u200e\u200f]/g, '')).toContain('تغییر درصدی: −۱٪');
+    expect(message).toContain('ساعت تهران: ۰۹:۳۰');
   });
   test('requires a complete summary before rendering a post', () => {
     expect(renderSummaryMessage({ content: 'خلاصه ناقص' })).toBeNull();
