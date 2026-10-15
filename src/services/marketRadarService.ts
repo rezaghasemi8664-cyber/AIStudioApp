@@ -104,6 +104,7 @@ export async function getMarketRadarHistory(range: MarketRadarHistoryRange): Pro
   const points = Array.isArray(root.points) ? root.points : [];
   return {
     range: (root.range as MarketRadarHistoryRange) || range,
+    granularity: root.granularity === 'intraday' ? 'intraday' : 'daily',
     available: Boolean(root.available) && points.length > 0,
     points: points.map((item) => {
       const row = record(item);
