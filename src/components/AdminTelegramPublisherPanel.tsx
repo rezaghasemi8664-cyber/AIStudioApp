@@ -12,8 +12,8 @@ const DAYS: { value: TehranWeekday; label: string }[] = [
 const TYPE_LABELS: Record<string, string> = { valuable: 'نمادهای ارزنده', scalping: 'فرصت‌های نوسان‌گیری', index: 'شاخص‌های بورس', summary: 'خلاصه بازار' };
 const DEFAULT_SETTINGS: TelegramPublisherSettings = {
   timezone: 'Asia/Tehran',
-  valuable: { enabled: true, intervalMinutes: 15, endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'], maxSymbolsPerMessage: 10 },
-  scalping: { enabled: true, intervalMinutes: 5, endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'], maxSymbolsPerMessage: 10 },
+  valuable: { enabled: true, intervalMinutes: 15, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'], maxSymbolsPerMessage: 10 },
+  scalping: { enabled: true, intervalMinutes: 5, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'], maxSymbolsPerMessage: 10 },
   index: { enabled: true, intervalMinutes: 60, startTime: '09:15', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] },
   summary: { enabled: true, publishTime: '13:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] }
 };
@@ -60,7 +60,7 @@ const TelegramScheduleCard: React.FC<{
         <input className={inputClass} type="number" min={1} max={20} value={value.maxSymbolsPerMessage ?? 10} onChange={e => onChange({ ...value, maxSymbolsPerMessage: Number(e.target.value) })} />
         <span className="mt-1 block text-xs text-gray-500">مقدار مجاز: ۱ تا ۲۰ نماد</span>
       </label>}
-      {startTime && <label className="text-sm">زمان شروع چرخه انتشار شاخص‌ها (تهران)
+      {startTime && <label className="text-sm">زمان شروع چرخه انتشار (تهران)
         <input className={inputClass} type="time" value={value.startTime ?? '09:15'} onChange={e => onChange({ ...value, startTime: e.target.value })} />
       </label>}
       {endTime && <label className="text-sm">زمان پایان انتشار (تهران)
@@ -192,8 +192,8 @@ const AdminTelegramPublisherPanel: React.FC = () => {
       </div>
     </section>
 
-    <TelegramScheduleCard title="نمادهای ارزنده" description="در بازه تعیین‌شده تغییرات مهم و نمادهای تازه شناسایی‌شده را منتشر می‌کند. در صورت بیشتر بودن موارد، موارد باقی‌مانده در چرخه‌های بعدی پیگیری می‌شوند." value={settings.valuable} interval maxSymbols endTime onChange={value => updateGroup('valuable', value)} />
-    <TelegramScheduleCard title="فرصت‌های نوسان‌گیری" description="فرصت‌های تازه یا تغییرات مهم را فقط با داده‌های معتبر بازار منتشر می‌کند؛ فاصله زمانی حداقل بین دو پیام رعایت می‌شود." value={settings.scalping} interval maxSymbols endTime onChange={value => updateGroup('scalping', value)} />
+    <TelegramScheduleCard title="نمادهای ارزنده" description="در بازه تعیین‌شده تغییرات مهم و نمادهای تازه شناسایی‌شده را منتشر می‌کند. در صورت بیشتر بودن موارد، موارد باقی‌مانده در چرخه‌های بعدی پیگیری می‌شوند." value={settings.valuable} interval maxSymbols startTime endTime onChange={value => updateGroup('valuable', value)} />
+    <TelegramScheduleCard title="فرصت‌های نوسان‌گیری" description="فرصت‌های تازه یا تغییرات مهم را فقط با داده‌های معتبر بازار منتشر می‌کند؛ فاصله زمانی حداقل بین دو پیام رعایت می‌شود." value={settings.scalping} interval maxSymbols startTime endTime onChange={value => updateGroup('scalping', value)} />
     <TelegramScheduleCard title="شاخص‌های بورس" description="در ساعات بازار و فقط با تصویر تازه و معتبر بازار منتشر می‌شود. چرخه‌ها از زمان شروع انتخاب‌شده محاسبه می‌شوند." value={settings.index} interval startTime endTime onChange={value => updateGroup('index', value)} />
     <TelegramScheduleCard title="خلاصه بازار" description="در زمان انتخاب‌شده و فقط وقتی خلاصه کامل همان روز در سامانه موجود باشد منتشر می‌شود." value={settings.summary} publishTime onChange={value => updateGroup('summary', value)} />
     <div className="flex justify-end gap-2">
