@@ -92,10 +92,6 @@ export default function SymbolSearchSnapshot() {
     ]}
   ];
   return <section dir="rtl" className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-950">
-    <div>
-      <h2 className="text-lg font-extrabold text-slate-900 dark:text-slate-100">جستجوی نماد از اسنپ‌شات AllSymbols</h2>
-      <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">اطلاعات فقط از آخرین اسنپ‌شات ذخیره‌شده در دیتابیس خوانده می‌شود؛ جستجو درخواست مستقیمی به BRS ارسال نمی‌کند.</p>
-    </div>
     <form onSubmit={search} className="flex flex-col gap-2 sm:flex-row">
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="نماد را وارد کنید؛ مثال: فولاد" aria-label="نماد مورد جستجو"
         className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-900 dark:text-white" />
