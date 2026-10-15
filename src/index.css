@@ -1488,71 +1488,54 @@ body {
   font-size: 1rem;
 }
 
-.page-shell,
-[data-page="marketRadar"] > section {
+.page-shell{
   line-height: var(--ui-body-leading);
 }
 
 .page-shell h1,
 .page-shell h2,
 .page-shell h3,
-.page-shell h4,
-[data-page="marketRadar"] h1,
-[data-page="marketRadar"] h2,
-[data-page="marketRadar"] h3,
-[data-page="marketRadar"] h4 {
+.page-shell h4{
   line-height: var(--ui-heading-leading);
   color: var(--text-1) !important;
 }
 
-.page-shell h2,
-[data-page="marketRadar"] h2 {
+.page-shell h2{
   font-size: clamp(1.08rem, 1.1vw, 1.28rem);
   font-weight: 800;
 }
 
-.page-shell h3,
-[data-page="marketRadar"] h3 {
+.page-shell h3{
   font-size: clamp(1rem, 1vw, 1.12rem);
   font-weight: 750;
 }
 
 /* Prevent overly faint secondary text while retaining hierarchy. */
 .page-shell .text-slate-500,
-.page-shell .text-gray-500,
-[data-page="marketRadar"] .text-slate-500,
-[data-page="marketRadar"] .text-gray-500 {
+.page-shell .text-gray-500{
   color: var(--text-2) !important;
 }
 
 .dark .page-shell .text-slate-400,
 .dark .page-shell .text-gray-400,
 .dark .page-shell .text-slate-500,
-.dark .page-shell .text-gray-500,
-.dark [data-page="marketRadar"] .text-slate-400,
-.dark [data-page="marketRadar"] .text-gray-400,
-.dark [data-page="marketRadar"] .text-slate-500,
-.dark [data-page="marketRadar"] .text-gray-500 {
+.dark .page-shell .text-gray-500{
   color: var(--text-2) !important;
 }
 
 /* Standardize very small labels without touching icon geometry. */
 .page-shell .text-\[10px\],
-.page-shell .text-\[11px\],
-[data-page="marketRadar"] .text-\[10px\],
-[data-page="marketRadar"] .text-\[11px\] {
+.page-shell .text-\[11px\]{
   font-size: .75rem !important;
   line-height: 1.65;
 }
 
-.page-shell .text-xs,
-[data-page="marketRadar"] .text-xs {
+.page-shell .text-xs{
   font-size: .81rem;
   line-height: 1.7;
 }
 
-.page-shell .text-sm,
-[data-page="marketRadar"] .text-sm {
+.page-shell .text-sm{
   font-size: .9rem;
   line-height: 1.75;
 }
@@ -1695,18 +1678,15 @@ body {
 }
 
 /* ---------- Controls ---------- */
-.page-shell button,
-[data-page="marketRadar"] button {
+.page-shell button{
   -webkit-tap-highlight-color: transparent;
 }
 
-.page-shell button:not([aria-label=""]),
-[data-page="marketRadar"] button:not([aria-label=""]) {
+.page-shell button:not([aria-label=""]){
   font-weight: 650;
 }
 
 .page-shell button:focus-visible,
-[data-page="marketRadar"] button:focus-visible,
 .app-header button:focus-visible {
   outline: 3px solid var(--ui-focus) !important;
   outline-offset: 2px;
@@ -1714,17 +1694,13 @@ body {
 
 .page-shell input,
 .page-shell textarea,
-.page-shell select,
-[data-page="marketRadar"] input,
-[data-page="marketRadar"] textarea,
-[data-page="marketRadar"] select {
+.page-shell select{
   min-height: 44px;
   font-size: .92rem;
   line-height: 1.6;
 }
 
-.page-shell label,
-[data-page="marketRadar"] label {
+.page-shell label{
   line-height: 1.7;
 }
 
@@ -1732,8 +1708,7 @@ body {
 .page-shell [data-style-id$="card"],
 .page-shell .rounded-xl.border,
 .page-shell .rounded-2xl.border,
-.page-shell .rounded-3xl.border,
-[data-page="marketRadar"] article {
+.page-shell .rounded-3xl.border{
   border-color: var(--line-1) !important;
   box-shadow: var(--shadow-sm);
   transition:
@@ -1742,8 +1717,7 @@ body {
     transform .18s ease;
 }
 
-.page-shell [data-style-id$="card"]:hover,
-[data-page="marketRadar"] article:hover {
+.page-shell [data-style-id$="card"]:hover{
   border-color: color-mix(in srgb, var(--brand) 18%, var(--line-1)) !important;
 }
 
@@ -1751,15 +1725,12 @@ body {
    component already uses a border/divider. */
 .page-shell .border-t,
 .page-shell .border-b,
-.page-shell .divide-y > *,
-[data-page="marketRadar"] .border-t,
-[data-page="marketRadar"] .border-b {
+.page-shell .divide-y > *{
   border-color: var(--ui-divider) !important;
 }
 
 /* ---------- Tables ---------- */
-.page-shell table,
-[data-page="marketRadar"] table {
+.page-shell table{
   width: 100%;
   border: 1px solid var(--line-1);
   border-collapse: separate;
@@ -1769,8 +1740,7 @@ body {
   background: var(--surface-0);
 }
 
-.page-shell thead th,
-[data-page="marketRadar"] thead th {
+.page-shell thead th{
   min-height: 44px;
   padding: 12px 11px !important;
   background: var(--surface-2) !important;
@@ -1782,8 +1752,7 @@ body {
   white-space: nowrap;
 }
 
-.page-shell tbody td,
-[data-page="marketRadar"] tbody td {
+.page-shell tbody td{
   padding: 11px !important;
   color: var(--text-1);
   font-size: .86rem !important;
@@ -1791,119 +1760,67 @@ body {
   border-bottom: 1px solid var(--line-2);
 }
 
-.page-shell tbody tr:nth-child(even),
-[data-page="marketRadar"] tbody tr:nth-child(even) {
+.page-shell tbody tr:nth-child(even){
   background: var(--ui-table-stripe);
 }
 
-.page-shell tbody tr:last-child td,
-[data-page="marketRadar"] tbody tr:last-child td {
+.page-shell tbody tr:last-child td{
   border-bottom: 0;
 }
 
-.page-shell tbody tr,
-[data-page="marketRadar"] tbody tr {
+.page-shell tbody tr{
   transition: background-color .16s ease;
 }
 
-.page-shell tbody tr:hover,
-[data-page="marketRadar"] tbody tr:hover {
+.page-shell tbody tr:hover{
   background: color-mix(in srgb, var(--brand) 5%, var(--surface-0)) !important;
 }
 
 /* Financial values remain easy to scan. */
 .page-shell td,
-.page-shell th,
-[data-page="marketRadar"] td,
-[data-page="marketRadar"] th {
+.page-shell th{
   font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Scrollable table containers on small screens ---------- */
-.page-shell .overflow-x-auto,
-[data-page="marketRadar"] .overflow-x-auto {
+.page-shell .overflow-x-auto{
   scrollbar-width: thin;
   scrollbar-color: var(--line-1) transparent;
 }
 
-.page-shell .overflow-x-auto::-webkit-scrollbar,
-[data-page="marketRadar"] .overflow-x-auto::-webkit-scrollbar {
+.page-shell .overflow-x-auto::-webkit-scrollbar{
   height: 7px;
 }
 
-.page-shell .overflow-x-auto::-webkit-scrollbar-thumb,
-[data-page="marketRadar"] .overflow-x-auto::-webkit-scrollbar-thumb {
+.page-shell .overflow-x-auto::-webkit-scrollbar-thumb{
   background: var(--line-1);
   border-radius: 999px;
 }
 
-/* ---------- Market Radar ---------- */
-[data-page="marketRadar"] > section {
-  width: 100%;
-}
 
-[data-page="marketRadar"] > section > article {
-  border-radius: 20px !important;
-  padding: 18px !important;
-}
 
-[data-page="marketRadar"] article h2 {
-  font-size: 1.08rem;
-  font-weight: 850;
-}
 
-[data-page="marketRadar"] article p {
-  line-height: 1.75;
-}
 
-[data-page="marketRadar"] article button {
-  border-radius: 11px;
-  transition:
-    transform .16s ease,
-    background-color .16s ease,
-    border-color .16s ease,
-    color .16s ease,
-    box-shadow .16s ease;
-}
 
-[data-page="marketRadar"] article button:hover {
-  transform: translateY(-1px);
-}
 
-[data-page="marketRadar"] svg text {
-  font-family: var(--font-sans-fa), Arial, sans-serif;
-}
+
+
+
+
+
 
 /* Industry heatmap: readable semantic colors with stronger separation. */
-[data-page="marketRadar"] .group.min-h-\[112px\] {
-  min-height: 120px;
-  border-width: 1px;
-  border-style: solid;
-  border-radius: 15px;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, .06);
-}
 
-[data-page="marketRadar"] .group.min-h-\[112px\] .text-\[10px\] {
-  font-size: .72rem !important;
-  font-weight: 700;
-}
 
-.dark [data-page="marketRadar"] .group.min-h-\[112px\] {
-  box-shadow: 0 7px 20px rgba(0, 0, 0, .18);
-}
 
-.dark [data-page="marketRadar"] .group.min-h-\[112px\] .text-emerald-100 {
-  color: #ecfdf5 !important;
-}
 
-.dark [data-page="marketRadar"] .group.min-h-\[112px\] .text-rose-100 {
-  color: #fff1f2 !important;
-}
 
-[data-page="marketRadar"] .font-black,
-[data-page="marketRadar"] .font-bold {
-  font-variant-numeric: tabular-nums;
-}
+
+
+
+
+
+
 
 /* ---------- Motion: useful, restrained, accessible ---------- */
 @media (prefers-reduced-motion: no-preference) {
@@ -1917,8 +1834,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .app-nav-scroll > button[data-style-id="tab-active"],
-  .page-shell,
-  [data-page="marketRadar"] > section {
+  .page-shell{
     animation: none !important;
   }
 }
@@ -1929,8 +1845,7 @@ body {
     justify-content: flex-start;
   }
 
-  .page-shell,
-  [data-page="marketRadar"] > section {
+  .page-shell{
     max-width: 1280px;
     margin-inline: auto;
   }
@@ -1983,13 +1898,11 @@ body {
     min-width: 0;
   }
 
-  .page-shell,
-  [data-page="marketRadar"] > section {
+  .page-shell{
     width: 100%;
   }
 
-  .page-shell .grid.lg\:grid-cols-2,
-  [data-page="marketRadar"] .grid.lg\:grid-cols-2 {
+  .page-shell .grid.lg\:grid-cols-2{
     grid-template-columns: 1fr;
   }
 
@@ -2252,18 +2165,6 @@ body {
 }
 
 
-/* Keep market-radar industry and symbol labels readable in both themes. */
-.market-radar-readable-label {
-  color: #0f172a !important;
-  opacity: 1 !important;
-  font-weight: 800 !important;
-  text-shadow: none !important;
-}
-
-.dark .market-radar-readable-label {
-  color: #f8fafc !important;
-  opacity: 1 !important;
-}
 
 
 /* Market summary: override nested utility/theme selectors in dark mode. */
