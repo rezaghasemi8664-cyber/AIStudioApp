@@ -649,6 +649,33 @@ async function saveMarketSnapshot(data) {
     },
   });
 
+  // Keep an append-only intraday series alongside the canonical one-row-per-day record.
+  // Failure to write a chart point must never invalidate the canonical market snapshot.
+  try {
+    const intradayModel = prisma.marketIndexIntradaySnapshot;
+    if (intradayModel && typeof intradayModel.create === 'function') {
+      const toBigIntOrNull = (value) => {
+        if (value === null || value === undefined || value === '') return null;
+        const number = Number(value);
+        return Number.isFinite(number) ? BigInt(Math.trunc(number)) : null;
+      };
+      await intradayModel.create({
+        data: {
+          marketDate,
+          capturedAt: new Date(),
+          overallIndex: snapshot.index,
+          equalIndex: snapshot.indexEqualWeight,
+          totalTrades: toBigIntOrNull(snapshot.tradeCount),
+          totalVolume: toBigIntOrNull(snapshot.tradeVolume),
+          totalValue: snapshot.tradeValue,
+          source: 'brs-index-cron'
+        }
+      });
+    }
+  } catch (error) {
+    console.warn('[MARKET][INTRADAY] Failed to save chart point:', error.message);
+  }
+
   console.log(
     `[MARKET][SNAPSHOT] Saved id=${record.id} index=${snapshot.index} at ${
       record.updatedAt || record.createdAt || snapshot.snapshotCreatedAt
