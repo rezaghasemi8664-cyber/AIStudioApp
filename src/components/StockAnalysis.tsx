@@ -52,6 +52,8 @@ type ActiveTab = 'analysis' | 'symbolSearch' | 'marketSummary' | 'history';
 type UnifiedMarketData = {
   closingPrice: number | null;
   lastTradedPrice: number | null;
+  closingPriceChange: number | null;
+  lastPriceChange: number | null;
   closingPriceChangePercent: number | null;
   lastPriceChangePercent: number | null;
   pe: number | null;
@@ -813,6 +815,19 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
   );
 
 
+  const lastPriceChange = pickFirstNumber(
+    marketData.lastChange,
+    marketData.price?.lastChange,
+    marketData.plc,
+    lastHistoryRecord.lastChange,
+    lastHistoryRecord.price?.lastChange,
+    lastHistoryRecord.plc,
+    source.lastChange,
+    source.price?.lastChange,
+    source.plc,
+    mergedMetrics?.lastChange,
+  );
+
   const lastPriceChangePercent = pickFirstNumber(
     marketData.lastPriceChangePercent,
     marketData.price?.lastChangePercent,
@@ -831,6 +846,19 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
 
     mergedMetrics?.lastPriceChangePercent,
     (mergedMetrics as any)?.priceChangePercent,
+  );
+
+  const closingPriceChange = pickFirstNumber(
+    marketData.closingChange,
+    marketData.price?.closingChange,
+    marketData.pcc,
+    lastHistoryRecord.closingChange,
+    lastHistoryRecord.price?.closingChange,
+    lastHistoryRecord.pcc,
+    source.closingChange,
+    source.price?.closingChange,
+    source.pcc,
+    mergedMetrics?.closingChange,
   );
 
   const calculatedClosingPriceChangePercent =
@@ -970,6 +998,8 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     marketData: {
       closingPrice,
       lastTradedPrice,
+      closingPriceChange,
+      lastPriceChange,
       closingPriceChangePercent,
       lastPriceChangePercent,
       pe,
@@ -2339,6 +2369,36 @@ const clearCurrentAnalysis = () => {
       raw?.last
     );
 
+    const closingPriceChange = pickFirstNumber(
+      md?.closingChange,
+      md?.price?.closingChange,
+      md?.pcc,
+      mm?.closingChange,
+      rawMarketData?.closingChange,
+      rawMarketData?.price?.closingChange,
+      rawMarketData?.pcc,
+      rawPayload?.closingChange,
+      rawPayload?.price?.closingChange,
+      rawPayload?.pcc,
+      raw?.closingChange,
+      raw?.pcc
+    );
+
+    const lastPriceChange = pickFirstNumber(
+      md?.lastChange,
+      md?.price?.lastChange,
+      md?.plc,
+      mm?.lastChange,
+      rawMarketData?.lastChange,
+      rawMarketData?.price?.lastChange,
+      rawMarketData?.plc,
+      rawPayload?.lastChange,
+      rawPayload?.price?.lastChange,
+      rawPayload?.plc,
+      raw?.lastChange,
+      raw?.plc
+    );
+
     const closingPriceChangePercent = pickFirstNumber(
       md?.closingPriceChangePercent,
       (md as any)?.price?.closingChangePercent,
@@ -2619,9 +2679,22 @@ const clearCurrentAnalysis = () => {
         sellValue: md?.instSellValue ?? md?.legalSellValue,
       }, legalMoneyNet);
 
+    const resolvedLastPriceChange = lastPriceChange ?? (
+      lastTradedPrice !== null && lastPriceChangePercent !== null && 1 + lastPriceChangePercent / 100 > 0
+        ? Number((lastTradedPrice - lastTradedPrice / (1 + lastPriceChangePercent / 100)).toFixed(2))
+        : null
+    );
+    const resolvedClosingPriceChange = closingPriceChange ?? (
+      closingPrice !== null && closingPriceChangePercent !== null && 1 + closingPriceChangePercent / 100 > 0
+        ? Number((closingPrice - closingPrice / (1 + closingPriceChangePercent / 100)).toFixed(2))
+        : null
+    );
+
     return {
       closingPrice,
       lastTradedPrice,
+      closingPriceChange: resolvedClosingPriceChange,
+      lastPriceChange: resolvedLastPriceChange,
       priceChangePercent: lastPriceChangePercent,
       closingPriceChangePercent,
       lastPriceChangePercent,
@@ -2980,6 +3053,9 @@ const clearCurrentAnalysis = () => {
                       <div className="mt-1 text-[17px] font-extrabold leading-7 text-slate-900">
                         {formatNumber(marketDataResolved.closingPrice)}
                       </div>
+                      <div className={`mt-1 text-[12px] font-bold ${getPercentToneClass(marketDataResolved.closingPriceChange)}`}>
+                        مقدار تغییر: {formatNumber(marketDataResolved.closingPriceChange)}
+                      </div>
                       <div className={`mt-1 text-[12px] font-bold ${getPercentToneClass(marketDataResolved.closingPriceChangePercent)}`}>
                         {formatPercent(marketDataResolved.closingPriceChangePercent)}
                       </div>
@@ -2988,6 +3064,9 @@ const clearCurrentAnalysis = () => {
                       <div className="text-[11px] font-semibold leading-5 text-slate-500">قیمت لحظه‌ای</div>
                       <div className="mt-1 text-[17px] font-extrabold leading-7 text-blue-900">
                         {formatNumber(marketDataResolved.lastTradedPrice)}
+                      </div>
+                      <div className={`mt-1 text-[12px] font-bold ${getPercentToneClass(marketDataResolved.lastPriceChange)}`}>
+                        مقدار تغییر: {formatNumber(marketDataResolved.lastPriceChange)}
                       </div>
                       <div className={`mt-1 text-[12px] font-bold ${getPercentToneClass(marketDataResolved.lastPriceChangePercent)}`}>
                         {formatPercent(marketDataResolved.lastPriceChangePercent)}
