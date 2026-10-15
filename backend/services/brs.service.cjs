@@ -1066,7 +1066,8 @@ function mapAllSymbolsItem(item) {
     name: item.l30 || item.name || '',
     isin: item.isin || '',
     id: item.id || '',
-    sector: item.cs || '',
+    sector: item.cs_name || item.industryName || item.industry || item.cs || '',
+    industryName: item.cs_name || item.industryName || item.industry || item.cs || '',
     sectorId: item.cs_id,
     lastPrice: toNumber(item.pl != null ? item.pl : item.last),
     lastChange: toNumber(item.plc != null ? item.plc : item.lastChange),
@@ -1126,6 +1127,8 @@ function mapAllSymbolsItem(item) {
     volumeAvg1m: toInt(item.tvol_avg_1m != null ? item.tvol_avg_1m : item.volumeAvg1m),
     instBuyVolume: nz(toInt(item.Buy_N_Volume), 0),
     instSellVolume: nz(toInt(item.Sell_N_Volume), 0),
+    instBuyCount: toInt(item.Buy_CountN),
+    instSellCount: toInt(item.Sell_CountN),
     instBuyValue: toNumber(item.Buy_N_Value != null ? item.Buy_N_Value : item.buy_N_Value),
     instSellValue: toNumber(item.Sell_N_Value != null ? item.Sell_N_Value : item.sell_N_Value)
   };

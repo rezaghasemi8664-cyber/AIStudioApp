@@ -7,6 +7,7 @@ var marketHistoryController = require('../controllers/marketHistory.controller.c
 var marketSummaryController = require('../controllers/marketSummary.controller.cjs');
 var marketRadarHistoryController = require('../controllers/marketRadarHistory.controller.cjs');
 var marketSummaryService = require('../services/marketSummary.service.cjs');
+var allSymbolsSnapshotService = require('../services/allSymbolsSnapshot.service.cjs');
 
 // شاخص بازار
 router.get('/index', marketHistoryController.getMarketIndex);
@@ -87,6 +88,18 @@ router.get('/industries', async function getMarketIndustries(_req, res, next) {
 // شاخص BRS
 // تا وقتی handler مجزا وجود ندارد، این route alias رسمی همان market index است.
 router.get('/brs-index', marketHistoryController.getMarketIndex);
+
+// جستجوی نماد فقط از آخرین اسنپ‌شات AllSymbols ذخیره‌شده در دیتابیس؛ بدون فراخوانی مستقیم BRS در درخواست کاربر.
+router.get('/all-symbols/search', async function searchAllSymbolsSnapshot(req, res, next) {
+  try {
+    const symbol = String(req.query.symbol || '').trim();
+    if (!symbol) return res.status(400).json({ success: false, code: 'SYMBOL_REQUIRED', message: 'نماد را وارد کنید.' });
+    const result = await allSymbolsSnapshotService.searchSymbol(symbol);
+    if (result.status === 'NO_SNAPSHOT') return res.status(503).json({ success: false, code: 'ALL_SYMBOLS_SNAPSHOT_UNAVAILABLE', message: 'هنوز اسنپ‌شات AllSymbols در دیتابیس ثبت نشده است.' });
+    if (result.status === 'NOT_FOUND') return res.status(404).json({ success: false, code: 'SYMBOL_NOT_FOUND', message: 'نماد در آخرین اسنپ‌شات بازار پیدا نشد.', snapshotUpdatedAt: result.snapshotUpdatedAt, snapshotDate: result.snapshotDate });
+    return res.json({ success: true, data: result.symbol, snapshot: { updatedAt: result.snapshotUpdatedAt, date: result.snapshotDate, symbolCount: result.symbolCount, source: result.source } });
+  } catch (error) { return next(error); }
+});
 
 // اطلاعات نماد
 router.get('/symbol/:name', marketHistoryController.getSymbolData);
