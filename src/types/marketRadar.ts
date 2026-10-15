@@ -68,6 +68,7 @@ export interface MarketRadarBreadth {
   };
   abnormalVolume?: { available: boolean; count: number; multiplier: number; baseline: string };
   queues?: { available: boolean; classifiedSymbols: number; buy: number; sell: number };
+  marketValueVsAverage?: { available: boolean; currentValue: number; historicalAverage: number | null; changePercent: number | null; sampleDays: number; baseline: string };
 }
 
 export interface MarketRadarHistoryPoint {
