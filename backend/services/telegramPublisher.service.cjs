@@ -172,14 +172,17 @@ function renderIndexMessage(row, date = new Date()) {
 
 function renderSummaryMessage(row) {
   const content = String(row?.content || row?.summary || '').trim();
-  if (!content || !/تحلیل تکنیکال و چشم‌انداز کوتاه‌مدت/.test(content)) return null;
+  if (!content) return null;
   const sourceDate = row?.summaryDate || row?.date || row?.createdAt;
   if (!sourceDate || !Number.isFinite(new Date(sourceDate).getTime())) return null;
+  const formatDate = value => new Intl.DateTimeFormat('fa-IR', {
+    timeZone: TEHRAN_TIMEZONE, dateStyle: 'short'
+  }).format(new Date(value));
   const formatDateTime = value => new Intl.DateTimeFormat('fa-IR', {
     timeZone: TEHRAN_TIMEZONE, dateStyle: 'short', hour: '2-digit', minute: '2-digit', hour12: false
   }).format(new Date(value));
   const created = row?.createdAt || row?.date || sourceDate;
-  return ('🧾 رونیا | آخرین خلاصه ذخیره‌شده بازار بورس\nتاریخ بازار: ' + formatDateTime(sourceDate) +
+  return ('🧾 رونیا | آخرین خلاصه ذخیره‌شده بازار بورس\nتاریخ بازار: ' + formatDate(sourceDate) +
     '\nزمان ثبت خلاصه در دیتابیس: ' + formatDateTime(created) + '\n\n' + content).slice(0, 3900);
 }
 
