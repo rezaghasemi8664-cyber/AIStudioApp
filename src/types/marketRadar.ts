@@ -46,6 +46,7 @@ export interface MarketRadarBreadth {
     rows: MarketRadarSector[];
   };
   generatedAt: string | null;
+  realFlow?: { available: boolean; rowsWithRealFlow: number; totalRealBuyVolume: number | null; totalRealSellVolume: number | null; netRealBuyVolume: number | null; unit: 'volume' | null };
 }
 
 export interface MarketRadarHistoryPoint {
