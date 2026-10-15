@@ -241,22 +241,93 @@ async function cacheSymbols(symbols) {
   symbolsCache = { data: symbols, timestamp: Date.now() };
 }
 
+function finiteNumberOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizeSelectedIndexRows(payload) {
+  let body = payload;
+  if (typeof body === "string") {
+    try { body = JSON.parse(body); } catch { return []; }
+  }
+  if (body && !Array.isArray(body) && typeof body === "object") {
+    body = body.data ?? body.result ?? body.items ?? body.list ?? body.rows ??
+      body.records ?? body.indexes ?? body.selectedIndexes ?? body;
+    if (typeof body === "string") {
+      try { body = JSON.parse(body); } catch { return []; }
+    }
+  }
+  if (!Array.isArray(body)) {
+    body = body && typeof body === "object" &&
+      (body.name || body.title || body.indexName || body.l30) ? [body] : [];
+  }
+
+  return body.filter(row => row && typeof row === "object").map(row => ({
+    name: String(row.name ?? row.title ?? row.indexName ?? row.l30 ?? "").trim(),
+    index: finiteNumberOrNull(row.index ?? row.indexValue ?? row.value ?? row.lastIndex),
+    indexChange: finiteNumberOrNull(row.index_change ?? row.indexChange ?? row.change ?? row.changeValue),
+    indexChangePercent: finiteNumberOrNull(row.index_change_percent ?? row.indexChangePercent ?? row.changePercent),
+  })).filter(row => row.name);
+}
+
+function selectedIndexByName(rows, predicate) {
+  return rows.find(row => predicate(String(row.name).split(" ").join("").replace(/[()،,._-]/g, "").replace(/ي/g, "ی").replace(/ك/g, "ک")));
+}
+
+function selectedIndexFields(rows) {
+  const price = selectedIndexByName(rows, name => name.includes("شاخصقیمت") && name.includes("وزنیارزشی"));
+  const equalPrice = selectedIndexByName(rows, name => name.includes("شاخصقیمت") && name.includes("هموزن"));
+  const freeFloat = selectedIndexByName(rows, name => name.includes("آزادشناور"));
+  const firstMarket = selectedIndexByName(rows, name => name.includes("بازاراول"));
+  const secondMarket = selectedIndexByName(rows, name => name.includes("بازاردوم"));
+
+  return {
+    selectedIndexes: rows,
+    priceIndex: price?.index ?? null,
+    priceIndexChange: price?.indexChange ?? null,
+    priceIndexChangePercent: price?.indexChangePercent ?? null,
+    priceEqualWeightIndex: equalPrice?.index ?? null,
+    priceEqualWeightIndexChange: equalPrice?.indexChange ?? null,
+    priceEqualWeightIndexChangePercent: equalPrice?.indexChangePercent ?? null,
+    freeFloatIndex: freeFloat?.index ?? null,
+    freeFloatIndexChange: freeFloat?.indexChange ?? null,
+    freeFloatIndexChangePercent: freeFloat?.indexChangePercent ?? null,
+    firstMarketIndex: firstMarket?.index ?? null,
+    firstMarketIndexChange: firstMarket?.indexChange ?? null,
+    secondMarketIndex: secondMarket?.index ?? null,
+    secondMarketIndexChange: secondMarket?.indexChange ?? null,
+  };
+}
+
 async function fetchIndex() {
   const url = buildUrl(BRS_ENDPOINTS.index, { type: 1 });
 
   try {
     const live = await brsRequest(url);
-    // Only expose auxiliary index fields when BRSAPI actually provides them.
-    // Never issue direct upstream requests to TSETMC or fabricate missing values.
+    let selectedFields = selectedIndexFields([]);
+    try {
+      // BRSAPI documents type=3 as the selected-index feed. Keep this request
+      // sequential and optional so a type=3 failure cannot hide the main index.
+      await sleep(50);
+      const selectedPayload = await brsRequest(buildUrl(BRS_ENDPOINTS.index, { type: 3 }));
+      selectedFields = selectedIndexFields(normalizeSelectedIndexRows(selectedPayload));
+    } catch (selectedError) {
+      console.warn("[MARKET][INDEX] BRS selected indexes unavailable:", selectedError.message);
+    }
+
+    // Only BRSAPI is used. Missing values remain null; no index is estimated.
     return enrichFreshnessMeta(
       {
         ...live,
-        priceIndex: live?.priceIndex ?? null,
-        priceIndexChange: live?.priceIndexChange ?? null,
-        priceIndexChangePercent: live?.priceIndexChangePercent ?? null,
-        freeFloatIndex: live?.freeFloatIndex ?? null,
-        freeFloatIndexChange: live?.freeFloatIndexChange ?? null,
-        freeFloatIndexChangePercent: live?.freeFloatIndexChangePercent ?? null,
+        ...selectedFields,
+        priceIndex: selectedFields.priceIndex ?? live?.priceIndex ?? null,
+        priceIndexChange: selectedFields.priceIndexChange ?? live?.priceIndexChange ?? null,
+        priceIndexChangePercent: selectedFields.priceIndexChangePercent ?? live?.priceIndexChangePercent ?? null,
+        freeFloatIndex: selectedFields.freeFloatIndex ?? live?.freeFloatIndex ?? null,
+        freeFloatIndexChange: selectedFields.freeFloatIndexChange ?? live?.freeFloatIndexChange ?? null,
+        freeFloatIndexChangePercent: selectedFields.freeFloatIndexChangePercent ?? live?.freeFloatIndexChangePercent ?? null,
         _fallback: false,
       },
       new Date(),
@@ -486,20 +557,18 @@ function normalizeMarketSnapshot(input) {
   const time = raw.time || "";
   const state = raw.state || raw.marketState || raw.status || "";
   const sourceIndex = isPlainObject(raw._raw) ? raw._raw : {};
-  const priceIndex = toFiniteNumber(
+  const priceIndex = finiteNumberOrNull(
     raw.priceIndex ?? raw.indexPrice ?? raw.index_price ?? raw.price_index ??
-    sourceIndex.priceIndex ?? sourceIndex.indexPrice ?? sourceIndex.index_price ?? sourceIndex.price_index,
-    null
+    sourceIndex.priceIndex ?? sourceIndex.indexPrice ?? sourceIndex.index_price ?? sourceIndex.price_index
   );
-  const freeFloatIndex = toFiniteNumber(
+  const freeFloatIndex = finiteNumberOrNull(
     raw.freeFloatIndex ?? raw.indexFreeFloat ?? raw.index_freeFloat ?? raw.free_float_index ??
-    sourceIndex.freeFloatIndex ?? sourceIndex.indexFreeFloat ?? sourceIndex.index_freeFloat ?? sourceIndex.free_float_index,
-    null
+    sourceIndex.freeFloatIndex ?? sourceIndex.indexFreeFloat ?? sourceIndex.index_freeFloat ?? sourceIndex.free_float_index
   );
-  const priceIndexChange = toFiniteNumber(raw.priceIndexChange ?? raw.indexPriceChange ?? raw.index_price_change ?? sourceIndex.priceIndexChange ?? sourceIndex.indexPriceChange ?? sourceIndex.index_price_change, null);
-  const priceIndexChangePercent = toFiniteNumber(raw.priceIndexChangePercent ?? raw.indexPriceChangePercent ?? raw.index_price_change_percent ?? sourceIndex.priceIndexChangePercent ?? sourceIndex.indexPriceChangePercent ?? sourceIndex.index_price_change_percent, null);
-  const freeFloatIndexChange = toFiniteNumber(raw.freeFloatIndexChange ?? raw.indexFreeFloatChange ?? raw.index_freeFloat_change ?? sourceIndex.freeFloatIndexChange ?? sourceIndex.indexFreeFloatChange ?? sourceIndex.index_freeFloat_change, null);
-  const freeFloatIndexChangePercent = toFiniteNumber(raw.freeFloatIndexChangePercent ?? raw.indexFreeFloatChangePercent ?? raw.index_freeFloat_change_percent ?? sourceIndex.freeFloatIndexChangePercent ?? sourceIndex.indexFreeFloatChangePercent ?? sourceIndex.index_freeFloat_change_percent, null);
+  const priceIndexChange = finiteNumberOrNull(raw.priceIndexChange ?? raw.indexPriceChange ?? raw.index_price_change ?? sourceIndex.priceIndexChange ?? sourceIndex.indexPriceChange ?? sourceIndex.index_price_change);
+  const priceIndexChangePercent = finiteNumberOrNull(raw.priceIndexChangePercent ?? raw.indexPriceChangePercent ?? raw.index_price_change_percent ?? sourceIndex.priceIndexChangePercent ?? sourceIndex.indexPriceChangePercent ?? sourceIndex.index_price_change_percent);
+  const freeFloatIndexChange = finiteNumberOrNull(raw.freeFloatIndexChange ?? raw.indexFreeFloatChange ?? raw.index_freeFloat_change ?? sourceIndex.freeFloatIndexChange ?? sourceIndex.indexFreeFloatChange ?? sourceIndex.index_freeFloat_change);
+  const freeFloatIndexChangePercent = finiteNumberOrNull(raw.freeFloatIndexChangePercent ?? raw.indexFreeFloatChangePercent ?? raw.index_freeFloat_change_percent ?? sourceIndex.freeFloatIndexChangePercent ?? sourceIndex.indexFreeFloatChangePercent ?? sourceIndex.index_freeFloat_change_percent);
 
   return {
     date,
@@ -515,6 +584,14 @@ function normalizeMarketSnapshot(input) {
     priceIndex,
     priceIndexChange,
     priceIndexChangePercent,
+    priceEqualWeightIndex: finiteNumberOrNull(raw.priceEqualWeightIndex ?? sourceIndex.priceEqualWeightIndex),
+    priceEqualWeightIndexChange: finiteNumberOrNull(raw.priceEqualWeightIndexChange ?? sourceIndex.priceEqualWeightIndexChange),
+    priceEqualWeightIndexChangePercent: finiteNumberOrNull(raw.priceEqualWeightIndexChangePercent ?? sourceIndex.priceEqualWeightIndexChangePercent),
+    firstMarketIndex: finiteNumberOrNull(raw.firstMarketIndex ?? sourceIndex.firstMarketIndex),
+    firstMarketIndexChange: finiteNumberOrNull(raw.firstMarketIndexChange ?? sourceIndex.firstMarketIndexChange),
+    secondMarketIndex: finiteNumberOrNull(raw.secondMarketIndex ?? sourceIndex.secondMarketIndex),
+    secondMarketIndexChange: finiteNumberOrNull(raw.secondMarketIndexChange ?? sourceIndex.secondMarketIndexChange),
+    selectedIndexes: Array.isArray(raw.selectedIndexes) ? raw.selectedIndexes : [],
     freeFloatIndex,
     freeFloatIndexChange,
     freeFloatIndexChangePercent,
@@ -724,6 +801,8 @@ module.exports = {
   saveMarketDaily,
   saveMarketSnapshot,
   normalizeMarketSnapshot,
+  normalizeSelectedIndexRows,
+  selectedIndexFields,
   getCachedSymbols,
   cacheSymbols,
   getLatestMarketHistory,
