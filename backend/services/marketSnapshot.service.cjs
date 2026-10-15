@@ -116,7 +116,8 @@ function buildDerived(symbols, generatedAt) {
     Number.isFinite(row.volume) && row.volume >= row.volumeAvg1m * 2
   );
   const queueRows = valid.filter(row => row.orderBook && Array.isArray(row.orderBook.buy) && Array.isArray(row.orderBook.sell) &&
-    Number(row.allowedMin) > 0 && Number(row.allowedMax) > Number(row.allowedMin));
+    Number(row.allowedMin) > 0 && Number(row.allowedMax) > Number(row.allowedMin) &&
+    [...row.orderBook.buy, ...row.orderBook.sell].some(level => Number(level?.price) > 0 && Number(level?.volume) > 0));
   const buyQueueCount = queueRows.filter(row => {
     const buys = row.orderBook.buy.filter(level => Number(level?.price) > 0 && Number(level?.volume) > 0);
     const sells = row.orderBook.sell.filter(level => Number(level?.price) > 0 && Number(level?.volume) > 0);
