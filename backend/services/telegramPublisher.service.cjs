@@ -213,6 +213,7 @@ async function publishValuableChangesIfAny(now = new Date(), suppliedSettings) {
   if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
   if (!isBeforeEndTime(now, schedule.endTime)) return { skipped: true, reason: 'PUBLISHING_END_TIME_REACHED' };
   if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
+  if (!isIntervalDue(now, schedule.startTime, schedule.intervalMinutes)) return { skipped: true, reason: 'NOT_IN_PUBLISH_CYCLE' };
   const state = await loadState();
   if (state.lastValuablePublishedAt && ageMs(state.lastValuablePublishedAt, now.getTime()) < schedule.intervalMinutes * 60 * 1000) {
     return { skipped: true, reason: 'PUBLISH_INTERVAL_NOT_ELAPSED' };
@@ -259,6 +260,7 @@ async function publishScalpingOpportunitiesIfAny(now = new Date(), suppliedSetti
   if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
   if (!isBeforeEndTime(now, schedule.endTime)) return { skipped: true, reason: 'PUBLISHING_END_TIME_REACHED' };
   if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
+  if (!isIntervalDue(now, schedule.startTime, schedule.intervalMinutes)) return { skipped: true, reason: 'NOT_IN_PUBLISH_CYCLE' };
   const marketDate = getCurrentMarketDateUtc(now);
   const market = await prisma.marketCurrent.findUnique({ where: { marketDate } });
   if (!market || market.isStale || String(market.marketStatus || '').toUpperCase() !== 'OPEN' ||

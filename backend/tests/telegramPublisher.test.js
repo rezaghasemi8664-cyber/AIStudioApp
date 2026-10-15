@@ -10,12 +10,17 @@ const { DEFAULT_SETTINGS, normalizeSettings, validateSettings, isAllowedWeekday,
 describe('Telegram publisher helpers', () => {
   test('uses configurable Tehran index intervals', () => {
     expect(DEFAULT_SETTINGS.index.startTime).toBe('09:15');
+    expect(DEFAULT_SETTINGS.valuable.startTime).toBe('09:00');
+    expect(DEFAULT_SETTINGS.scalping.startTime).toBe('09:00');
     expect(DEFAULT_SETTINGS.valuable.endTime).toBe('12:30');
     expect(DEFAULT_SETTINGS.scalping.endTime).toBe('12:30');
     expect(DEFAULT_SETTINGS.index.endTime).toBe('12:30');
     expect(isIntervalDue(new Date('2026-10-10T05:45:00.000Z'), '09:15', 60)).toBe(true);
     expect(isIntervalDue(new Date('2026-10-10T06:45:00.000Z'), '09:15', 60)).toBe(true);
     expect(isIntervalDue(new Date('2026-10-10T06:30:00.000Z'), '09:15', 60)).toBe(false);
+    expect(isIntervalDue(new Date('2026-10-10T05:59:00.000Z'), '09:00', 15)).toBe(false);
+    expect(isIntervalDue(new Date('2026-10-10T06:00:00.000Z'), '09:00', 15)).toBe(true);
+    expect(isIntervalDue(new Date('2026-10-10T06:15:00.000Z'), '09:00', 15)).toBe(true);
   });
   test('stops configured publication at the Tehran end time, including the exact minute', () => {
     const beforeEnd = new Date('2026-10-10T08:59:00.000Z'); // 12:29 Tehran
@@ -36,6 +41,10 @@ describe('Telegram publisher helpers', () => {
     expect(() => validateSettings(invalidInterval)).toThrow('فاصله انتشار');
     const invalidLimit = { ...DEFAULT_SETTINGS, scalping: { ...DEFAULT_SETTINGS.scalping, maxSymbolsPerMessage: 21 } };
     expect(() => validateSettings(invalidLimit)).toThrow('حداکثر نماد');
+  });
+  test('rejects invalid configured publication start times', () => {
+    const invalid = { ...DEFAULT_SETTINGS, valuable: { ...DEFAULT_SETTINGS.valuable, startTime: '25:00' } };
+    expect(() => validateSettings(invalid)).toThrow('زمان شروع چرخه انتشار');
   });
   test('rejects invalid configured publication end times', () => {
     const invalid = { ...DEFAULT_SETTINGS, valuable: { ...DEFAULT_SETTINGS.valuable, endTime: '25:00' } };

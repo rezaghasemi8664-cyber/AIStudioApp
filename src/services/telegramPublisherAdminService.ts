@@ -12,8 +12,8 @@ export interface TelegramSchedule {
 }
 export interface TelegramPublisherSettings {
   timezone: 'Asia/Tehran';
-  valuable: TelegramSchedule & { intervalMinutes: number; maxSymbolsPerMessage: number; endTime: string };
-  scalping: TelegramSchedule & { intervalMinutes: number; maxSymbolsPerMessage: number; endTime: string };
+  valuable: TelegramSchedule & { intervalMinutes: number; maxSymbolsPerMessage: number; startTime: string; endTime: string };
+  scalping: TelegramSchedule & { intervalMinutes: number; maxSymbolsPerMessage: number; startTime: string; endTime: string };
   index: TelegramSchedule & { intervalMinutes: number; startTime: string; endTime: string };
   summary: TelegramSchedule & { publishTime: string };
 }
