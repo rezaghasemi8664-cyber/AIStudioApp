@@ -73,14 +73,16 @@ describe('Telegram publisher helpers', () => {
     expect(formatPercent(-100, 9900)).toBeCloseTo(-1);
     expect(formatPercent(0, 0)).toBeNull();
   });
-  test('keeps only current, fresh, open-market valuable symbols', () => {
-    const now = Date.parse('2026-10-10T06:00:00.000Z');
+  test('retains valid stored valuable symbols outside market hours without rewriting their timestamps', () => {
     const list = normalizeValuableResults([
       { symbol: 'الف', currentPrice: 100, marketStatus: 'OPEN', marketUpdatedAt: '2026-10-10T05:58:00.000Z' },
-      { symbol: 'ب', currentPrice: 100, marketStatus: 'CLOSED', marketUpdatedAt: '2026-10-10T05:58:00.000Z' },
-      { symbol: 'پ', currentPrice: 100, marketStatus: 'OPEN', marketUpdatedAt: '2026-10-10T05:00:00.000Z' }
-    ], now);
-    expect(list.map(item => item.symbol)).toEqual(['الف']);
+      { symbol: 'ب', currentPrice: 100, marketStatus: 'CLOSED', marketUpdatedAt: '2026-10-09T05:58:00.000Z' },
+      { symbol: 'پ', currentPrice: 100, marketStatus: 'OPEN', marketUpdatedAt: '2026-10-10T05:00:00.000Z' },
+      { symbol: 'ت', currentPrice: 0, marketStatus: 'OPEN', marketUpdatedAt: '2026-10-10T05:58:00.000Z' },
+      { symbol: 'ث', currentPrice: 100, marketUpdatedAt: null }
+    ]);
+    expect(list.map(item => item.symbol)).toEqual(['الف', 'ب', 'پ']);
+    expect(list[1].marketUpdatedAt).toBe('2026-10-09T05:58:00.000Z');
   });
   test('announces new symbols and only material score increases', () => {
     const previous = { 'الف': { score: 70 }, 'ب': { score: 60 } };
@@ -108,8 +110,16 @@ describe('Telegram publisher helpers', () => {
     expect(message.replace(/[\u200e\u200f]/g, '')).toContain('تغییر درصدی: −۱٪');
     expect(message).toContain('ساعت تهران: ۰۹:۳۰');
   });
-  test('requires a complete summary before rendering a post', () => {
+  test('renders the stored summary using its database market date and creation timestamp', () => {
     expect(renderSummaryMessage({ content: 'خلاصه ناقص' })).toBeNull();
-    expect(renderSummaryMessage({ content: 'تحلیل تکنیکال و چشم‌انداز کوتاه‌مدت\nمحتوا' })).toContain('خلاصه نهایی بازار بورس');
+    const message = renderSummaryMessage({
+      content: 'خلاصه ثبت‌شده در دیتابیس',
+      summaryDate: new Date('2026-10-14T00:00:00.000Z'),
+      createdAt: new Date('2026-10-14T10:05:00.000Z')
+    });
+    expect(message).toContain('آخرین خلاصه ذخیره‌شده بازار بورس');
+    expect(message).toContain('تاریخ بازار:');
+    expect(message).toContain('زمان ثبت خلاصه در دیتابیس:');
+    expect(message).toContain('خلاصه ثبت‌شده در دیتابیس');
   });
 });
