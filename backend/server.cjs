@@ -1036,19 +1036,22 @@ try {
   const pm2Instance = process.env.NODE_APP_INSTANCE;
   const isCronLeader = (pm2Instance === undefined || pm2Instance === '0');
 
-  if (cronEnabled && isCronLeader) {
-    startMarketSummaryCron();
-    marketSummaryCronStarted = true;
-    console.log('[SERVER] ✅ MarketSummary cron started');
+  if (isCronLeader) {
+    // Keep the daily summary toggle scoped to the summary-only cron. Telegram
+    // publishing and the other centralized jobs must not silently stop when
+    // MARKET_SUMMARY_CRON_ENABLED=false.
+    if (cronEnabled) {
+      startMarketSummaryCron();
+      marketSummaryCronStarted = true;
+      console.log('[SERVER] ✅ MarketSummary cron started');
+    } else {
+      console.log('[SERVER] ℹ️ MarketSummary cron disabled by MARKET_SUMMARY_CRON_ENABLED=false');
+    }
 
-    // ⚠️ FIX: این بخش قبلاً هرگز صدا زده نمی‌شد!
-    // بدون این خط، registerMarketCron (ذخیره اسنپ‌شات هر ۲ دقیقه در MarketHistory)
-    // و کرون‌های scalping/usage هیچ‌وقت اجرا نمی‌شدند، پس جدول MarketHistory
-    // هیچ داده‌ی تازه‌ای نداشت و تحلیل بازار ساعت ۱۲:۳۵ همیشه داده‌ی خالی/قدیمی می‌دید.
     startCronJobs(io);
-    console.log('[SERVER] ✅ Market/Scalping/Usage cron jobs started (via cron/index.cjs)');
+    console.log('[SERVER] ✅ Centralized market/usage/Telegram publisher cron jobs started (via cron/index.cjs)');
   } else {
-    console.log('[SERVER] ℹ️ MarketSummary cron not started (cronEnabled=' + cronEnabled + ', NODE_APP_INSTANCE=' + String(pm2Instance) + ')');
+    console.log('[SERVER] ℹ️ Background cron jobs not started on non-leader PM2 instance (NODE_APP_INSTANCE=' + String(pm2Instance) + ')');
   }
 } catch (cronErr) {
   console.error('[SERVER] ❌ Failed to start MarketSummary cron:', cronErr.message);
