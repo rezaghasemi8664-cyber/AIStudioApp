@@ -588,6 +588,8 @@ async function getMarketIndex(req, res) {
       indexChange: snapshot.overallChange,
       indexEqualWeight: snapshot.equalIndex,
       indexEqualWeightChange: snapshot.equalChange,
+      priceIndex: snapshot.priceIndex,
+      freeFloatIndex: snapshot.freeFloatIndex,
       tradeCount: snapshot.totalTrades,
       tradeVolume: snapshot.totalVolume,
       tradeValue: snapshot.totalValue,
