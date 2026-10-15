@@ -46,6 +46,20 @@ function normalizeIndexRows(payload: unknown): MarketRadarIndex[] {
   const equalPercent = numberFrom(root, ['equalWeightedChangePercent', 'equalWeightChangePercent', 'equalChangePercent'], 0) ?? 0;
   const result: MarketRadarIndex[] = [{ name: 'شاخص کل', value, changeValue, changePercent: changePercent ?? (value && value !== changeValue ? (changeValue / (value - changeValue)) * 100 : 0) }];
   if (equalValue !== null) result.push({ name: 'شاخص هم‌وزن', value: equalValue, changeValue: equalChange, changePercent: equalPercent });
+  const priceIndex = numberFrom(root, ['priceIndex', 'indexPrice', 'index_price', 'price_index']);
+  if (priceIndex !== null) result.push({
+    name: 'شاخص قیمت',
+    value: priceIndex,
+    changeValue: numberFrom(root, ['priceIndexChange', 'indexPriceChange', 'index_price_change'], 0) ?? 0,
+    changePercent: numberFrom(root, ['priceIndexChangePercent', 'indexPriceChangePercent', 'index_price_change_percent'], 0) ?? 0
+  });
+  const freeFloatIndex = numberFrom(root, ['freeFloatIndex', 'indexFreeFloat', 'index_freeFloat', 'free_float_index']);
+  if (freeFloatIndex !== null) result.push({
+    name: 'شاخص آزاد شناور',
+    value: freeFloatIndex,
+    changeValue: numberFrom(root, ['freeFloatIndexChange', 'indexFreeFloatChange', 'index_freeFloat_change'], 0) ?? 0,
+    changePercent: numberFrom(root, ['freeFloatIndexChangePercent', 'indexFreeFloatChangePercent', 'index_freeFloat_change_percent'], 0) ?? 0
+  });
   return result;
 }
 function normalizeMover(item: unknown): MarketRadarMover { const row = record(item); return { symbol: String(row.symbol ?? row.ticker ?? row.code ?? '—'), changePercent: numberFrom(row, ['changePercent', 'percentChange', 'change']), volume: numberFrom(row, ['volume', 'tradeVolume', 'tradedVolume'], 0) ?? 0, value: numberFrom(row, ['value', 'tradeValue', 'tradedValue'], 0) ?? 0 }; }
