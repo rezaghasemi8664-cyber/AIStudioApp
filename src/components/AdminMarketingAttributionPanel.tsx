@@ -4,6 +4,7 @@ import { getMarketingAttributionReport, type MarketingAttributionReport } from '
 const CHANNELS = [
   { key: 'bursebazaar', label: 'کانال بورس‌بازار' },
   { key: 'arzonlineinfo', label: 'کانال ارزآنلاین' },
+  { key: 'roniya', label: 'کانال رونیا' },
 ] as const;
 const fmt = (value: number) => Number(value || 0).toLocaleString('fa-IR');
 const dateFmt = (value: string) => {
@@ -50,6 +51,8 @@ const AdminMarketingAttributionPanel: React.FC = () => {
           </tbody></table></div>
           <h4 className="mt-5 font-semibold">آخرین خریدهای منتسب</h4>
           <div className="mt-2 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-[var(--card-border-color)] text-right"><th className="p-2">شناسه کاربر</th><th className="p-2">مبلغ (ریال)</th><th className="p-2">تاریخ پرداخت</th><th className="p-2">کد پیگیری</th></tr></thead><tbody>{data?.recentPurchases?.length ? data.recentPurchases.slice().reverse().slice(0, 10).map((item, index) => <tr key={item.paymentId + "-" + index} className="border-b border-[var(--card-border-color)]"><td className="p-2">{String(item.userId)}</td><td className="p-2 whitespace-nowrap">{fmt(item.amount)}</td><td className="p-2 whitespace-nowrap">{dateFmt(item.paidAt)}</td><td className="p-2">{item.refId || "—"}</td></tr>) : <tr><td colSpan={4} className="p-4 text-center text-gray-500">هنوز خرید منتسبی ثبت نشده است.</td></tr>}</tbody></table></div>
+          <h4 className="mt-5 font-semibold">آخرین کلیک‌های تبلیغاتی ثبت‌شده</h4>
+          <div className="mt-2 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-[var(--card-border-color)] text-right"><th className="p-2">زمان کلیک</th><th className="p-2">منبع</th><th className="p-2">شناسه کانال</th></tr></thead><tbody>{data?.recentClicks?.length ? data.recentClicks.slice().reverse().slice(0, 10).map((item, index) => <tr key={item.id + '-' + index} className="border-b border-[var(--card-border-color)]"><td className="p-2 whitespace-nowrap">{dateFmt(item.clickedAt)}</td><td className="p-2">{item.source}</td><td className="p-2">{item.content}</td></tr>) : <tr><td colSpan={3} className="p-4 text-center text-gray-500">هنوز کلیکی ثبت نشده است.</td></tr>}</tbody></table></div>
         </section>;
       })}
     </div>}
