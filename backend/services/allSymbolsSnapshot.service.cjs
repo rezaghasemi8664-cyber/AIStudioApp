@@ -121,6 +121,14 @@ async function refreshSnapshot() {
   console.log('[ALL-SYMBOLS-SNAPSHOT] Saved verified latest snapshot', JSON.stringify({ snapshotDate: dateKey, symbolCount: symbols.length, updatedAt: updatedAt.toISOString() }));
   return { snapshotDate: dateKey, symbolCount: symbols.length, updatedAt: updatedAt, source: 'brsapi-allsymbols' };
 }
+async function hasSnapshot() {
+  await ensureTable();
+  const snapshot = await getStoredSnapshot();
+  if (!snapshot) return false;
+  let symbols;
+  try { symbols = JSON.parse(snapshot.symbolsJson); } catch (_) { return false; }
+  return Array.isArray(symbols) && symbols.length >= 1000 && Number(snapshot.symbolCount) === symbols.length;
+}
 async function searchSymbol(query) {
   await ensureTable();
   const snapshot = await getStoredSnapshot();
@@ -134,4 +142,4 @@ async function searchSymbol(query) {
   if (!symbol) return { status: 'NOT_FOUND', snapshotUpdatedAt: snapshot.updatedAt, snapshotDate: dateValue, symbolCount: Number(snapshot.symbolCount) };
   return { status: 'FOUND', symbol: symbol, snapshotUpdatedAt: snapshot.updatedAt, snapshotDate: dateValue, symbolCount: Number(snapshot.symbolCount), source: snapshot.source };
 }
-module.exports = { ensureTable, refreshSnapshot, searchSymbol, normalizeSnapshotSymbol, normalizeKey, tehranDateKey };
+module.exports = { ensureTable, hasSnapshot, refreshSnapshot, searchSymbol, normalizeSnapshotSymbol, normalizeKey, tehranDateKey };
