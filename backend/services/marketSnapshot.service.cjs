@@ -31,6 +31,14 @@ function normalizeSymbol(item) {
     sector: item.sector || null,
     realBuyVolume: item.realBuyVolume == null ? 0 : Math.trunc(Number(item.realBuyVolume)),
     realSellVolume: item.realSellVolume == null ? 0 : Math.trunc(Number(item.realSellVolume)),
+    realBuyValue: item.realBuyValue == null || item.realBuyValue === '' ? null : toNumber(item.realBuyValue),
+    realSellValue: item.realSellValue == null || item.realSellValue === '' ? null : toNumber(item.realSellValue),
+    realBuyCount: item.realBuyCount == null ? 0 : Math.max(0, Math.trunc(Number(item.realBuyCount))),
+    realSellCount: item.realSellCount == null ? 0 : Math.max(0, Math.trunc(Number(item.realSellCount))),
+    volumeAvg1m: item.volumeAvg1m == null ? null : Math.max(0, Math.trunc(Number(item.volumeAvg1m))),
+    orderBook: item.orderBook && typeof item.orderBook === 'object' ? item.orderBook : null,
+    allowedMin: toNumber(item.allowedMin),
+    allowedMax: toNumber(item.allowedMax),
     legalBuyVolume: item.instBuyVolume == null ? 0 : Math.trunc(Number(item.instBuyVolume)),
     legalSellVolume: item.instSellVolume == null ? 0 : Math.trunc(Number(item.instSellVolume))
   };
@@ -76,6 +84,10 @@ function buildDerived(symbols, generatedAt) {
     changePercent: pct, lastChangePercent: pct, closeChangePercent: row.closeChangePercent,
     volume: row.volume, value: row.value, tradeCount: row.tradeCount, sector: row.sector,
     realBuyVolume: row.realBuyVolume, realSellVolume: row.realSellVolume,
+    realBuyValue: row.realBuyValue, realSellValue: row.realSellValue,
+    realBuyCount: row.realBuyCount, realSellCount: row.realSellCount,
+    volumeAvg1m: row.volumeAvg1m, orderBook: row.orderBook,
+    allowedMin: row.allowedMin, allowedMax: row.allowedMax,
     legalBuyVolume: row.legalBuyVolume, legalSellVolume: row.legalSellVolume
   });
 
@@ -90,24 +102,53 @@ function buildDerived(symbols, generatedAt) {
     .slice(0,10).map(r => toPublic(r));
 
   const realFlowRows = valid.filter(r => Number(r.realBuyVolume||0) > 0 || Number(r.realSellVolume||0) > 0);
-  const totalRealBuyVolume = realFlowRows.reduce((s,r) => s + Math.max(0,Number(r.realBuyVolume||0)),0);
-  const totalRealSellVolume = realFlowRows.reduce((s,r) => s + Math.max(0,Number(r.realSellVolume||0)),0);
+  const totalRealBuyVolume = realFlowRows.reduce((sum,row) => sum + Math.max(0,Number(row.realBuyVolume||0)),0);
+  const totalRealSellVolume = realFlowRows.reduce((sum,row) => sum + Math.max(0,Number(row.realSellVolume||0)),0);
+  const moneyFlowRows = valid.filter(row => Number.isFinite(row.realBuyValue) && Number.isFinite(row.realSellValue));
+  const totalRealBuyValue = moneyFlowRows.reduce((sum,row) => sum + Math.max(0,row.realBuyValue),0);
+  const totalRealSellValue = moneyFlowRows.reduce((sum,row) => sum + Math.max(0,row.realSellValue),0);
+  const realBuyerCount = moneyFlowRows.reduce((sum,row) => sum + Math.max(0,Number(row.realBuyCount||0)),0);
+  const realSellerCount = moneyFlowRows.reduce((sum,row) => sum + Math.max(0,Number(row.realSellCount||0)),0);
+  const averageRealBuyPerBuyer = realBuyerCount > 0 ? totalRealBuyValue / realBuyerCount : null;
+  const averageRealSellPerSeller = realSellerCount > 0 ? totalRealSellValue / realSellerCount : null;
+  const abnormalVolumeRows = valid.filter(row =>
+    Number.isFinite(row.volumeAvg1m) && row.volumeAvg1m > 0 &&
+    Number.isFinite(row.volume) && row.volume >= row.volumeAvg1m * 2
+  );
+  const queueRows = valid.filter(row => row.orderBook && Array.isArray(row.orderBook.buy) && Array.isArray(row.orderBook.sell) &&
+    Number(row.allowedMin) > 0 && Number(row.allowedMax) > Number(row.allowedMin) &&
+    [...row.orderBook.buy, ...row.orderBook.sell].some(level => Number(level?.price) > 0 && Number(level?.volume) > 0));
+  const buyQueueCount = queueRows.filter(row => {
+    const buys = row.orderBook.buy.filter(level => Number(level?.price) > 0 && Number(level?.volume) > 0);
+    const sells = row.orderBook.sell.filter(level => Number(level?.price) > 0 && Number(level?.volume) > 0);
+    return buys.length > 0 && sells.length === 0 && Math.abs(Number(buys[0].price) - Number(row.allowedMax)) <= Math.max(1, Number(row.allowedMax) * 0.000001);
+  }).length;
+  const sellQueueCount = queueRows.filter(row => {
+    const buys = row.orderBook.buy.filter(level => Number(level?.price) > 0 && Number(level?.volume) > 0);
+    const sells = row.orderBook.sell.filter(level => Number(level?.price) > 0 && Number(level?.volume) > 0);
+    return sells.length > 0 && buys.length === 0 && Math.abs(Number(sells[0].price) - Number(row.allowedMin)) <= Math.max(1, Number(row.allowedMin) * 0.000001);
+  }).length;
 
   const sectorsMap = new Map();
   for (const row of valid) {
     const name = String(row.sector || '').trim() || 'سایر / صنعت نامشخص';
-    const s = sectorsMap.get(name) || {symbols:0,positive:0,negative:0,neutral:0,sumPct:0,value:0};
+    const s = sectorsMap.get(name) || {symbols:0,positive:0,negative:0,neutral:0,sumPct:0,value:0,realMoneyFlow:0,moneyFlowRows:0};
     s.symbols++;
     if (row.radarChangePercent > 0) s.positive++;
     else if (row.radarChangePercent < 0) s.negative++;
     else s.neutral++;
     s.sumPct += row.radarChangePercent;
     s.value += Number(row.value || 0);
+    if (Number.isFinite(row.realBuyValue) && Number.isFinite(row.realSellValue)) {
+      s.realMoneyFlow += row.realBuyValue - row.realSellValue;
+      s.moneyFlowRows += 1;
+    }
     sectorsMap.set(name,s);
   }
   const sectors = [...sectorsMap.entries()].map(([name,s]) => ({
     name, symbols:s.symbols, positive:s.positive, negative:s.negative, neutral:s.neutral,
-    changePercent:s.symbols ? s.sumPct/s.symbols : 0, value:s.value, rank:0
+    changePercent:s.symbols ? s.sumPct/s.symbols : 0, value:s.value,
+    realMoneyFlow:s.moneyFlowRows ? s.realMoneyFlow : null, moneyFlowRows:s.moneyFlowRows, rank:0
   })).filter(r => Number.isFinite(r.changePercent));
   sectors.sort((a,b) => b.changePercent-a.changePercent);
   sectors.forEach((r,i)=>{r.rank=i+1;});
@@ -125,8 +166,24 @@ function buildDerived(symbols, generatedAt) {
       advanceDeclineRatio: negative ? positive/negative : null,
       coveragePercent: symbols.length ? total/symbols.length*100 : 0,
       topGainers:gainers, topLosers:losers, topVolumes:highVolume,
-      realFlow:{available:realFlowRows.length>0,rowsWithRealFlow:realFlowRows.length,
-        totalRealBuyVolume,totalRealSellVolume,netRealBuyVolume:totalRealBuyVolume-totalRealSellVolume,unit:'volume'},
+      realFlow:{
+        available:realFlowRows.length>0,
+        rowsWithRealFlow:realFlowRows.length,
+        totalRealBuyVolume,totalRealSellVolume,
+        netRealBuyVolume:totalRealBuyVolume-totalRealSellVolume,
+        moneyFlowAvailable:moneyFlowRows.length>0,
+        moneyFlowRows:moneyFlowRows.length,
+        totalRealBuyValue:moneyFlowRows.length ? totalRealBuyValue : null,
+        totalRealSellValue:moneyFlowRows.length ? totalRealSellValue : null,
+        netRealMoneyFlow:moneyFlowRows.length ? totalRealBuyValue-totalRealSellValue : null,
+        realBuyerCount:moneyFlowRows.length ? realBuyerCount : null,
+        realSellerCount:moneyFlowRows.length ? realSellerCount : null,
+        averageRealBuyPerBuyer, averageRealSellPerSeller,
+        perCapitaRatio:averageRealBuyPerBuyer != null && averageRealSellPerSeller > 0 ? averageRealBuyPerBuyer/averageRealSellPerSeller : null,
+        unit:moneyFlowRows.length ? 'rial' : 'volume'
+      },
+      abnormalVolume:{available:valid.some(row => Number.isFinite(row.volumeAvg1m) && row.volumeAvg1m > 0),count:abnormalVolumeRows.length,multiplier:2,baseline:'BRS monthly average volume'},
+      queues:{available:queueRows.length>0,classifiedSymbols:queueRows.length,buy:buyQueueCount,sell:sellQueueCount},
       sectors:{
         available:sectors.length>0,
         leaders:sectors.slice(0,6),
@@ -260,6 +317,50 @@ async function validateSnapshotHealth(symbols) {
   }
   return health;
 }
+async function addHistoricalValueComparison(derived, symbols) {
+  const marketDateKey = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tehran',
+    calendar: 'gregory'
+  }).format(new Date());
+  const [year, month, day] = marketDateKey.split('-').map(Number);
+  const marketDate = new Date(Date.UTC(year, month - 1, day));
+  let rows = [];
+  try {
+    rows = await prisma.$queryRaw`
+      SELECT TOP 20 CAST([date] AS date) AS [marketDate],
+        SUM(CAST([value] AS decimal(38,0))) AS [totalValue]
+      FROM [dbo].[MarketDaily]
+      WHERE [date] < ${marketDate} AND [value] IS NOT NULL
+      GROUP BY CAST([date] AS date)
+      ORDER BY CAST([date] AS date) DESC
+    `;
+  } catch (error) {
+    derived.breadth.marketValueVsAverage = {
+      available: false, currentValue: 0, historicalAverage: null, changePercent: null,
+      sampleDays: 0, baseline: 'previous trading-day totals from MarketDaily'
+    };
+    console.warn('[MARKET SNAPSHOT] historical traded-value comparison unavailable:', error.message);
+    return;
+  }
+  const dailyValues = (Array.isArray(rows) ? rows : [])
+    .map(row => Number(row.totalValue))
+    .filter(value => Number.isFinite(value) && value > 0);
+  const currentValue = symbols.filter(isEligible).reduce((sum, row) => sum + Math.max(0, Number(row.value || 0)), 0);
+  const historicalAverage = dailyValues.length
+    ? dailyValues.reduce((sum, value) => sum + value, 0) / dailyValues.length
+    : null;
+  derived.breadth.marketValueVsAverage = {
+    available: historicalAverage != null && historicalAverage > 0 && currentValue > 0,
+    currentValue,
+    historicalAverage,
+    changePercent: historicalAverage != null && historicalAverage > 0 && currentValue > 0
+      ? ((currentValue - historicalAverage) / historicalAverage) * 100
+      : null,
+    sampleDays: dailyValues.length,
+    baseline: 'previous trading-day totals from MarketDaily'
+  };
+}
+
 async function publishMarketSnapshotInternal(symbols) {
   const health = await validateSnapshotHealth(symbols);
   let id = null;
@@ -268,6 +369,7 @@ async function publishMarketSnapshotInternal(symbols) {
     id = await createPreparedSnapshot(symbols);
     const verifiedSymbols = await verifyPreparedSnapshot(id, symbols.length);
     const derived = buildDerived(verifiedSymbols, new Date());
+    await addHistoricalValueComparison(derived, verifiedSymbols);
 
     await prisma.$executeRaw`
       UPDATE [dbo].[MarketSnapshot]

@@ -1095,6 +1095,11 @@ function mapAllSymbolsItem(item) {
     pe: toNumber(item.pe),
     realBuyVolume: nz(toInt(item.Buy_I_Volume), 0),
     realSellVolume: nz(toInt(item.Sell_I_Volume), 0),
+    realBuyValue: toNumber(item.Buy_I_Value != null ? item.Buy_I_Value : item.buy_I_Value),
+    realSellValue: toNumber(item.Sell_I_Value != null ? item.Sell_I_Value : item.sell_I_Value),
+    realBuyCount: nz(toInt(item.Buy_CountI), 0),
+    realSellCount: nz(toInt(item.Sell_CountI), 0),
+    volumeAvg1m: toInt(item.tvol_avg_1m != null ? item.tvol_avg_1m : item.volumeAvg1m),
     instBuyVolume: nz(toInt(item.Buy_N_Volume), 0),
     instSellVolume: nz(toInt(item.Sell_N_Volume), 0)
   };

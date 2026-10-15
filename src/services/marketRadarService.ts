@@ -49,13 +49,44 @@ function normalizeIndexRows(payload: unknown): MarketRadarIndex[] {
   return result;
 }
 function normalizeMover(item: unknown): MarketRadarMover { const row = record(item); return { symbol: String(row.symbol ?? row.ticker ?? row.code ?? '—'), changePercent: numberFrom(row, ['changePercent', 'percentChange', 'change']), volume: numberFrom(row, ['volume', 'tradeVolume', 'tradedVolume'], 0) ?? 0, value: numberFrom(row, ['value', 'tradeValue', 'tradedValue'], 0) ?? 0 }; }
-function normalizeSector(item: unknown): MarketRadarSector { const row = record(item); return { name: String(row.name ?? row.title ?? row.industry ?? row.group ?? '—'), symbols: numberFrom(row, ['symbols', 'symbolCount', 'count', 'symbolsCount'], 0) ?? 0, positive: numberFrom(row, ['positive'], 0) ?? 0, negative: numberFrom(row, ['negative'], 0) ?? 0, neutral: numberFrom(row, ['neutral'], 0) ?? 0, changePercent: numberFrom(row, ['changePercent', 'percentChange', 'change'], 0) ?? 0, value: numberFrom(row, ['value', 'marketValue', 'tradeValue'], 0) ?? 0 }; }
+function normalizeSector(item: unknown): MarketRadarSector { const row = record(item); return { name: String(row.name ?? row.title ?? row.industry ?? row.group ?? '—'), symbols: numberFrom(row, ['symbols', 'symbolCount', 'count', 'symbolsCount'], 0) ?? 0, positive: numberFrom(row, ['positive'], 0) ?? 0, negative: numberFrom(row, ['negative'], 0) ?? 0, neutral: numberFrom(row, ['neutral'], 0) ?? 0, changePercent: numberFrom(row, ['changePercent', 'percentChange', 'change'], 0) ?? 0, value: numberFrom(row, ['value', 'marketValue', 'tradeValue'], 0) ?? 0, realMoneyFlow: numberFrom(row, ['realMoneyFlow']), moneyFlowRows: numberFrom(row, ['moneyFlowRows'], 0) ?? 0 }; }
 function normalizeBreadth(payload: unknown): MarketRadarBreadth | null {
   const root = record(unwrap(payload)); if (root.available === false && !root.positive && !root.negative && !root.neutral) return null;
   const sectorRoot = record(root.sectors);
   const flowRoot = record(root.realFlow);
-  const realFlow = { available: Boolean(flowRoot.available), rowsWithRealFlow: numberFrom(flowRoot, ['rowsWithRealFlow'], 0) ?? 0, totalRealBuyVolume: numberFrom(flowRoot, ['totalRealBuyVolume']), totalRealSellVolume: numberFrom(flowRoot, ['totalRealSellVolume']), netRealBuyVolume: numberFrom(flowRoot, ['netRealBuyVolume']), unit: flowRoot.unit === 'volume' ? 'volume' as const : null };
-  return { available: Boolean(root.available), positive: numberFrom(root, ['positive'], 0) ?? 0, negative: numberFrom(root, ['negative'], 0) ?? 0, neutral: numberFrom(root, ['neutral'], 0) ?? 0, total: numberFrom(root, ['total', 'classifiedTotal', 'tradedSymbols'], 0) ?? 0, positivePercent: numberFrom(root, ['positivePercent'], 0) ?? 0, negativePercent: numberFrom(root, ['negativePercent'], 0) ?? 0, neutralPercent: numberFrom(root, ['neutralPercent'], 0) ?? 0, advanceDeclineRatio: numberFrom(root, ['advanceDeclineRatio']), source: typeof root.source === 'string' ? root.source : null, coveragePercent: numberFrom(root, ['coveragePercent'], 0) ?? 0, topGainers: arrayFrom(root.topGainers).map(normalizeMover).slice(0, 10), topLosers: arrayFrom(root.topLosers).map(normalizeMover).slice(0, 10), topVolumes: arrayFrom(root.topVolumes).map(normalizeMover).slice(0, 10), sectors: { available: Boolean(sectorRoot.available), leaders: arrayFrom(sectorRoot.leaders).map(normalizeSector).slice(0, 6), laggards: arrayFrom(sectorRoot.laggards).map(normalizeSector).slice(0, 6), rows: arrayFrom(sectorRoot.rows).map(normalizeSector).slice(0, 100) }, generatedAt: typeof record(root.diagnostics).generatedAt === 'string' ? String(record(root.diagnostics).generatedAt) : null, realFlow };
+  const realFlow = {
+    available: Boolean(flowRoot.available),
+    rowsWithRealFlow: numberFrom(flowRoot, ['rowsWithRealFlow'], 0) ?? 0,
+    totalRealBuyVolume: numberFrom(flowRoot, ['totalRealBuyVolume']),
+    totalRealSellVolume: numberFrom(flowRoot, ['totalRealSellVolume']),
+    netRealBuyVolume: numberFrom(flowRoot, ['netRealBuyVolume']),
+    moneyFlowAvailable: Boolean(flowRoot.moneyFlowAvailable),
+    moneyFlowRows: numberFrom(flowRoot, ['moneyFlowRows'], 0) ?? 0,
+    totalRealBuyValue: numberFrom(flowRoot, ['totalRealBuyValue']),
+    totalRealSellValue: numberFrom(flowRoot, ['totalRealSellValue']),
+    netRealMoneyFlow: numberFrom(flowRoot, ['netRealMoneyFlow']),
+    realBuyerCount: numberFrom(flowRoot, ['realBuyerCount']),
+    realSellerCount: numberFrom(flowRoot, ['realSellerCount']),
+    averageRealBuyPerBuyer: numberFrom(flowRoot, ['averageRealBuyPerBuyer']),
+    averageRealSellPerSeller: numberFrom(flowRoot, ['averageRealSellPerSeller']),
+    perCapitaRatio: numberFrom(flowRoot, ['perCapitaRatio']),
+    unit: flowRoot.unit === 'rial' ? 'rial' as const : flowRoot.unit === 'volume' ? 'volume' as const : null
+  };
+  const abnormalRoot = record(root.abnormalVolume);
+  const queueRoot = record(root.queues);
+  const valueComparisonRoot = record(root.marketValueVsAverage);
+  return { available: Boolean(root.available), positive: numberFrom(root, ['positive'], 0) ?? 0, negative: numberFrom(root, ['negative'], 0) ?? 0, neutral: numberFrom(root, ['neutral'], 0) ?? 0, total: numberFrom(root, ['total', 'classifiedTotal', 'tradedSymbols'], 0) ?? 0, positivePercent: numberFrom(root, ['positivePercent'], 0) ?? 0, negativePercent: numberFrom(root, ['negativePercent'], 0) ?? 0, neutralPercent: numberFrom(root, ['neutralPercent'], 0) ?? 0, advanceDeclineRatio: numberFrom(root, ['advanceDeclineRatio']), source: typeof root.source === 'string' ? root.source : null, coveragePercent: numberFrom(root, ['coveragePercent'], 0) ?? 0, topGainers: arrayFrom(root.topGainers).map(normalizeMover).slice(0, 10), topLosers: arrayFrom(root.topLosers).map(normalizeMover).slice(0, 10), topVolumes: arrayFrom(root.topVolumes).map(normalizeMover).slice(0, 10), sectors: { available: Boolean(sectorRoot.available), leaders: arrayFrom(sectorRoot.leaders).map(normalizeSector).slice(0, 6), laggards: arrayFrom(sectorRoot.laggards).map(normalizeSector).slice(0, 6), rows: arrayFrom(sectorRoot.rows).map(normalizeSector).slice(0, 100) }, generatedAt: typeof root.generatedAt === 'string' ? root.generatedAt : typeof root.updatedAt === 'string' ? root.updatedAt : typeof record(root.diagnostics).generatedAt === 'string' ? String(record(root.diagnostics).generatedAt) : null, realFlow,
+    abnormalVolume: { available: Boolean(abnormalRoot.available), count: numberFrom(abnormalRoot, ['count'], 0) ?? 0, multiplier: numberFrom(abnormalRoot, ['multiplier'], 2) ?? 2, baseline: String(abnormalRoot.baseline ?? '') },
+    queues: { available: Boolean(queueRoot.available), classifiedSymbols: numberFrom(queueRoot, ['classifiedSymbols'], 0) ?? 0, buy: numberFrom(queueRoot, ['buy'], 0) ?? 0, sell: numberFrom(queueRoot, ['sell'], 0) ?? 0 },
+    marketValueVsAverage: {
+      available: Boolean(valueComparisonRoot.available),
+      currentValue: numberFrom(valueComparisonRoot, ['currentValue'], 0) ?? 0,
+      historicalAverage: numberFrom(valueComparisonRoot, ['historicalAverage']),
+      changePercent: numberFrom(valueComparisonRoot, ['changePercent']),
+      sampleDays: numberFrom(valueComparisonRoot, ['sampleDays'], 0) ?? 0,
+      baseline: String(valueComparisonRoot.baseline ?? '')
+    }
+  };
 }
 
 export async function getMarketRadarSnapshot(): Promise<MarketRadarSnapshot> {
@@ -73,6 +104,7 @@ export async function getMarketRadarHistory(range: MarketRadarHistoryRange): Pro
   const points = Array.isArray(root.points) ? root.points : [];
   return {
     range: (root.range as MarketRadarHistoryRange) || range,
+    granularity: root.granularity === 'intraday' ? 'intraday' : 'daily',
     available: Boolean(root.available) && points.length > 0,
     points: points.map((item) => {
       const row = record(item);
