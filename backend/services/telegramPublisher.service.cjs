@@ -179,7 +179,7 @@ function renderSummaryMessage(row) {
     timeZone: TEHRAN_TIMEZONE, dateStyle: 'short'
   }).format(new Date(value));
   const formatDateTime = value => new Intl.DateTimeFormat('fa-IR', {
-    timeZone: TEHRAN_TIMEZONE, dateStyle: 'short', hour: '2-digit', minute: '2-digit', hour12: false
+    timeZone: TEHRAN_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
   }).format(new Date(value));
   const created = row?.createdAt || row?.date || sourceDate;
   return ('🧾 رونیا | آخرین خلاصه ذخیره‌شده بازار بورس\nتاریخ بازار: ' + formatDate(sourceDate) +
@@ -230,14 +230,14 @@ async function publishValuableChangesIfAny(now = new Date(), suppliedSettings) {
   const selected = current.slice(0, schedule.maxSymbolsPerMessage);
   const lines = [
     '📊 رونیا | آخرین فهرست ذخیره‌شده نمادهای ارزنده',
-    'زمان ارزیابی ثبت‌شده: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, dateStyle: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(stored.evaluatedAt)),
+    'زمان ارزیابی ثبت‌شده: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(stored.evaluatedAt)),
     'قیمت هر نماد همراه با زمان ثبت قیمت اصلی آن نمایش داده می‌شود.',
     ''
   ];
   for (const item of selected) {
     lines.push('🔹 ' + (item.name || item.symbol) + ' (' + item.symbol + ')');
     lines.push('امتیاز: ' + formatNumber(item.score, 0) + ' | آخرین قیمت ثبت‌شده: ' + formatNumber(item.currentPrice));
-    lines.push('زمان ثبت قیمت: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, dateStyle: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(item.marketUpdatedAt)));
+    lines.push('زمان ثبت قیمت: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(item.marketUpdatedAt)));
     if (toNumber(item.targetPrice) > 0) lines.push('هدف محاسباتی: ' + formatNumber(item.targetPrice));
     if (toNumber(item.stopLoss) > 0) lines.push('سطح ابطال/حمایت: ' + formatNumber(item.stopLoss));
     lines.push('');
@@ -295,7 +295,7 @@ async function publishScalpingOpportunitiesIfAny(now = new Date(), suppliedSetti
     lines.push('نوع سیگنال: ' + (item.signal || 'نامشخص') + ' | امتیاز: ' + formatNumber(item.score, 0));
     lines.push('آخرین قیمت ثبت‌شده: ' + formatNumber(item.currentPrice));
     lines.push('تاریخ بازار: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, dateStyle: 'short' }).format(new Date(item.marketDate)) +
-      ' | زمان ثبت فرصت: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, dateStyle: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(item.updatedAt)));
+      ' | زمان ثبت فرصت: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(item.updatedAt)));
     if (toNumber(item.entryPrice) > 0) lines.push('ورود محاسباتی: ' + formatNumber(item.entryPrice));
     if (toNumber(item.takeProfit) > 0) lines.push('هدف محاسباتی: ' + formatNumber(item.takeProfit));
     if (toNumber(item.stopLoss) > 0) lines.push('سطح ابطال: ' + formatNumber(item.stopLoss));
