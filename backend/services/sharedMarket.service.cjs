@@ -108,6 +108,9 @@ function normalizeMarketCurrent(row) {
     source: row.source,
     isStale: row.isStale || !calendarOpen,
     dataJson: row.dataJson || null,
+    // Preserve the real BRS selected-index rows for consumers that need to
+    // resolve price and free-float indices when flattened fields are null.
+    selectedIndexes: Array.isArray(rawSnapshot?.selectedIndexes) ? rawSnapshot.selectedIndexes : [],
   };
 }
 

@@ -553,7 +553,9 @@ async function getActiveDerived() {
     const needsRebuild = !breadth ||
       !Object.prototype.hasOwnProperty.call(breadth, 'abnormalVolume') ||
       !Object.prototype.hasOwnProperty.call(breadth, 'queues') ||
-      !Object.prototype.hasOwnProperty.call(breadth, 'marketValueVsAverage');
+      !Object.prototype.hasOwnProperty.call(breadth, 'marketValueVsAverage') ||
+      breadth.abnormalVolume?.available === false ||
+      breadth.marketValueVsAverage?.available === false;
 
     // Older ACTIVE snapshots can predate newer market-indicator fields. Rebuild
     // the derived view from the same verified BRS symbol snapshot without
@@ -561,6 +563,9 @@ async function getActiveDerived() {
     if (needsRebuild && row.symbolsJson) {
       const symbols = JSON.parse(row.symbolsJson);
       if (Array.isArray(symbols) && symbols.length) {
+        // Recompute missing availability flags using the existing verified
+        // snapshot and historical DB baselines; do not fabricate market data.
+        await addHistoricalVolumeBaselines(symbols);
         derived = buildDerived(symbols, updatedAt || new Date());
         await addHistoricalValueComparison(derived, symbols);
       }
