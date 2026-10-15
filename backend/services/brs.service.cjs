@@ -1311,6 +1311,31 @@ function validateMarketSummaryPayload(summaryData) {
   return true;
 }
 
+function parseStoredSelectedIndexFields(dataJson) {
+  let snapshot = dataJson;
+  if (typeof snapshot === 'string') {
+    try { snapshot = JSON.parse(snapshot); } catch (error) { snapshot = null; }
+  }
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) snapshot = {};
+
+  return {
+    priceIndex: toNumber(snapshot.priceIndex),
+    priceIndexChange: toNumber(snapshot.priceIndexChange),
+    priceIndexChangePercent: toNumber(snapshot.priceIndexChangePercent),
+    priceEqualWeightIndex: toNumber(snapshot.priceEqualWeightIndex),
+    priceEqualWeightIndexChange: toNumber(snapshot.priceEqualWeightIndexChange),
+    priceEqualWeightIndexChangePercent: toNumber(snapshot.priceEqualWeightIndexChangePercent),
+    freeFloatIndex: toNumber(snapshot.freeFloatIndex),
+    freeFloatIndexChange: toNumber(snapshot.freeFloatIndexChange),
+    freeFloatIndexChangePercent: toNumber(snapshot.freeFloatIndexChangePercent),
+    firstMarketIndex: toNumber(snapshot.firstMarketIndex),
+    firstMarketIndexChange: toNumber(snapshot.firstMarketIndexChange),
+    secondMarketIndex: toNumber(snapshot.secondMarketIndex),
+    secondMarketIndexChange: toNumber(snapshot.secondMarketIndexChange),
+    selectedIndexes: Array.isArray(snapshot.selectedIndexes) ? snapshot.selectedIndexes : []
+  };
+}
+
 async function getMarketIndex() {
   // Canonical architecture: BRS Index is fetched only by market.cron.cjs.
   // All consumers of this service must read the shared MarketCurrent snapshot.
@@ -1334,7 +1359,11 @@ async function getMarketIndex() {
       }));
     }
 
+    // Auxiliary selected indexes are stored in the canonical snapshot JSON.
+    // Expose them from the shared DB so API consumers can actually receive them.
+    var selectedIndexFields = parseStoredSelectedIndexFields(record.dataJson);
     var payload = {
+      ...selectedIndexFields,
       index: Number(record.overallIndex),
       indexChange: Number(record.overallChange),
       indexEqualWeight: Number(record.equalIndex),
@@ -2084,5 +2113,6 @@ module.exports = {
   isMarketOpen: isMarketOpen,
   getMarketStatus: getMarketStatus,
   _getLocalMarketWindowStatus: getLocalMarketWindowStatus,
+  _parseStoredSelectedIndexFields: parseStoredSelectedIndexFields,
   _isClosedState: isClosedState
 };
