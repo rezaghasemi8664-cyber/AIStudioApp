@@ -14,12 +14,7 @@ const isSnapshotStale = (snapshot: MarketRadarSnapshot | null) => {
   const time = new Date(raw).getTime();
   return !Number.isFinite(time) || Date.now() - time > 150_000;
 };
-const isTehranSession = (date = new Date()) => {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Tehran', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(date);
-  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-  const minute = Number(values.hour || 0) * 60 + Number(values.minute || 0);
-  return ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'].includes(values.weekday) && minute >= 540 && minute < 750;
-};
+
 
 type Score = { value: number | null; coverage: number; label: string; detail: string };
 function calculateScore(data: MarketRadarSnapshot | null): Score {
