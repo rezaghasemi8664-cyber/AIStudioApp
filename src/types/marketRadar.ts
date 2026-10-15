@@ -22,6 +22,8 @@ export interface MarketRadarSector {
   neutral: number;
   changePercent: number;
   value: number;
+  realMoneyFlow?: number | null;
+  moneyFlowRows?: number;
 }
 
 export interface MarketRadarBreadth {
