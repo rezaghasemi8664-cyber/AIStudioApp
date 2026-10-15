@@ -7,9 +7,10 @@ const ranges: Array<{ value: MarketRadarHistoryRange; label: string }> = [
   { value: '3m', label: '۳ ماه' }, { value: '6m', label: '۶ ماه' }, { value: '1y', label: '۱ سال' },
 ];
 
-type Metric = 'index' | 'value' | 'volume';
+type Metric = 'index' | 'equalWeightedIndex' | 'value' | 'volume';
 const metrics: Array<{ value: Metric; label: string; key: keyof MarketRadarHistoryPoint; format: 'number' | 'compact' }> = [
   { value: 'index', label: 'شاخص کل', key: 'index', format: 'number' },
+  { value: 'equalWeightedIndex', label: 'شاخص هم‌وزن', key: 'equalWeightedIndex', format: 'number' },
   { value: 'value', label: 'ارزش معاملات', key: 'totalValue', format: 'compact' },
   { value: 'volume', label: 'حجم معاملات', key: 'totalVolume', format: 'compact' },
 ];
