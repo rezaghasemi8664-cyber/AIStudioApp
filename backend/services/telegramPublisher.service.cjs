@@ -5,7 +5,7 @@ const { getStoredValuableSymbols } = require('./valuableSymbols.engine.cjs');
 const { sendTelegramMessage, getTelegramConfig } = require('./telegramBotApi.service.cjs');
 const sharedMarketService = require('./sharedMarket.service.cjs');
 const telegramAdMessageService = require('./telegramAdMessage.service.cjs');
-const { getTelegramPublisherSettings, getTelegramPublisherHistory, isAllowedWeekday, isIntervalDue, recordTelegramPublisherMessage } = require('./telegramPublisherSettings.service.cjs');
+const { getTelegramPublisherSettings, getTelegramPublisherHistory, isAllowedWeekday, isIntervalDue, isBeforeEndTime, recordTelegramPublisherMessage } = require('./telegramPublisherSettings.service.cjs');
 
 const STATE_KEY = 'telegram.publisher.state.v1';
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
@@ -185,6 +185,7 @@ async function publishIndexIfScheduled(now = new Date(), suppliedSettings) {
   const schedule = settings.index;
   if (!schedule.enabled) return { skipped: true, reason: 'DISABLED_BY_ADMIN' };
   if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
+  if (!isBeforeEndTime(now, schedule.endTime)) return { skipped: true, reason: 'PUBLISHING_END_TIME_REACHED' };
   if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
   const slot = tehranSlot(now);
   if (!isIntervalDue(now, schedule.startTime, schedule.intervalMinutes)) return { skipped: true, reason: 'NOT_AN_INDEX_SLOT' };
@@ -210,6 +211,7 @@ async function publishValuableChangesIfAny(now = new Date(), suppliedSettings) {
   const schedule = settings.valuable;
   if (!schedule.enabled) return { skipped: true, reason: 'DISABLED_BY_ADMIN' };
   if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
+  if (!isBeforeEndTime(now, schedule.endTime)) return { skipped: true, reason: 'PUBLISHING_END_TIME_REACHED' };
   if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
   const state = await loadState();
   if (state.lastValuablePublishedAt && ageMs(state.lastValuablePublishedAt, now.getTime()) < schedule.intervalMinutes * 60 * 1000) {
@@ -255,6 +257,7 @@ async function publishScalpingOpportunitiesIfAny(now = new Date(), suppliedSetti
   const schedule = settings.scalping;
   if (!schedule.enabled) return { skipped: true, reason: 'DISABLED_BY_ADMIN' };
   if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
+  if (!isBeforeEndTime(now, schedule.endTime)) return { skipped: true, reason: 'PUBLISHING_END_TIME_REACHED' };
   if (!isTradingSession(now)) return { skipped: true, reason: 'OUTSIDE_TRADING_SESSION' };
   const marketDate = getCurrentMarketDateUtc(now);
   const market = await prisma.marketCurrent.findUnique({ where: { marketDate } });
