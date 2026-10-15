@@ -74,9 +74,18 @@ function normalizeBreadth(payload: unknown): MarketRadarBreadth | null {
   };
   const abnormalRoot = record(root.abnormalVolume);
   const queueRoot = record(root.queues);
+  const valueComparisonRoot = record(root.marketValueVsAverage);
   return { available: Boolean(root.available), positive: numberFrom(root, ['positive'], 0) ?? 0, negative: numberFrom(root, ['negative'], 0) ?? 0, neutral: numberFrom(root, ['neutral'], 0) ?? 0, total: numberFrom(root, ['total', 'classifiedTotal', 'tradedSymbols'], 0) ?? 0, positivePercent: numberFrom(root, ['positivePercent'], 0) ?? 0, negativePercent: numberFrom(root, ['negativePercent'], 0) ?? 0, neutralPercent: numberFrom(root, ['neutralPercent'], 0) ?? 0, advanceDeclineRatio: numberFrom(root, ['advanceDeclineRatio']), source: typeof root.source === 'string' ? root.source : null, coveragePercent: numberFrom(root, ['coveragePercent'], 0) ?? 0, topGainers: arrayFrom(root.topGainers).map(normalizeMover).slice(0, 10), topLosers: arrayFrom(root.topLosers).map(normalizeMover).slice(0, 10), topVolumes: arrayFrom(root.topVolumes).map(normalizeMover).slice(0, 10), sectors: { available: Boolean(sectorRoot.available), leaders: arrayFrom(sectorRoot.leaders).map(normalizeSector).slice(0, 6), laggards: arrayFrom(sectorRoot.laggards).map(normalizeSector).slice(0, 6), rows: arrayFrom(sectorRoot.rows).map(normalizeSector).slice(0, 100) }, generatedAt: typeof root.generatedAt === 'string' ? root.generatedAt : typeof root.updatedAt === 'string' ? root.updatedAt : typeof record(root.diagnostics).generatedAt === 'string' ? String(record(root.diagnostics).generatedAt) : null, realFlow,
     abnormalVolume: { available: Boolean(abnormalRoot.available), count: numberFrom(abnormalRoot, ['count'], 0) ?? 0, multiplier: numberFrom(abnormalRoot, ['multiplier'], 2) ?? 2, baseline: String(abnormalRoot.baseline ?? '') },
-    queues: { available: Boolean(queueRoot.available), classifiedSymbols: numberFrom(queueRoot, ['classifiedSymbols'], 0) ?? 0, buy: numberFrom(queueRoot, ['buy'], 0) ?? 0, sell: numberFrom(queueRoot, ['sell'], 0) ?? 0 }
+    queues: { available: Boolean(queueRoot.available), classifiedSymbols: numberFrom(queueRoot, ['classifiedSymbols'], 0) ?? 0, buy: numberFrom(queueRoot, ['buy'], 0) ?? 0, sell: numberFrom(queueRoot, ['sell'], 0) ?? 0 },
+    marketValueVsAverage: {
+      available: Boolean(valueComparisonRoot.available),
+      currentValue: numberFrom(valueComparisonRoot, ['currentValue'], 0) ?? 0,
+      historicalAverage: numberFrom(valueComparisonRoot, ['historicalAverage']),
+      changePercent: numberFrom(valueComparisonRoot, ['changePercent']),
+      sampleDays: numberFrom(valueComparisonRoot, ['sampleDays'], 0) ?? 0,
+      baseline: String(valueComparisonRoot.baseline ?? '')
+    }
   };
 }
 
