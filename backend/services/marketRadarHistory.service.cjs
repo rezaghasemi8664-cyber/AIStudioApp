@@ -69,7 +69,10 @@ async function getHistory(inputRange) {
       ? currentModel.findFirst({ orderBy: { marketDate: 'desc' }, select: { marketDate: true } })
       : null,
     intradayModel
-      ? intradayModel.findFirst({ orderBy: { capturedAt: 'desc' }, select: { marketDate: true } })
+      ? intradayModel.findFirst({ orderBy: { capturedAt: 'desc' }, select: { marketDate: true } }).catch((error) => {
+          console.warn('[MarketRadarHistory] intraday history unavailable:', error.message);
+          return null;
+        })
       : null
   ]);
 
@@ -112,6 +115,9 @@ async function getHistory(inputRange) {
           where: { marketDate: latestDate },
           orderBy: { capturedAt: 'asc' },
           select: { capturedAt: true, overallIndex: true, equalIndex: true, totalValue: true, totalVolume: true, totalTrades: true }
+        }).catch((error) => {
+          console.warn('[MarketRadarHistory] intraday points unavailable:', error.message);
+          return [];
         })
       : []
   ]);
