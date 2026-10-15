@@ -241,79 +241,22 @@ async function cacheSymbols(symbols) {
   symbolsCache = { data: symbols, timestamp: Date.now() };
 }
 
-let selectedIndexCache = { data: null, timestamp: 0 };
-const SELECTED_INDEX_CACHE_TTL_MS = 90 * 1000;
-const TSETMC_SELECTED_INDEXES_URL = 'https://cdn.tsetmc.com/api/Index/GetIndexB1LastAll/SelectedIndexes/1';
-
-async function fetchSelectedTseIndexes() {
-  if (selectedIndexCache.data && Date.now() - selectedIndexCache.timestamp < SELECTED_INDEX_CACHE_TTL_MS) {
-    return selectedIndexCache.data;
-  }
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-  try {
-    const response = await fetch(TSETMC_SELECTED_INDEXES_URL, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        Referer: 'https://www.tsetmc.com/',
-        'User-Agent': 'RoniyaAnalyzer/1.0'
-      },
-      signal: controller.signal
-    });
-    if (!response.ok) throw new Error('TSETMC selected indexes HTTP ' + response.status);
-    const payload = await response.json();
-    const rows = Array.isArray(payload) ? payload
-      : Array.isArray(payload?.indexB1) ? payload.indexB1
-      : Array.isArray(payload?.data?.indexB1) ? payload.data.indexB1
-      : Array.isArray(payload?.data) ? payload.data
-      : [];
-    const findIndex = (code, namePattern) => {
-      const row = rows.find(item =>
-        String(item?.insCode || '') === code ||
-        namePattern.test(String(item?.lVal30 || item?.name || ''))
-      );
-      if (!row) return null;
-      const value = Number(row.xDrNivJIdx004 ?? row.value ?? row.index);
-      if (!Number.isFinite(value) || value <= 0) return null;
-      const change = Number(row.indexChange ?? row.changeValue);
-      const changePercent = Number(row.xVarIdxJRfV ?? row.changePercent);
-      return {
-        value,
-        change: Number.isFinite(change) ? change : null,
-        changePercent: Number.isFinite(changePercent) ? changePercent : null,
-        name: String(row.lVal30 || row.name || '')
-      };
-    };
-    const data = {
-      priceIndex: findIndex('5798407779416661', /شاخص\s*قیمت.*وزنی|قیمت.*وزنی.*ارزشی/i),
-      freeFloatIndex: findIndex('49579049405614711', /آزاد\s*شناور/i)
-    };
-    selectedIndexCache = { data, timestamp: Date.now() };
-    return data;
-  } catch (error) {
-    console.warn('[MARKET][INDEX] TSETMC auxiliary indexes unavailable:', error.message);
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 async function fetchIndex() {
   const url = buildUrl(BRS_ENDPOINTS.index, { type: 1 });
 
   try {
     const live = await brsRequest(url);
-    const auxiliary = await fetchSelectedTseIndexes();
+    // Only expose auxiliary index fields when BRSAPI actually provides them.
+    // Never issue direct upstream requests to TSETMC or fabricate missing values.
     return enrichFreshnessMeta(
       {
         ...live,
-        priceIndex: auxiliary?.priceIndex?.value ?? null,
-        priceIndexChange: auxiliary?.priceIndex?.change ?? null,
-        priceIndexChangePercent: auxiliary?.priceIndex?.changePercent ?? null,
-        freeFloatIndex: auxiliary?.freeFloatIndex?.value ?? null,
-        freeFloatIndexChange: auxiliary?.freeFloatIndex?.change ?? null,
-        freeFloatIndexChangePercent: auxiliary?.freeFloatIndex?.changePercent ?? null,
+        priceIndex: live?.priceIndex ?? null,
+        priceIndexChange: live?.priceIndexChange ?? null,
+        priceIndexChangePercent: live?.priceIndexChangePercent ?? null,
+        freeFloatIndex: live?.freeFloatIndex ?? null,
+        freeFloatIndexChange: live?.freeFloatIndexChange ?? null,
+        freeFloatIndexChangePercent: live?.freeFloatIndexChangePercent ?? null,
         _fallback: false,
       },
       new Date(),
