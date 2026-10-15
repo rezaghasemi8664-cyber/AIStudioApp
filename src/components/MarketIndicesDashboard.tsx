@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getMarketRadarSnapshot, getMarketRadarHistory, readMarketRadarCache, writeMarketRadarCache } from '../services/marketRadarService';
-import type { MarketRadarHistory, MarketRadarSnapshot, MarketRadarSector } from '../types/marketRadar';
+import { getMarketRadarSnapshot, readMarketRadarCache, writeMarketRadarCache } from '../services/marketRadarService';
+import type { MarketRadarSnapshot, MarketRadarSector } from '../types/marketRadar';
 import IndustryHeatmap from './MarketRadar/IndustryHeatmap';
 import MarketRadarHistoryChart from './MarketRadar/MarketRadarHistory';
 
@@ -39,10 +39,6 @@ function calculateScore(data: MarketRadarSnapshot | null): Score {
       components.push({ score: Math.max(0, Math.min(100, 50 + average * 10)), weight: 15 });
     }
   }
-  if (data.totalValue != null && data.totalValue > 0 && data.totalTrades != null && data.totalTrades > 0) {
-    // Activity component reflects observed activity, not an unsupported claim that it is high/low.
-    components.push({ score: 50, weight: 20 });
-  }
   const weight = components.reduce((sum, item) => sum + item.weight, 0);
   if (!weight) return { value: null, coverage: 0, label: 'داده ناکافی', detail: 'معیار معتبر کافی برای امتیازدهی وجود ندارد' };
   const value = Math.round(components.reduce((sum, item) => sum + item.score * item.weight, 0) / weight);
@@ -77,13 +73,13 @@ const Metric: React.FC<{ label: string; value: string; sub?: string; change?: nu
 
 const MarketIndicesDashboard: React.FC = () => {
   const [data, setData] = useState<MarketRadarSnapshot | null>(null);
-  const [history, setHistory] = useState<MarketRadarHistory | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
   const [selectedSector, setSelectedSector] = useState<MarketRadarSector | null>(null);
   const previousRef = useRef<MarketRadarSnapshot | null>(null);
+  const dataRef = useRef<MarketRadarSnapshot | null>(null);
   const [previous, setPrevious] = useState<MarketRadarSnapshot | null>(null);
 
   const refresh = useCallback(async (manual = false) => {
@@ -91,26 +87,23 @@ const MarketIndicesDashboard: React.FC = () => {
     setError(null);
     try {
       const cached = readMarketRadarCache();
-      if (!manual && !data && cached) { setData(cached.snapshot); setStale(!cached.fresh); }
-      const [snapshot, historical] = await Promise.all([
-        getMarketRadarSnapshot(),
-        getMarketRadarHistory('1d').catch(() => null),
-      ]);
+      if (!manual && !dataRef.current && cached) { dataRef.current = cached.snapshot; setData(cached.snapshot); setStale(!cached.fresh); }
+      const snapshot = await getMarketRadarSnapshot();
       if (previousRef.current && previousRef.current.fetchedAt !== snapshot.fetchedAt) {
         setPrevious(previousRef.current);
       }
       previousRef.current = snapshot;
+      dataRef.current = snapshot;
       setData(snapshot);
       setStale(Boolean(snapshot.stale));
       writeMarketRadarCache(snapshot);
-      if (historical) setHistory(historical);
     } catch (err) {
       console.error('[MarketIndicesDashboard] refresh failed:', err);
       const cached = readMarketRadarCache();
-      if (cached) { setData(cached.snapshot); setStale(true); }
-      else if (!data) setError('داده معتبر بازار در دسترس نیست. لطفاً بعداً دوباره تلاش کنید.');
+      if (cached) { dataRef.current = cached.snapshot; setData(cached.snapshot); setStale(true); }
+      else if (!dataRef.current) setError('داده معتبر بازار در دسترس نیست. لطفاً بعداً دوباره تلاش کنید.');
     } finally { setLoading(false); setRefreshing(false); }
-  }, [data]);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -161,7 +154,7 @@ const MarketIndicesDashboard: React.FC = () => {
 
     <article className={card}><div className="mb-4"><h2 className="text-lg font-black text-[var(--color-text-primary)]">نقشه حرارتی صنایع</h2><p className="mt-1 text-xs text-slate-500">رنگ نشان‌دهنده تغییر گزارش‌شده صنعت است؛ اطلاعات صف و نمادهای تشکیل‌دهنده فقط در صورت وجود در منبع نمایش داده می‌شوند.</p></div><IndustryHeatmap rows={breadth?.sectors.rows ?? []} /><div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">{(breadth?.sectors.rows ?? []).map(sector => <button key={sector.name} onClick={() => setSelectedSector(sector)} className={`rounded-xl border px-3 py-3 text-right transition ${selectedSector?.name === sector.name ? 'border-sky-500 bg-sky-500/10' : 'border-[var(--color-border)] hover:bg-slate-500/5'}`}><span className="font-black text-[var(--color-text-primary)]">{sector.name}</span><span className={`mr-3 font-black ${tone(sector.changePercent)}`}>{pct(sector.changePercent)}</span></button>)}</div>{selectedSector && <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4"><div className="flex items-center justify-between gap-2"><h3 className="font-black text-[var(--color-text-primary)]">{selectedSector.name}</h3><button onClick={() => setSelectedSector(null)} className="rounded-lg px-3 py-1 text-sm text-slate-500 hover:bg-slate-500/10">بستن</button></div><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label="تعداد نمادهای صنعت" value={fa(selectedSector.symbols)} /><Metric label="مثبت" value={fa(selectedSector.positive)} /><Metric label="منفی" value={fa(selectedSector.negative)} /><Metric label="ارزش معاملات صنعت" value={fa(selectedSector.value)} /></div><p className="mt-3 text-xs text-slate-500">فهرست نمادهای عضو هر صنعت در قرارداد API فعلی ارائه نشده است؛ ازاین‌رو فقط آمار واقعی صنعت نمایش داده می‌شود.</p></div>}</article>
 
-    {history && <MarketRadarHistoryChart />}
+    <MarketRadarHistoryChart />
   </section>;
 };
 
