@@ -24,25 +24,25 @@ function normalizeSymbol(item) {
     change: toNumber(item.lastChange),
     changePercent: toNumber(item.lastChangePercent),
     closeChangePercent,
-    volume: item.tradeVolume == null ? null : Math.trunc(Number(item.tradeVolume)),
-    value: toNumber(item.tradeValue),
-    tradeCount: item.tradeCount == null ? null : Math.trunc(Number(item.tradeCount)),
+    volume: item.tradeVolume == null && item.volume == null ? null : Math.trunc(Number(item.tradeVolume ?? item.volume)),
+    value: toNumber(item.tradeValue ?? item.value),
+    tradeCount: item.tradeCount == null && item.trades == null ? null : Math.trunc(Number(item.tradeCount ?? item.trades)),
     yesterday,
-    sector: item.sector || null,
-    realBuyVolume: item.realBuyVolume == null ? 0 : Math.trunc(Number(item.realBuyVolume)),
-    realSellVolume: item.realSellVolume == null ? 0 : Math.trunc(Number(item.realSellVolume)),
+    sector: item.sector ?? item.industryName ?? null,
+    realBuyVolume: item.realBuyVolume == null ? 0 : Math.max(0, Math.trunc(Number(item.realBuyVolume))),
+    realSellVolume: item.realSellVolume == null ? 0 : Math.max(0, Math.trunc(Number(item.realSellVolume))),
     realBuyValue: item.realBuyValue == null || item.realBuyValue === '' ? null : toNumber(item.realBuyValue),
     realSellValue: item.realSellValue == null || item.realSellValue === '' ? null : toNumber(item.realSellValue),
     realBuyCount: item.realBuyCount == null ? 0 : Math.max(0, Math.trunc(Number(item.realBuyCount))),
     realSellCount: item.realSellCount == null ? 0 : Math.max(0, Math.trunc(Number(item.realSellCount))),
-    volumeAvg1m: item.volumeAvg1m == null ? null : Math.max(0, Math.trunc(Number(item.volumeAvg1m))),
+    volumeAvg1m: item.volumeAvg1m == null || Number(item.volumeAvg1m) <= 0 ? null : Math.max(0, Math.trunc(Number(item.volumeAvg1m))),
     orderBook: item.orderBook && typeof item.orderBook === 'object' ? item.orderBook : null,
     allowedMin: toNumber(item.allowedMin),
     allowedMax: toNumber(item.allowedMax),
-    legalBuyVolume: item.instBuyVolume == null ? 0 : Math.trunc(Number(item.instBuyVolume)),
-    legalSellVolume: item.instSellVolume == null ? 0 : Math.trunc(Number(item.instSellVolume)),
-    legalBuyValue: item.instBuyValue == null || item.instBuyValue === '' ? null : toNumber(item.instBuyValue),
-    legalSellValue: item.instSellValue == null || item.instSellValue === '' ? null : toNumber(item.instSellValue)
+    legalBuyVolume: item.legalBuyVolume == null && item.instBuyVolume == null ? 0 : Math.max(0, Math.trunc(Number(item.legalBuyVolume ?? item.instBuyVolume))),
+    legalSellVolume: item.legalSellVolume == null && item.instSellVolume == null ? 0 : Math.max(0, Math.trunc(Number(item.legalSellVolume ?? item.instSellVolume))),
+    legalBuyValue: item.legalBuyValue == null || item.legalBuyValue === '' ? (item.instBuyValue == null || item.instBuyValue === '' ? null : toNumber(item.instBuyValue)) : toNumber(item.legalBuyValue),
+    legalSellValue: item.legalSellValue == null || item.legalSellValue === '' ? (item.instSellValue == null || item.instSellValue === '' ? null : toNumber(item.instSellValue)) : toNumber(item.legalSellValue)
   };
 }
 
@@ -377,11 +377,58 @@ async function addHistoricalValueComparison(derived, symbols) {
   };
 }
 
+async function addHistoricalVolumeBaselines(symbols) {
+  const marketDateKey = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tehran',
+    calendar: 'gregory'
+  }).format(new Date());
+  const [year, month, day] = marketDateKey.split('-').map(Number);
+  const marketDate = new Date(Date.UTC(year, month - 1, day));
+  let rows = [];
+  try {
+    rows = await prisma.$queryRaw`
+      WITH [RecentTradingDates] AS (
+        SELECT TOP 20 CAST([date] AS date) AS [marketDate]
+        FROM [dbo].[MarketDaily]
+        WHERE [date] < ${marketDate} AND [volume] > 0
+        GROUP BY CAST([date] AS date)
+        ORDER BY CAST([date] AS date) DESC
+      )
+      SELECT md.[symbol], AVG(CAST(md.[volume] AS float)) AS [averageVolume]
+      FROM [dbo].[MarketDaily] md
+      INNER JOIN [RecentTradingDates] d ON CAST(md.[date] AS date) = d.[marketDate]
+      WHERE md.[volume] > 0
+      GROUP BY md.[symbol]
+    `;
+  } catch (error) {
+    console.warn('[MARKET SNAPSHOT] historical volume baseline unavailable:', error.message);
+    return;
+  }
+
+  const averages = new Map((Array.isArray(rows) ? rows : [])
+    .map(row => [String(row.symbol || '').trim(), Number(row.averageVolume)])
+    .filter(([symbol, average]) => symbol && Number.isFinite(average) && average > 0));
+
+  let filled = 0;
+  for (const row of symbols) {
+    if (row.volumeAvg1m != null && Number(row.volumeAvg1m) > 0) continue;
+    const average = averages.get(String(row.symbol || '').trim());
+    if (average == null) continue;
+    row.volumeAvg1m = Math.max(1, Math.round(average));
+    filled += 1;
+  }
+  console.log('[MARKET SNAPSHOT] historical volume baseline applied:', JSON.stringify({
+    symbolsWithBaseline: filled,
+    baselineTradingDays: 20
+  }));
+}
+
 async function publishMarketSnapshotInternal(symbols) {
   const health = await validateSnapshotHealth(symbols);
   let id = null;
 
   try {
+    await addHistoricalVolumeBaselines(symbols);
     id = await createPreparedSnapshot(symbols);
     const verifiedSymbols = await verifyPreparedSnapshot(id, symbols.length);
     const derived = buildDerived(verifiedSymbols, new Date());
