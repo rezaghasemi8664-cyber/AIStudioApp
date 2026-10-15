@@ -46,7 +46,26 @@ export interface MarketRadarBreadth {
     rows: MarketRadarSector[];
   };
   generatedAt: string | null;
-  realFlow?: { available: boolean; rowsWithRealFlow: number; totalRealBuyVolume: number | null; totalRealSellVolume: number | null; netRealBuyVolume: number | null; unit: 'volume' | null };
+  realFlow?: {
+    available: boolean;
+    rowsWithRealFlow: number;
+    totalRealBuyVolume: number | null;
+    totalRealSellVolume: number | null;
+    netRealBuyVolume: number | null;
+    moneyFlowAvailable?: boolean;
+    moneyFlowRows?: number;
+    totalRealBuyValue?: number | null;
+    totalRealSellValue?: number | null;
+    netRealMoneyFlow?: number | null;
+    realBuyerCount?: number | null;
+    realSellerCount?: number | null;
+    averageRealBuyPerBuyer?: number | null;
+    averageRealSellPerSeller?: number | null;
+    perCapitaRatio?: number | null;
+    unit: 'volume' | 'rial' | null;
+  };
+  abnormalVolume?: { available: boolean; count: number; multiplier: number; baseline: string };
+  queues?: { available: boolean; classifiedSymbols: number; buy: number; sell: number };
 }
 
 export interface MarketRadarHistoryPoint {
