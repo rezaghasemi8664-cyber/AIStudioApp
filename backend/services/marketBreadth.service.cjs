@@ -8,11 +8,8 @@
  * positive + negative + neutral represents the actual traded equity universe.
  */
 
-const env = require('../config/env.cjs');
 const brs = require('./brs.service.cjs');
 
-const CDN = 'https://cdn.tsetmc.com/api';
-const timeoutMs = Math.min(Number(env.BRS_TIMEOUT_MS) || 15000, 8000);
 const fallbackTimeoutMs = 10000;
 const TTL = 2 * 60 * 1000;
 let cache = { value: null, timestamp: 0 };
@@ -62,21 +59,6 @@ function flatten(payload) {
     }
   }
   return [];
-}
-
-async function getJson(url) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, {
-      headers: { Accept: 'application/json', 'User-Agent': 'AIStudioApp/5.2' },
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new Error(`TSETMC ${response.status}`);
-    return await response.json();
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 function normalizeBRSRow(row) {
@@ -146,7 +128,7 @@ function isEquity(row) {
   const type = instrumentType(row);
   if (type !== undefined) {
     const numericType = num(type);
-    // TSETMC paper type 1 is the ordinary listed equity instrument.
+    // BRS paper type 1 is the ordinary listed equity instrument.
     if (numericType !== null) return numericType === 1;
 
     const normalized = String(type).trim().toLowerCase();
@@ -158,9 +140,7 @@ function isEquity(row) {
     .filter(Boolean).join(' ').toLowerCase();
   if (/شاخص|صندوق|اوراق|اختیار|آتی|حق.?تقدم|اوراق.?تسهیلات|index|fund|bond|option|future|warrant/.test(label)) return false;
 
-  // BRS fallback rows sometimes omit the instrument type. Keep only rows that
-  // have real trading data; the TSETMC MarketWatch path is the authoritative
-  // source and explicitly requests paper type 1.
+  // BRS rows sometimes omit the instrument type. Keep only rows that have real trading data.
   return true;
 }
 
@@ -298,75 +278,47 @@ async function fetchBRSAllSymbols() {
   return data.map(normalizeBRSRow);
 }
 
-async function fetchTsetmcMarketWatch() {
-  const params = [
-    'market=1',
-    'industrialGroup=',
-    // Only ordinary listed equities. Do not request all paper types because
-    // that mixes shares with funds, bonds, rights and derivatives.
-    'paperTypes%5B0%5D=1',
-    'withBestLimits=false',
-    'hEven=0',
-    'RefID=0',
-  ].join('&');
-  const payload = await getJson(`${CDN}/ClosingPrice/GetMarketWatch?${params}`);
-  const rows = flatten(payload).map(normalizeBRSRow);
-  if (!rows.length) throw new Error('TSETMC MarketWatch returned no symbol rows');
-  return rows;
-}
-
 async function getMarketBreadth() {
   if (cache.value && Date.now() - cache.timestamp < TTL) return cache.value;
   if (refreshInFlight) return refreshInFlight;
 
   refreshInFlight = (async () => {
-    let rows;
-    let source;
-    let tsetmcError = null;
-
     try {
-      rows = await fetchTsetmcMarketWatch();
-      source = 'tsetmc-marketwatch-equities';
+      // Market breadth must use BRSAPI only. The shared BRS service adds the API
+      // key, enforces request spacing, retries transient errors, and normalizes data.
+      const rows = await withTimeout(
+        fetchBRSAllSymbols(),
+        fallbackTimeoutMs,
+        'BRS breadth fetch timeout'
+      );
+      const result = build(rows, 'brs-all-symbols-equities');
+      result.diagnostics.generatedAt = new Date().toISOString();
+      cache = { value: result, timestamp: Date.now() };
+      return result;
     } catch (error) {
-      tsetmcError = error.message;
-      console.warn('[MARKET][Breadth] TSETMC MarketWatch unavailable, falling back to BRS AllSymbols:', error.message);
-      try {
-        // Do not let BRS's internal retries exceed the HTTP request lifetime.
-        rows = await withTimeout(
-          fetchBRSAllSymbols(),
-          fallbackTimeoutMs,
-          'BRS breadth fallback timeout'
-        );
-        source = 'brs-all-symbols-equities-fallback';
-      } catch (brsError) {
-        console.error('[MARKET][Breadth] BRS fallback failed:', brsError.message);
-        if (cache.value) {
-          return {
-            ...cache.value,
-            stale: true,
-            staleReason: brsError.message,
-            diagnostics: {
-              ...(cache.value.diagnostics || {}),
-              tsetmcError,
-              refreshError: brsError.message,
-              servedFromCache: true
-            }
-          };
-        }
+      console.error('[MARKET][Breadth] BRS AllSymbols failed:', error.message);
+      if (cache.value) {
         return {
-          available: false,
-          reason: 'BREADTH_FETCH_FAILED',
-          error: brsError.message,
-          diagnostics: { tsetmcError }
+          ...cache.value,
+          stale: true,
+          staleReason: error.message,
+          diagnostics: {
+            ...(cache.value.diagnostics || {}),
+            refreshError: error.message,
+            servedFromCache: true
+          }
         };
       }
+      return {
+        available: false,
+        reason: 'BREADTH_FETCH_FAILED',
+        error: error.message,
+        diagnostics: {
+          source: 'brs-all-symbols',
+          generatedAt: new Date().toISOString()
+        }
+      };
     }
-
-    const result = build(rows, source);
-    result.diagnostics.tsetmcError = tsetmcError;
-    result.diagnostics.generatedAt = new Date().toISOString();
-    cache = { value: result, timestamp: Date.now() };
-    return result;
   })();
 
   try {
