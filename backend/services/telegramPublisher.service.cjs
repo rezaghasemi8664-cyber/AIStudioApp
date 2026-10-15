@@ -343,7 +343,7 @@ async function publishTodaySummaryIfReady(now = new Date(), suppliedSettings) {
   const schedule = settings.summary;
   if (!schedule.enabled) return { skipped: true, reason: 'DISABLED_BY_ADMIN' };
   if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
-  if (tehranSlot(now) !== schedule.publishTime) return { skipped: true, reason: 'NOT_SUMMARY_SLOT' };
+  if (tehranSlot(now) < schedule.publishTime) return { skipped: true, reason: 'BEFORE_SUMMARY_SLOT' };
   const state = await loadState();
   const summaryDate = getCurrentMarketDateUtc(now);
   const marketSnapshot = await prisma.marketCurrent.findUnique({ where: { marketDate: summaryDate } });
