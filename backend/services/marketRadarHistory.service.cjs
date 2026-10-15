@@ -119,6 +119,7 @@ async function getHistory(inputRange) {
   if (range === '1d' && intradayRows.length) {
     return {
       range,
+      granularity: 'intraday',
       available: true,
       points: intradayRows.map(row => ({
         timestamp: new Date(row.capturedAt).toISOString(),
@@ -179,6 +180,7 @@ async function getHistory(inputRange) {
 
   return {
     range,
+    granularity: 'daily',
     available: points.length > 0,
     points,
     generatedAt: new Date().toISOString()
