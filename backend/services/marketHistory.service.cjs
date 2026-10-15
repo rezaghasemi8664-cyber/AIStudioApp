@@ -266,18 +266,29 @@ function normalizeSelectedIndexRows(payload) {
 
   return body.filter(row => row && typeof row === "object").map(row => ({
     name: String(row.name ?? row.title ?? row.indexName ?? row.l30 ?? "").trim(),
-    index: finiteNumberOrNull(row.index ?? row.indexValue ?? row.value ?? row.lastIndex),
+    index: finiteNumberOrNull(row.index ?? row.indexValue ?? row.index_value ?? row.value ?? row.lastIndex),
     indexChange: finiteNumberOrNull(row.index_change ?? row.indexChange ?? row.change ?? row.changeValue),
-    indexChangePercent: finiteNumberOrNull(row.index_change_percent ?? row.indexChangePercent ?? row.changePercent),
+    indexChangePercent: finiteNumberOrNull(row.index_change_percent ?? row.indexChangePercent ?? row.changePercent ?? row.change_percent),
   })).filter(row => row.name);
 }
 
+function normalizeSelectedIndexName(value) {
+  return String(value || "")
+    .replace(/[\u200c\u200f\u0640\s()[\]،,._-]/g, "")
+    .replace(/ي/g, "ی")
+    .replace(/ك/g, "ک");
+}
+
 function selectedIndexByName(rows, predicate) {
-  return rows.find(row => predicate(String(row.name).split(" ").join("").replace(/[()،,._-]/g, "").replace(/ي/g, "ی").replace(/ك/g, "ک")));
+  return rows.find(row => predicate(normalizeSelectedIndexName(row.name)));
 }
 
 function selectedIndexFields(rows) {
-  const price = selectedIndexByName(rows, name => name.includes("شاخصقیمت") && name.includes("وزنیارزشی"));
+  const price = selectedIndexByName(rows, name =>
+    name.includes("شاخصقیمت") &&
+    !name.includes("هموزن") &&
+    (name.includes("وزنیارزشی") || name.includes("کل"))
+  );
   const equalPrice = selectedIndexByName(rows, name => name.includes("شاخصقیمت") && name.includes("هموزن"));
   const freeFloat = selectedIndexByName(rows, name => name.includes("آزادشناور"));
   const firstMarket = selectedIndexByName(rows, name => name.includes("بازاراول"));

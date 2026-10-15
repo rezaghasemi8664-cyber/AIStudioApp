@@ -36,8 +36,28 @@ export function writeMarketRadarCache(snapshot: MarketRadarSnapshot): void {
 }
 
 function normalizeIndexRows(payload: unknown): MarketRadarIndex[] {
-  const root = record(unwrap(payload)); const rows = Array.isArray(unwrap(payload)) ? arrayFrom(unwrap(payload)) : [];
+  const unwrapped = unwrap(payload);
+  const root = record(unwrapped);
+  const rows = Array.isArray(unwrapped) ? arrayFrom(unwrapped) : [];
   if (rows.length) return rows.map((item) => { const row = record(item); return { name: String(row.name ?? row.title ?? 'شاخص'), value: numberFrom(row, ['value', 'index', 'overallIndex', 'marketIndex']), changeValue: numberFrom(row, ['changeValue', 'change', 'indexChange'], 0) ?? 0, changePercent: numberFrom(row, ['changePercent', 'percentChange', 'indexChangePercent'], 0) ?? 0 }; });
+
+  // Some BRS selected-index responses are retained as an array in the shared
+  // snapshot JSON while the flattened aliases are null. Read those actual rows
+  // as a fallback; never calculate or invent a missing index value.
+  const selectedRows = Array.isArray(root.selectedIndexes) ? arrayFrom(root.selectedIndexes) : [];
+  const normalizeName = (value: unknown) => String(value ?? '')
+    .replace(/[\u200c\u200f\u0640\s()[\]،,._-]/g, '')
+    .replace(/ي/g, 'ی')
+    .replace(/ك/g, 'ک');
+  const selected = (predicate: (name: string) => boolean) =>
+    selectedRows.map((item) => record(item)).find((row) => predicate(normalizeName(row.name ?? row.title ?? row.indexName ?? row.l30)));
+  const selectedValue = (row: Record<string, unknown> | undefined) =>
+    row ? numberFrom(row, ['index', 'indexValue', 'value', 'lastIndex', 'index_value']) : null;
+  const selectedChange = (row: Record<string, unknown> | undefined) =>
+    row ? numberFrom(row, ['indexChange', 'index_change', 'change', 'changeValue']) : null;
+  const selectedPercent = (row: Record<string, unknown> | undefined) =>
+    row ? numberFrom(row, ['indexChangePercent', 'index_change_percent', 'changePercent', 'change_percent']) : null;
+
   const value = numberFrom(root, ['index', 'overallIndex', 'value', 'marketIndex', 'indexValue']);
   const changeValue = numberFrom(root, ['changeValue', 'change', 'overallChangeValue', 'indexChange'], 0) ?? 0;
   const changePercent = numberFrom(root, ['changePercent', 'overallChangePercent', 'indexChangePercent', 'percentChange']);
@@ -46,19 +66,23 @@ function normalizeIndexRows(payload: unknown): MarketRadarIndex[] {
   const equalPercent = numberFrom(root, ['equalWeightedChangePercent', 'equalWeightChangePercent', 'equalChangePercent'], 0) ?? 0;
   const result: MarketRadarIndex[] = [{ name: 'شاخص کل', value, changeValue, changePercent: changePercent ?? (value && value !== changeValue ? (changeValue / (value - changeValue)) * 100 : 0) }];
   if (equalValue !== null) result.push({ name: 'شاخص هم‌وزن', value: equalValue, changeValue: equalChange, changePercent: equalPercent });
-  const priceIndex = numberFrom(root, ['priceIndex', 'indexPrice', 'index_price', 'price_index']);
+
+  const priceRow = selected((name) => name.includes('شاخصقیمت') && (name.includes('وزنیارزشی') || name.includes('کل')));
+  const priceIndex = numberFrom(root, ['priceIndex', 'indexPrice', 'index_price', 'price_index']) ?? selectedValue(priceRow);
   if (priceIndex !== null) result.push({
     name: 'شاخص قیمت',
     value: priceIndex,
-    changeValue: numberFrom(root, ['priceIndexChange', 'indexPriceChange', 'index_price_change']),
-    changePercent: numberFrom(root, ['priceIndexChangePercent', 'indexPriceChangePercent', 'index_price_change_percent'])
+    changeValue: numberFrom(root, ['priceIndexChange', 'indexPriceChange', 'index_price_change']) ?? selectedChange(priceRow),
+    changePercent: numberFrom(root, ['priceIndexChangePercent', 'indexPriceChangePercent', 'index_price_change_percent']) ?? selectedPercent(priceRow)
   });
-  const freeFloatIndex = numberFrom(root, ['freeFloatIndex', 'indexFreeFloat', 'index_freeFloat', 'free_float_index']);
+
+  const freeFloatRow = selected((name) => name.includes('آزادشناور'));
+  const freeFloatIndex = numberFrom(root, ['freeFloatIndex', 'indexFreeFloat', 'index_freeFloat', 'free_float_index']) ?? selectedValue(freeFloatRow);
   if (freeFloatIndex !== null) result.push({
     name: 'شاخص آزاد شناور',
     value: freeFloatIndex,
-    changeValue: numberFrom(root, ['freeFloatIndexChange', 'indexFreeFloatChange', 'index_freeFloat_change']),
-    changePercent: numberFrom(root, ['freeFloatIndexChangePercent', 'indexFreeFloatChangePercent', 'index_freeFloat_change_percent'])
+    changeValue: numberFrom(root, ['freeFloatIndexChange', 'indexFreeFloatChange', 'index_freeFloat_change']) ?? selectedChange(freeFloatRow),
+    changePercent: numberFrom(root, ['freeFloatIndexChangePercent', 'indexFreeFloatChangePercent', 'index_freeFloat_change_percent']) ?? selectedPercent(freeFloatRow)
   });
   return result;
 }

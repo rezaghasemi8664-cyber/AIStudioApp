@@ -535,13 +535,41 @@ async function getActiveSnapshot() {
   return rows?.[0] || null;
 }
 
+let activeDerivedReadCache = null;
+
 async function getActiveDerived() {
   const row = await getActiveSnapshot();
   if (!row?.derivedJson) return null;
+
+  const updatedAt = row.activatedAt || row.createdAt || null;
+  const cacheKey = String(row.id) + ':' + String(updatedAt || '');
+  if (activeDerivedReadCache?.key === cacheKey && Date.now() - activeDerivedReadCache.cachedAt < 30_000) {
+    return activeDerivedReadCache.value;
+  }
+
   try {
-    const derived = JSON.parse(row.derivedJson);
-    return { snapshotId:Number(row.id), symbolCount:Number(row.symbolCount), ...derived,
-      source:row.source, updatedAt:row.activatedAt || row.createdAt };
+    let derived = JSON.parse(row.derivedJson);
+    const breadth = derived?.breadth;
+    const needsRebuild = !breadth ||
+      !Object.prototype.hasOwnProperty.call(breadth, 'abnormalVolume') ||
+      !Object.prototype.hasOwnProperty.call(breadth, 'queues') ||
+      !Object.prototype.hasOwnProperty.call(breadth, 'marketValueVsAverage');
+
+    // Older ACTIVE snapshots can predate newer market-indicator fields. Rebuild
+    // the derived view from the same verified BRS symbol snapshot without
+    // changing the stored snapshot or fabricating unavailable source values.
+    if (needsRebuild && row.symbolsJson) {
+      const symbols = JSON.parse(row.symbolsJson);
+      if (Array.isArray(symbols) && symbols.length) {
+        derived = buildDerived(symbols, updatedAt || new Date());
+        await addHistoricalValueComparison(derived, symbols);
+      }
+    }
+
+    const value = { snapshotId:Number(row.id), symbolCount:Number(row.symbolCount), ...derived,
+      source:row.source, updatedAt };
+    activeDerivedReadCache = { key: cacheKey, cachedAt: Date.now(), value };
+    return value;
   } catch { return null; }
 }
 
