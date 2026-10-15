@@ -557,20 +557,18 @@ function normalizeMarketSnapshot(input) {
   const time = raw.time || "";
   const state = raw.state || raw.marketState || raw.status || "";
   const sourceIndex = isPlainObject(raw._raw) ? raw._raw : {};
-  const priceIndex = toFiniteNumber(
+  const priceIndex = finiteNumberOrNull(
     raw.priceIndex ?? raw.indexPrice ?? raw.index_price ?? raw.price_index ??
-    sourceIndex.priceIndex ?? sourceIndex.indexPrice ?? sourceIndex.index_price ?? sourceIndex.price_index,
-    null
+    sourceIndex.priceIndex ?? sourceIndex.indexPrice ?? sourceIndex.index_price ?? sourceIndex.price_index
   );
-  const freeFloatIndex = toFiniteNumber(
+  const freeFloatIndex = finiteNumberOrNull(
     raw.freeFloatIndex ?? raw.indexFreeFloat ?? raw.index_freeFloat ?? raw.free_float_index ??
-    sourceIndex.freeFloatIndex ?? sourceIndex.indexFreeFloat ?? sourceIndex.index_freeFloat ?? sourceIndex.free_float_index,
-    null
+    sourceIndex.freeFloatIndex ?? sourceIndex.indexFreeFloat ?? sourceIndex.index_freeFloat ?? sourceIndex.free_float_index
   );
-  const priceIndexChange = toFiniteNumber(raw.priceIndexChange ?? raw.indexPriceChange ?? raw.index_price_change ?? sourceIndex.priceIndexChange ?? sourceIndex.indexPriceChange ?? sourceIndex.index_price_change, null);
-  const priceIndexChangePercent = toFiniteNumber(raw.priceIndexChangePercent ?? raw.indexPriceChangePercent ?? raw.index_price_change_percent ?? sourceIndex.priceIndexChangePercent ?? sourceIndex.indexPriceChangePercent ?? sourceIndex.index_price_change_percent, null);
-  const freeFloatIndexChange = toFiniteNumber(raw.freeFloatIndexChange ?? raw.indexFreeFloatChange ?? raw.index_freeFloat_change ?? sourceIndex.freeFloatIndexChange ?? sourceIndex.indexFreeFloatChange ?? sourceIndex.index_freeFloat_change, null);
-  const freeFloatIndexChangePercent = toFiniteNumber(raw.freeFloatIndexChangePercent ?? raw.indexFreeFloatChangePercent ?? raw.index_freeFloat_change_percent ?? sourceIndex.freeFloatIndexChangePercent ?? sourceIndex.indexFreeFloatChangePercent ?? sourceIndex.index_freeFloat_change_percent, null);
+  const priceIndexChange = finiteNumberOrNull(raw.priceIndexChange ?? raw.indexPriceChange ?? raw.index_price_change ?? sourceIndex.priceIndexChange ?? sourceIndex.indexPriceChange ?? sourceIndex.index_price_change);
+  const priceIndexChangePercent = finiteNumberOrNull(raw.priceIndexChangePercent ?? raw.indexPriceChangePercent ?? raw.index_price_change_percent ?? sourceIndex.priceIndexChangePercent ?? sourceIndex.indexPriceChangePercent ?? sourceIndex.index_price_change_percent);
+  const freeFloatIndexChange = finiteNumberOrNull(raw.freeFloatIndexChange ?? raw.indexFreeFloatChange ?? raw.index_freeFloat_change ?? sourceIndex.freeFloatIndexChange ?? sourceIndex.indexFreeFloatChange ?? sourceIndex.index_freeFloat_change);
+  const freeFloatIndexChangePercent = finiteNumberOrNull(raw.freeFloatIndexChangePercent ?? raw.indexFreeFloatChangePercent ?? raw.index_freeFloat_change_percent ?? sourceIndex.freeFloatIndexChangePercent ?? sourceIndex.indexFreeFloatChangePercent ?? sourceIndex.index_freeFloat_change_percent);
 
   return {
     date,
