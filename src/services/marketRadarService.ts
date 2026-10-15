@@ -70,6 +70,14 @@ function normalizeBreadth(payload: unknown): MarketRadarBreadth | null {
     averageRealBuyPerBuyer: numberFrom(flowRoot, ['averageRealBuyPerBuyer']),
     averageRealSellPerSeller: numberFrom(flowRoot, ['averageRealSellPerSeller']),
     perCapitaRatio: numberFrom(flowRoot, ['perCapitaRatio']),
+    legalFlowAvailable: Boolean(flowRoot.legalFlowAvailable),
+    legalFlowRows: numberFrom(flowRoot, ['legalFlowRows'], 0) ?? 0,
+    totalLegalBuyValue: numberFrom(flowRoot, ['totalLegalBuyValue']),
+    totalLegalSellValue: numberFrom(flowRoot, ['totalLegalSellValue']),
+    netLegalMoneyFlow: numberFrom(flowRoot, ['netLegalMoneyFlow']),
+    legalVolumeAvailable: Boolean(flowRoot.legalVolumeAvailable),
+    totalLegalBuyVolume: numberFrom(flowRoot, ['totalLegalBuyVolume']),
+    totalLegalSellVolume: numberFrom(flowRoot, ['totalLegalSellVolume']),
     unit: flowRoot.unit === 'rial' ? 'rial' as const : flowRoot.unit === 'volume' ? 'volume' as const : null
   };
   const abnormalRoot = record(root.abnormalVolume);

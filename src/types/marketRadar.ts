@@ -64,6 +64,14 @@ export interface MarketRadarBreadth {
     averageRealBuyPerBuyer?: number | null;
     averageRealSellPerSeller?: number | null;
     perCapitaRatio?: number | null;
+    legalFlowAvailable?: boolean;
+    legalFlowRows?: number;
+    totalLegalBuyValue?: number | null;
+    totalLegalSellValue?: number | null;
+    netLegalMoneyFlow?: number | null;
+    legalVolumeAvailable?: boolean;
+    totalLegalBuyVolume?: number | null;
+    totalLegalSellVolume?: number | null;
     unit: 'volume' | 'rial' | null;
   };
   abnormalVolume?: { available: boolean; count: number; multiplier: number; baseline: string };
