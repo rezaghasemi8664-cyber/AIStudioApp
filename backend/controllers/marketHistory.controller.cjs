@@ -286,6 +286,22 @@ function extractDbSnapshot(snapshot) {
  * Normalize any BRS/DB/raw payload into a stable frontend contract.
  * Critical: `index` must be a number for MarketIndex.tsx.
  */
+function normalizeIndexName(value) {
+  return String(value || '')
+    .replace(/[\\u200c\\u200f\\u0640\\s()[\\]،,._-]/g, '')
+    .replace(/ي/g, 'ی')
+    .replace(/ك/g, 'ک');
+}
+
+function selectedIndexValue(raw, predicate, field) {
+  const rows = Array.isArray(raw && raw.selectedIndexes) ? raw.selectedIndexes : [];
+  const row = rows.find((item) => item && predicate(normalizeIndexName(item.name || item.title || item.indexName || item.l30)));
+  if (!row) return null;
+  return toNumber(coalesce(row[field], field === 'index' ? row.indexValue : null,
+    field === 'indexChange' ? row.changeValue : null,
+    field === 'indexChangePercent' ? row.changePercent : null), false);
+}
+
 function normalizeMarketIndexPayload(raw, fallbackCreatedAt) {
   if (!isObject(raw)) return null;
 
@@ -423,12 +439,13 @@ function normalizeMarketIndexPayload(raw, fallbackCreatedAt) {
     index_equalWeight: indexEqualWeight,
     indexEqualWeightChange: indexEqualWeightChange,
     index_equalWeight_change: indexEqualWeightChange,
-    priceIndex: toNumber(coalesce(raw.priceIndex, raw.indexPrice, raw.index_price, raw.price_index), false),
-    priceIndexChange: toNumber(coalesce(raw.priceIndexChange, raw.indexPriceChange, raw.index_price_change), false),
-    priceIndexChangePercent: toNumber(coalesce(raw.priceIndexChangePercent, raw.indexPriceChangePercent, raw.index_price_change_percent), false),
-    freeFloatIndex: toNumber(coalesce(raw.freeFloatIndex, raw.indexFreeFloat, raw.index_freeFloat, raw.free_float_index), false),
-    freeFloatIndexChange: toNumber(coalesce(raw.freeFloatIndexChange, raw.indexFreeFloatChange, raw.index_freeFloat_change), false),
-    freeFloatIndexChangePercent: toNumber(coalesce(raw.freeFloatIndexChangePercent, raw.indexFreeFloatChangePercent, raw.index_freeFloat_change_percent), false),
+    selectedIndexes: Array.isArray(raw.selectedIndexes) ? raw.selectedIndexes : [],
+    priceIndex: toNumber(coalesce(raw.priceIndex, raw.indexPrice, raw.index_price, raw.price_index, selectedIndexValue(raw, name => name.includes('شاخصقیمت') && !name.includes('هموزن') && (name.includes('وزنیارزشی') || name.includes('کل')), 'index')), false),
+    priceIndexChange: toNumber(coalesce(raw.priceIndexChange, raw.indexPriceChange, raw.index_price_change, selectedIndexValue(raw, name => name.includes('شاخصقیمت') && !name.includes('هموزن') && (name.includes('وزنیارزشی') || name.includes('کل')), 'indexChange')), false),
+    priceIndexChangePercent: toNumber(coalesce(raw.priceIndexChangePercent, raw.indexPriceChangePercent, raw.index_price_change_percent, selectedIndexValue(raw, name => name.includes('شاخصقیمت') && !name.includes('هموزن') && (name.includes('وزنیارزشی') || name.includes('کل')), 'indexChangePercent')), false),
+    freeFloatIndex: toNumber(coalesce(raw.freeFloatIndex, raw.indexFreeFloat, raw.index_freeFloat, raw.free_float_index, selectedIndexValue(raw, name => name.includes('آزادشناور'), 'index')), false),
+    freeFloatIndexChange: toNumber(coalesce(raw.freeFloatIndexChange, raw.indexFreeFloatChange, raw.index_freeFloat_change, selectedIndexValue(raw, name => name.includes('آزادشناور'), 'indexChange')), false),
+    freeFloatIndexChangePercent: toNumber(coalesce(raw.freeFloatIndexChangePercent, raw.indexFreeFloatChangePercent, raw.index_freeFloat_change_percent, selectedIndexValue(raw, name => name.includes('آزادشناور'), 'indexChangePercent')), false),
 
     // Frontend / types.ts compatible
     value: index,
@@ -600,6 +617,7 @@ async function getMarketIndex(req, res) {
       freeFloatIndex: snapshot.freeFloatIndex,
       freeFloatIndexChange: snapshot.freeFloatIndexChange,
       freeFloatIndexChangePercent: snapshot.freeFloatIndexChangePercent,
+      selectedIndexes: snapshot.selectedIndexes,
       tradeCount: snapshot.totalTrades,
       tradeVolume: snapshot.totalVolume,
       tradeValue: snapshot.totalValue,
