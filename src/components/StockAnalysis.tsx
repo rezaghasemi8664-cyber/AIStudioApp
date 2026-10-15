@@ -825,7 +825,7 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     source.lastChange,
     source.price?.lastChange,
     source.plc,
-    mergedMetrics?.lastChange,
+    (mergedMetrics as any)?.lastChange,
   );
 
   const lastPriceChangePercent = pickFirstNumber(
@@ -858,7 +858,7 @@ const showAdjustedDailyCandle = hasAdjustedDailyDisplayData;
     source.closingChange,
     source.price?.closingChange,
     source.pcc,
-    mergedMetrics?.closingChange,
+    (mergedMetrics as any)?.closingChange,
   );
 
   const calculatedClosingPriceChangePercent =
