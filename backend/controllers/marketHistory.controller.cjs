@@ -423,6 +423,8 @@ function normalizeMarketIndexPayload(raw, fallbackCreatedAt) {
     index_equalWeight: indexEqualWeight,
     indexEqualWeightChange: indexEqualWeightChange,
     index_equalWeight_change: indexEqualWeightChange,
+    priceIndex: toNumber(coalesce(raw.priceIndex, raw.indexPrice, raw.index_price, raw.price_index), false),
+    freeFloatIndex: toNumber(coalesce(raw.freeFloatIndex, raw.indexFreeFloat, raw.index_freeFloat, raw.free_float_index), false),
 
     // Frontend / types.ts compatible
     value: index,
