@@ -424,7 +424,11 @@ function normalizeMarketIndexPayload(raw, fallbackCreatedAt) {
     indexEqualWeightChange: indexEqualWeightChange,
     index_equalWeight_change: indexEqualWeightChange,
     priceIndex: toNumber(coalesce(raw.priceIndex, raw.indexPrice, raw.index_price, raw.price_index), false),
+    priceIndexChange: toNumber(coalesce(raw.priceIndexChange, raw.indexPriceChange, raw.index_price_change), false),
+    priceIndexChangePercent: toNumber(coalesce(raw.priceIndexChangePercent, raw.indexPriceChangePercent, raw.index_price_change_percent), false),
     freeFloatIndex: toNumber(coalesce(raw.freeFloatIndex, raw.indexFreeFloat, raw.index_freeFloat, raw.free_float_index), false),
+    freeFloatIndexChange: toNumber(coalesce(raw.freeFloatIndexChange, raw.indexFreeFloatChange, raw.index_freeFloat_change), false),
+    freeFloatIndexChangePercent: toNumber(coalesce(raw.freeFloatIndexChangePercent, raw.indexFreeFloatChangePercent, raw.index_freeFloat_change_percent), false),
 
     // Frontend / types.ts compatible
     value: index,
@@ -591,7 +595,11 @@ async function getMarketIndex(req, res) {
       indexEqualWeight: snapshot.equalIndex,
       indexEqualWeightChange: snapshot.equalChange,
       priceIndex: snapshot.priceIndex,
+      priceIndexChange: snapshot.priceIndexChange,
+      priceIndexChangePercent: snapshot.priceIndexChangePercent,
       freeFloatIndex: snapshot.freeFloatIndex,
+      freeFloatIndexChange: snapshot.freeFloatIndexChange,
+      freeFloatIndexChangePercent: snapshot.freeFloatIndexChangePercent,
       tradeCount: snapshot.totalTrades,
       tradeVolume: snapshot.totalVolume,
       tradeValue: snapshot.totalValue,
