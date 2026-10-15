@@ -316,6 +316,40 @@ async function validateSnapshotHealth(symbols) {
   }
   return health;
 }
+async function addHistoricalValueComparison(derived, symbols) {
+  const marketDateKey = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tehran',
+    calendar: 'gregory'
+  }).format(new Date());
+  const [year, month, day] = marketDateKey.split('-').map(Number);
+  const marketDate = new Date(Date.UTC(year, month - 1, day));
+  const rows = await prisma.$queryRaw`
+    SELECT TOP 20 CAST([date] AS date) AS [marketDate],
+      SUM(CAST([value] AS decimal(38,0))) AS [totalValue]
+    FROM [dbo].[MarketDaily]
+    WHERE [date] < ${marketDate} AND [value] IS NOT NULL
+    GROUP BY CAST([date] AS date)
+    ORDER BY CAST([date] AS date) DESC
+  `;
+  const dailyValues = (Array.isArray(rows) ? rows : [])
+    .map(row => Number(row.totalValue))
+    .filter(value => Number.isFinite(value) && value > 0);
+  const currentValue = symbols.filter(isEligible).reduce((sum, row) => sum + Math.max(0, Number(row.value || 0)), 0);
+  const historicalAverage = dailyValues.length
+    ? dailyValues.reduce((sum, value) => sum + value, 0) / dailyValues.length
+    : null;
+  derived.breadth.marketValueVsAverage = {
+    available: historicalAverage != null && historicalAverage > 0 && currentValue > 0,
+    currentValue,
+    historicalAverage,
+    changePercent: historicalAverage != null && historicalAverage > 0 && currentValue > 0
+      ? ((currentValue - historicalAverage) / historicalAverage) * 100
+      : null,
+    sampleDays: dailyValues.length,
+    baseline: 'previous trading-day totals from MarketDaily'
+  };
+}
+
 async function publishMarketSnapshotInternal(symbols) {
   const health = await validateSnapshotHealth(symbols);
   let id = null;
@@ -324,6 +358,7 @@ async function publishMarketSnapshotInternal(symbols) {
     id = await createPreparedSnapshot(symbols);
     const verifiedSymbols = await verifyPreparedSnapshot(id, symbols.length);
     const derived = buildDerived(verifiedSymbols, new Date());
+    await addHistoricalValueComparison(derived, verifiedSymbols);
 
     await prisma.$executeRaw`
       UPDATE [dbo].[MarketSnapshot]
