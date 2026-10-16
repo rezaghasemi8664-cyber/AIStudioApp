@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { getDashboardData } from '../../services/dashboardService';
+import { getSocket } from '../../services/socketService';
 import { createSubscriptionPayment, getMySubscription } from '../../services/subscriptionService';
 import type { SubscriptionState } from '../../services/subscriptionService';
 import type { DashboardData, DashboardMover } from '../../types/dashboard';
@@ -22,7 +23,30 @@ let cachedDashboardData: DashboardData | null = null;
 const Dashboard: React.FC<DashboardProps> = ({ isOnline = true, onNavigate, unreadAlertCount = 0, subscriptionDaysRemaining = null, subscriptionExpired = false }) => {
   const [data, setData] = useState<DashboardData | null>(() => cachedDashboardData); const [subscription, setSubscription] = useState<SubscriptionState | null>(null); const [loading, setLoading] = useState(() => !cachedDashboardData); const [renewing, setRenewing] = useState(false); const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => { if (!isOnline) { setError('اتصال به سرور در دسترس نیست.'); setLoading(false); return; } setError(null); if (!cachedDashboardData) setLoading(true); try { const [d, s] = await Promise.allSettled([getDashboardData(unreadAlertCount, subscriptionDaysRemaining, subscriptionExpired), Promise.race([getMySubscription(), new Promise<SubscriptionState | null>(resolve => setTimeout(() => resolve(null), 2500))])]); if (d.status === 'fulfilled') { cachedDashboardData = d.value; setData(d.value); } else throw d.reason; if (s.status === 'fulfilled' && s.value) setSubscription(s.value); } catch (e) { console.error('[Dashboard]', e); setError('دریافت اطلاعات داشبورد انجام نشد.'); } finally { setLoading(false); } }, [isOnline, unreadAlertCount, subscriptionDaysRemaining, subscriptionExpired]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const socket = getSocket();
+    let hasConnectedOnce = !!socket?.connected;
+    const refresh = () => { void load(); };
+    const refreshAfterReconnect = () => {
+      // The initial load already runs on mount; resync on later reconnects.
+      if (hasConnectedOnce) refresh();
+      else hasConnectedOnce = true;
+    };
+    const marketEvents = [
+      'market-indices:updated',
+      'market-snapshot:updated',
+      'scalping-opportunities:updated',
+      'valuable-symbols:updated',
+      'options-market:updated'
+    ] as const;
+    marketEvents.forEach(eventName => socket?.on(eventName, refresh));
+    socket?.on('connect', refreshAfterReconnect);
+    return () => {
+      marketEvents.forEach(eventName => socket?.off(eventName, refresh));
+      socket?.off('connect', refreshAfterReconnect);
+    };
+  }, [load]);
   const handleRenew = useCallback(async () => { const planId = subscription?.subscription?.planId; if (!planId) { onNavigate?.('profile'); return; } setRenewing(true); try { const payment = await createSubscriptionPayment(planId); window.location.assign(payment.redirectUrl); } catch (e) { console.error('[Dashboard] renewal', e); setError('ایجاد درخواست تمدید اشتراک انجام نشد.'); } finally { setRenewing(false); } }, [onNavigate, subscription]);
   const marketStatus = useMemo(() => data?.market?.indices[0]?.isMarketOpen ? 'بازار باز است' : 'بازار بسته است', [data]); const personal = data?.personal;
   if (loading && !data) return <div dir="rtl" className="space-y-4 animate-pulse"><div className="h-32 rounded-2xl bg-slate-200/40 dark:bg-white/5"/><div className="grid gap-4 md:grid-cols-3"><div className="h-28 rounded-2xl bg-slate-200/40 dark:bg-white/5"/><div className="h-28 rounded-2xl bg-slate-200/40 dark:bg-white/5"/><div className="h-28 rounded-2xl bg-slate-200/40 dark:bg-white/5"/></div></div>;
