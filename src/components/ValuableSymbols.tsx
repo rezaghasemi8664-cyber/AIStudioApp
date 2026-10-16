@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { valuableSymbolsService, type ValuableSymbol } from '../services/valuableSymbolsService';
 import { getSocket } from '../services/socketService';
 
+let cachedValuableSymbols: Awaited<ReturnType<typeof valuableSymbolsService.getSignals>> | null = null;
+
 const price = (value: number | null | undefined) =>
   typeof value === 'number' && Number.isFinite(value) && value > 0
     ? new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(value)
@@ -49,11 +51,11 @@ const ValuableSymbolCard: React.FC<{ item: ValuableSymbol; index: number }> = ({
 );
 
 const ValuableSymbols: React.FC<{ isOnline: boolean }> = ({ isOnline }) => {
-  const [items, setItems] = useState<ValuableSymbol[]>([]);
-  const [lastEvaluatedAt, setLastEvaluatedAt] = useState<string | null>(null);
-  const [stale, setStale] = useState(false);
-  const [marketStatus, setMarketStatus] = useState<'OPEN' | 'CLOSED'>('CLOSED');
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<ValuableSymbol[]>(() => cachedValuableSymbols?.signals ?? []);
+  const [lastEvaluatedAt, setLastEvaluatedAt] = useState<string | null>(() => cachedValuableSymbols?.lastEvaluatedAt ?? null);
+  const [stale, setStale] = useState(() => cachedValuableSymbols?.stale ?? false);
+  const [marketStatus, setMarketStatus] = useState<'OPEN' | 'CLOSED'>(() => cachedValuableSymbols?.marketStatus ?? 'CLOSED');
+  const [loading, setLoading] = useState(() => !cachedValuableSymbols);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -63,7 +65,9 @@ const ValuableSymbols: React.FC<{ isOnline: boolean }> = ({ isOnline }) => {
       return;
     }
     try {
+      if (!cachedValuableSymbols) setLoading(true);
       const response = await valuableSymbolsService.getSignals();
+      cachedValuableSymbols = response;
       setItems(response.signals);
       setLastEvaluatedAt(response.lastEvaluatedAt);
       setStale(response.stale);
