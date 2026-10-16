@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { getCached } from '../services/apiClient';
+import { getCached, invalidateCachedGet } from '../services/apiClient';
 import { getSocket } from '../services/socketService';
 import OptionsPortfolio from './OptionsPortfolio';
 
@@ -202,7 +202,10 @@ const OptionsMarket: React.FC = () => {
     // Socket.IO is the primary refresh path. Poll only while disconnected so
     // a temporary network interruption cannot leave the tab stale indefinitely.
     const timer = window.setInterval(() => {
-      if (!socket?.connected) void loadContracts();
+      if (!socket?.connected) {
+        invalidateCachedGet('/brs/options');
+        void loadContracts();
+      }
     }, 30_000);
 
     return () => {
