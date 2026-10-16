@@ -47,7 +47,15 @@ async function authenticate(req, res, next) {
     if (!user) return res.status(401).json({ success:false, message:'توکن فاقد اطلاعات کاربری معتبر است.', messageEn:'Token missing valid user information.', code:'INVALID_TOKEN_PAYLOAD' });
 
     if (prisma) {
-      const dbUser = await prisma.user.findUnique({ where:{id:Number(user.userId)}, select:{id:true,isActive:true,isDeleted:true,passwordChangedAt:true} });
+      let dbUser;
+      try {
+        dbUser = await prisma.user.findUnique({ where:{id:Number(user.userId)}, select:{id:true,isActive:true,isDeleted:true,passwordChangedAt:true} });
+      } catch (dbError) {
+        // A database outage is not evidence that the user's token or session is invalid.
+        // Keep this log sanitized: Prisma errors can include sensitive query values.
+        console.error('[AUTH_MW] user lookup unavailable:', dbError?.code || dbError?.name || 'DATABASE_ERROR');
+        return res.status(503).json({success:false,message:'بررسی حساب کاربری موقتاً در دسترس نیست.',code:'AUTH_DB_UNAVAILABLE'});
+      }
       if (!dbUser || !dbUser.isActive || dbUser.isDeleted) return res.status(401).json({success:false,message:'حساب کاربری غیرفعال یا نامعتبر است.',code:'USER_DISABLED'});
       if (dbUser.passwordChangedAt && decoded.iat && dbUser.passwordChangedAt.getTime() > Number(decoded.iat)*1000) return res.status(401).json({success:false,message:'کلمه عبور تغییر کرده است. لطفا مجددا وارد شوید.',code:'PASSWORD_CHANGED'});
       try {
@@ -55,7 +63,8 @@ async function authenticate(req, res, next) {
         if (!session.valid) return res.status(401).json({success:false,message:'نشست شما منقضی یا لغو شده است. لطفا مجددا وارد شوید.',code:session.code});
         req.sessionId = session.sessionId;
       } catch (sessionError) {
-        console.error('[AUTH_MW] session enforcement failed:', sessionError?.message || sessionError);
+        // Do not log the raw Prisma message; unique-key errors may include the full JWT.
+        console.error('[AUTH_MW] session enforcement failed:', sessionError?.code || sessionError?.name || 'SESSION_CHECK_ERROR');
         return res.status(503).json({success:false,message:'امکان بررسی نشست کاربر وجود ندارد.',code:'SESSION_CHECK_FAILED'});
       }
     }
