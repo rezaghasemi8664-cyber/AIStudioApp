@@ -1,5 +1,6 @@
 ﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { scalpingService } from '../services/scalpingService';
+import { getSocket } from '../services/socketService';
 import ValuableSymbols from './ValuableSymbols';
 import {
   ChartBarIcon,
@@ -150,9 +151,19 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
   useEffect(() => {
     loadData();
 
-    // همگام‌سازی خودکار با snapshot مرکزی؛ بدون دکمه شروع/توقف/به‌روزرسانی.
-    const timer = setInterval(loadData, 30000);
-    return () => clearInterval(timer);
+    // Refresh immediately after the worker commits a new set of opportunities.
+    const socket = getSocket();
+    socket?.on('scalping-opportunities:updated', loadData);
+    socket?.on('connect', loadData);
+    // Polling remains as a fallback when Socket.IO is disconnected.
+    const timer = setInterval(() => {
+      if (!socket?.connected) loadData();
+    }, 30000);
+    return () => {
+      clearInterval(timer);
+      socket?.off('scalping-opportunities:updated', loadData);
+      socket?.off('connect', loadData);
+    };
   }, [loadData]);
 
   const renderContent = () => {
