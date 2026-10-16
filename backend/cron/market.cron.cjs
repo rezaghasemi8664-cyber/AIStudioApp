@@ -43,7 +43,7 @@ function isMarketOpenBySchedule(now = new Date()) {
   );
 }
 
-function registerMarketCron() {
+function registerMarketCron(io = null) {
   cron.schedule('*/2 * * * *', async () => {
     // The cron itself is the single owner of the BRS index fetch.
     // Do not call brsService.isMarketOpen()/getMarketStatus() here because
@@ -73,6 +73,7 @@ function registerMarketCron() {
     // accidental boundary execution.
     const saved = await saveMarketSnapshot(data);
       if (saved) {
+        if (io) io.emit('market-indices:updated', { updatedAt: new Date().toISOString() });
         console.log(
           `[CRON] Market snapshot saved at ${new Date().toISOString()}`
         );
