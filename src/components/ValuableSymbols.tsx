@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { valuableSymbolsService, type ValuableSymbol } from '../services/valuableSymbolsService';
+import { getSocket } from '../services/socketService';
 
 const price = (value: number | null | undefined) =>
   typeof value === 'number' && Number.isFinite(value) && value > 0
@@ -78,8 +79,18 @@ const ValuableSymbols: React.FC<{ isOnline: boolean }> = ({ isOnline }) => {
 
   useEffect(() => {
     void load();
-    const timer = window.setInterval(() => void load(), 60000);
-    return () => window.clearInterval(timer);
+    const socket = getSocket();
+    const refresh = () => { void load(); };
+    socket?.on('valuable-symbols:updated', refresh);
+    socket?.on('connect', refresh);
+    const timer = window.setInterval(() => {
+      if (!socket?.connected) refresh();
+    }, 60000);
+    return () => {
+      window.clearInterval(timer);
+      socket?.off('valuable-symbols:updated', refresh);
+      socket?.off('connect', refresh);
+    };
   }, [load]);
 
   return (
