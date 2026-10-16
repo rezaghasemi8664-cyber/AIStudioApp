@@ -175,11 +175,15 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
     socket?.on('scalping-opportunities:updated', loadData);
     socket?.on('connect', loadData);
     // Polling remains as a fallback when Socket.IO is disconnected.
-    const timer = setInterval(() => {
+    const timer = window.setInterval(() => {
       if (!socket?.connected) loadData();
     }, 30000);
+    const marketStatusTimer = window.setInterval(() => {
+      void scalpingService.getScalpingStatus().then(status => setMarketStatus(status.marketStatus));
+    }, 60000);
     return () => {
-      clearInterval(timer);
+      window.clearInterval(timer);
+      window.clearInterval(marketStatusTimer);
       socket?.off('scalping-opportunities:updated', loadData);
       socket?.off('connect', loadData);
     };
