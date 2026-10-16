@@ -110,7 +110,7 @@ const ProfessionalScreener: React.FC = () => {
       setPresets([]);
     }
     const socket = getSocket();
-    const refresh = () => { void load(); };
+    const refresh = () => { void load(true); };
     socket?.on('market-snapshot:updated', refresh);
     socket?.on('connect', refresh);
     const timer = window.setInterval(() => {
