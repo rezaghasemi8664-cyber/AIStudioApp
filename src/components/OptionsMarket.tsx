@@ -247,10 +247,14 @@ const OptionsMarket: React.FC = () => {
 
     socket?.on('options-market:updated', applySnapshot);
     socket?.on('connect', refreshAfterReconnect);
+    const marketStatusTimer = window.setInterval(() => {
+      void scalpingService.getScalpingStatus().then(status => setMarketStatus(status.marketStatus));
+    }, 60_000);
 
     return () => {
       socket?.off('options-market:updated', applySnapshot);
       socket?.off('connect', refreshAfterReconnect);
+      window.clearInterval(marketStatusTimer);
     };
   }, [loadContracts]);
 
