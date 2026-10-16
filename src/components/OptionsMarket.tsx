@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { getCached, invalidateCachedGet } from '../services/apiClient';
 import { getSocket } from '../services/socketService';
 import OptionsPortfolio from './OptionsPortfolio';
+import { scalpingService } from '../services/scalpingService';
 
 type OptionContract = Record<string, unknown>;
 
@@ -164,7 +165,14 @@ function rankOptionContract(contract: OptionContract) {
   };
 }
 
-let cachedOptionContracts: { contracts: OptionContract[]; updatedAt: number } | null = null;
+let cachedOptionContracts: { contracts: OptionContract[]; updatedAt: number; analyzedAt: string | null } | null = null;
+
+const tehranDateTime = (value?: string | Date | null) => {
+  if (!value) return 'هنوز ثبت نشده';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'نامشخص';
+  return new Intl.DateTimeFormat('fa-IR', { timeZone: 'Asia/Tehran', dateStyle: 'medium', timeStyle: 'short', hour12: false }).format(date);
+};
 
 const OptionsMarket: React.FC = () => {
   const [activeView, setActiveView] = useState<'market' | 'portfolio'>('market');
@@ -172,6 +180,8 @@ const OptionsMarket: React.FC = () => {
   const [loading, setLoading] = useState(() => !cachedOptionContracts);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(() => cachedOptionContracts ? new Date(cachedOptionContracts.updatedAt) : null);
+  const [lastAnalyzedAt, setLastAnalyzedAt] = useState<string | null>(() => cachedOptionContracts?.analyzedAt ?? null);
+  const [marketStatus, setMarketStatus] = useState<{ isOpen: boolean; available: boolean }>({ isOpen: false, available: false });
   const [selectedBaseSymbol, setSelectedBaseSymbol] = useState('');
   const [selectedExpiry, setSelectedExpiry] = useState('');
   const [scenarioUnderlyingPrice, setScenarioUnderlyingPrice] = useState('');
@@ -186,10 +196,12 @@ const OptionsMarket: React.FC = () => {
       if (!result.success || !Array.isArray(result.data)) {
         throw new Error(result.message || 'دریافت اطلاعات بازار آپشن ناموفق بود.');
       }
-      const updatedAt = new Date((result as any).fetchedAt || Date.now());
-      cachedOptionContracts = { contracts: result.data, updatedAt: updatedAt.getTime() };
+      const updatedAt = new Date((result as any).updatedAt || (result as any).fetchedAt || Date.now());
+      const analyzedAt = typeof (result as any).analyzedAt === 'string' ? (result as any).analyzedAt : null;
+      cachedOptionContracts = { contracts: result.data, updatedAt: updatedAt.getTime(), analyzedAt };
       setContracts(result.data);
       setLastUpdated(updatedAt);
+      setLastAnalyzedAt(analyzedAt);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'خطا در دریافت اطلاعات بازار آپشن.');
     } finally {
@@ -201,6 +213,7 @@ const OptionsMarket: React.FC = () => {
     // One initial read loads the latest persisted snapshot. Subsequent market
     // updates arrive with the complete committed snapshot over Socket.IO.
     void loadContracts(true);
+    void scalpingService.getScalpingStatus().then(status => setMarketStatus(status.marketStatus));
     const socket = getSocket();
     let hasConnectedOnce = !!socket?.connected;
 
@@ -208,12 +221,16 @@ const OptionsMarket: React.FC = () => {
       contracts?: OptionContract[];
       updatedAt?: string | Date;
       fetchedAt?: string | Date;
+      analyzedAt?: string | Date;
     }) => {
       if (!payload || !Array.isArray(payload.contracts)) return;
       const updatedAt = new Date(payload.updatedAt || payload.fetchedAt || Date.now());
-      cachedOptionContracts = { contracts: payload.contracts, updatedAt: updatedAt.getTime() };
+      const analyzedAt = payload.analyzedAt ? new Date(payload.analyzedAt).toISOString() : null;
+      cachedOptionContracts = { contracts: payload.contracts, updatedAt: updatedAt.getTime(), analyzedAt };
       setContracts(payload.contracts);
       setLastUpdated(updatedAt);
+      setLastAnalyzedAt(analyzedAt);
+      void scalpingService.getScalpingStatus().then(status => setMarketStatus(status.marketStatus));
       setError(null);
       setLoading(false);
     };
@@ -297,7 +314,17 @@ const OptionsMarket: React.FC = () => {
             زنجیره قراردادهای اختیار معامله بر پایه داده‌های دریافتی از BRS؛ بدون تولید یا تخمین داده ساختگی.
           </p>
         </div>
+      </div>
 
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+          <p className="text-sm text-gray-500 dark:text-gray-400">وضعیت بازار بورس (ساعت تهران)</p>
+          <p className={`mt-2 text-lg font-bold ${marketStatus.available ? (marketStatus.isOpen ? 'text-emerald-600' : 'text-amber-600') : 'text-gray-500'}`}>{marketStatus.available ? (marketStatus.isOpen ? 'بازار باز است' : 'بازار بسته است') : 'وضعیت بازار نامشخص'}</p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+          <p className="text-sm text-gray-500 dark:text-gray-400">آخرین ارزیابی و ذخیره موفق در دیتابیس (ساعت تهران)</p>
+          <p className="mt-2 text-sm font-semibold tabular-nums">{tehranDateTime(lastAnalyzedAt)}</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
