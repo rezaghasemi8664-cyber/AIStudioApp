@@ -10,11 +10,11 @@ const price = (value: number | null | undefined) =>
     : '—';
 
 const dateTime = (value: string | null) => {
-  if (!value) return 'هنوز ارزیابی نشده';
+  if (!value) return 'هنوز ارزیابی ثبت نشده';
   const date = new Date(value);
   return Number.isNaN(date.getTime())
-    ? 'زمان نامشخص'
-    : new Intl.DateTimeFormat('fa-IR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Tehran' }).format(date);
+    ? 'نامشخص'
+    : new Intl.DateTimeFormat('fa-IR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Tehran', hour12: false }).format(date);
 };
 
 const ValuableSymbolCard: React.FC<{ item: ValuableSymbol; index: number }> = ({ item, index }) => (
@@ -99,13 +99,18 @@ const ValuableSymbols: React.FC<{ isOnline: boolean }> = ({ isOnline }) => {
 
   return (
     <section className="space-y-4" dir="rtl">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="text-lg font-bold text-[var(--color-text-primary)]">نمادهای ارزنده</h3>
-          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">موتور مستقل با داده بازار مشترک و گزارش‌های واقعی کدال؛ حداکثر ۲۰ نماد</p>
+      <div>
+        <h3 className="text-lg font-bold text-[var(--color-text-primary)]">نمادهای ارزنده</h3>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+          <div className="text-sm text-[var(--color-text-secondary)]">وضعیت بازار بورس (ساعت تهران)</div>
+          <div className={`mt-2 font-bold ${marketStatus === 'OPEN' ? 'text-emerald-600' : 'text-amber-600'}`}>{marketStatus === 'OPEN' ? 'بازار باز است' : 'بازار بسته است'}</div>
         </div>
-        <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
-          <span>{marketStatus === 'OPEN' ? 'بازار باز است' : 'بازار بسته است'} · {stale ? 'نتیجه ارزیابی قدیمی' : 'آخرین ارزیابی'}: {dateTime(lastEvaluatedAt)}</span>
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+          <div className="text-sm text-[var(--color-text-secondary)]">روز و زمان آخرین ارزیابی (ساعت تهران)</div>
+          <div className="mt-2 text-sm font-bold tabular-nums">{dateTime(lastEvaluatedAt)}</div>
+          {stale && <div className="mt-1 text-xs font-medium text-amber-600">نتیجه ارزیابی قدیمی است</div>}
         </div>
       </div>
       <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs leading-6 text-[var(--color-text-secondary)]">
