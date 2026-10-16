@@ -103,13 +103,13 @@ const Metric: React.FC<{ label: string; value: string; sub?: string; change?: nu
 );
 
 const MarketIndicesDashboard: React.FC = () => {
-  const [data, setData] = useState<MarketRadarSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<MarketRadarSnapshot | null>(() => readMarketRadarCache()?.snapshot ?? null);
+  const [loading, setLoading] = useState(() => !readMarketRadarCache());
   const [error, setError] = useState<string | null>(null);
-  const [stale, setStale] = useState(false);
+  const [stale, setStale] = useState(() => { const cached = readMarketRadarCache(); return cached ? !cached.fresh : false; });
   const [selectedSector, setSelectedSector] = useState<MarketRadarSector | null>(null);
   const previousRef = useRef<MarketRadarSnapshot | null>(null);
-  const dataRef = useRef<MarketRadarSnapshot | null>(null);
+  const dataRef = useRef<MarketRadarSnapshot | null>(readMarketRadarCache()?.snapshot ?? null);
   const [previous, setPrevious] = useState<MarketRadarSnapshot | null>(null);
 
   const refresh = useCallback(async () => {

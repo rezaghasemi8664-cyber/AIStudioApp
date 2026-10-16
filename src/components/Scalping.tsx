@@ -11,6 +11,8 @@ import {
 } from './Icons';
 import type { ScalpingOpportunity } from '../types';
 
+let cachedScalpingOpportunities: { items: ScalpingOpportunity[]; refreshedAt: number } | null = null;
+
 interface ScalpingProps {
   isOnline: boolean;
 }
@@ -116,10 +118,10 @@ const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ oppor
 
 const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
   const [activeSubTab, setActiveSubTab] = useState<'scalping' | 'valuable'>('scalping');
-  const [opportunities, setOpportunities] = useState<ScalpingOpportunity[]>([]);
-  const [lastRefreshed, setLastRefreshed] = useState<number>(Date.now());
+  const [opportunities, setOpportunities] = useState<ScalpingOpportunity[]>(() => cachedScalpingOpportunities?.items ?? []);
+  const [lastRefreshed, setLastRefreshed] = useState<number>(() => cachedScalpingOpportunities?.refreshedAt ?? Date.now());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => !cachedScalpingOpportunities);
   const requestIdRef = useRef(0);
 
   const loadData = useCallback(async () => {
@@ -129,7 +131,7 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
       return;
     }
 
-    setIsLoading(true);
+    if (!cachedScalpingOpportunities) setIsLoading(true);
     try {
       // فقط یک درخواست برای دریافت snapshot مرکزی نوسان‌گیری.
       // تولید و به‌روزرسانی داده‌ها توسط Central Market Worker انجام می‌شود.
@@ -137,8 +139,11 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
 
       if (currentId !== requestIdRef.current) return;
 
-      setOpportunities(Array.isArray(signalsRes.signals) ? signalsRes.signals : []);
-      setLastRefreshed(Date.now());
+      const refreshedAt = Date.now();
+      const items = Array.isArray(signalsRes.signals) ? signalsRes.signals : [];
+      cachedScalpingOpportunities = { items, refreshedAt };
+      setOpportunities(items);
+      setLastRefreshed(refreshedAt);
     } catch (error) {
       console.error('[Scalping] Error fetching shared signals:', error);
     } finally {

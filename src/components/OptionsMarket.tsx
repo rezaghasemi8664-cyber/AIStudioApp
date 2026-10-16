@@ -164,27 +164,32 @@ function rankOptionContract(contract: OptionContract) {
   };
 }
 
+let cachedOptionContracts: { contracts: OptionContract[]; updatedAt: number } | null = null;
+
 const OptionsMarket: React.FC = () => {
   const [activeView, setActiveView] = useState<'market' | 'portfolio'>('market');
-  const [contracts, setContracts] = useState<OptionContract[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [contracts, setContracts] = useState<OptionContract[]>(() => cachedOptionContracts?.contracts ?? []);
+  const [loading, setLoading] = useState(() => !cachedOptionContracts);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(() => cachedOptionContracts ? new Date(cachedOptionContracts.updatedAt) : null);
   const [selectedBaseSymbol, setSelectedBaseSymbol] = useState('');
   const [selectedExpiry, setSelectedExpiry] = useState('');
   const [scenarioUnderlyingPrice, setScenarioUnderlyingPrice] = useState('');
   const [scenarioFeeRatePercent, setScenarioFeeRatePercent] = useState('');
 
-  const loadContracts = useCallback(async () => {
-    setLoading(true);
+  const loadContracts = useCallback(async (forceRefresh = false) => {
+    if (forceRefresh) invalidateCachedGet('/brs/options');
+    if (!cachedOptionContracts) setLoading(true);
     setError(null);
     try {
       const result = await getCached<OptionContract[]>('/brs/options', 300_000);
       if (!result.success || !Array.isArray(result.data)) {
         throw new Error(result.message || 'دریافت اطلاعات بازار آپشن ناموفق بود.');
       }
+      const updatedAt = new Date((result as any).fetchedAt || Date.now());
+      cachedOptionContracts = { contracts: result.data, updatedAt: updatedAt.getTime() };
       setContracts(result.data);
-      setLastUpdated(new Date((result as any).fetchedAt || Date.now()));
+      setLastUpdated(updatedAt);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'خطا در دریافت اطلاعات بازار آپشن.');
     } finally {
@@ -193,9 +198,9 @@ const OptionsMarket: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    void loadContracts();
+    void loadContracts(true);
     const socket = getSocket();
-    const refreshOnUpdate = () => { void loadContracts(); };
+    const refreshOnUpdate = () => { void loadContracts(true); };
     socket?.on('options-market:updated', refreshOnUpdate);
     socket?.on('connect', refreshOnUpdate);
 
@@ -203,8 +208,7 @@ const OptionsMarket: React.FC = () => {
     // a temporary network interruption cannot leave the tab stale indefinitely.
     const timer = window.setInterval(() => {
       if (!socket?.connected) {
-        invalidateCachedGet('/brs/options');
-        void loadContracts();
+        void loadContracts(true);
       }
     }, 30_000);
 
