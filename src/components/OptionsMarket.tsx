@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { get } from '../services/apiClient';
+import { getCached } from '../services/apiClient';
+import { getSocket } from '../services/socketService';
 import OptionsPortfolio from './OptionsPortfolio';
 
 type OptionContract = Record<string, unknown>;
@@ -178,7 +179,7 @@ const OptionsMarket: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await get<OptionContract[]>('/brs/options');
+      const result = await getCached<OptionContract[]>('/brs/options', 300_000);
       if (!result.success || !Array.isArray(result.data)) {
         throw new Error(result.message || 'دریافت اطلاعات بازار آپشن ناموفق بود.');
       }
@@ -193,9 +194,22 @@ const OptionsMarket: React.FC = () => {
 
   useEffect(() => {
     void loadContracts();
-    // Poll the database-backed endpoint only; this never triggers a BRS fetch or analysis.
-    const timer = window.setInterval(() => void loadContracts(), 15000);
-    return () => window.clearInterval(timer);
+    const socket = getSocket();
+    const refreshOnUpdate = () => { void loadContracts(); };
+    socket?.on('options-market:updated', refreshOnUpdate);
+    socket?.on('connect', refreshOnUpdate);
+
+    // Socket.IO is the primary refresh path. Poll only while disconnected so
+    // a temporary network interruption cannot leave the tab stale indefinitely.
+    const timer = window.setInterval(() => {
+      if (!socket?.connected) void loadContracts();
+    }, 30_000);
+
+    return () => {
+      window.clearInterval(timer);
+      socket?.off('options-market:updated', refreshOnUpdate);
+      socket?.off('connect', refreshOnUpdate);
+    };
   }, [loadContracts]);
 
   const baseSymbols = useMemo(
