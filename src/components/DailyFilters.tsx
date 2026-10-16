@@ -204,9 +204,6 @@ const ProfessionalScreener: React.FC = () => {
             </div>
             <p className="mt-1 text-xs text-slate-500">غربال نمادها با معیارهای قطعی بازار؛ بدون AI و بدون تولید داده مصنوعی{dataSource ? ` · منبع: ${dataSource}` : ''}</p>
           </div>
-          <button onClick={() => void load(true)} disabled={refreshing} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-bold text-slate-200 hover:bg-white/[0.08] disabled:opacity-50">
-            {refreshing ? <span className="inline-flex items-center gap-2"><span aria-hidden="true" className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent align-[-3px]" />در حال بروزرسانی…</span> : 'بروزرسانی داده'}
-          </button>
         </div>
       </header>
 
