@@ -47,12 +47,12 @@ function startCronJobs(io) {
   console.log('[CRON] Starting centralized cron jobs...');
 
   const results = [
-    safeStart('market-worker', startMarketWorker),
-    safeRegister('market-history', registerMarketCron),
+    safeStart('market-worker', () => startMarketWorker(io)),
+    safeRegister('market-history', () => registerMarketCron(io)),
     safeRegister('all-symbols-one-minute-snapshot', registerAllSymbolsSnapshotCron),
     safeRegister('usage', registerUsageCron),
     safeRegister('market-technical-daily', registerMarketTechnicalDailyCron),
-    safeRegister('valuable-symbols-independent', registerValuableSymbolsCron),
+    safeRegister('valuable-symbols-independent', () => registerValuableSymbolsCron(io)),
     safeRegister('options-market-auto-refresh', () => registerOptionsMarketCron(io)),
     safeRegister('telegram-channel-publisher', registerTelegramPublisherCron)
   ];

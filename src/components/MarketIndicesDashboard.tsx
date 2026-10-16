@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getMarketRadarSnapshot, readMarketRadarCache, writeMarketRadarCache } from '../services/marketRadarService';
+import { getSocket } from '../services/socketService';
 import type { MarketRadarSnapshot, MarketRadarSector } from '../types/marketRadar';
 import IndustryHeatmap from './MarketRadar/IndustryHeatmap';
 import MarketRadarHistoryChart from './MarketRadar/MarketRadarHistory';
@@ -135,11 +136,20 @@ const MarketIndicesDashboard: React.FC = () => {
 
   useEffect(() => {
     let active = true;
+    const refreshIfActive = () => { if (active) void refresh(); };
     void refresh();
+    const socket = getSocket();
+    socket?.on('market-indices:updated', refreshIfActive);
+    socket?.on('connect', refreshIfActive);
     const timer = window.setInterval(() => {
-      if (active) void refresh();
+      if (active && !socket?.connected) void refresh();
     }, 120_000);
-    return () => { active = false; window.clearInterval(timer); };
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      socket?.off('market-indices:updated', refreshIfActive);
+      socket?.off('connect', refreshIfActive);
+    };
   }, [refresh]);
 
   const score = useMemo(() => calculateScore(data), [data]);

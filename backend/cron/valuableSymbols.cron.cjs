@@ -15,7 +15,7 @@ const CLOSED_MARKET_RETRY_MS = 30 * 60 * 1000;
 const MAX_SNAPSHOT_AGE_MS = 5 * 60 * 1000;
 const SNAPSHOT_SETTLE_MS = 45 * 1000;
 
-function registerValuableSymbolsCron() {
+function registerValuableSymbolsCron(io = null) {
   cron.schedule('*/3 * * * *', async () => {
     const marketOpen = isTehranMarketOpen();
     const now = Date.now();
@@ -83,6 +83,7 @@ function registerValuableSymbolsCron() {
           }
         }
       }
+      if (io) io.emit('valuable-symbols:updated', { updatedAt: new Date().toISOString(), snapshotId: activeSnapshot?.id ?? null, count: results.length });
       console.log('[CRON][ValuableSymbols] Evaluation completed; market:', marketOpen ? 'OPEN' : 'CLOSED', 'snapshot:', activeSnapshot?.id || 'none', 'eligible symbols:', results.length);
     } catch (error) {
       console.error('[CRON][ValuableSymbols] Evaluation failed:', error.message);

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { getDailyFilters } from '../services/dailyFiltersService';
+import { getSocket } from '../services/socketService';
 import type { DailyFilterRow } from '../services/dailyFiltersService';
 
 type SortKey = 'change' | 'buyPower' | 'volume' | 'value' | 'pe' | 'symbol';
@@ -108,8 +109,18 @@ const ProfessionalScreener: React.FC = () => {
     } catch {
       setPresets([]);
     }
-    const timer = window.setInterval(() => void load(), 300_000);
-    return () => window.clearInterval(timer);
+    const socket = getSocket();
+    const refresh = () => { void load(true); };
+    socket?.on('market-snapshot:updated', refresh);
+    socket?.on('connect', refresh);
+    const timer = window.setInterval(() => {
+      if (!socket?.connected) refresh();
+    }, 300_000);
+    return () => {
+      window.clearInterval(timer);
+      socket?.off('market-snapshot:updated', refresh);
+      socket?.off('connect', refresh);
+    };
   }, []);
 
   const sourceRows = useMemo(() => {
