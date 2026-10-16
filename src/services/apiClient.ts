@@ -4,6 +4,63 @@ import { API_BASE_URL } from '../api/config';
 
 const API_TOKEN_KEY = 'accessToken';
 const API_TOKEN_FALLBACK_KEY = 'token';
+
+type CachedGetEntry = { expiresAt: number; response: ApiResponse<unknown> };
+const cachedGetResponses = new Map<string, CachedGetEntry>();
+const inFlightGetRequests = new Map<string, Promise<ApiResponse<unknown>>>();
+const cachedGetGenerations = new Map<string, number>();
+
+function getCachedRequestKey(endpoint: string, headers?: Record<string, string>): string {
+  const headerKey = Object.entries(headers || {}).sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => key.toLowerCase() + ':' + value).join('|');
+  return buildUrl(endpoint) + '::' + (getStoredToken() || 'anonymous') + '::' + headerKey;
+}
+
+/**
+ * Cache successful GET responses in memory for fast tab re-entry.
+ * Callers must invalidate data when its server-side update event arrives.
+ * The key is scoped to the current authentication token and request headers.
+ */
+export async function getCached<T>(
+  endpoint: string,
+  ttlMs = 300_000,
+  headers?: Record<string, string>
+): Promise<ApiResponse<T>> {
+  const key = getCachedRequestKey(endpoint, headers);
+  const cached = cachedGetResponses.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.response as ApiResponse<T>;
+
+  const inFlight = inFlightGetRequests.get(key);
+  if (inFlight) return inFlight as Promise<ApiResponse<T>>;
+
+  const generation = cachedGetGenerations.get(key) || 0;
+  let pending: Promise<ApiResponse<T>>;
+  pending = request<T>('GET', endpoint, undefined, headers).then((response) => {
+    if (response.success && (cachedGetGenerations.get(key) || 0) === generation) {
+      cachedGetResponses.set(key, {
+        expiresAt: Date.now() + Math.max(0, ttlMs),
+        response: response as ApiResponse<unknown>,
+      });
+    }
+    return response;
+  }).finally(() => {
+    if (inFlightGetRequests.get(key) === pending) inFlightGetRequests.delete(key);
+  });
+  inFlightGetRequests.set(key, pending as Promise<ApiResponse<unknown>>);
+  return pending;
+}
+
+/** Invalidate one endpoint's cached GET responses, or all cached GET responses. */
+export function invalidateCachedGet(endpoint?: string): void {
+  const prefix = endpoint ? buildUrl(endpoint) + '::' : null;
+  const keys = new Set([...cachedGetResponses.keys(), ...inFlightGetRequests.keys()]);
+  for (const key of keys) {
+    if (prefix && !key.startsWith(prefix)) continue;
+    cachedGetGenerations.set(key, (cachedGetGenerations.get(key) || 0) + 1);
+    cachedGetResponses.delete(key);
+    inFlightGetRequests.delete(key);
+  }
+}
 const getBaseUrl = (): string => API_BASE_URL.replace(/\/+$/, '');
 const getStoredToken = (): string | null => {
   if (typeof window === 'undefined') return null;
@@ -201,6 +258,7 @@ export async function request<T>(method: string, endpoint: string, data?: unknow
 }
 
 function dispatchLogoutEvent(): void {
+  invalidateCachedGet();
   if (typeof window !== 'undefined') {
     localStorage.removeItem(API_TOKEN_KEY);
     localStorage.removeItem(API_TOKEN_FALLBACK_KEY);
