@@ -44,7 +44,7 @@ const RoniaAssistant: React.FC<RoniaAssistantProps> = ({ isOnline, onNavigate })
     <div className="roniya-assistant-workstation max-w-6xl mx-auto" dir="rtl">
       <div className="mb-6">
         <h2 className="text-2xl font-black text-cyan-600 dark:text-cyan-400">دستیار رونیا</h2>
-        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">دستیار قطعی و داده‌محور؛ بدون Gemini، بدون AI و بدون داده ساختگی.</p>
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">دستیار قطعی و داده‌محور با تکیه بر داده‌های واقعی و بدون داده ساختگی.</p>
       </div>
       <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/60 p-5 shadow-sm">
         <div className="flex flex-wrap gap-2 mb-5">{examples.map(example => <button key={example} type="button" onClick={() => setMessage(example)} className="px-3 py-2 rounded-full border border-slate-200 dark:border-slate-700 text-xs hover:bg-slate-100 dark:hover:bg-slate-800">{example}</button>)}</div>
@@ -72,7 +72,7 @@ const RoniaAssistant: React.FC<RoniaAssistantProps> = ({ isOnline, onNavigate })
         {lastResult?.failed?.length ? <div className="mt-4 text-xs text-amber-600">برخی نمادها قابل پردازش نبودند: {lastResult.failed.map(item => item.symbol || item).join('، ')}</div> : null}
         {lastResult?.actions?.length ? <div className="mt-5 pt-4 border-t border-slate-200 dark:border-slate-700 flex flex-wrap gap-2">{lastResult.actions.map((action, index) => <button key={index} type="button" onClick={() => onNavigate?.(action.tab)} className="px-3 py-2 rounded-lg border text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800">{action.label}</button>)}</div> : null}
       </div>
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-500"><div className="rounded-xl border p-3">بدون Gemini / AI</div><div className="rounded-xl border p-3">بدون داده ساختگی</div><div className="rounded-xl border p-3">محاسبات و قوانین قابل ردیابی</div></div>
+      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-500"><div className="rounded-xl border p-3">بدون داده ساختگی</div><div className="rounded-xl border p-3">محاسبات و قوانین قابل ردیابی</div></div>
     </div>
   );
 };

@@ -11,7 +11,14 @@ import {
 } from './Icons';
 import type { ScalpingOpportunity } from '../types';
 
-let cachedScalpingOpportunities: { items: ScalpingOpportunity[]; refreshedAt: number } | null = null;
+let cachedScalpingOpportunities: { items: ScalpingOpportunity[]; refreshedAt: number; evaluatedAt: string | null; marketStatus: { isOpen: boolean; available: boolean } } | null = null;
+
+const formatTehranDateTime = (value?: string | null) => {
+  if (!value) return 'هنوز ارزیابی ثبت نشده';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'نامشخص';
+  return new Intl.DateTimeFormat('fa-IR', { timeZone: 'Asia/Tehran', dateStyle: 'medium', timeStyle: 'short', hour12: false }).format(date);
+};
 
 interface ScalpingProps {
   isOnline: boolean;
@@ -120,6 +127,8 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
   const [activeSubTab, setActiveSubTab] = useState<'scalping' | 'valuable'>('scalping');
   const [opportunities, setOpportunities] = useState<ScalpingOpportunity[]>(() => cachedScalpingOpportunities?.items ?? []);
   const [lastRefreshed, setLastRefreshed] = useState<number>(() => cachedScalpingOpportunities?.refreshedAt ?? Date.now());
+  const [lastEvaluatedAt, setLastEvaluatedAt] = useState<string | null>(() => cachedScalpingOpportunities?.evaluatedAt ?? null);
+  const [marketStatus, setMarketStatus] = useState<{ isOpen: boolean; available: boolean }>(() => cachedScalpingOpportunities?.marketStatus ?? { isOpen: false, available: false });
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isLoading, setIsLoading] = useState(() => !cachedScalpingOpportunities);
   const requestIdRef = useRef(0);
@@ -135,15 +144,20 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
     try {
       // فقط یک درخواست برای دریافت snapshot مرکزی نوسان‌گیری.
       // تولید و به‌روزرسانی داده‌ها توسط Central Market Worker انجام می‌شود.
-      const signalsRes = await scalpingService.getScalpingSignals();
+      const [signalsRes, statusRes] = await Promise.all([scalpingService.getScalpingSignals(), scalpingService.getScalpingStatus()]);
 
       if (currentId !== requestIdRef.current) return;
 
-      const refreshedAt = Date.now();
+      const evaluatedAt = signalsRes.lastUpdate;
+      const evaluatedTimestamp = evaluatedAt ? new Date(evaluatedAt).getTime() : 0;
+      const refreshedAt = evaluatedTimestamp > 0 ? evaluatedTimestamp : Date.now();
       const items = Array.isArray(signalsRes.signals) ? signalsRes.signals : [];
-      cachedScalpingOpportunities = { items, refreshedAt };
+      const nextMarketStatus = statusRes.marketStatus;
+      cachedScalpingOpportunities = { items, refreshedAt, evaluatedAt, marketStatus: nextMarketStatus };
       setOpportunities(items);
       setLastRefreshed(refreshedAt);
+      setLastEvaluatedAt(evaluatedAt);
+      setMarketStatus(nextMarketStatus);
     } catch (error) {
       console.error('[Scalping] Error fetching shared signals:', error);
     } finally {
@@ -161,11 +175,15 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
     socket?.on('scalping-opportunities:updated', loadData);
     socket?.on('connect', loadData);
     // Polling remains as a fallback when Socket.IO is disconnected.
-    const timer = setInterval(() => {
+    const timer = window.setInterval(() => {
       if (!socket?.connected) loadData();
     }, 30000);
+    const marketStatusTimer = window.setInterval(() => {
+      void scalpingService.getScalpingStatus().then(status => setMarketStatus(status.marketStatus));
+    }, 60000);
     return () => {
-      clearInterval(timer);
+      window.clearInterval(timer);
+      window.clearInterval(marketStatusTimer);
       socket?.off('scalping-opportunities:updated', loadData);
       socket?.off('connect', loadData);
     };
@@ -246,6 +264,17 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
           >
             <ListBulletIcon className="w-5 h-5" />
           </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+          <div className="text-sm text-[var(--color-text-secondary)]">وضعیت بازار بورس (ساعت تهران)</div>
+          <div className={`mt-2 font-bold ${marketStatus.available ? (marketStatus.isOpen ? 'text-emerald-600' : 'text-amber-600') : 'text-gray-500'}`}>{marketStatus.available ? (marketStatus.isOpen ? 'بازار باز است' : 'بازار بسته است') : 'وضعیت بازار نامشخص'}</div>
+        </div>
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+          <div className="text-sm text-[var(--color-text-secondary)]">آخرین ارزیابی و ذخیره موفق در دیتابیس (ساعت تهران)</div>
+          <div className="mt-2 text-sm font-bold tabular-nums">{formatTehranDateTime(lastEvaluatedAt)}</div>
         </div>
       </div>
 
