@@ -168,7 +168,7 @@ function scoreSymbol(item) {
   };
 }
 
-async function updateSymbolsAndMovers() {
+async function updateSymbolsAndMovers(io = null) {
   const response = await brsService.getAllSymbols({ forceFresh: true });
   const rows = unwrap(response);
   if (!Array.isArray(rows) || !rows.length) throw new Error('BRS AllSymbols returned no symbols');
@@ -223,6 +223,7 @@ async function updateSymbolsAndMovers() {
   // derived, and atomically activated.
   const published = await marketSnapshotService.publishMarketSnapshot(symbols);
   console.log('[MARKET SNAPSHOT] activated', JSON.stringify({ snapshotId: published.snapshotId, symbolCount: published.symbolCount }));
+  if (io) io.emit('market-snapshot:updated', { snapshotId: published.snapshotId, symbolCount: published.symbolCount, updatedAt: new Date().toISOString() });
   return symbols;
 
   for (const item of symbols) {
@@ -572,7 +573,7 @@ async function runJob(name, fn) {
   catch (error) { console.error('[MARKET WORKER] ' + name + ' failed:', error.message); return false; }
 }
 
-async function runMarketWorker() {
+async function runMarketWorker(io = null) {
   const calendarOpen = isTradingCalendarDay();
   const todayMarketDate = sqlDate(tehranDateKey());
 
@@ -600,14 +601,15 @@ async function runMarketWorker() {
   }
 
   // MarketCurrent is written only by market.cron.cjs after a successful BRS index snapshot.
-  const symbols = await updateSymbolsAndMovers();
+  const symbols = await updateSymbolsAndMovers(io);
   await runJob('market-daily', () => updateMarketDaily(symbols));
   // Industries are already computed once from the same verified snapshot.
-  await runJob('scalping-opportunities', () => updateScalpingOpportunities(symbols, effectiveOpen));
+  const scalpingUpdated = await runJob('scalping-opportunities', () => updateScalpingOpportunities(symbols, effectiveOpen));
+  if (io && scalpingUpdated) io.emit('scalping-opportunities:updated', { updatedAt: new Date().toISOString(), marketDate: todayMarketDate });
   return { status: 'success', symbols: symbols.length };
 }
 
-function startMarketWorker() {
+function startMarketWorker(io = null) {
   if (process.env.MARKET_WORKER_ENABLED === 'false') {
     console.log('[MARKET WORKER] Disabled by MARKET_WORKER_ENABLED=false');
     return;
@@ -620,12 +622,12 @@ function startMarketWorker() {
 
   // Market index polling is owned exclusively by market.cron.cjs (every 2 minutes).
   // This worker keeps symbol/mover analytics alive without writing the index.
-  runMarketWorker().catch((error) => {
+  runMarketWorker(io).catch((error) => {
     console.error('[MARKET WORKER] Initial analytics refresh failed:', error?.message || error);
   });
 
   cron.schedule('*/2 * * * *', () => {
-    runMarketWorker().catch((error) => {
+    runMarketWorker(io).catch((error) => {
       console.error('[MARKET WORKER] Scheduled analytics refresh failed:', error?.message || error);
     });
   });
