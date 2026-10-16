@@ -16,21 +16,34 @@ const DEFAULT_SECURITY = {
 
 let cached = null;
 let cachedAt = 0;
+let policyReadInFlight = null;
 const CACHE_MS = 5000;
 
 async function getSecurityPolicy() {
   const now = Date.now();
   if (cached && now - cachedAt < CACHE_MS) return cached;
-  try {
-    const row = await prisma.globalSetting.findUnique({ where: { key: 'security.policy' } });
-    if (!row || row.category !== 'security') return DEFAULT_SECURITY;
-    const value = JSON.parse(row.value);
-    cached = { ...DEFAULT_SECURITY, ...value };
-    cachedAt = now;
-    return cached;
-  } catch (_) {
-    return cached || DEFAULT_SECURITY;
-  }
+  if (policyReadInFlight) return policyReadInFlight;
+
+  policyReadInFlight = (async () => {
+    try {
+      const row = await prisma.globalSetting.findUnique({ where: { key: 'security.policy' } });
+      if (!row || row.category !== 'security') {
+        cached = DEFAULT_SECURITY;
+        cachedAt = Date.now();
+        return cached;
+      }
+      const value = JSON.parse(row.value);
+      cached = { ...DEFAULT_SECURITY, ...value };
+      cachedAt = Date.now();
+      return cached;
+    } catch (_) {
+      return cached || DEFAULT_SECURITY;
+    } finally {
+      policyReadInFlight = null;
+    }
+  })();
+
+  return policyReadInFlight;
 }
 
 function invalidateSecurityPolicyCache() {

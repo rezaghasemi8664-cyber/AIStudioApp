@@ -16,12 +16,16 @@ async function enforceSession(token, userId) {
     select: { id: true, userId: true, createdAt: true },
   });
 
+  // Only enforce the per-user session limit when a new session is created.
+  // Existing sessions still undergo ownership and expiry validation on every request.
+  let createdSession = false;
   if (!session) {
     try {
       session = await prisma.session.create({
         data: { userId: Number(userId), token, createdAt: new Date() },
         select: { id: true, userId: true, createdAt: true },
       });
+      createdSession = true;
     } catch (createError) {
       // Another concurrent request may have created this unique token.
       session = await prisma.session.findUnique({
@@ -43,16 +47,18 @@ async function enforceSession(token, userId) {
     return { valid: false, code: 'SESSION_EXPIRED' };
   }
 
-  const maxSessions = Math.max(1, Number(policy.maxSessionsPerUser) || 5);
-  const sessions = await prisma.session.findMany({
-    where: { userId: Number(userId) },
-    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    select: { id: true },
-  });
-  if (sessions.length > maxSessions) {
-    const staleIds = sessions.slice(maxSessions).map((item) => item.id);
-    if (staleIds.length) await prisma.session.deleteMany({ where: { id: { in: staleIds } } });
-    if (staleIds.includes(session.id)) return { valid: false, code: 'SESSION_LIMIT_EXCEEDED' };
+  if (createdSession) {
+    const maxSessions = Math.max(1, Number(policy.maxSessionsPerUser) || 5);
+    const sessions = await prisma.session.findMany({
+      where: { userId: Number(userId) },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: { id: true },
+    });
+    if (sessions.length > maxSessions) {
+      const staleIds = sessions.slice(maxSessions).map((item) => item.id);
+      if (staleIds.length) await prisma.session.deleteMany({ where: { id: { in: staleIds } } });
+      if (staleIds.includes(session.id)) return { valid: false, code: 'SESSION_LIMIT_EXCEEDED' };
+    }
   }
 
   return { valid: true, sessionId: session.id, policy };

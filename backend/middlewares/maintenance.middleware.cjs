@@ -3,6 +3,7 @@
 const { prisma } = require('../config/prisma.cjs');
 
 let cache = { value: null, expiresAt: 0 };
+let policyReadInFlight = null;
 
 function parseValue(value) {
   try { return JSON.parse(value); } catch { return value; }
@@ -24,26 +25,42 @@ function isExempt(pathname) {
 async function getPolicy() {
   const now = Date.now();
   if (cache.expiresAt > now && cache.value) return cache.value;
-  const row = await prisma.globalSetting.findUnique({ where:{ key:'maintenance.policy' } });
-  const parsed = row && row.category === 'maintenance' ? parseValue(row.value) : { enabled:false, allowAdmins:true, message:'' };
-  const value = parsed && typeof parsed === 'object' ? parsed : { enabled:false, allowAdmins:true, message:'' };
-  cache = { value, expiresAt:now + 5000 };
-  return value;
+  if (policyReadInFlight) return policyReadInFlight;
+
+  policyReadInFlight = (async () => {
+    try {
+      const row = await prisma.globalSetting.findUnique({ where: { key: 'maintenance.policy' } });
+      const parsed = row && row.category === 'maintenance'
+        ? parseValue(row.value)
+        : { enabled: false, allowAdmins: true, message: '' };
+      const value = parsed && typeof parsed === 'object'
+        ? parsed
+        : { enabled: false, allowAdmins: true, message: '' };
+      cache = { value, expiresAt: Date.now() + 5000 };
+      return value;
+    } finally {
+      policyReadInFlight = null;
+    }
+  })();
+
+  return policyReadInFlight;
 }
 
-function invalidateMaintenanceCache() { cache.expiresAt = 0; }
+function invalidateMaintenanceCache() {
+  cache.expiresAt = 0;
+}
 
-async function maintenanceMiddleware(req,res,next) {
+async function maintenanceMiddleware(req, res, next) {
   if (isExempt(req.originalUrl || req.path || '')) return next();
   try {
     const policy = await getPolicy();
     if (!policy || policy.enabled !== true) return next();
     return res.status(503).json({
-      success:false,
-      code:'MAINTENANCE_MODE',
-      message:policy.message || 'سامانه موقتاً در حال نگهداری است.',
-      maintenance:true,
-      allowAdmins:policy.allowAdmins !== false,
+      success: false,
+      code: 'MAINTENANCE_MODE',
+      message: policy.message || 'سامانه موقتاً در حال نگهداری است.',
+      maintenance: true,
+      allowAdmins: policy.allowAdmins !== false,
     });
   } catch (error) {
     console.error('[MAINTENANCE] policy read failed:', error.message);
