@@ -105,7 +105,18 @@ async function requestTelegram(endpoint, data, options = {}) {
       maxRedirects: 0,
       validateStatus: () => true
     });
-  } catch (_) {
+  } catch (axiosError) {
+    // Log only safe network metadata. Never log the Axios message/config because it may contain the bot-token URL or proxy credentials.
+    console.error('[Telegram API] request failed', {
+      code: typeof axiosError?.code === 'string' ? axiosError.code : 'UNKNOWN',
+      name: typeof axiosError?.name === 'string' ? axiosError.name : 'Error',
+      syscall: typeof axiosError?.syscall === 'string' ? axiosError.syscall : undefined,
+      hostname: typeof axiosError?.hostname === 'string' ? axiosError.hostname : undefined,
+      port: typeof axiosError?.port === 'number' || typeof axiosError?.port === 'string' ? axiosError.port : undefined,
+      timeout: Number.isFinite(timeoutMs) ? timeoutMs : undefined,
+      hasResponse: Boolean(axiosError?.response),
+      hasRequest: Boolean(axiosError?.request)
+    });
     // Do not rethrow Axios's raw error: it can contain the bot-token URL.
     const error = new Error('TELEGRAM_CONNECTION_FAILED');
     error.code = 'TELEGRAM_CONNECTION_FAILED';
