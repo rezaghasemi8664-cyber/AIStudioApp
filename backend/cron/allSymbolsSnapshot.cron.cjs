@@ -2,6 +2,14 @@
 
 const cron = require('node-cron');
 const snapshotService = require('../services/allSymbolsSnapshot.service.cjs');
+const dailyFiltersService = require('../services/dailyFilters.service.cjs');
+let socketIo = null;
+async function calculateAndPublishDailyFilters() {
+  if (!isMarketOpen()) return false;
+  const changed = await dailyFiltersService.refresh();
+  if (changed && socketIo) socketIo.emit('daily-filters:updated', { updatedAt: new Date().toISOString() });
+  return changed;
+}
 const MARKET_TZ = 'Asia/Tehran';
 const OPEN_MINUTE = 9 * 60;
 const CLOSE_MINUTE = 12 * 60 + 30;
@@ -28,6 +36,8 @@ async function refreshIfRequired() {
     if (!hasSnapshot) {
       console.warn('[ALL-SYMBOLS-SNAPSHOT] No valid database snapshot exists; bootstrapping from BRSAPI AllSymbols regardless of market hours');
       await snapshotService.refreshSnapshot();
+    await calculateAndPublishDailyFilters();
+      await calculateAndPublishDailyFilters();
       return;
     }
 
@@ -40,7 +50,8 @@ async function refreshIfRequired() {
   }
 }
 
-function registerAllSymbolsSnapshotCron() {
+function registerAllSymbolsSnapshotCron(io = null) {
+  socketIo = io;
   // Run immediately at startup so an empty database is populated even on holidays
   // or outside the Tehran market session.
   refreshIfRequired().catch((error) => {
@@ -52,4 +63,4 @@ function registerAllSymbolsSnapshotCron() {
   cron.schedule('* * * * *', refreshIfRequired, { timezone: MARKET_TZ });
 }
 
-module.exports = { registerAllSymbolsSnapshotCron, isMarketOpen, refreshIfRequired };
+module.exports = { registerAllSymbolsSnapshotCron, isMarketOpen, refreshIfRequired, calculateAndPublishDailyFilters };
