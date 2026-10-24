@@ -142,4 +142,23 @@ async function searchSymbol(query) {
   if (!symbol) return { status: 'NOT_FOUND', snapshotUpdatedAt: snapshot.updatedAt, snapshotDate: dateValue, symbolCount: Number(snapshot.symbolCount) };
   return { status: 'FOUND', symbol: symbol, snapshotUpdatedAt: snapshot.updatedAt, snapshotDate: dateValue, symbolCount: Number(snapshot.symbolCount), source: snapshot.source };
 }
-module.exports = { ensureTable, hasSnapshot, refreshSnapshot, searchSymbol, normalizeSnapshotSymbol, normalizeKey, tehranDateKey };
+async function getSnapshot() {
+  await ensureTable();
+  const snapshot = await getStoredSnapshot();
+  if (!snapshot) return { status: 'NO_SNAPSHOT' };
+  let symbols;
+  try { symbols = JSON.parse(snapshot.symbolsJson); } catch (_) { symbols = null; }
+  if (!Array.isArray(symbols) || symbols.length < 1000 || Number(snapshot.symbolCount) !== symbols.length) {
+    return { status: 'INVALID_SNAPSHOT', snapshotUpdatedAt: snapshot.updatedAt, symbolCount: Number(snapshot.symbolCount || 0) };
+  }
+  const snapshotDate = snapshot.snapshotDate instanceof Date ? snapshot.snapshotDate.toISOString().slice(0, 10) : String(snapshot.snapshotDate || '').slice(0, 10);
+  return {
+    status: 'FOUND',
+    symbols,
+    snapshotDate,
+    snapshotUpdatedAt: snapshot.updatedAt,
+    symbolCount: Number(snapshot.symbolCount),
+    source: snapshot.source
+  };
+}
+module.exports = { ensureTable, hasSnapshot, refreshSnapshot, searchSymbol, getSnapshot, normalizeSnapshotSymbol, normalizeKey, tehranDateKey };
