@@ -36,13 +36,13 @@ async function refreshIfRequired() {
     if (!hasSnapshot) {
       console.warn('[ALL-SYMBOLS-SNAPSHOT] No valid database snapshot exists; bootstrapping from BRSAPI AllSymbols regardless of market hours');
       await snapshotService.refreshSnapshot();
-    await calculateAndPublishDailyFilters();
       await calculateAndPublishDailyFilters();
       return;
     }
 
     if (!isMarketOpen()) return;
     await snapshotService.refreshSnapshot();
+    await calculateAndPublishDailyFilters();
   } catch (error) {
     console.error('[ALL-SYMBOLS-SNAPSHOT] Refresh failed; previous valid snapshot retained and next attempt will retry:', error.message);
   } finally {
