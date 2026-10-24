@@ -4,6 +4,28 @@ const axios = require('axios');
 
 const TELEGRAM_API_BASE = 'https://api.telegram.org';
 
+function getTelegramApiBase() {
+  const raw = String(process.env.TELEGRAM_API_BASE_URL || '').trim();
+  if (!raw) return TELEGRAM_API_BASE;
+
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch (_) {
+    const error = new Error('TELEGRAM_API_BASE_URL_INVALID');
+    error.code = 'TELEGRAM_API_BASE_URL_INVALID';
+    throw error;
+  }
+
+  if (parsed.protocol !== 'https:' || !parsed.hostname || parsed.username || parsed.password || parsed.search || parsed.hash || (parsed.pathname !== '/' && parsed.pathname !== '')) {
+    const error = new Error('TELEGRAM_API_BASE_URL_INVALID');
+    error.code = 'TELEGRAM_API_BASE_URL_INVALID';
+    throw error;
+  }
+
+  return parsed.origin;
+}
+
 function getTelegramConfig() {
   const tokenKey = 'TELEGRAM_' + 'BOT_TOKEN';
   return {
@@ -59,14 +81,25 @@ function getTelegramProxyConfig() {
 async function requestTelegram(endpoint, data, options = {}) {
   const timeoutMs = Number(options.timeoutMs) || 15000;
   const proxy = getTelegramProxyConfig();
+  const apiBase = getTelegramApiBase();
+  const headers = { ...(options.headers || {}) };
+  if (apiBase !== TELEGRAM_API_BASE) {
+    const proxySecret = String(process.env.TELEGRAM_PROXY_SECRET || '').trim();
+    if (!proxySecret) {
+      const error = new Error('TELEGRAM_PROXY_SECRET_MISSING');
+      error.code = 'TELEGRAM_PROXY_SECRET_MISSING';
+      throw error;
+    }
+    headers['X-Roniya-Proxy-Key'] = proxySecret;
+  }
 
   let response;
   try {
     response = await axios.request({
-      url: endpoint,
+      url: endpoint.replace(TELEGRAM_API_BASE, apiBase),
       method: 'POST',
       data,
-      headers: options.headers,
+      headers,
       timeout: timeoutMs,
       proxy,
       maxRedirects: 0,
