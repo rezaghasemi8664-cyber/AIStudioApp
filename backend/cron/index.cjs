@@ -49,7 +49,7 @@ function startCronJobs(io) {
   const results = [
     safeStart('market-worker', () => startMarketWorker(io)),
     safeRegister('market-history', () => registerMarketCron(io)),
-    safeRegister('all-symbols-one-minute-snapshot', registerAllSymbolsSnapshotCron),
+    safeRegister('all-symbols-one-minute-snapshot', () => registerAllSymbolsSnapshotCron(io)),
     safeRegister('usage', registerUsageCron),
     safeRegister('market-technical-daily', registerMarketTechnicalDailyCron),
     safeRegister('valuable-symbols-independent', () => registerValuableSymbolsCron(io)),
