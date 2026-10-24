@@ -112,6 +112,7 @@ const ProfessionalScreener: React.FC = () => {
     const socket = getSocket();
     const refresh = () => { void load(true); };
     socket?.on('market-snapshot:updated', refresh);
+    socket?.on('daily-filters:updated', refresh);
     socket?.on('connect', refresh);
     const timer = window.setInterval(() => {
       if (!socket?.connected) refresh();
@@ -119,6 +120,7 @@ const ProfessionalScreener: React.FC = () => {
     return () => {
       window.clearInterval(timer);
       socket?.off('market-snapshot:updated', refresh);
+      socket?.off('daily-filters:updated', refresh);
       socket?.off('connect', refresh);
     };
   }, []);
