@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 type Candle = { date:string; time?:string; open:number|null; high:number|null; low:number|null; close:number|null; volume:number|null };
 
@@ -7,8 +7,10 @@ const fmt=(v:number|null)=>v==null?'—':v.toLocaleString('fa-IR',{maximumFracti
 
 const StockProfileCandles:React.FC<Props>=({data})=>{
  const valid=useMemo(()=>data.filter(c=>c.open!=null&&c.high!=null&&c.low!=null&&c.close!=null),[data]);
+ const [selectedIndex,setSelectedIndex]=useState(-1);
+ useEffect(()=>{setSelectedIndex(-1)},[data]);
  if(valid.length<2)return <div className="stock-candles-chart rounded-2xl border border-dashed border-[var(--color-border)] p-8 text-center text-gray-500">داده کندلی معتبر کافی برای این بازه موجود نیست.</div>;
- const visible=valid.slice(-90), [selectedIndex,setSelectedIndex]=useState(-1), width=1000,height=360,left=56,right=18,top=20,bottom=48;
+ const visible=valid.slice(-90), width=1000,height=360,left=56,right=18,top=20,bottom=48;
  const prices=visible.flatMap(c=>[c.high as number,c.low as number]);
  const min=Math.min(...prices),max=Math.max(...prices),range=max-min||1;
  const xStep=(width-left-right)/Math.max(visible.length-1,1), bodyWidth=Math.max(3,Math.min(10,xStep*.55));
