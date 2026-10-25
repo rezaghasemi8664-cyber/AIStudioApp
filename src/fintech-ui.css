@@ -2927,3 +2927,24 @@ a:focus-visible {
 .watchlist-alert-data-LIVE { border-color: color-mix(in srgb, var(--ui-positive) 42%, var(--ui-border)) !important; background: color-mix(in srgb, var(--ui-positive) 7%, var(--ui-surface)) !important; color: var(--ui-positive); }
 .watchlist-alert-data-CACHED { border-color: color-mix(in srgb, var(--ui-warning) 42%, var(--ui-border)) !important; background: color-mix(in srgb, var(--ui-warning) 7%, var(--ui-surface)) !important; color: var(--ui-warning); }
 .watchlist-alert-data-UNAVAILABLE { border-color: color-mix(in srgb, var(--ui-negative) 38%, var(--ui-border)) !important; background: color-mix(in srgb, var(--ui-negative) 6%, var(--ui-surface)) !important; color: var(--ui-negative); }
+
+
+/* iOS Safari: improve touch and focus handling for password fields. */
+.password-change-workstation {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.password-change-workstation input {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-appearance: none;
+  -webkit-user-select: text;
+  user-select: text;
+  font-size: 16px;
+}
+.password-change-workstation button[aria-label] {
+  position: relative;
+  z-index: 2;
+}
