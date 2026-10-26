@@ -327,16 +327,23 @@ async function getCompanyReports(options = {}) {
   };
 }
 
-async function getArchivedReports({ symbol = '', category = '', limit = 200 } = {}) {
+async function getArchivedReports({ symbol = '', category = '', from = '', to = '', limit = 200 } = {}) {
   const conditions = [];
   const params = [];
-  if (symbol) { params.push(String(symbol).trim()); conditions.push('Symbol = @P' + params.length); }
-  if (category) { params.push(String(category).trim()); conditions.push('Category = @P' + params.length); }
+  const dateKey = value => String(value || '').replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[^0-9]/g, '').slice(0, 8);
+  if (symbol) { params.push(String(symbol).trim()); conditions.push('a.Symbol = @P' + params.length); }
+  if (category) { params.push(String(category).trim()); conditions.push('a.Category = @P' + params.length); }
+  const fromKey = dateKey(from);
+  const toKey = dateKey(to);
+  if (fromKey.length === 8) { params.push(fromKey); conditions.push('d.DateKey >= @P' + params.length); }
+  if (toKey.length === 8) { params.push(toKey); conditions.push('d.DateKey <= @P' + params.length); }
   const where = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
-  // Read the durable archive, not only the latest active snapshot, so older
-  // reporting periods remain available after subsequent refreshes.
+  const max = Math.max(1, Math.min(2000, Number(limit) || 200));
+  // Normalize date digits/separators in SQL and filter before limiting, so
+  // older requested periods are not hidden by the newest announcements.
+  const dateExpression = "LEFT(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRANSLATE(ISNULL(a.PublishedAt, ''), N'۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', N'01234567890123456789'), '/', ''), '-', ''), ':', ''), ' ', ''), '.', ''), 8)";
   const rows = await prisma.$queryRawUnsafe(
-    'SELECT AnnouncementKey, PayloadJson FROM dbo.CodalAnnouncement' + where + ' ORDER BY PublishedAt DESC, AnnouncementKey',
+    'SELECT TOP (' + max + ') a.AnnouncementKey, a.PayloadJson FROM dbo.CodalAnnouncement a CROSS APPLY (SELECT ' + dateExpression + ' AS DateKey) d' + where + ' ORDER BY d.DateKey DESC, a.AnnouncementKey',
     ...params
   );
   return rows.map(row => {
