@@ -3,6 +3,7 @@
 const cron = require('node-cron');
 const snapshotService = require('../services/allSymbolsSnapshot.service.cjs');
 const dailyFiltersService = require('../services/dailyFilters.service.cjs');
+const tradeWatchlistService = require('../services/tradeWatchlist.service.cjs');
 let socketIo = null;
 async function calculateAndPublishDailyFilters() {
   if (!isMarketOpen()) return false;
@@ -22,6 +23,24 @@ function isMarketOpen(now = new Date()) {
   return TRADING_DAYS.includes(values.weekday) && minute >= OPEN_MINUTE && minute < CLOSE_MINUTE;
 }
 
+async function publishSnapshotUpdate(result) {
+  try {
+    const alertResult = await tradeWatchlistService.checkAlerts();
+    if (socketIo && alertResult.alertsCreated > 0) {
+      socketIo.emit('notifications:updated', { reason: 'price-alert', count: alertResult.alertsCreated, updatedAt: new Date().toISOString() });
+    }
+  } catch (error) {
+    console.error('[TRADE-WATCHLIST] Snapshot alert evaluation failed:', error.message);
+  }
+  if (socketIo) {
+    socketIo.emit('all-symbols-snapshot:updated', {
+      snapshotDate: result?.snapshotDate || null,
+      symbolCount: result?.symbolCount || null,
+      updatedAt: result?.updatedAt ? new Date(result.updatedAt).toISOString() : new Date().toISOString(),
+    });
+  }
+}
+
 let running = false;
 
 async function refreshIfRequired() {
@@ -35,13 +54,15 @@ async function refreshIfRequired() {
     const hasSnapshot = await snapshotService.hasSnapshot();
     if (!hasSnapshot) {
       console.warn('[ALL-SYMBOLS-SNAPSHOT] No valid database snapshot exists; bootstrapping from BRSAPI AllSymbols regardless of market hours');
-      await snapshotService.refreshSnapshot();
+      const refreshed = await snapshotService.refreshSnapshot();
+      await publishSnapshotUpdate(refreshed);
       await calculateAndPublishDailyFilters();
       return;
     }
 
     if (!isMarketOpen()) return;
-    await snapshotService.refreshSnapshot();
+    const refreshed = await snapshotService.refreshSnapshot();
+    await publishSnapshotUpdate(refreshed);
     await calculateAndPublishDailyFilters();
   } catch (error) {
     console.error('[ALL-SYMBOLS-SNAPSHOT] Refresh failed; previous valid snapshot retained and next attempt will retry:', error.message);
