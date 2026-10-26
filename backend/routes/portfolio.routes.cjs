@@ -5,7 +5,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/auth.middleware.cjs');
 const prismaModule = require('../config/prisma.cjs');
 const prisma = prismaModule.prisma || prismaModule;
-const sharedMarketService = require('../services/sharedMarket.service.cjs');
+const allSymbolsSnapshotService = require('../services/allSymbolsSnapshot.service.cjs');
 
 function getUserId(req) {
   const raw = req.user && (req.user.id ?? req.user.userId);
@@ -28,41 +28,45 @@ function normalizeItem(item) {
 async function enrichWithRealQuotes(items) {
   if (!items.length) return [];
 
-  const symbols = Array.from(new Set(items.map(item => item.symbol).filter(Boolean)));
-  let marketRows = [];
+  // Portfolio quotes must come exclusively from the centrally stored AllSymbols
+  // snapshot. A portfolio view must never trigger an individual BRS request.
+  let snapshot;
   try {
-    marketRows = await prisma.marketSymbolCurrent.findMany({
-      where: { symbol: { in: symbols } },
-      orderBy: { updatedAt: 'desc' },
-    });
+    snapshot = await allSymbolsSnapshotService.getSnapshot();
   } catch (error) {
-    console.error('[PORTFOLIO] Shared quote batch read failed:', error.message);
+    console.error('[PORTFOLIO] AllSymbols snapshot read failed:', error.message);
+    snapshot = null;
   }
 
   const quoteMap = new Map();
-  for (const row of marketRows) {
-    const symbol = String(row.symbol || '').trim().toUpperCase();
-    if (!symbol || quoteMap.has(symbol)) continue;
-    quoteMap.set(symbol, sharedMarketService.normalizeSymbol(row));
+  if (snapshot && snapshot.status === 'FOUND' && Array.isArray(snapshot.symbols)) {
+    for (const row of snapshot.symbols) {
+      const symbol = String(row.symbol || '').trim().toUpperCase();
+      if (!symbol || quoteMap.has(symbol)) continue;
+      quoteMap.set(symbol, row);
+    }
   }
 
   return items.map(item => {
     const quote = quoteMap.get(item.symbol);
-    const currentPrice = quote ? Number(quote.lastPrice ?? quote.closePrice) : null;
-    const hasPrice = Number.isFinite(currentPrice) && currentPrice > 0;
-    const stale = !quote || quote.isStale === true;
-    const dataStatus = !hasPrice ? 'UNAVAILABLE' : (stale ? 'CACHED' : 'LIVE');
+    const currentPriceValue = quote ? Number(quote.lastPrice ?? quote.lastTradedPrice) : NaN;
+    const currentPrice = Number.isFinite(currentPriceValue) && currentPriceValue > 0 ? currentPriceValue : null;
+    const changeValue = quote ? Number(quote.lastChangePercent ?? quote.changePercent) : NaN;
+    const changePercent = Number.isFinite(changeValue) ? changeValue : null;
+    const hasPrice = currentPrice !== null;
+    const hasSnapshot = Boolean(snapshot && snapshot.status === 'FOUND');
 
     return {
       ...item,
-      currentPrice: hasPrice ? currentPrice : null,
-      changePercent: quote
-        ? Number(quote.lastChangePercent ?? quote.changePercent ?? quote.last_change_percent ?? quote.percentChange ?? quote.pcp)
+      name: item.name || (quote && quote.name) || item.symbol,
+      currentPrice,
+      changePercent,
+      dataStatus: hasPrice ? 'CACHED' : 'UNAVAILABLE',
+      source: hasSnapshot ? (snapshot.source || 'AllSymbolsSnapshot') : null,
+      fetchedAt: hasSnapshot && snapshot.snapshotUpdatedAt
+        ? new Date(snapshot.snapshotUpdatedAt).toISOString()
         : null,
-      dataStatus,
-      source: quote ? (quote.source || 'shared-db') : null,
-      fetchedAt: quote ? (quote.updatedAt || null) : null,
-      stale
+      stale: !hasSnapshot
     };
   });
 }
