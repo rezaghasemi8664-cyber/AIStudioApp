@@ -1,5 +1,7 @@
 'use strict';
 const zlib = require('zlib');
+const crypto = require('crypto');
+const prisma = require('../config/prisma.cjs');
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_BYTES = 16 * 1024 * 1024;
 function envNumber(name,fallback,min,max){const v=Number(process.env[name]);return Number.isFinite(v)?Math.min(max,Math.max(min,v)):fallback;}
@@ -142,7 +144,7 @@ function findMetricValues(sheets){
   return Object.fromEntries(Object.entries(best).map(([k,v])=>[k,{value:v.value,sheet:v.sheet,label:v.label,confidence:v.confidence,priority:v.priority,distance:v.distance}]));
 }
 async function extractFinancialDataFromExcel(rawUrl){const downloaded=await downloadDocument(rawUrl);if(!looksLikeExcel(downloaded.contentType,downloaded.finalUrl,downloaded.buffer))throw new Error('CODAL attachment is not recognized as an Excel document');const sheets=extractExcelRows(downloaded.buffer);return{sourceType:'excel',url:downloaded.finalUrl,bytes:downloaded.bytes,sheetCount:sheets.length,metrics:findMetricValues(sheets)};}
-async function extractFinancialDataFromAnnouncement(announcement){
+async function extractFinancialDataFromAnnouncementLive(announcement){
   const candidates=[];
   const addCandidate=(url,type)=>{const value=String(url||'').trim();if(!value)return;let resolved;try{resolved=validateDocumentUrl(value)}catch(_error){return}if(!candidates.some(x=>x.url===resolved))candidates.push({url:resolved,type});};
   addCandidate(announcement&&(announcement.link_excel||announcement.linkExcel),'excel');
@@ -220,4 +222,79 @@ async function extractFinancialDataFromAnnouncement(announcement){
     metrics:{}
   };
 }
-module.exports={normalizeDigits,normalizeText,normalizeMetricLabel,parseNumber,validateDocumentUrl,downloadDocument,extractZipEntries,extractExcelRows,findMetricValues,extractFinancialDataFromExcel,extractFinancialDataFromAnnouncement};
+
+function announcementKey(announcement) {
+  const item = announcement && typeof announcement === 'object' ? announcement : {};
+  const identity = [
+    item.code, item.link, item.linkPdf || item.link_pdf, item.linkExcel || item.link_excel,
+    item.dateSend || item.date_send, item.title, item.l18 || item.symbol
+  ].map(value => String(value || '').trim()).join('|');
+  return crypto.createHash('sha256').update(identity).digest('hex');
+}
+
+async function extractFinancialDataFromAnnouncement(announcement) {
+  const key = announcementKey(announcement);
+  const rows = await prisma.$queryRaw`SELECT Status, SourceType, SourceUrl, MetricsJson, ByteCount, ExtractedAt, LastError FROM dbo.CodalFinancialDocumentCache WHERE AnnouncementKey = ${key}`;
+  if (!rows.length) {
+    return { available: false, cached: false, pending: true, sourceType: null, reason: 'داده عددی این اطلاعیه هنوز در اسنپ‌شات اسناد مالی ذخیره نشده است.', metrics: {} };
+  }
+  const row = rows[0];
+  let metrics = {};
+  try { metrics = row.MetricsJson ? JSON.parse(row.MetricsJson) : {}; } catch (_) {}
+  return {
+    available: String(row.Status) === 'AVAILABLE' && Object.keys(metrics).length > 0,
+    cached: true,
+    pending: false,
+    sourceType: row.SourceType || null,
+    url: row.SourceUrl || null,
+    bytes: Number(row.ByteCount || 0),
+    extractedAt: row.ExtractedAt ? new Date(row.ExtractedAt).toISOString() : null,
+    reason: row.LastError || (Object.keys(metrics).length ? 'داده مالی از اسنپ‌شات پایگاه داده خوانده شد.' : 'در سند ذخیره‌شده شاخص مالی قابل استفاده پیدا نشد.'),
+    metrics
+  };
+}
+
+async function refreshFinancialDocumentCache({ limit = 25 } = {}) {
+  const max = Math.max(1, Math.min(50, Number(limit) || 25));
+  const rows = await prisma.$queryRawUnsafe(
+    "SELECT TOP (" + max + ") a.AnnouncementKey, a.PayloadJson FROM dbo.CodalAnnouncement a LEFT JOIN dbo.CodalFinancialDocumentCache c ON c.AnnouncementKey = a.AnnouncementKey WHERE (a.PayloadJson LIKE '%linkExcel%' OR a.PayloadJson LIKE '%link_excel%' OR a.PayloadJson LIKE '%linkAttachment%' OR a.PayloadJson LIKE '%link_attachment%' OR a.PayloadJson LIKE '%linkReport%' OR a.PayloadJson LIKE '%link_report%') AND (c.AnnouncementKey IS NULL OR (c.Status = 'UNAVAILABLE' AND c.ExtractedAt < DATEADD(day, -7, SYSUTCDATETIME()))) ORDER BY a.PublishedAt DESC"
+  );
+  let processed = 0, available = 0, unavailable = 0;
+  for (const row of rows) {
+    let announcement;
+    try { announcement = JSON.parse(row.PayloadJson); } catch (_) { continue; }
+    let result;
+    try {
+      result = await extractFinancialDataFromAnnouncementLive(announcement);
+    } catch (error) {
+      result = { available: false, sourceType: null, url: null, bytes: 0, metrics: {}, reason: String(error.message || error).slice(0, 2000) };
+    }
+    const status = result.available && Object.keys(result.metrics || {}).length ? 'AVAILABLE' : 'UNAVAILABLE';
+    const metricsJson = JSON.stringify(result.metrics || {});
+    const sourceType = result.sourceType || null;
+    const sourceUrl = result.url || null;
+    const byteCount = Number(result.bytes || 0);
+    const lastError = status === 'AVAILABLE' ? null : String(result.reason || 'No usable financial metrics').slice(0, 2000);
+    await prisma.$executeRaw`IF EXISTS (SELECT 1 FROM dbo.CodalFinancialDocumentCache WHERE AnnouncementKey = ${row.AnnouncementKey}) UPDATE dbo.CodalFinancialDocumentCache SET Status = ${status}, SourceType = ${sourceType}, SourceUrl = ${sourceUrl}, MetricsJson = ${metricsJson}, ByteCount = ${byteCount}, ExtractedAt = SYSUTCDATETIME(), LastError = ${lastError} WHERE AnnouncementKey = ${row.AnnouncementKey} ELSE INSERT INTO dbo.CodalFinancialDocumentCache (AnnouncementKey, Status, SourceType, SourceUrl, MetricsJson, ByteCount, ExtractedAt, LastError) VALUES (${row.AnnouncementKey}, ${status}, ${sourceType}, ${sourceUrl}, ${metricsJson}, ${byteCount}, SYSUTCDATETIME(), ${lastError})`;
+    processed += 1;
+    if (status === 'AVAILABLE') available += 1; else unavailable += 1;
+  }
+  return { success: true, processed, available, unavailable, limit: max };
+}
+
+let documentCacheTasks = [];
+function startFinancialDocumentCacheCron() {
+  if (documentCacheTasks.length) return;
+  const cron = require('node-cron');
+  documentCacheTasks = [
+    cron.schedule('20 8 * * *', () => refreshFinancialDocumentCache({ limit: 25 }).catch(error => console.error('[CODAL DOC CACHE] morning refresh failed:', error.message || error)), { timezone: 'Asia/Tehran' }),
+    cron.schedule('50 13 * * *', () => refreshFinancialDocumentCache({ limit: 25 }).catch(error => console.error('[CODAL DOC CACHE] afternoon refresh failed:', error.message || error)), { timezone: 'Asia/Tehran' })
+  ];
+  console.log('[CODAL DOC CACHE] scheduled for 08:20 and 13:50 Asia/Tehran; max 25 documents per run');
+}
+function stopFinancialDocumentCacheCron() {
+  for (const task of documentCacheTasks) task.stop();
+  documentCacheTasks = [];
+}
+
+module.exports={normalizeDigits,normalizeText,normalizeMetricLabel,parseNumber,validateDocumentUrl,downloadDocument,extractZipEntries,extractExcelRows,findMetricValues,extractFinancialDataFromExcel,extractFinancialDataFromAnnouncement,refreshFinancialDocumentCache,startFinancialDocumentCacheCron,stopFinancialDocumentCacheCron};
