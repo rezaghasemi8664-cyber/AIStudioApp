@@ -157,12 +157,8 @@ function buildSummary(items) {
 async function getReports({ symbol = '', from = '', to = '', limit = 50 } = {}) {
   const snapshot = require('./codalSnapshot.service.cjs');
   const boundedLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
-  const archived = await snapshot.getArchivedReports({ symbol });
-  const normalizeDate = value => normalizeDigits(value).replace(/[^0-9]/g, '');
-  let items = archived.map(normalizeItem).filter(item => item.title || item.symbol || item.publishDate || item.url);
-  if (from) items = items.filter(item => normalizeDate(item.publishDate) >= normalizeDate(from));
-  if (to) items = items.filter(item => normalizeDate(item.publishDate) <= normalizeDate(to));
-  items = items.slice(0, boundedLimit);
+  const archived = await snapshot.getArchivedReports({ symbol, from, to, limit: boundedLimit });
+  let items = archived.map(normalizeItem).filter(item => item.title || item.symbol || item.publishDate || item.url).slice(0, boundedLimit);
   const status = await snapshot.getSnapshotStatus();
   return {
     items,
