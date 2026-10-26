@@ -257,7 +257,7 @@ async function extractFinancialDataFromAnnouncement(announcement) {
 async function refreshFinancialDocumentCache({ limit = 25 } = {}) {
   const max = Math.max(1, Math.min(50, Number(limit) || 25));
   const rows = await prisma.$queryRawUnsafe(
-    "SELECT TOP (" + max + ") a.AnnouncementKey, a.PayloadJson FROM dbo.CodalAnnouncement a LEFT JOIN dbo.CodalFinancialDocumentCache c ON c.AnnouncementKey = a.AnnouncementKey WHERE (a.PayloadJson LIKE '%linkExcel%' OR a.PayloadJson LIKE '%link_excel%' OR a.PayloadJson LIKE '%linkAttachment%' OR a.PayloadJson LIKE '%link_attachment%' OR a.PayloadJson LIKE '%linkReport%' OR a.PayloadJson LIKE '%link_report%') AND (c.AnnouncementKey IS NULL OR (c.Status = 'UNAVAILABLE' AND c.ExtractedAt < DATEADD(day, -7, SYSUTCDATETIME()))) ORDER BY a.PublishedAt DESC"
+    "SELECT TOP (" + max + ") a.AnnouncementKey, a.PayloadJson FROM dbo.CodalAnnouncement a LEFT JOIN dbo.CodalFinancialDocumentCache c ON c.AnnouncementKey = a.AnnouncementKey WHERE (NULLIF(JSON_VALUE(a.PayloadJson, '$.linkExcel'), '') IS NOT NULL OR NULLIF(JSON_VALUE(a.PayloadJson, '$.linkAttachment'), '') IS NOT NULL OR NULLIF(JSON_VALUE(a.PayloadJson, '$.link'), '') IS NOT NULL OR NULLIF(JSON_VALUE(a.PayloadJson, '$.linkPdf'), '') IS NOT NULL) AND (c.AnnouncementKey IS NULL OR (c.Status = 'UNAVAILABLE' AND c.ExtractedAt < DATEADD(day, -7, SYSUTCDATETIME()))) ORDER BY a.PublishedAt DESC"
   );
   let processed = 0, available = 0, unavailable = 0;
   for (const row of rows) {
