@@ -1,7 +1,5 @@
 'use strict';
 
-const axios = require('axios');
-
 function normalizeDigits(value) {
   return String(value ?? '').replace(/[۰-۹٠-٩]/g, digit => {
     const code = digit.charCodeAt(0);
