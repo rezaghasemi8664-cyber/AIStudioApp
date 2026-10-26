@@ -68,7 +68,7 @@ const StockProfile:React.FC<Props>=({isOnline})=>{
   const normalizeDigits=(value:string)=>value.replace(/[۰-۹]/g,char=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(char))).replace(/[٠-٩]/g,char=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(char)));
   const dated=history.filter(point=>{
    const normalized=normalizeDigits(String(point.date||'').trim());
-   const match=normalized.match(/^(\\d{4})[\\/-](\\d{1,2})[\\/-](\\d{1,2})/);
+   const match=normalized.match(/^(\d{4})[\\/-](\d{1,2})[\\/-](\d{1,2})/);
    if(!match)return false;
    const parts=match.slice(1).map(Number);
    if(parts[0]>=1300&&parts[0]<=1600){
