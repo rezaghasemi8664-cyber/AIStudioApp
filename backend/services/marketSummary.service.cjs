@@ -225,11 +225,12 @@ function buildBreadth(data) {
   const explicitLosers = normalizeMoverList(data?.topLosers);
   const explicitVolumes = normalizeMoverList(data?.topVolumes);
 
-  // Central worker/shared market service may already have calculated breadth
-  // from the real MarketSymbolCurrent snapshot. Prefer those values when no
-  // raw symbol array is embedded in marketData.
-  const rows = normalizeSymbolsList(data);
-  if (!rows.length && explicitTotal !== null) {
+  // The live/shared market service supplies these counts from the canonical
+  // versioned MarketSymbolCurrent snapshot. They must take precedence over any
+  // embedded raw symbol list: recalculating from that list uses different
+  // eligibility and percentage rules and causes the summary to disagree with
+  // the Market Indices tab.
+  if (explicitTotal !== null) {
     return {
       positive: explicitPositive,
       negative: explicitNegative,
@@ -241,6 +242,8 @@ function buildBreadth(data) {
       volumes: explicitVolumes
     };
   }
+
+  const rows = normalizeSymbolsList(data);
 
   const map = new Map();
   for (const row of rows) {
@@ -295,7 +298,11 @@ function trend(indexChange, equalChange, breadth) {
   return 'ترکیبی';
 }
 function extractSectorData(data) {
-  const sectors = data?.sectors || data?.sectorSummary || data?.sectorSummaries;
+  // Accept both the flat summary payload and the canonical snapshot's nested
+  // breadth.sectors structure. The scheduled path can carry the latter.
+  const sectors = data?.sectors || data?.industries || data?.sectorSummary ||
+    data?.sectorSummaries || data?.breadth?.sectors?.rows ||
+    data?.breadth?.sectors?.leaders;
   if (!Array.isArray(sectors)) return { leaders: [], laggards: [] };
   const normalized = sectors.map(x => ({
     name: firstString(x?.name, x?.sector, x?.title),
@@ -315,13 +322,14 @@ function extractSectorData(data) {
   return { leaders, laggards };
 }
 function extractMoneyFlow(data) {
-  const flow = data?.realFlow || data?.moneyFlow || data?.realMoneyFlow || {};
+  const flow = data?.realFlow || data?.moneyFlow || data?.realMoneyFlow ||
+    data?.breadth?.realFlow || data?.breadth?.moneyFlow || {};
   const netVolume = pickValue(flow, ['netRealBuyVolume', 'netVolume', 'net', 'realNet']);
   const buyVolume = pickValue(flow, ['totalRealBuyVolume', 'buyVolume']);
   const sellVolume = pickValue(flow, ['totalRealSellVolume', 'sellVolume']);
-  const netValue = pickValue(flow, ['netValue', 'netMoneyFlow']);
-  const buyValue = pickValue(flow, ['buyValue', 'realBuyValue']);
-  const sellValue = pickValue(flow, ['sellValue', 'realSellValue']);
+  const netValue = pickValue(flow, ['netRealMoneyFlow', 'netValue', 'netMoneyFlow']);
+  const buyValue = pickValue(flow, ['totalRealBuyValue', 'buyValue', 'realBuyValue']);
+  const sellValue = pickValue(flow, ['totalRealSellValue', 'sellValue', 'realSellValue']);
   return {
     net: netValue !== null ? netValue : netVolume,
     buy: buyValue !== null ? buyValue : buyVolume,
@@ -694,7 +702,12 @@ async function findLatestUsableMarketHistoryRow() {
 
   if (!market || !breadth) return null;
 
-  const industryRows = Array.isArray(industries) ? industries : [];
+  // Prefer persisted industry aggregates, but fall back to the industries
+  // already calculated inside the active versioned snapshot.
+  const industryRows = Array.isArray(industries) && industries.length
+    ? industries
+    : (Array.isArray(breadth?.sectors?.rows) ? breadth.sectors.rows
+      : Array.isArray(breadth?.sectors?.leaders) ? breadth.sectors.leaders : []);
   const marketData = {
     ...market,
     index: market.overallIndex,
@@ -715,14 +728,14 @@ async function findLatestUsableMarketHistoryRow() {
     breadthSnapshotRows: Array.isArray(breadth.snapshotRows) ? breadth.snapshotRows.length : null,
     breadthEligibleRows: breadth.total ?? null,
     industries: industryRows.map(x => ({
-      name: x.industryName,
-      changePercent: x.changePercent,
+      name: x.industryName || x.name || x.sector || x.title,
+      changePercent: x.changePercent ?? x.change,
       value: x.value,
       symbolCount: x.symbolCount
     })),
     sectors: industryRows.map(x => ({
-      name: x.industryName,
-      changePercent: x.changePercent,
+      name: x.industryName || x.name || x.sector || x.title,
+      changePercent: x.changePercent ?? x.change,
       value: x.value,
       symbolCount: x.symbolCount
     })),
@@ -824,6 +837,32 @@ async function ensureRecentTradingDaySummaries(daysBack = 7) {
     const targetDay = getTehranDayStart(reference);
     const existing = await findBySummaryDateSafe(targetDay);
     if (existing) {
+      // A previously saved daily summary may have been generated before the
+      // canonical snapshot's money-flow and industry enrichments were attached.
+      // Refresh only today's record, after the official cutoff, when those
+      // sections are explicitly missing; historical summaries remain untouched.
+      const savedText = String(existing.content || existing.summary || '');
+      const needsEnrichment = savedText.includes('داده جریان خرید و فروش حقیقی در دسترس نیست') ||
+        savedText.includes('داده صنعت در دسترس نیست');
+      if (offset === 0 && needsEnrichment && !isBeforeTodaysGenerationWindow()) {
+        const current = await findLatestUsableMarketHistoryRow();
+        const currentDataDate = current?.row?.createdAt
+          ? toDateOnlyISO(current.row.createdAt)
+          : null;
+        if (currentDataDate === toDateOnlyISO(reference) &&
+            isUsableMarketData(current.marketData) &&
+            !isLikelySyntheticMarketData(current.marketData) &&
+            hasActualTradingActivity(current.marketData)) {
+          const refreshed = await generateMarketSummary({
+            marketData: current.marketData,
+            fallbackDate: current.row.createdAt || reference
+          });
+          if (refreshed?.data) {
+            ensured.push({ date: toDateOnlyISO(targetDay), status: 'refreshed', id: refreshed.data.id });
+            continue;
+          }
+        }
+      }
       ensured.push({ date: toDateOnlyISO(targetDay), status: 'existing', id: existing.id });
       continue;
     }
