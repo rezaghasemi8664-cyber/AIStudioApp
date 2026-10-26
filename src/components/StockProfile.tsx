@@ -54,7 +54,32 @@ const StockProfile:React.FC<Props>=({isOnline})=>{
  const loadProfile=useCallback(async(requested:string)=>{const clean=requested.trim().toUpperCase();if(!clean)return;if(!isOnline){setError('برای دریافت پروفایل سهم باید آنلاین باشید.');return}setLoading(true);setError('');try{const response=await api.get(`/brs/symbol/${encodeURIComponent(clean)}`),raw=(response?.data?.data??response?.data??{}) as RawData;if(!raw||typeof raw!=='object'||raw.available===false)throw new Error('اطلاعات این نماد در سرویس بازار موجود نیست.');setSymbol(clean);setProfile(normalize(raw,clean));void loadHistory(clean)}catch(err:any){setProfile(null);setHistory([]);setError(err?.response?.data?.message||err?.message||'دریافت اطلاعات نماد ناموفق بود.')}finally{setLoading(false)}},[isOnline,loadHistory]);
  useEffect(()=>{void loadSymbols()},[loadSymbols]);
  const selectedWatchlist=useMemo(()=>symbols.find(item=>item.symbol===symbol),[symbols,symbol]);
- const filteredHistory=useMemo(()=>{if(history.length===0)return [];const latest=new Date();latest.setHours(23,59,59,999);const cutoff=new Date(latest);cutoff.setDate(cutoff.getDate()-rangeDays[historyRange]);const dated=history.filter(point=>{const parsed=new Date(`${point.date}T${point.time||'00:00:00'}`);return Number.isNaN(parsed.getTime())||parsed>=cutoff});return dated.length>=2?dated:history.slice(0,Math.min(history.length,rangeDays[historyRange]))},[history,historyRange]);
+ const filteredHistory=useMemo(()=>{
+  if(history.length===0)return [];
+  const cutoff=new Date();
+  cutoff.setHours(0,0,0,0);
+  cutoff.setDate(cutoff.getDate()-rangeDays[historyRange]);
+  const persianParts=(date:Date)=>{
+   const parts=new Intl.DateTimeFormat('en-US-u-ca-persian-nu-latn',{year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
+   const part=(type:string)=>Number(parts.find(item=>item.type===type)?.value||0);
+   return [part('year'),part('month'),part('day')];
+  };
+  const cutoffPersian=persianParts(cutoff);
+  const normalizeDigits=(value:string)=>value.replace(/[۰-۹]/g,char=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(char))).replace(/[٠-٩]/g,char=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(char)));
+  const dated=history.filter(point=>{
+   const normalized=normalizeDigits(String(point.date||'').trim());
+   const match=normalized.match(/^(\\d{4})[\\/-](\\d{1,2})[\\/-](\\d{1,2})/);
+   if(!match)return false;
+   const parts=match.slice(1).map(Number);
+   if(parts[0]>=1300&&parts[0]<=1600){
+    for(let i=0;i<3;i++){if(parts[i]!==cutoffPersian[i])return parts[i]>cutoffPersian[i];}
+    return true;
+   }
+   const parsed=new Date(`${normalized}T${point.time||'00:00:00'}`);
+   return !Number.isNaN(parsed.getTime())&&parsed>=cutoff;
+  });
+  return dated.length>=2?dated:history.slice(-Math.min(history.length,rangeDays[historyRange]));
+ },[history,historyRange]);
  const candleRows=useMemo(()=>filteredHistory.filter(row=>row.open!=null&&row.high!=null&&row.low!=null&&row.close!=null).map(row=>({date:row.date,time:row.time,open:row.open as number,high:row.high as number,low:row.low as number,close:row.close as number,volume:row.volume})),[filteredHistory]);
  const tableRows=useMemo(()=>filteredHistory.slice().reverse().slice(0,30),[filteredHistory]);
  const submit=(event:React.FormEvent)=>{event.preventDefault();void loadProfile(input)};const flowTone=(value:number|null)=>value==null?'text-gray-500':value>=0?'text-emerald-600':'text-red-600';
