@@ -245,7 +245,7 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
           const symbol = item.l18 == null ? null : String(item.l18);
           const category = item.category == null ? null : String(item.category);
           const title = item.title == null ? null : String(item.title);
-          const publishedAt = item.datePublish == null ? (item.dateSend == null ? null : String(item.dateSend)) : String(item.datePublish);
+          const publishedAt = item.datePublish == null ? (item.dateSend == null ? (item.dateTitle == null ? null : String(item.dateTitle)) : String(item.dateSend)) : String(item.datePublish);
           const payloadJson = JSON.stringify(item);
           const updated = await tx.$executeRaw`UPDATE dbo.CodalAnnouncement SET Symbol = ${symbol}, Category = ${category}, Title = ${title}, PublishedAt = ${publishedAt}, PayloadJson = ${payloadJson}, LastSnapshotId = ${snapshotId}, LastSeenAt = SYSUTCDATETIME() WHERE AnnouncementKey = ${key}`;
           if (!updated) {
@@ -327,6 +327,23 @@ async function getCompanyReports(options = {}) {
   };
 }
 
+async function getArchivedReports({ symbol = '', category = '', limit = 200 } = {}) {
+  const conditions = [];
+  const params = [];
+  if (symbol) { params.push(String(symbol).trim()); conditions.push('Symbol = @P' + params.length); }
+  if (category) { params.push(String(category).trim()); conditions.push('Category = @P' + params.length); }
+  const where = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
+  // Read the durable archive, not only the latest active snapshot, so older
+  // reporting periods remain available after subsequent refreshes.
+  const rows = await prisma.$queryRawUnsafe(
+    'SELECT AnnouncementKey, PayloadJson FROM dbo.CodalAnnouncement' + where + ' ORDER BY PublishedAt DESC, AnnouncementKey',
+    ...params
+  );
+  return rows.map(row => {
+    try { return JSON.parse(row.PayloadJson); } catch (_) { return null; }
+  }).filter(Boolean);
+}
+
 async function getReports({ symbol = '', from = '', to = '', limit = 50 } = {}) {
   const boundedLimit = Math.max(1, Math.min(200, Number(limit) || 50));
   const stored = await getCompanyReports({ symbol, page: 1 });
@@ -365,4 +382,4 @@ async function getSnapshotStatus() {
   return { state: rows[0] || null, usage: await readUsage() };
 }
 
-module.exports = { getCompanyReports, getReports, refreshSnapshot, startCodalSnapshotCron, stopCodalSnapshotCron, getSnapshotStatus, normalizeAnnouncement };
+module.exports = { getCompanyReports, getArchivedReports, getReports, refreshSnapshot, startCodalSnapshotCron, stopCodalSnapshotCron, getSnapshotStatus, normalizeAnnouncement };
