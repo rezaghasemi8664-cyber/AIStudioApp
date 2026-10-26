@@ -368,67 +368,78 @@ function technicalDirection(score) {
 }
 async function getHistoricalIndexSeries(referenceDate, limit = 60) {
   const targetDay = toDateOnlyISO(referenceDate);
+  const count = Math.max(1, Number(limit) || 60);
   const technicalModel = getModel(prisma, 'MarketTechnicalDaily', 'marketTechnicalDaily');
+  const currentModel = getModel(prisma, 'MarketCurrent', 'marketCurrent');
+  const byDay = new Map();
+
+  // Prefer canonical MarketCurrent values for dates present in both tables.
+  // This prevents a stale daily technical row from shadowing a newer snapshot.
+  if (currentModel) {
+    try {
+      const rows = await currentModel.findMany({
+        orderBy: [{ marketDate: 'desc' }, { updatedAt: 'desc' }],
+        take: Math.max(count, 90),
+        select: { marketDate: true, overallIndex: true, updatedAt: true }
+      });
+      for (const row of rows) {
+        const date = toDateOnlyISO(row.marketDate);
+        const index = Number(row.overallIndex);
+        if (!date || date === targetDay || !Number.isFinite(index) || index <= 0) continue;
+        if (!byDay.has(date)) byDay.set(date, { date, createdAt: row.updatedAt, index, source: 'MarketCurrent' });
+      }
+    } catch (error) {
+      console.warn('[TECHNICAL] MarketCurrent history read failed:', error?.message || error);
+    }
+  }
 
   if (technicalModel) {
     try {
       const rows = await technicalModel.findMany({
         orderBy: { marketDate: 'desc' },
-        take: Math.max(1, Number(limit) || 60),
+        take: Math.max(count, 90),
         select: { marketDate: true, overallIndex: true, createdAt: true }
       });
-
-      const daily = rows
-        .filter(row => toDateOnlyISO(row.marketDate) !== targetDay)
-        .map(row => {
-          const index = Number(row.overallIndex);
-          return Number.isFinite(index) && index > 0
-            ? {
-                date: toDateOnlyISO(row.marketDate),
-                createdAt: row.createdAt,
-                index
-              }
-            : null;
-        })
-        .filter(Boolean)
-        .sort((a, b) => String(a.date).localeCompare(String(b.date)));
-
-      if (daily.length > 0) return daily.slice(-Math.max(1, Number(limit) || 60));
+      for (const row of rows) {
+        const date = toDateOnlyISO(row.marketDate);
+        const index = Number(row.overallIndex);
+        if (!date || date === targetDay || !Number.isFinite(index) || index <= 0 || byDay.has(date)) continue;
+        byDay.set(date, { date, createdAt: row.createdAt, index, source: 'MarketTechnicalDaily' });
+      }
     } catch (error) {
       console.warn('[TECHNICAL] MarketTechnicalDaily read failed:', error?.message || error);
     }
   }
 
-  // Transitional fallback: use real MarketHistory only when the daily technical
-  // table is not populated yet. This keeps existing summaries functional while
-  // the new end-of-day history is being backfilled.
-  const model = getMarketHistoryModel();
-  if (!model) return [];
-
-  try {
-    const rows = await model.findMany({
-      where: { marketDate: { not: null } },
-      orderBy: [{ marketDate: 'desc' }, { updatedAt: 'desc' }],
-      take: 3000,
-      select: { id: true, jsonData: true, marketDate: true, updatedAt: true, createdAt: true }
-    });
-    const byDay = new Map();
-    for (const row of rows) {
-      const day = toDateOnlyISO(row.marketDate);
-      if (!day || day === targetDay) continue;
-      const candidate = extractMarketDataCandidate(parseJsonSafe(row.jsonData));
-      if (!candidate || isLikelySyntheticMarketData(candidate)) continue;
-      const index = pickValue(candidate, FIELD_KEYS.index);
-      if (index === null) continue;
-      const snapshotAt = row.updatedAt || row.createdAt;
-      byDay.set(day, { date: day, createdAt: snapshotAt, updatedAt: row.updatedAt, index });
+  // Transitional fallback only when neither canonical nor daily rows supplied
+  // a usable history. Never let stale MarketHistory override current tables.
+  if (byDay.size === 0) {
+    const model = getMarketHistoryModel();
+    if (!model) return [];
+    try {
+      const rows = await model.findMany({
+        where: { marketDate: { not: null } },
+        orderBy: [{ marketDate: 'desc' }, { updatedAt: 'desc' }],
+        take: 3000,
+        select: { id: true, jsonData: true, marketDate: true, updatedAt: true, createdAt: true }
+      });
+      for (const row of rows) {
+        const date = toDateOnlyISO(row.marketDate);
+        if (!date || date === targetDay || byDay.has(date)) continue;
+        const candidate = extractMarketDataCandidate(parseJsonSafe(row.jsonData));
+        if (!candidate || isLikelySyntheticMarketData(candidate)) continue;
+        const index = pickValue(candidate, FIELD_KEYS.index);
+        if (index === null || index <= 0) continue;
+        byDay.set(date, { date, createdAt: row.updatedAt || row.createdAt, index, source: 'MarketHistory' });
+      }
+    } catch (error) {
+      console.warn('[TECHNICAL] MarketHistory fallback read failed:', error?.message || error);
     }
-    return [...byDay.values()]
-      .sort((a, b) => String(a.date).localeCompare(String(b.date)))
-      .slice(-Math.max(1, Number(limit) || 60));
-  } catch (_) {
-    return [];
   }
+
+  return [...byDay.values()]
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+    .slice(-count);
 }
 
 
