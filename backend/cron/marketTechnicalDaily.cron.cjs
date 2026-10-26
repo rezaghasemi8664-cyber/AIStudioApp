@@ -107,39 +107,54 @@ async function writeMarketTechnicalDaily() {
   const marketDate = dayValue(now);
   const key = dayKey(now);
   if (!tradingWeekday(now)) return { skipped: true, reason: 'NON_TRADING_WEEKDAY' };
-  const existing = await prisma.marketTechnicalDaily.findUnique({ where: { marketDate } });
-  if (existing) { const deleted = await pruneOldTechnicalDailyRecords(); return { skipped: true, reason: 'ALREADY_EXISTS', id: existing.id, deleted }; }
 
-  const rows = await prisma.marketHistory.findMany({
-    orderBy: { createdAt: 'desc' }, take: 60,
-    select: { id: true, createdAt: true, jsonData: true }
-  });
-  const row = rows.find(r => dayKey(r.createdAt) === key);
-  if (!row) return { skipped: true, reason: 'NO_TODAY_SNAPSHOT' };
-
-  let raw;
-  try { raw = JSON.parse(row.jsonData || '{}'); } catch { return { skipped: true, reason: 'INVALID_SNAPSHOT' }; }
-  const index = n(raw.index ?? raw.marketIndex ?? raw.indexValue ?? raw.lastIndex);
-  if (!(index > 0)) return { skipped: true, reason: 'INVALID_INDEX' };
-
-  const saved = await prisma.marketTechnicalDaily.create({
-    data: {
-      marketDate,
-      overallIndex: index,
-      overallChange: n(raw.index_change ?? raw.indexChange ?? raw.changeValue),
-      equalIndex: n(raw.indexEqualWeight ?? raw.index_equalWeight ?? raw.equalWeightedIndex),
-      equalChange: n(raw.indexEqualWeightChange ?? raw.index_equalWeight_change ?? raw.equalWeightedChangeValue),
-      source: String(raw.source || 'market-history').slice(0, 50)
+  // MarketCurrent is the canonical one-row-per-trading-day index snapshot.
+  // MarketHistory is a legacy table and stopped receiving snapshots.
+  const current = await prisma.marketCurrent.findUnique({
+    where: { marketDate },
+    select: {
+      marketDate: true,
+      overallIndex: true,
+      overallChange: true,
+      equalIndex: true,
+      equalChange: true,
+      source: true,
+      updatedAt: true
     }
   });
+  const index = n(current?.overallIndex);
+  if (!current || !(index > 0)) {
+    return { skipped: true, reason: 'NO_TODAY_MARKET_CURRENT' };
+  }
+
+  const saved = await prisma.marketTechnicalDaily.upsert({
+    where: { marketDate },
+    create: {
+      marketDate,
+      overallIndex: index,
+      overallChange: n(current.overallChange),
+      equalIndex: n(current.equalIndex),
+      equalChange: n(current.equalChange),
+      source: String(current.source || 'market-current').slice(0, 50)
+    },
+    update: {
+      overallIndex: index,
+      overallChange: n(current.overallChange),
+      equalIndex: n(current.equalIndex),
+      equalChange: n(current.equalChange),
+      source: String(current.source || 'market-current').slice(0, 50)
+    }
+  });
+
   const deleted = await pruneOldTechnicalDailyRecords();
-  console.log('[CRON][MarketTechnicalDaily] saved', saved.id, key, row.id, index, 'pruned', deleted);
-  return { created: true, id: saved.id, deleted };
+  console.log('[CRON][MarketTechnicalDaily] saved from MarketCurrent', saved.id, key, index, 'sourceUpdatedAt', current.updatedAt, 'pruned', deleted);
+  return { createdOrUpdated: true, id: saved.id, deleted };
 }
 
 function registerMarketTechnicalDailyCron() {
   cron.schedule('32 12 * * 0,1,2,3,6', () => writeMarketTechnicalDaily().catch(e => console.error('[CRON][MarketTechnicalDaily]', e.message)), { timezone: TZ });
-  console.log('[CRON] MarketTechnicalDaily scheduled 12:32 Tehran');
+  cron.schedule('35 12 * * 0,1,2,3,6', () => backfillMarketTechnicalDaily().catch(e => console.error('[CRON][MarketTechnicalDaily][BACKFILL]', e.message)), { timezone: TZ });
+  console.log('[CRON] MarketTechnicalDaily scheduled 12:32 Tehran; canonical history backfill scheduled 12:35 Tehran');
 }
 
 module.exports = { registerMarketTechnicalDailyCron, writeMarketTechnicalDaily, backfillMarketTechnicalDaily };
