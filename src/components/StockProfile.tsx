@@ -23,6 +23,20 @@ function compareHistoryPoints(a: HistoryPoint, b: HistoryPoint): number {
  return String(a.time || '').localeCompare(String(b.time || ''));
 }
 
+function historyDayNumber(value:string):number|null {
+ const normalized=String(value||'').replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+ const parts=normalized.match(/\\d+/g)||[];
+ if(parts.length<3)return null;
+ const [year,month,day]=parts.slice(0,3).map(Number);
+ if(!year||month<1||month>12||day<1||day>31)return null;
+ if(year>=1200&&year<=1600){
+  const shiftedYear=year+1595;
+  return -355668+365*shiftedYear+Math.floor(shiftedYear/33)*8+Math.floor(((shiftedYear%33)+3)/4)+day+(month<7?(month-1)*31:(month-7)*30+186);
+ }
+ const timestamp=Date.UTC(year,month-1,day);
+ return Number.isFinite(timestamp)?Math.floor(timestamp/86400000):null;
+}
+
 function normalize(raw:RawData,fallbackSymbol:string):ProfileData{
  const price=(raw.price&&typeof raw.price==='object'?raw.price:{}) as RawData,trading=(raw.trading&&typeof raw.trading==='object'?raw.trading:{}) as RawData,fundamental=(raw.fundamental&&typeof raw.fundamental==='object'?raw.fundamental:{}) as RawData,moneyFlow=(raw.moneyFlow&&typeof raw.moneyFlow==='object'?raw.moneyFlow:{}) as RawData,real=(moneyFlow.real&&typeof moneyFlow.real==='object'?moneyFlow.real:{}) as RawData;
  const legalSource=moneyFlow.legal??moneyFlow.institutional,legal=(legalSource&&typeof legalSource==='object'?legalSource:{}) as RawData;
@@ -54,7 +68,7 @@ const StockProfile:React.FC<Props>=({isOnline})=>{
  const loadProfile=useCallback(async(requested:string)=>{const clean=requested.trim().toUpperCase();if(!clean)return;if(!isOnline){setError('برای دریافت پروفایل سهم باید آنلاین باشید.');return}setLoading(true);setError('');try{const response=await api.get(`/brs/symbol/${encodeURIComponent(clean)}`),raw=(response?.data?.data??response?.data??{}) as RawData;if(!raw||typeof raw!=='object'||raw.available===false)throw new Error('اطلاعات این نماد در سرویس بازار موجود نیست.');setSymbol(clean);setProfile(normalize(raw,clean));void loadHistory(clean)}catch(err:any){setProfile(null);setHistory([]);setError(err?.response?.data?.message||err?.message||'دریافت اطلاعات نماد ناموفق بود.')}finally{setLoading(false)}},[isOnline,loadHistory]);
  useEffect(()=>{void loadSymbols()},[loadSymbols]);
  const selectedWatchlist=useMemo(()=>symbols.find(item=>item.symbol===symbol),[symbols,symbol]);
- const filteredHistory=useMemo(()=>{if(history.length===0)return [];const latest=new Date();latest.setHours(23,59,59,999);const cutoff=new Date(latest);cutoff.setDate(cutoff.getDate()-rangeDays[historyRange]);const dated=history.filter(point=>{const parsed=new Date(`${point.date}T${point.time||'00:00:00'}`);return Number.isNaN(parsed.getTime())||parsed>=cutoff});return dated.length>=2?dated:history.slice(0,Math.min(history.length,rangeDays[historyRange]))},[history,historyRange]);
+ const filteredHistory=useMemo(()=>{if(history.length===0)return [];const dated=history.map(point=>({point,day:historyDayNumber(point.date)}));const validDays=dated.map(item=>item.day).filter((day):day is number=>day!=null);if(validDays.length===history.length){const latest=Math.max(...validDays),cutoff=latest-rangeDays[historyRange],filtered=dated.filter(item=>item.day!=null&&item.day>=cutoff).map(item=>item.point);if(filtered.length>=2)return filtered;}const estimatedSessions=Math.max(2,Math.round(rangeDays[historyRange]*0.72));return history.slice(-Math.min(history.length,estimatedSessions));},[history,historyRange]);
  const candleRows=useMemo(()=>filteredHistory.filter(row=>row.open!=null&&row.high!=null&&row.low!=null&&row.close!=null).map(row=>({date:row.date,time:row.time,open:row.open as number,high:row.high as number,low:row.low as number,close:row.close as number,volume:row.volume})),[filteredHistory]);
  const tableRows=useMemo(()=>filteredHistory.slice().reverse().slice(0,30),[filteredHistory]);
  const submit=(event:React.FormEvent)=>{event.preventDefault();void loadProfile(input)};const flowTone=(value:number|null)=>value==null?'text-gray-500':value>=0?'text-emerald-600':'text-red-600';
