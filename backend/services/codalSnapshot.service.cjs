@@ -297,19 +297,21 @@ async function getCompanyReports(options = {}) {
   const category = options.category == null ? '' : String(options.category).trim();
   const page = Math.max(1, Number(options.page) || 1);
   const pageSize = 200;
-  const conditions = [];
-  if (symbol) conditions.push('Symbol = @P' + (conditions.length + 1));
-  if (category) conditions.push('Category = @P' + (conditions.length + 1));
-  const params = [];
-  if (symbol) params.push(symbol);
-  if (category) params.push(category);
-  const where = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
+  const state = await prisma.$queryRaw`SELECT ActiveSnapshotId, LastSuccessAt, AnnouncementCount, PageCount FROM dbo.CodalSnapshotState WHERE StateId = 1`;
+  const activeId = state[0] && state[0].ActiveSnapshotId ? String(state[0].ActiveSnapshotId) : '';
+  if (!activeId) {
+    return { success: true, provider: 'CODAL_DB_SNAPSHOT', symbol: symbol || null, announcements: [], countAnnouncement: 0, countPage: 0, page, fetchedAt: null, snapshotId: null, stale: true };
+  }
+  const conditions = ['SnapshotId = @P1'];
+  const params = [activeId];
+  if (symbol) { params.push(symbol); conditions.push('Symbol = @P' + params.length); }
+  if (category) { params.push(category); conditions.push('Category = @P' + params.length); }
+  const where = ' WHERE ' + conditions.join(' AND ');
   const rows = await prisma.$queryRawUnsafe(
-    'SELECT AnnouncementKey, PayloadJson FROM dbo.CodalAnnouncement' + where + ' ORDER BY PublishedAt DESC, LastSeenAt DESC OFFSET ' + ((page - 1) * pageSize) + ' ROWS FETCH NEXT ' + pageSize + ' ROWS ONLY',
+    'SELECT AnnouncementKey, PayloadJson FROM dbo.CodalSnapshotAnnouncement' + where + ' ORDER BY PublishedAt DESC, AnnouncementKey OFFSET ' + ((page - 1) * pageSize) + ' ROWS FETCH NEXT ' + pageSize + ' ROWS ONLY',
     ...params
   );
-  const state = await prisma.$queryRaw`SELECT ActiveSnapshotId, LastSuccessAt, AnnouncementCount, PageCount FROM dbo.CodalSnapshotState WHERE StateId = 1`;
-  const countRows = await prisma.$queryRawUnsafe('SELECT COUNT_BIG(1) AS Total FROM dbo.CodalAnnouncement' + where, ...params);
+  const countRows = await prisma.$queryRawUnsafe('SELECT COUNT_BIG(1) AS Total FROM dbo.CodalSnapshotAnnouncement' + where, ...params);
   const total = Number(countRows[0] && countRows[0].Total || 0);
   return {
     success: true,
@@ -319,35 +321,28 @@ async function getCompanyReports(options = {}) {
     countAnnouncement: total,
     countPage: Math.ceil(total / pageSize),
     page,
-    fetchedAt: state[0] && state[0].LastSuccessAt ? new Date(state[0].LastSuccessAt).toISOString() : null,
-    snapshotId: state[0] && state[0].ActiveSnapshotId ? String(state[0].ActiveSnapshotId) : null,
-    stale: !state[0] || !state[0].LastSuccessAt
+    fetchedAt: state[0].LastSuccessAt ? new Date(state[0].LastSuccessAt).toISOString() : null,
+    snapshotId: activeId,
+    stale: false
   };
 }
 
 async function getReports({ symbol = '', from = '', to = '', limit = 50 } = {}) {
   const boundedLimit = Math.max(1, Math.min(200, Number(limit) || 50));
-  const where = [];
-  const params = [];
-  if (symbol) { params.push(String(symbol).trim()); where.push('Symbol = @P' + params.length); }
-  const sqlWhere = where.length ? ' WHERE ' + where.join(' AND ') : '';
-  const rows = await prisma.$queryRawUnsafe(
-    'SELECT PayloadJson FROM dbo.CodalAnnouncement' + sqlWhere + ' ORDER BY PublishedAt DESC, LastSeenAt DESC OFFSET 0 ROWS FETCH NEXT ' + boundedLimit + ' ROWS ONLY',
-    ...params
-  );
-  let items = rows.map(row => { try { return JSON.parse(row.PayloadJson); } catch (_) { return null; } }).filter(Boolean);
+  const stored = await getCompanyReports({ symbol, page: 1 });
   const normalizeDate = value => String(value || '').replace(/[^0-9]/g, '');
+  let items = stored.announcements || [];
   if (from) items = items.filter(item => normalizeDate(item.datePublish || item.dateSend || item.dateTitle) >= normalizeDate(from));
   if (to) items = items.filter(item => normalizeDate(item.datePublish || item.dateSend || item.dateTitle) <= normalizeDate(to));
-  const state = await prisma.$queryRaw`SELECT ActiveSnapshotId, LastSuccessAt FROM dbo.CodalSnapshotState WHERE StateId = 1`;
+  items = items.slice(0, boundedLimit);
   return {
     items,
     summary: null,
-    fetchedAt: state[0] && state[0].LastSuccessAt ? new Date(state[0].LastSuccessAt).toISOString() : null,
+    fetchedAt: stored.fetchedAt || null,
     source: 'codal-db-snapshot',
     configured: true,
-    snapshotId: state[0] && state[0].ActiveSnapshotId ? String(state[0].ActiveSnapshotId) : null,
-    stale: !state[0] || !state[0].LastSuccessAt
+    snapshotId: stored.snapshotId || null,
+    stale: Boolean(stored.stale)
   };
 }
 
