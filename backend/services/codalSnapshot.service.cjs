@@ -216,29 +216,72 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
       throw error;
     }
 
-    await prisma.$transaction(async tx => {
-      for (const item of unique.values()) {
-        const key = item._archiveKey;
-        const symbol = item.l18 == null ? null : String(item.l18);
-        const category = item.category == null ? null : String(item.category);
-        const title = item.title == null ? null : String(item.title);
-        const publishedAt = item.datePublish == null ? (item.dateSend == null ? null : String(item.dateSend)) : String(item.datePublish);
-        const payloadJson = JSON.stringify(item);
-        const updated = await tx.$executeRaw`UPDATE dbo.CodalAnnouncement SET Symbol = ${symbol}, Category = ${category}, Title = ${title}, PublishedAt = ${publishedAt}, PayloadJson = ${payloadJson}, LastSnapshotId = ${snapshotId}, LastSeenAt = SYSUTCDATETIME() WHERE AnnouncementKey = ${key}`;
-        if (!updated) {
-          await tx.$executeRaw`INSERT INTO dbo.CodalAnnouncement (AnnouncementKey, Symbol, Category, Title, PublishedAt, PayloadJson, LastSnapshotId, FirstSeenAt, LastSeenAt) VALUES (${key}, ${symbol}, ${category}, ${title}, ${publishedAt}, ${payloadJson}, ${snapshotId}, SYSUTCDATETIME(), SYSUTCDATETIME())`;
+    const records = Array.from(unique.values());
+    const batchSize = 100;
+
+    // Stage the new version in small transactions. Consumers continue reading
+    // the old ActiveSnapshotId until the final pointer swap.
+    for (let offset = 0; offset < records.length; offset += batchSize) {
+      const batch = records.slice(offset, offset + batchSize);
+      await prisma.$transaction(async tx => {
+        for (const item of batch) {
+          const key = item._archiveKey;
+          const symbol = item.l18 == null ? null : String(item.l18);
+          const category = item.category == null ? null : String(item.category);
+          const title = item.title == null ? null : String(item.title);
+          const publishedAt = item.datePublish == null ? (item.dateSend == null ? null : String(item.dateSend)) : String(item.datePublish);
+          const payloadJson = JSON.stringify(item);
+          await tx.$executeRaw`INSERT INTO dbo.CodalSnapshotAnnouncement (SnapshotId, AnnouncementKey, Symbol, Category, Title, PublishedAt, PayloadJson) VALUES (${snapshotId}, ${key}, ${symbol}, ${category}, ${title}, ${publishedAt}, ${payloadJson})`;
         }
-      }
-      await tx.$executeRaw`UPDATE dbo.CodalSnapshotState SET ActiveSnapshotId = ${snapshotId}, LastAttemptAt = SYSUTCDATETIME(), LastSuccessAt = SYSUTCDATETIME(), LastError = NULL, AnnouncementCount = ${unique.size}, PageCount = ${totalPages} WHERE StateId = 1`;
+      }, { maxWait: 10000, timeout: 30000 });
+    }
+
+    // Maintain the durable unique-announcement archive in bounded transactions.
+    for (let offset = 0; offset < records.length; offset += batchSize) {
+      const batch = records.slice(offset, offset + batchSize);
+      await prisma.$transaction(async tx => {
+        for (const item of batch) {
+          const key = item._archiveKey;
+          const symbol = item.l18 == null ? null : String(item.l18);
+          const category = item.category == null ? null : String(item.category);
+          const title = item.title == null ? null : String(item.title);
+          const publishedAt = item.datePublish == null ? (item.dateSend == null ? null : String(item.dateSend)) : String(item.datePublish);
+          const payloadJson = JSON.stringify(item);
+          const updated = await tx.$executeRaw`UPDATE dbo.CodalAnnouncement SET Symbol = ${symbol}, Category = ${category}, Title = ${title}, PublishedAt = ${publishedAt}, PayloadJson = ${payloadJson}, LastSnapshotId = ${snapshotId}, LastSeenAt = SYSUTCDATETIME() WHERE AnnouncementKey = ${key}`;
+          if (!updated) {
+            await tx.$executeRaw`INSERT INTO dbo.CodalAnnouncement (AnnouncementKey, Symbol, Category, Title, PublishedAt, PayloadJson, LastSnapshotId, FirstSeenAt, LastSeenAt) VALUES (${key}, ${symbol}, ${category}, ${title}, ${publishedAt}, ${payloadJson}, ${snapshotId}, SYSUTCDATETIME(), SYSUTCDATETIME())`;
+          }
+        }
+      }, { maxWait: 10000, timeout: 30000 });
+    }
+
+    // Activate only after every staged row and archive batch has succeeded.
+    await prisma.$transaction(async tx => {
       const stateRows = await tx.$queryRaw`SELECT StateId FROM dbo.CodalSnapshotState WHERE StateId = 1`;
-      if (!stateRows.length) {
+      if (stateRows.length) {
+        await tx.$executeRaw`UPDATE dbo.CodalSnapshotState SET ActiveSnapshotId = ${snapshotId}, LastAttemptAt = SYSUTCDATETIME(), LastSuccessAt = SYSUTCDATETIME(), LastError = NULL, AnnouncementCount = ${unique.size}, PageCount = ${totalPages} WHERE StateId = 1`;
+      } else {
         await tx.$executeRaw`INSERT INTO dbo.CodalSnapshotState (StateId, ActiveSnapshotId, LastAttemptAt, LastSuccessAt, LastError, AnnouncementCount, PageCount) VALUES (1, ${snapshotId}, SYSUTCDATETIME(), SYSUTCDATETIME(), NULL, ${unique.size}, ${totalPages})`;
       }
     });
 
+    // Keep only the active physical snapshot; the durable archive above keeps
+    // historical announcement records. Delete in small batches to limit log growth.
+    try {
+      let deleted = 0;
+      do {
+        deleted = await prisma.$executeRaw`DELETE TOP (500) FROM dbo.CodalSnapshotAnnouncement WHERE SnapshotId <> ${snapshotId}`;
+      } while (deleted > 0);
+    } catch (cleanupError) {
+      console.warn('[CODAL SNAPSHOT] old snapshot cleanup deferred:', cleanupError.message || cleanupError);
+    }
+
     console.log('[CODAL SNAPSHOT] success reason=' + reason + ' id=' + snapshotId + ' records=' + unique.size + ' pages=' + totalPages + ' reported=' + (reportedCount || '-') + '/' + (reportedPages || '-'));
     return { success: true, snapshotId, announcementCount: unique.size, pageCount: totalPages, reportedCount, reportedPages, startedAt: startedAt.toISOString(), finishedAt: new Date().toISOString() };
   } catch (error) {
+    try {
+      await prisma.$executeRaw`DELETE FROM dbo.CodalSnapshotAnnouncement WHERE SnapshotId = ${snapshotId}`;
+    } catch (_) {}
     try {
       await prisma.$executeRaw`UPDATE dbo.CodalSnapshotState SET LastAttemptAt = SYSUTCDATETIME(), LastError = ${String(error.message || error).slice(0, 4000)} WHERE StateId = 1`;
     } catch (_) {}
