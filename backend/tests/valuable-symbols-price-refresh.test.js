@@ -74,4 +74,27 @@ describe('valuable-symbols current price refresh', () => {
   test('does not synthesize a current price when no shared market row exists', () => {
     expect(refreshValuableSymbolPrices([cachedItem()], [], now, false)).toEqual([]);
   });
+
+  test('shows the latest persisted price after close when the market row is marked stale but within the allowed age', () => {
+    const closedNow = new Date('2026-10-12T16:00:00.000Z');
+    const result = refreshValuableSymbolPrices(
+      [cachedItem()],
+      [{
+        symbol: 'مثقال',
+        lastPrice: 206700,
+        updatedAt: '2026-10-12T12:00:00.000Z',
+        isStale: true
+      }],
+      closedNow,
+      false
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      symbol: 'مثقال',
+      currentPrice: 206700,
+      entryPrice: 206700,
+      marketStatus: 'CLOSED'
+    });
+  });
 });
