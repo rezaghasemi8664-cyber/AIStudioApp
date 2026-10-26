@@ -11,23 +11,41 @@ function makeCandles(count = 30) {
 const normalMarket = { allowedMin: 900, allowedMax: 1200, orderBook: { buy: [], sell: [] } };
 
 describe('calculateScalpingPriceLevels', () => {
-  test('calculates BUY trigger only inside the legal daily price band', () => {
+  test('rejects BUY breakout when a distant support makes reward/risk inadequate', () => {
     const levels = calculateScalpingPriceLevels(makeCandles(), 'BUY', 1087, normalMarket);
+    expect(levels).toBeNull();
+  });
+
+  test('calculates BUY breakout only when reward/risk is at least 1.2 and prices fit the daily band', () => {
+    const candles = Array.from({ length: 30 }, () => ({
+      open: 1000, high: 1002, low: 998, close: 1001, volume: 1000
+    }));
+    const levels = calculateScalpingPriceLevels(candles, 'BUY', 1001, normalMarket);
     expect(levels).not.toBeNull();
     expect(levels.entryPrice).toBeGreaterThan(levels.resistance);
     expect(levels.entryPrice).toBeLessThanOrEqual(normalMarket.allowedMax);
     expect(levels.targetPrice).toBeGreaterThan(levels.entryPrice);
     expect(levels.stopLossPrice).toBeLessThan(levels.entryPrice);
+    expect((levels.targetPrice - levels.entryPrice) / (levels.entryPrice - levels.stopLossPrice)).toBeGreaterThanOrEqual(1.2);
     expect(levels.method).toBe('swing-resistance-atr');
   });
 
-  test('calculates SELL breakdown only inside the legal daily price band', () => {
+  test('rejects SELL breakdown when a distant resistance makes reward/risk inadequate', () => {
     const levels = calculateScalpingPriceLevels(makeCandles(), 'SELL', 1087, normalMarket);
+    expect(levels).toBeNull();
+  });
+
+  test('calculates SELL breakdown only when reward/risk is at least 1.2 and prices fit the daily band', () => {
+    const candles = Array.from({ length: 30 }, () => ({
+      open: 1000, high: 1002, low: 998, close: 1001, volume: 1000
+    }));
+    const levels = calculateScalpingPriceLevels(candles, 'SELL', 1001, normalMarket);
     expect(levels).not.toBeNull();
     expect(levels.entryPrice).toBeLessThan(levels.support);
     expect(levels.entryPrice).toBeGreaterThanOrEqual(normalMarket.allowedMin);
     expect(levels.targetPrice).toBeLessThan(levels.entryPrice);
     expect(levels.stopLossPrice).toBeGreaterThan(levels.entryPrice);
+    expect((levels.entryPrice - levels.targetPrice) / (levels.stopLossPrice - levels.entryPrice)).toBeGreaterThanOrEqual(1.2);
     expect(levels.method).toBe('swing-support-atr');
   });
 

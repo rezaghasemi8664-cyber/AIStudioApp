@@ -85,9 +85,16 @@ function calculateScalpingPriceLevels(candles, signal, currentPrice, market = {}
     }
 
     const entryPrice = resistance + atr * 0.1;
-    const targetPrice = entryPrice + atr * 2;
-    if (entryPrice > current && entryPrice <= allowedMax && support < entryPrice && targetPrice > entryPrice) {
-      return { entryPrice: round(entryPrice), targetPrice: round(targetPrice), stopLossPrice: round(support), support: round(support), resistance: round(resistance), atr: round(atr), method: 'swing-resistance-atr' };
+    const targetPrice = Math.min(allowedMax, entryPrice + atr * 2);
+    const stopLossPrice = Math.max(allowedMin, support);
+    const risk = entryPrice - stopLossPrice;
+    const reward = targetPrice - entryPrice;
+    // Never publish an actionable breakout when the technical stop is too far
+    // away for the target to compensate. A high directional score is not a
+    // substitute for a viable trade plan.
+    if (entryPrice > current && entryPrice <= allowedMax && stopLossPrice < entryPrice &&
+        targetPrice > entryPrice && risk > 0 && reward / risk >= 1.2) {
+      return { entryPrice: round(entryPrice), targetPrice: round(targetPrice), stopLossPrice: round(stopLossPrice), support: round(support), resistance: round(resistance), atr: round(atr), method: 'swing-resistance-atr' };
     }
 
     // If a breakout trigger cannot fit inside today's legal price band, do not
@@ -126,11 +133,18 @@ function calculateScalpingPriceLevels(candles, signal, currentPrice, market = {}
     }
 
     const entryPrice = support - atr * 0.1;
-    const targetPrice = entryPrice - atr * 2;
-    if (!(entryPrice < current && entryPrice >= allowedMin && targetPrice > 0 && targetPrice < entryPrice && resistance > entryPrice)) {
-      return reject('sell_entry_outside_band_or_invalid', { currentPrice: current, entryPrice, targetPrice, allowedMin, allowedMax });
+    const targetPrice = Math.max(allowedMin, entryPrice - atr * 2);
+    const stopLossPrice = Math.min(allowedMax, resistance);
+    const risk = stopLossPrice - entryPrice;
+    const reward = entryPrice - targetPrice;
+    if (!(entryPrice < current && entryPrice >= allowedMin && targetPrice > 0 &&
+        targetPrice < entryPrice && stopLossPrice > entryPrice && risk > 0 && reward / risk >= 1.2)) {
+      return reject('sell_entry_outside_band_or_invalid', {
+        currentPrice: current, entryPrice, targetPrice, stopLossPrice,
+        allowedMin, allowedMax, risk, reward, rewardRiskRatio: risk > 0 ? reward / risk : null
+      });
     }
-    return { entryPrice: round(entryPrice), targetPrice: round(targetPrice), stopLossPrice: round(resistance), support: round(support), resistance: round(resistance), atr: round(atr), method: 'swing-support-atr' };
+    return { entryPrice: round(entryPrice), targetPrice: round(targetPrice), stopLossPrice: round(stopLossPrice), support: round(support), resistance: round(resistance), atr: round(atr), method: 'swing-support-atr' };
   }
   return reject('unsupported_signal', { signal: String(signal) });
 }
