@@ -26,19 +26,13 @@ function getConfig() {
 
 function getStatus() {
   const config = getConfig();
-  const configured = Boolean(config.apiUrl && config.apiKey);
-
   return {
-    provider: 'CODAL',
-    configured,
-    enabled: configured,
+    provider: 'CODAL_DB_SNAPSHOT',
+    configured: true,
+    enabled: true,
     endpointConfigured: Boolean(config.apiUrl),
     credentialsConfigured: Boolean(config.apiKey),
-    reason: configured
-      ? 'BRS CODAL Announcement API configured with dedicated Codal key'
-      : !config.apiUrl
-        ? 'CODAL_API_URL is not configured'
-        : 'BRS_CODAL_API_KEY is not configured'
+    reason: 'Codal consumers read the persisted database snapshot; API credentials are used only by the scheduled snapshot worker'
   };
 }
 
@@ -186,38 +180,15 @@ async function fetchJson(url, timeoutMs) {
 }
 
 async function getCompanyReports(options = {}) {
-  const status = getStatus();
-  if (!status.configured) {
-    const error = new Error('Codal provider is not configured');
-    error.code = 'CODAL_NOT_CONFIGURED';
-    error.status = status;
-    throw error;
-  }
-
-  const config = getConfig();
-  const url = buildUrl(options);
-  const payload = await fetchJson(url, config.timeoutMs);
-  const requestedCategory = String(options.category ?? config.category ?? '').trim();
-  const announcements = asArray(payload).map((item) => {
+  const snapshot = require('./codalSnapshot.service.cjs');
+  const result = await snapshot.getCompanyReports(options);
+  const requestedCategory = String(options.category ?? '').trim();
+  const announcements = asArray(result && result.announcements).map(item => {
     const normalized = normalizeAnnouncement(item);
-    // Announcement.php filters the response by category. Preserve that
-    // provenance because some API responses omit the category field on each
-    // announcement. Without it, a valid category=1 filing can be lost when
-    // its title does not contain a financial-statement keyword.
     if (!normalized.category && requestedCategory) normalized.category = requestedCategory;
     return normalized;
   });
-
-  return {
-    success: true,
-    provider: 'CODAL',
-    symbol: options.symbol ? String(options.symbol).trim() : null,
-    announcements,
-    countAnnouncement: pick(payload, ['count_announcement', 'countAnnouncement']) ?? announcements.length,
-    countPage: pick(payload, ['count_page', 'countPage']),
-    page: Number(options.page || DEFAULT_PAGE),
-    fetchedAt: new Date().toISOString()
-  };
+  return { ...result, provider: 'CODAL_DB_SNAPSHOT', announcements };
 }
 
 module.exports = {
