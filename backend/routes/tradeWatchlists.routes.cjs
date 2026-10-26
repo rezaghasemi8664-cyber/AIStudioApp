@@ -25,6 +25,14 @@ router.post('/:listType', authMiddleware, async (req, res) => {
     return res.status(201).json({ success: true, data: item });
   } catch (error) { return handleError(res, error); }
 });
+router.put('/:listType/:id', authMiddleware, async (req, res) => {
+  try {
+    const userId = watchlistService.getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
+    const item = await watchlistService.updateWatchlistItem(userId, req.params.listType, req.params.id, req.body || {});
+    return res.json({ success: true, data: item });
+  } catch (error) { return handleError(res, error); }
+});
 router.delete('/:listType/:id', authMiddleware, async (req, res) => {
   try {
     const userId = watchlistService.getUserId(req);
