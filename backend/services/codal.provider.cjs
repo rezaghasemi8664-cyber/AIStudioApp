@@ -8,9 +8,6 @@
  * API keys are never returned or logged.
  */
 
-const DEFAULT_TIMEOUT_MS = 5000;
-const DEFAULT_PAGE = 1;
-
 function getConfig() {
   return {
     apiUrl: String(process.env.CODAL_API_URL || process.env.BRS_CODAL_URL || '').trim(),
@@ -20,7 +17,6 @@ function getConfig() {
     unaudited: String(process.env.CODAL_UNAUDITED || 'true').trim(),
     onlyMainCompany: String(process.env.CODAL_ONLY_MAIN_COMPANY || 'true').trim(),
     onlySubsidiaries: String(process.env.CODAL_ONLY_SUBSIDIARIES || 'false').trim(),
-    timeoutMs: Number(process.env.CODAL_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS
   };
 }
 
@@ -98,87 +94,6 @@ function normalizeAnnouncement(item) {
   };
 }
 
-function buildUrl(options = {}) {
-  const config = getConfig();
-  if (!config.apiUrl) {
-    const error = new Error('CODAL_API_URL is not configured');
-    error.code = 'CODAL_URL_NOT_CONFIGURED';
-    throw error;
-  }
-  if (!config.apiKey) {
-    const error = new Error('CODAL_API_KEY is not configured');
-    error.code = 'CODAL_KEY_NOT_CONFIGURED';
-    throw error;
-  }
-
-  const url = new URL(config.apiUrl);
-  url.searchParams.set('key', config.apiKey);
-
-  if (options.symbol) url.searchParams.set('l18', String(options.symbol).trim());
-  if (options.category !== undefined) {
-    if (String(options.category).trim()) url.searchParams.set('category', String(options.category).trim());
-  } else if (config.category) {
-    url.searchParams.set('category', config.category);
-  }
-
-  // BRS Announcement.php accepts these filters, but date_start/date_end
-  // are not supported and cause HTTP 400 responses. Keep the supported
-  // announcement filters only.
-  url.searchParams.set('audited', options.audited ?? config.audited);
-  url.searchParams.set('unaudited', options.unaudited ?? config.unaudited);
-  url.searchParams.set('only_main_company', options.onlyMainCompany ?? config.onlyMainCompany);
-  url.searchParams.set('only_subsidiaries', options.onlySubsidiaries ?? config.onlySubsidiaries);
-  url.searchParams.set('page', String(options.page || DEFAULT_PAGE));
-
-  return url;
-}
-
-async function fetchJson(url, timeoutMs) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'RoniyaAnalyzer/5.2.1'
-      },
-      signal: controller.signal
-    });
-
-    const text = await response.text();
-    let payload = null;
-
-    try {
-      payload = text ? JSON.parse(text) : null;
-    } catch (error) {
-      const parseError = new Error('CODAL JSON parse error: ' + error.message);
-      parseError.code = 'CODAL_INVALID_JSON';
-      throw parseError;
-    }
-
-    if (!response.ok) {
-      const error = new Error('CODAL HTTP ' + response.status);
-      error.code = 'CODAL_HTTP_ERROR';
-      error.statusCode = response.status;
-      error.payload = payload;
-      throw error;
-    }
-
-    return payload;
-  } catch (error) {
-    if (error && error.name === 'AbortError') {
-      const timeoutError = new Error('CODAL request timed out');
-      timeoutError.code = 'CODAL_TIMEOUT';
-      throw timeoutError;
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 async function getCompanyReports(options = {}) {
   const snapshot = require('./codalSnapshot.service.cjs');
   const result = await snapshot.getCompanyReports(options);
@@ -194,6 +109,5 @@ async function getCompanyReports(options = {}) {
 module.exports = {
   getStatus,
   getCompanyReports,
-  buildUrl,
   normalizeAnnouncement
 };
