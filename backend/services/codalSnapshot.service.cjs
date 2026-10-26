@@ -80,7 +80,7 @@ function getApiConfig() {
     key: String(process.env.BRS_CODAL_API_KEY || process.env.CODAL_API_KEY || '').trim(),
     timeoutMs: envInt('CODAL_TIMEOUT_MS', 15000, 3000, 60000),
     dailyLimit: envInt('CODAL_DAILY_REQUEST_LIMIT', DEFAULT_DAILY_LIMIT, 1, DEFAULT_DAILY_LIMIT),
-    maxPages: envInt('CODAL_SNAPSHOT_MAX_PAGES', DEFAULT_MAX_PAGES, 1, 400)
+    maxPages: envInt('CODAL_SNAPSHOT_MAX_PAGES', DEFAULT_MAX_PAGES, 1, DEFAULT_MAX_PAGES)
   };
 }
 
