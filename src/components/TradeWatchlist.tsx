@@ -106,7 +106,6 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
     <section className="space-y-5" dir="rtl">
       <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
         <h2 className="mb-1 text-lg font-bold">{labels[listType]}</h2>
-        <p className="mb-4 text-xs text-[var(--color-text-secondary)]">قیمت فعلی فقط از اسنپ‌شات مرکزی AllSymbols در دیتابیس خوانده می‌شود؛ با ذخیره اسنپ‌شات، این سبد از طریق وب‌سوکت خودکار به‌روز می‌شود.</p>
         <form onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="text-sm">نماد
             <input required value={symbol} onChange={e => setSymbol(e.target.value)} placeholder="مثلاً خودرو" className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2" />
