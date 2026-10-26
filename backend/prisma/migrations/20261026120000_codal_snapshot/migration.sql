@@ -54,3 +54,20 @@ BEGIN
   CREATE INDEX IX_CodalSnapshotAnnouncement_Snapshot_Symbol_Category_Date
     ON dbo.CodalSnapshotAnnouncement (SnapshotId, Symbol, Category, PublishedAt);
 END;
+
+IF OBJECT_ID(N'dbo.CodalFinancialDocumentCache', N'U') IS NULL
+BEGIN
+  CREATE TABLE dbo.CodalFinancialDocumentCache (
+    AnnouncementKey NVARCHAR(64) NOT NULL CONSTRAINT PK_CodalFinancialDocumentCache PRIMARY KEY,
+    Status NVARCHAR(20) NOT NULL,
+    SourceType NVARCHAR(50) NULL,
+    SourceUrl NVARCHAR(2048) NULL,
+    MetricsJson NVARCHAR(MAX) NOT NULL,
+    ByteCount BIGINT NOT NULL CONSTRAINT DF_CodalFinancialDocumentCache_ByteCount DEFAULT 0,
+    ExtractedAt DATETIME2 NOT NULL CONSTRAINT DF_CodalFinancialDocumentCache_ExtractedAt DEFAULT SYSUTCDATETIME(),
+    LastError NVARCHAR(2000) NULL,
+    CONSTRAINT CK_CodalFinancialDocumentCache_Status CHECK (Status IN ('AVAILABLE', 'UNAVAILABLE'))
+  );
+  CREATE INDEX IX_CodalFinancialDocumentCache_Status_ExtractedAt
+    ON dbo.CodalFinancialDocumentCache (Status, ExtractedAt);
+END;
