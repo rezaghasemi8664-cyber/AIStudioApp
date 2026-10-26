@@ -225,11 +225,12 @@ function buildBreadth(data) {
   const explicitLosers = normalizeMoverList(data?.topLosers);
   const explicitVolumes = normalizeMoverList(data?.topVolumes);
 
-  // Central worker/shared market service may already have calculated breadth
-  // from the real MarketSymbolCurrent snapshot. Prefer those values when no
-  // raw symbol array is embedded in marketData.
-  const rows = normalizeSymbolsList(data);
-  if (!rows.length && explicitTotal !== null) {
+  // The live/shared market service supplies these counts from the canonical
+  // versioned MarketSymbolCurrent snapshot. They must take precedence over any
+  // embedded raw symbol list: recalculating from that list uses different
+  // eligibility and percentage rules and causes the summary to disagree with
+  // the Market Indices tab.
+  if (explicitTotal !== null) {
     return {
       positive: explicitPositive,
       negative: explicitNegative,
@@ -241,6 +242,8 @@ function buildBreadth(data) {
       volumes: explicitVolumes
     };
   }
+
+  const rows = normalizeSymbolsList(data);
 
   const map = new Map();
   for (const row of rows) {
