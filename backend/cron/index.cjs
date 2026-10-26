@@ -9,6 +9,7 @@ const { registerValuableSymbolsCron } = require('./valuableSymbols.cron.cjs');
 const { registerOptionsMarketCron } = require('./optionsMarket.cron.cjs');
 const { registerTelegramPublisherCron } = require('./telegramPublisher.cron.cjs');
 const { startCodalSnapshotCron } = require('../services/codalSnapshot.service.cjs');
+const { startFinancialDocumentCacheCron } = require('../services/codal-document.service.cjs');
 
 let cronStarted = false;
 
@@ -56,7 +57,8 @@ function startCronJobs(io) {
     safeRegister('valuable-symbols-independent', () => registerValuableSymbolsCron(io)),
     safeRegister('options-market-auto-refresh', () => registerOptionsMarketCron(io)),
     safeRegister('telegram-channel-publisher', registerTelegramPublisherCron),
-    safeStart('codal-database-snapshot-08:00-13:30', startCodalSnapshotCron)
+    safeStart('codal-database-snapshot-08:00-13:30', startCodalSnapshotCron),
+    safeStart('codal-financial-document-cache-08:20-13:50', startFinancialDocumentCacheCron)
   ];
 
   cronStarted = true;
