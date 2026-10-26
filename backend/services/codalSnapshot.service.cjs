@@ -6,7 +6,7 @@ const prisma = require('../config/prisma.cjs');
 
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
 const DEFAULT_DAILY_LIMIT = 400;
-const DEFAULT_MAX_PAGES = 300;
+const DEFAULT_MAX_PAGES = 180;
 let refreshRunning = false;
 let cronTasks = [];
 
@@ -176,6 +176,11 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
     }
     const unique = new Map();
     for (const item of all) unique.set(item._archiveKey, item);
+    if (reportedPages > config.maxPages || page > config.maxPages) {
+      const error = new Error('Codal snapshot exceeds the per-run page budget; previous snapshot preserved.');
+      error.code = 'CODAL_PAGE_CAP_REACHED';
+      throw error;
+    }
     if (!unique.size) {
       const error = new Error('Codal snapshot returned zero announcements; existing snapshot preserved.');
       error.code = 'CODAL_EMPTY_SNAPSHOT';
