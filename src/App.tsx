@@ -831,6 +831,10 @@ const App: React.FC = () => {
         unsubscribeGlobalSettingsRef.current = null;
       }
     };
+    let notificationSocket: any = null;
+    const refreshNotifications = () => {
+      if (mounted && currentUser) void refreshUnreadCount(currentUser);
+    };
     const disconnectSocket = () => {
       if (typeof socketService.disconnectSocket === 'function') socketService.disconnectSocket();
     };
@@ -851,6 +855,8 @@ const App: React.FC = () => {
     }
     try {
       if (typeof socketService.initializeSocket === 'function') socketService.initializeSocket();
+      notificationSocket = typeof socketService.getSocket === 'function' ? socketService.getSocket() : null;
+      notificationSocket?.on('notifications:updated', refreshNotifications);
       if (typeof socketService.onGlobalSettingsUpdated === 'function') {
         unsubscribeGlobalSettingsRef.current = socketService.onGlobalSettingsUpdated(async () => {
           if (!mounted) return;
@@ -860,8 +866,8 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('[App] Failed to initialize socket or subscribe to settings events:', error);
     }
-    return () => { mounted = false; cleanupSubscription(); disconnectSocket(); };
-  }, [currentUser]);
+    return () => { mounted = false; notificationSocket?.off('notifications:updated', refreshNotifications); cleanupSubscription(); disconnectSocket(); };
+  }, [currentUser, refreshUnreadCount]);
 
   useEffect(() => {
     if (notificationRefreshIntervalRef.current) {
