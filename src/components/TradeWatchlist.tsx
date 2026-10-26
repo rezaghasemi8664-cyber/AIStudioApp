@@ -78,6 +78,21 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
     finally { setSaving(false); }
   };
 
+  const editAlerts = async (item: WatchItem) => {
+    const target = window.prompt(`هدف قیمتی ${item.symbol} را وارد کنید؛ برای غیرفعال‌کردن خالی بگذارید.`, item.targetPrice == null ? '' : String(item.targetPrice));
+    if (target === null) return;
+    const stop = window.prompt(`حد ضرر ${item.symbol} را وارد کنید؛ برای غیرفعال‌کردن خالی بگذارید.`, item.stopLoss == null ? '' : String(item.stopLoss));
+    if (stop === null) return;
+    try {
+      await api.put(`/trade-watchlists/${listType}/${encodeURIComponent(item.id)}`, {
+        targetPrice: target.trim(), stopLoss: stop.trim(),
+        targetAlertEnabled: target.trim() !== '', stopLossAlertEnabled: stop.trim() !== '',
+      });
+      setNotice(`تنظیم هشدارهای ${item.symbol} ذخیره شد.`); setError('');
+      await load();
+    } catch (e) { setError(errorMessage(e)); }
+  };
+
   const remove = async (item: WatchItem) => {
     if (!window.confirm(`نماد ${item.symbol} از ${labels[listType]} حذف شود؟`)) return;
     try {
@@ -140,7 +155,7 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
               <td className={`p-3 font-bold ${(item.pnl ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{money(item.pnl)}</td>
               <td className={`p-3 font-bold ${(item.pnlPercent ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{item.pnlPercent == null ? '—' : `${money(item.pnlPercent)}٪`}</td>
               <td className="p-3"><div className="flex flex-col gap-1 text-xs"><span className={item.targetAlertEnabled ? 'text-emerald-600' : 'text-gray-400'}>{item.targetAlertEnabled ? 'هدف فعال' : 'هدف غیرفعال'}{item.targetAlertTriggered ? ' · صادر شد' : ''}</span><span className={item.stopLossAlertEnabled ? 'text-red-600' : 'text-gray-400'}>{item.stopLossAlertEnabled ? 'حد ضرر فعال' : 'حد ضرر غیرفعال'}{item.stopLossAlertTriggered ? ' · صادر شد' : ''}</span></div></td>
-              <td className="p-3"><button type="button" onClick={() => void remove(item)} className="whitespace-nowrap rounded-md border border-red-500/30 px-3 py-1 text-red-600 hover:bg-red-500/10">حذف</button></td>
+              <td className="p-3"><div className="flex flex-col gap-2"><button type="button" onClick={() => void editAlerts(item)} className="whitespace-nowrap rounded-md border border-cyan-500/30 px-3 py-1 text-cyan-600 hover:bg-cyan-500/10">تنظیم هشدار</button><button type="button" onClick={() => void remove(item)} className="whitespace-nowrap rounded-md border border-red-500/30 px-3 py-1 text-red-600 hover:bg-red-500/10">حذف</button></div></td>
             </tr>)}</tbody>
           </table>
         </div>
