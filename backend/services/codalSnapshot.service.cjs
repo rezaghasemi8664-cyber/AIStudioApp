@@ -229,7 +229,7 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
           const symbol = item.l18 == null ? null : String(item.l18);
           const category = item.category == null ? null : String(item.category);
           const title = item.title == null ? null : String(item.title);
-          const publishedAt = item.datePublish == null ? (item.dateSend == null ? null : String(item.dateSend)) : String(item.datePublish);
+          const publishedAt = item.datePublish == null ? (item.dateSend == null ? (item.dateTitle == null ? null : String(item.dateTitle)) : String(item.dateSend)) : String(item.datePublish);
           const payloadJson = JSON.stringify(item);
           await tx.$executeRaw`INSERT INTO dbo.CodalSnapshotAnnouncement (SnapshotId, AnnouncementKey, Symbol, Category, Title, PublishedAt, PayloadJson) VALUES (${snapshotId}, ${key}, ${symbol}, ${category}, ${title}, ${publishedAt}, ${payloadJson})`;
         }
