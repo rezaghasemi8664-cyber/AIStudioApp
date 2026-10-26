@@ -38,3 +38,19 @@ BEGIN
     CONSTRAINT CK_CodalApiDailyUsage_RequestCount CHECK (RequestCount >= 0 AND RequestCount <= 400)
   );
 END;
+
+IF OBJECT_ID(N'dbo.CodalSnapshotAnnouncement', N'U') IS NULL
+BEGIN
+  CREATE TABLE dbo.CodalSnapshotAnnouncement (
+    SnapshotId UNIQUEIDENTIFIER NOT NULL,
+    AnnouncementKey NVARCHAR(64) NOT NULL,
+    Symbol NVARCHAR(100) NULL,
+    Category NVARCHAR(50) NULL,
+    Title NVARCHAR(1000) NULL,
+    PublishedAt NVARCHAR(40) NULL,
+    PayloadJson NVARCHAR(MAX) NOT NULL,
+    CONSTRAINT PK_CodalSnapshotAnnouncement PRIMARY KEY (SnapshotId, AnnouncementKey)
+  );
+  CREATE INDEX IX_CodalSnapshotAnnouncement_Snapshot_Symbol_Category_Date
+    ON dbo.CodalSnapshotAnnouncement (SnapshotId, Symbol, Category, PublishedAt);
+END;
