@@ -122,6 +122,28 @@ async function addWatchlistItem(userId, listType, input) {
   await writeState(userId, state);
   return item;
 }
+async function updateWatchlistItem(userId, listType, itemId, input) {
+  if (!LIST_TYPES.has(listType)) throw Object.assign(new Error('نوع سبد نامعتبر است.'), { statusCode: 400 });
+  const state = await readState(userId);
+  if (!state) throw Object.assign(new Error('کاربر یافت نشد.'), { statusCode: 404 });
+  const index = state.lists[listType].findIndex(item => item.id === String(itemId));
+  if (index < 0) throw Object.assign(new Error('نماد موردنظر در این سبد یافت نشد.'), { statusCode: 404 });
+  const item = state.lists[listType][index];
+  const targetPrice = input?.targetPrice === undefined ? item.targetPrice : normalizePrice(input.targetPrice);
+  const stopLoss = input?.stopLoss === undefined ? item.stopLoss : normalizePrice(input.stopLoss);
+  if (input?.targetPrice !== undefined && input.targetPrice !== '' && input.targetPrice != null && !targetPrice) throw Object.assign(new Error('هدف قیمتی باید عددی بزرگ‌تر از صفر باشد.'), { statusCode: 400 });
+  if (input?.stopLoss !== undefined && input.stopLoss !== '' && input.stopLoss != null && !stopLoss) throw Object.assign(new Error('حد ضرر باید عددی بزرگ‌تر از صفر باشد.'), { statusCode: 400 });
+  const next = {
+    ...item, targetPrice, stopLoss,
+    targetAlertEnabled: input?.targetAlertEnabled === undefined ? item.targetAlertEnabled : input.targetAlertEnabled === true,
+    stopLossAlertEnabled: input?.stopLossAlertEnabled === undefined ? item.stopLossAlertEnabled : input.stopLossAlertEnabled === true,
+    targetAlertTriggered: targetPrice === item.targetPrice ? item.targetAlertTriggered : false,
+    stopLossAlertTriggered: stopLoss === item.stopLoss ? item.stopLossAlertTriggered : false,
+  };
+  state.lists[listType][index] = next;
+  await writeState(userId, state);
+  return next;
+}
 async function deleteWatchlistItem(userId, listType, itemId) {
   if (!LIST_TYPES.has(listType)) throw Object.assign(new Error('نوع سبد نامعتبر است.'), { statusCode: 400 });
   const state = await readState(userId);
@@ -170,4 +192,4 @@ async function checkAlerts() {
   }
   return { usersChecked: users.length, alertsCreated };
 }
-module.exports = { getUserId, getWatchlist, addWatchlistItem, deleteWatchlistItem, checkAlerts };
+module.exports = { getUserId, getWatchlist, addWatchlistItem, updateWatchlistItem, deleteWatchlistItem, checkAlerts };
