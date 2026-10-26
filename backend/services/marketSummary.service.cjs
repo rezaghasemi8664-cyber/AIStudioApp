@@ -557,13 +557,21 @@ async function buildTechnicalMarketAnalysis(currentMarketData, fallbackDate = ne
     if (macd !== 0) signals.push(macd > 0 ? 'MACD بالاتر از صفر' : 'MACD پایین‌تر از صفر');
   }
   const trendDirection = technicalDirection(score);
-  const window = closes.slice(-Math.min(20, closes.length));
-  const support = Math.min(...window);
-  const resistance = Math.max(...window);
+  // Support/resistance must be based on completed prior sessions, not the
+  // current day's index appended above for momentum/indicator calculations.
+  // MarketTechnicalDaily currently stores daily index closes (not OHLC), so
+  // these are explicitly closing-price range levels for the previous 20 sessions.
+  const priorSessionCloses = historical
+    .map(row => Number(row.index))
+    .filter(value => Number.isFinite(value) && value > 0)
+    .slice(-20);
+  const hasReliableRange = priorSessionCloses.length >= 5;
+  const support = hasReliableRange ? Math.min(...priorSessionCloses) : null;
+  const resistance = hasReliableRange ? Math.max(...priorSessionCloses) : null;
   const technicalText = [
     '۱۵) تحلیل تکنیکال و چشم‌انداز کوتاه‌مدت: این بخش با محاسبات قطعی روی سری تاریخی واقعی شاخص کل تولید شده و به مدل هوش مصنوعی وابسته نیست.',
     `SMA5: ${fa(sma5)}؛ SMA10: ${fa(sma10)}؛ EMA5: ${fa(ema5)}؛ EMA10: ${fa(ema10)}؛ RSI14: ${rsi14 === null ? 'قابل محاسبه نیست' : fa(rsi14)}؛ MACD: ${macd === null ? 'قابل محاسبه نیست' : fa(macd)}؛ مومنتوم آخرین جلسه: ${signedPct(momentum)}.`,
-    `محدوده ۲۰ جلسه اخیر: حمایت محاسباتی ${fa(support)} و مقاومت محاسباتی ${fa(resistance)}؛ روند شاخص هم‌وزن برای این سری تاریخی در دسترس نیست مگر داده تاریخی هم‌وزن نیز ذخیره شده باشد.`,
+    `محدوده ۲۰ جلسه تکمیل‌شده قبل از امروز: حمایت محاسباتی ${fa(support)} و مقاومت محاسباتی ${fa(resistance)}؛ این سطوح از کمینه و بیشینه قیمت پایانی شاخص در داده‌های تاریخی محاسبه شده‌اند، نه از مقدار شاخص امروز. ${hasReliableRange ? '' : 'برای محاسبه معتبر این محدوده حداقل ۵ جلسه تاریخی لازم است.'} داده OHLC (بیشینه و کمینه روزانه) در منبع فعلی ذخیره نشده است؛ بنابراین سطوح بر پایه قیمت‌های پایانی هستند.`,
     `برآیند ابزارهای تکنیکال، سوگیری فعلی را «${trendDirection}» نشان می‌دهد. سناریوی پایه ۱ تا ۳ جلسه آینده ${trendDirection === 'صعودی' ? 'متمایل به تداوم حرکت صعودی، مشروط به حفظ رابطه فعلی با میانگین‌ها' : trendDirection === 'نزولی' ? 'متمایل به تداوم حرکت نزولی، مشروط به حفظ رابطه فعلی با میانگین‌ها' : 'خنثی/نوسانی است و جهت معتبر تا دریافت داده جدید تأیید نشده است'}.`,
     `سیگنال‌های اصلی: ${signals.length ? signals.join('؛ ') : 'سیگنال قطعی از ابزارهای در دسترس شناسایی نشد'}.`,
     `تعداد جلسات تاریخی واقعی استفاده‌شده: ${fa(closes.length, 0)}. شاخص‌هایی که داده کافی برای آن‌ها وجود ندارد عمداً قطعی تلقی نشده‌اند. این چشم‌انداز پیش‌بینی قطعی بازار یا توصیه خرید/فروش نیست و با ورود داده جلسات بعدی باید دوباره محاسبه شود.`
