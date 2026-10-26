@@ -11,7 +11,10 @@ function isTehranMarketOpen(now = new Date()) {
 let running = false;
 let lastClosedEvaluationAt = 0;
 let lastSuccessfullyAnalyzedSnapshotId = null;
+let lastAttemptedSnapshotId = null;
+let lastAttemptedAt = 0;
 const CLOSED_MARKET_RETRY_MS = 30 * 60 * 1000;
+const EMPTY_RESULT_RETRY_MS = 10 * 60 * 1000;
 const MAX_SNAPSHOT_AGE_MS = 5 * 60 * 1000;
 const SNAPSHOT_SETTLE_MS = 45 * 1000;
 
@@ -60,6 +63,9 @@ function registerValuableSymbolsCron(io = null) {
         return;
       }
       if (lastSuccessfullyAnalyzedSnapshotId === activeId) return;
+      // Empty/failed runs must not permanently block the same verified snapshot.
+      // Retry at a controlled interval so late-arriving history/Codal data can recover.
+      if (lastAttemptedSnapshotId === activeId && now - lastAttemptedAt < EMPTY_RESULT_RETRY_MS) return;
     } else {
       // Outside market hours, retain a valid persisted list. Only try recovery
       // from the last verified snapshot when the persisted list is empty.
@@ -78,6 +84,8 @@ function registerValuableSymbolsCron(io = null) {
       if (marketOpen && activeSnapshot) {
         const currentSnapshot = await marketSnapshotService.getActiveSnapshot();
         if (currentSnapshot && Number(currentSnapshot.id) === Number(activeSnapshot.id)) {
+          lastAttemptedSnapshotId = Number(activeSnapshot.id);
+          lastAttemptedAt = Date.now();
           if (results.some(item => Number(item.marketSnapshotId) === Number(activeSnapshot.id))) {
             lastSuccessfullyAnalyzedSnapshotId = Number(activeSnapshot.id);
           }
