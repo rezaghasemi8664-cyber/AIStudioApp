@@ -1,7 +1,5 @@
 'use strict';
 
-const axios = require('axios');
-
 function normalizeDigits(value) {
   return String(value ?? '').replace(/[۰-۹٠-٩]/g, digit => {
     const code = digit.charCodeAt(0);
@@ -157,16 +155,19 @@ function buildSummary(items) {
   return { reports, audited, attachments, byType, byCategory, metricReports, periodicTrend: buildPeriodicTrend(items), sensitiveEvents: buildSensitiveEvents(items) };
 }
 async function getReports({ symbol = '', from = '', to = '', limit = 50 } = {}) {
-  const baseUrl = process.env.BRS_CODAL_URL || process.env.CODAL_API_URL || '';
-  if (!baseUrl) { const error = new Error('BRS_CODAL_URL تنظیم نشده است.'); error.code = 'CODAL_NOT_CONFIGURED'; throw error; }
-  const apiKey = process.env.BRS_CODAL_API_KEY || process.env.CODAL_API_KEY || '';
-  if (!apiKey) { const error = new Error('BRS_CODAL_API_KEY تنظیم نشده است.'); error.code = 'CODAL_KEY_NOT_CONFIGURED'; throw error; }
-  const params = { key: apiKey };
-  if (symbol) params.l18 = symbol; if (from) params.from = from; if (to) params.to = to;
-  params.limit = Math.min(Math.max(Number(limit) || 50, 1), 200);
-  const response = await axios.get(baseUrl, { params, timeout: Number(process.env.CODAL_TIMEOUT_MS) || 15000, headers: { Accept: 'application/json', 'User-Agent': process.env.CODAL_USER_AGENT || 'Roniya-Analyzer/1.0' } });
-  const maxItems = Math.min(Math.max(Number(limit) || 50, 1), 200);
-  const items = extractItems(response.data).map(normalizeItem).filter(item => item.title || item.symbol || item.publishDate || item.url).slice(0, maxItems);
-  return { items, summary: buildSummary(items), fetchedAt: new Date().toISOString(), source: 'codal', configured: true };
+  const snapshot = require('./codalSnapshot.service.cjs');
+  const boundedLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
+  const archived = await snapshot.getArchivedReports({ symbol, from, to, limit: boundedLimit });
+  let items = archived.map(normalizeItem).filter(item => item.title || item.symbol || item.publishDate || item.url).slice(0, boundedLimit);
+  const status = await snapshot.getSnapshotStatus();
+  return {
+    items,
+    summary: buildSummary(items),
+    fetchedAt: status.state && status.state.LastSuccessAt ? new Date(status.state.LastSuccessAt).toISOString() : null,
+    source: 'codal-db-archive',
+    configured: true,
+    stale: !(status.state && status.state.ActiveSnapshotId),
+    snapshotId: status.state && status.state.ActiveSnapshotId ? String(status.state.ActiveSnapshotId) : null
+  };
 }
 module.exports = { getReports, normalizeNumber, normalizeDigits, normalizeItem, classifyReport, extractFinancialMetrics, buildPeriodicTrend, buildSensitiveEvents };
