@@ -2,6 +2,7 @@
 import { scalpingService } from '../services/scalpingService';
 import { getSocket } from '../services/socketService';
 import ValuableSymbols from './ValuableSymbols';
+import TradeWatchlist from './TradeWatchlist';
 import {
   ChartBarIcon,
   ArrowTrendingUpIcon,
@@ -124,7 +125,7 @@ const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ oppor
 };
 
 const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'scalping' | 'valuable'>('scalping');
+  const [activeSubTab, setActiveSubTab] = useState<'scalping' | 'valuable' | 'scalpingWatchlist' | 'valuableWatchlist'>('scalping');
   const [opportunities, setOpportunities] = useState<ScalpingOpportunity[]>(() => cachedScalpingOpportunities?.items ?? []);
   const [lastRefreshed, setLastRefreshed] = useState<number>(() => cachedScalpingOpportunities?.refreshedAt ?? Date.now());
   const [lastEvaluatedAt, setLastEvaluatedAt] = useState<string | null>(() => cachedScalpingOpportunities?.evaluatedAt ?? null);
@@ -234,8 +235,10 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
       <div className="flex flex-wrap gap-2 border-b border-[var(--color-border)] pb-3">
         <button type="button" onClick={() => setActiveSubTab('scalping')} className={activeSubTab === 'scalping' ? 'rounded-lg px-4 py-2 text-sm font-semibold bg-cyan-500 text-white' : 'rounded-lg px-4 py-2 text-sm font-semibold border border-[var(--color-border)] text-[var(--color-text-secondary)]'}>نوسان‌گیری</button>
         <button type="button" onClick={() => setActiveSubTab('valuable')} className={activeSubTab === 'valuable' ? 'rounded-lg px-4 py-2 text-sm font-semibold bg-cyan-500 text-white' : 'rounded-lg px-4 py-2 text-sm font-semibold border border-[var(--color-border)] text-[var(--color-text-secondary)]'}>نمادهای ارزنده</button>
+        <button type="button" onClick={() => setActiveSubTab('scalpingWatchlist')} className={activeSubTab === 'scalpingWatchlist' ? 'rounded-lg px-4 py-2 text-sm font-semibold bg-cyan-500 text-white' : 'rounded-lg px-4 py-2 text-sm font-semibold border border-[var(--color-border)] text-[var(--color-text-secondary)]'}>سبد نوسان‌گیری</button>
+        <button type="button" onClick={() => setActiveSubTab('valuableWatchlist')} className={activeSubTab === 'valuableWatchlist' ? 'rounded-lg px-4 py-2 text-sm font-semibold bg-cyan-500 text-white' : 'rounded-lg px-4 py-2 text-sm font-semibold border border-[var(--color-border)] text-[var(--color-text-secondary)]'}>سبد ارزنده‌ها</button>
       </div>
-      {activeSubTab === 'valuable' ? <ValuableSymbols isOnline={isOnline} /> : <>
+      {activeSubTab === 'valuable' ? <ValuableSymbols isOnline={isOnline} /> : activeSubTab === 'scalpingWatchlist' ? <TradeWatchlist listType="scalping" isOnline={isOnline} /> : activeSubTab === 'valuableWatchlist' ? <TradeWatchlist listType="valuable" isOnline={isOnline} /> : <>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-cyan-500/10 rounded-lg">
