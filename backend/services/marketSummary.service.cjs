@@ -734,8 +734,8 @@ async function findLatestUsableMarketHistoryRow() {
       symbolCount: x.symbolCount
     })),
     sectors: industryRows.map(x => ({
-      name: x.industryName,
-      changePercent: x.changePercent,
+      name: x.industryName || x.name || x.sector || x.title,
+      changePercent: x.changePercent ?? x.change,
       value: x.value,
       symbolCount: x.symbolCount
     })),
