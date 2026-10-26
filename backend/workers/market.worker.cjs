@@ -31,6 +31,20 @@ function isTradingCalendarDay(date = new Date()) {
   const weekday = new Intl.DateTimeFormat('en-US', { timeZone: MARKET_TZ, weekday: 'short' }).format(date);
   return ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'].includes(weekday);
 }
+function isMarketSessionOpenNow(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: MARKET_TZ,
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  const minutesOfDay = Number(values.hour) * 60 + Number(values.minute);
+  return ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'].includes(values.weekday) &&
+    minutesOfDay >= 9 * 60 &&
+    minutesOfDay < 12 * 60 + 30;
+}
 function num(v, fallback = null) {
   if (v === null || v === undefined || v === '') return fallback;
   const n = Number(String(v).replace(/,/g, ''));
@@ -168,7 +182,7 @@ function scoreSymbol(item) {
   };
 }
 
-async function updateSymbolsAndMovers(io = null) {
+async function updateSymbolsAndMovers(io = null, allowClosedBootstrap = false) {
   const response = await brsService.getAllSymbols({ forceFresh: true });
   const rows = unwrap(response);
   if (!Array.isArray(rows) || !rows.length) throw new Error('BRS AllSymbols returned no symbols');
@@ -217,6 +231,10 @@ async function updateSymbolsAndMovers(io = null) {
       legalSellValue: num(item.instSellValue ?? item.legalSellValue ?? item.sell_N_Value ?? item.legal?.sellValue)
     };
   }).filter(x => x.symbol);
+
+  // A fetch that began before the 12:30 Tehran close must not publish after
+  // the session ends. Empty-database bootstrap remains allowed as a recovery path.
+  if (!allowClosedBootstrap && !isMarketSessionOpenNow()) return symbols;
 
   // Build a variable-size, versioned full snapshot. The previous active
   // snapshot remains untouched until the new snapshot is stored, verified,
@@ -365,15 +383,9 @@ async function getScalpingPriceLevels(symbol, signal, currentPrice, marketDate, 
 async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
   const marketDate = sqlDate(tehranDateKey());
 
-  // Never create fresh intraday signals while the exchange is closed.
-  // Existing signals are expired so the UI cannot present stale opportunities.
-  if (!marketIsOpen) {
-    await prisma.marketScalpingOpportunity.updateMany({
-      where: { marketDate, status: 'ACTIVE' },
-      data: { status: 'EXPIRED', updatedAt: new Date() }
-    });
-    return 0;
-  }
+  // Stop all scalping writes outside the Tehran trading session. Preserve the
+  // latest valid rows so the UI continues showing the last market snapshot.
+  if (!marketIsOpen || !isMarketSessionOpenNow()) return 0;
 
   const eligibleSymbols = symbols.filter(isMarketAnalyticsEligible);
   const scoredSymbols = eligibleSymbols.map(item => ({ item, scored: scoreSymbol(item) }));
@@ -586,6 +598,7 @@ async function runMarketWorker(io = null) {
 
   const effectiveOpen =
     calendarOpen &&
+    isMarketSessionOpenNow() &&
     marketCurrent?.marketStatus === 'OPEN' &&
     marketCurrent?.isStale !== true;
   // Normal BRS snapshots are refreshed only during the Tehran trading session.
@@ -601,7 +614,12 @@ async function runMarketWorker(io = null) {
   }
 
   // MarketCurrent is written only by market.cron.cjs after a successful BRS index snapshot.
-  const symbols = await updateSymbolsAndMovers(io);
+  const symbols = await updateSymbolsAndMovers(io, needsBootstrap);
+  // The market may close while the BRS request is in flight. In that case,
+  // keep the previously published snapshot and scalping rows untouched.
+  if (!needsBootstrap && !isMarketSessionOpenNow()) {
+    return { status: 'skipped', reason: 'market-closed-during-fetch' };
+  }
   await runJob('market-daily', () => updateMarketDaily(symbols));
   // Industries are already computed once from the same verified snapshot.
   const scalpingUpdated = await runJob('scalping-opportunities', () => updateScalpingOpportunities(symbols, effectiveOpen));
