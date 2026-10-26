@@ -7,6 +7,7 @@ const prisma = require('../config/prisma.cjs');
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
 const DEFAULT_DAILY_LIMIT = 400;
 const DEFAULT_MAX_PAGES = 180;
+const DEFAULT_FINANCIAL_PAGES = 30;
 let refreshRunning = false;
 let cronTasks = [];
 
@@ -103,7 +104,7 @@ async function reserveDailyRequest() {
   });
 }
 
-async function fetchPage(page) {
+async function fetchPage(page, category = '') {
   const config = getApiConfig();
   if (!config.url || !config.key) {
     const error = new Error('Codal API URL/key are not configured.');
@@ -114,6 +115,7 @@ async function fetchPage(page) {
   const url = new URL(config.url);
   url.searchParams.set('key', config.key);
   url.searchParams.set('page', String(page));
+  if (category) url.searchParams.set('category', String(category));
   for (const [envName, paramName, fallback] of [
     ['CODAL_AUDITED', 'audited', 'true'],
     ['CODAL_UNAUDITED', 'unaudited', 'true'],
@@ -162,24 +164,51 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
     const all = [];
     let reportedPages = null;
     let reportedCount = null;
-    let page = 1;
-    while (page <= config.maxPages) {
-      const payload = await fetchPage(page);
+    const financialBudget = Math.min(DEFAULT_FINANCIAL_PAGES, Math.max(1, Math.floor(config.maxPages / 6)));
+    const generalBudget = config.maxPages - financialBudget;
+    let totalPages = 0;
+
+    // Fetch financial statements separately because BRS may omit category IDs
+    // from individual rows even when category=1 was requested.
+    let financialPage = 1;
+    let financialReportedPages = null;
+    while (financialPage <= financialBudget) {
+      const payload = await fetchPage(financialPage, '1');
+      totalPages += 1;
+      const items = asArray(payload);
+      financialReportedPages = Number(first(payload, ['count_page', 'countPage'])) || financialReportedPages;
+      reportedCount = Number(first(payload, ['count_announcement', 'countAnnouncement'])) || reportedCount;
+      all.push(...items.map(item => normalizeAnnouncement(item, '1')));
+      if (!items.length || (financialReportedPages && financialPage >= financialReportedPages)) break;
+      financialPage += 1;
+    }
+    if (financialReportedPages > financialBudget || financialPage > financialBudget) {
+      const error = new Error('Codal financial-statement pages exceed the reserved snapshot budget; previous snapshot preserved.');
+      error.code = 'CODAL_FINANCIAL_PAGE_CAP_REACHED';
+      throw error;
+    }
+
+    let generalPage = 1;
+    while (generalPage <= generalBudget) {
+      const payload = await fetchPage(generalPage);
+      totalPages += 1;
       const items = asArray(payload);
       reportedPages = Number(first(payload, ['count_page', 'countPage'])) || reportedPages;
       reportedCount = Number(first(payload, ['count_announcement', 'countAnnouncement'])) || reportedCount;
       all.push(...items.map(item => normalizeAnnouncement(item, null)));
-      if (!items.length) break;
-      if (reportedPages && page >= reportedPages) break;
-      page += 1;
-      if (items.length < 1) break;
+      if (!items.length || (reportedPages && generalPage >= reportedPages)) break;
+      generalPage += 1;
+    }
+    if (reportedPages > generalBudget || generalPage > generalBudget) {
+      const error = new Error('Codal general-announcement pages exceed the reserved snapshot budget; previous snapshot preserved.');
+      error.code = 'CODAL_GENERAL_PAGE_CAP_REACHED';
+      throw error;
     }
     const unique = new Map();
-    for (const item of all) unique.set(item._archiveKey, item);
-    if (reportedPages > config.maxPages || page > config.maxPages) {
-      const error = new Error('Codal snapshot exceeds the per-run page budget; previous snapshot preserved.');
-      error.code = 'CODAL_PAGE_CAP_REACHED';
-      throw error;
+    for (const item of all) {
+      const previous = unique.get(item._archiveKey);
+      // Prefer the category=1 result when the general listing omits category.
+      if (!previous || (String(item.category || '') === '1' && String(previous.category || '') !== '1')) unique.set(item._archiveKey, item);
     }
     if (!unique.size) {
       const error = new Error('Codal snapshot returned zero announcements; existing snapshot preserved.');
@@ -200,15 +229,15 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
           await tx.$executeRaw`INSERT INTO dbo.CodalAnnouncement (AnnouncementKey, Symbol, Category, Title, PublishedAt, PayloadJson, LastSnapshotId, FirstSeenAt, LastSeenAt) VALUES (${key}, ${symbol}, ${category}, ${title}, ${publishedAt}, ${payloadJson}, ${snapshotId}, SYSUTCDATETIME(), SYSUTCDATETIME())`;
         }
       }
-      await tx.$executeRaw`UPDATE dbo.CodalSnapshotState SET ActiveSnapshotId = ${snapshotId}, LastAttemptAt = SYSUTCDATETIME(), LastSuccessAt = SYSUTCDATETIME(), LastError = NULL, AnnouncementCount = ${unique.size}, PageCount = ${page} WHERE StateId = 1`;
+      await tx.$executeRaw`UPDATE dbo.CodalSnapshotState SET ActiveSnapshotId = ${snapshotId}, LastAttemptAt = SYSUTCDATETIME(), LastSuccessAt = SYSUTCDATETIME(), LastError = NULL, AnnouncementCount = ${unique.size}, PageCount = ${totalPages} WHERE StateId = 1`;
       const stateRows = await tx.$queryRaw`SELECT StateId FROM dbo.CodalSnapshotState WHERE StateId = 1`;
       if (!stateRows.length) {
-        await tx.$executeRaw`INSERT INTO dbo.CodalSnapshotState (StateId, ActiveSnapshotId, LastAttemptAt, LastSuccessAt, LastError, AnnouncementCount, PageCount) VALUES (1, ${snapshotId}, SYSUTCDATETIME(), SYSUTCDATETIME(), NULL, ${unique.size}, ${page})`;
+        await tx.$executeRaw`INSERT INTO dbo.CodalSnapshotState (StateId, ActiveSnapshotId, LastAttemptAt, LastSuccessAt, LastError, AnnouncementCount, PageCount) VALUES (1, ${snapshotId}, SYSUTCDATETIME(), SYSUTCDATETIME(), NULL, ${unique.size}, ${totalPages})`;
       }
     });
 
-    console.log('[CODAL SNAPSHOT] success reason=' + reason + ' id=' + snapshotId + ' records=' + unique.size + ' pages=' + page + ' reported=' + (reportedCount || '-') + '/' + (reportedPages || '-'));
-    return { success: true, snapshotId, announcementCount: unique.size, pageCount: page, reportedCount, reportedPages, startedAt: startedAt.toISOString(), finishedAt: new Date().toISOString() };
+    console.log('[CODAL SNAPSHOT] success reason=' + reason + ' id=' + snapshotId + ' records=' + unique.size + ' pages=' + totalPages + ' reported=' + (reportedCount || '-') + '/' + (reportedPages || '-'));
+    return { success: true, snapshotId, announcementCount: unique.size, pageCount: totalPages, reportedCount, reportedPages, startedAt: startedAt.toISOString(), finishedAt: new Date().toISOString() };
   } catch (error) {
     try {
       await prisma.$executeRaw`UPDATE dbo.CodalSnapshotState SET LastAttemptAt = SYSUTCDATETIME(), LastError = ${String(error.message || error).slice(0, 4000)} WHERE StateId = 1`;
