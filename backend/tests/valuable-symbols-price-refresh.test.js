@@ -74,7 +74,7 @@ describe('valuable-symbols current price refresh', () => {
   test('reports why cached valuable symbols are filtered from the live response', () => {
     const reasons = {};
     const result = refreshValuableSymbolPrices(
-      [cachedItem(), cachedItem({ symbol: 'OLD' }), cachedItem({ symbol: 'BELOW-SMA' })],
+      [cachedItem(), cachedItem({ symbol: 'OLD' }), cachedItem({ symbol: 'BELOW-SMA', support: 190000 })],
       [
         { symbol: 'مثقال', lastPrice: 206700, updatedAt: '2026-10-12T05:40:00.000Z', isStale: false },
         { symbol: 'OLD', lastPrice: 206700, updatedAt: '2026-10-12T05:59:00.000Z', isStale: true },
