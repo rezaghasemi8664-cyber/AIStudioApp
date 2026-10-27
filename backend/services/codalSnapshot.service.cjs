@@ -78,7 +78,7 @@ function getApiConfig() {
   return {
     url: String(process.env.CODAL_API_URL || process.env.BRS_CODAL_URL || '').trim(),
     key: String(process.env.BRS_CODAL_API_KEY || process.env.CODAL_API_KEY || '').trim(),
-    timeoutMs: envInt('CODAL_TIMEOUT_MS', 15000, 3000, 60000),
+    timeoutMs: envInt('CODAL_TIMEOUT_MS', 30000, 3000, 60000),
     dailyLimit: envInt('CODAL_DAILY_REQUEST_LIMIT', DEFAULT_DAILY_LIMIT, 1, DEFAULT_DAILY_LIMIT),
     maxPages: envInt('CODAL_SNAPSHOT_MAX_PAGES', DEFAULT_MAX_PAGES, 1, DEFAULT_MAX_PAGES)
   };
@@ -300,8 +300,18 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
       await prisma.$executeRaw`DELETE FROM dbo.CodalSnapshotAnnouncement WHERE SnapshotId = ${snapshotId}`;
     } catch (_) {}
     try {
-      await prisma.$executeRaw`UPDATE dbo.CodalSnapshotState SET LastAttemptAt = SYSUTCDATETIME(), LastError = ${String(error.message || error).slice(0, 4000)} WHERE StateId = 1`;
-    } catch (_) {}
+      const failureMessage = String(error.message || error).slice(0, 4000);
+      const stateRows = await prisma.$queryRaw`SELECT StateId FROM dbo.CodalSnapshotState WHERE StateId = 1`;
+      if (stateRows.length) {
+        await prisma.$executeRaw`UPDATE dbo.CodalSnapshotState SET LastAttemptAt = SYSUTCDATETIME(), LastError = ${failureMessage} WHERE StateId = 1`;
+      } else {
+        // Persist the first failure too; UPDATE alone silently loses it when
+        // the state row has never been created (the no-snapshot bootstrap case).
+        await prisma.$executeRaw`INSERT INTO dbo.CodalSnapshotState (StateId, ActiveSnapshotId, LastAttemptAt, LastSuccessAt, LastError, AnnouncementCount, PageCount) VALUES (1, NULL, SYSUTCDATETIME(), NULL, ${failureMessage}, 0, 0)`;
+      }
+    } catch (stateError) {
+      console.error('[CODAL SNAPSHOT] could not persist failure state:', stateError.message || stateError);
+    }
     console.error('[CODAL SNAPSHOT] failed reason=' + reason + ' code=' + (error.code || '-') + ' error=' + (error.message || error));
     return { success: false, error: error.message || String(error), code: error.code || 'CODAL_SNAPSHOT_FAILED' };
   } finally {
