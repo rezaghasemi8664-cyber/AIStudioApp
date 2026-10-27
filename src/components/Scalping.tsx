@@ -173,7 +173,7 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
         quantity, entryPrice, targetPrice, stopLoss,
         targetAlertEnabled: true, stopLossAlertEnabled: true,
       });
-      setSaveNotice(`نماد ${symbol} در سبد نوسان‌گیری ذخیره شد؛ هشدار حد ضرر و هدف خروج فعال است. تعداد اولیه برای محاسبه روی ۱ تنظیم شده است.`);
+      setSaveNotice(`نماد ${symbol} در سبد نوسان‌گیری ذخیره شد؛ هشدار حد ضرر و هدف خروج فعال است. تعداد واقعی واردشده توسط شما ثبت شد.`);
     } catch (error: any) {
       setSaveError(error?.response?.data?.message || error?.message || 'ذخیره نماد در سبد نوسان‌گیری ناموفق بود.');
     } finally { setSavingSymbol(null); }
