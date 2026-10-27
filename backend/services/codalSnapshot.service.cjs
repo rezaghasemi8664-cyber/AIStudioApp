@@ -182,10 +182,12 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
       if (!items.length || (financialReportedPages && financialPage >= financialReportedPages)) break;
       financialPage += 1;
     }
+    // The API may report the total number of Codal pages, not the number
+    // available within this category. Treat the configured budget as a
+    // deliberate recent-data window instead of rejecting every snapshot.
     if (financialReportedPages > financialBudget || financialPage > financialBudget) {
-      const error = new Error('Codal financial-statement pages exceed the reserved snapshot budget; previous snapshot preserved.');
-      error.code = 'CODAL_FINANCIAL_PAGE_CAP_REACHED';
-      throw error;
+      console.warn('[CODAL SNAPSHOT] financial page budget reached; continuing with the fetched recent pages (' +
+        financialBudget + ' max, API reported ' + financialReportedPages + ').');
     }
 
     let generalPage = 1;
@@ -199,10 +201,11 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
       if (!items.length || (reportedPages && generalPage >= reportedPages)) break;
       generalPage += 1;
     }
+    // Snapshot is intentionally bounded to protect the daily API quota.
+    // A larger API-reported total must not invalidate the recent pages fetched.
     if (reportedPages > generalBudget || generalPage > generalBudget) {
-      const error = new Error('Codal general-announcement pages exceed the reserved snapshot budget; previous snapshot preserved.');
-      error.code = 'CODAL_GENERAL_PAGE_CAP_REACHED';
-      throw error;
+      console.warn('[CODAL SNAPSHOT] general page budget reached; continuing with the fetched recent pages (' +
+        generalBudget + ' max, API reported ' + reportedPages + ').');
     }
     const unique = new Map();
     for (const item of all) {
@@ -377,6 +380,20 @@ function startCodalSnapshotCron() {
     cron.schedule('30 13 * * *', () => refreshSnapshot({ reason: 'scheduled-13:30' }), { timezone: TEHRAN_TIMEZONE })
   ];
   console.log('[CODAL SNAPSHOT] scheduled daily at 08:00 and 13:30 Asia/Tehran; global daily API cap=' + getApiConfig().dailyLimit);
+
+  // Bootstrap immediately after startup if the database has no active snapshot.
+  // This avoids waiting until the next cron window after a deployment/restart.
+  setImmediate(async () => {
+    try {
+      const status = await getSnapshotStatus();
+      if (!status.state || !status.state.ActiveSnapshotId) {
+        console.log('[CODAL SNAPSHOT] no active snapshot found; starting bootstrap refresh');
+        await refreshSnapshot({ reason: 'startup-bootstrap' });
+      }
+    } catch (error) {
+      console.error('[CODAL SNAPSHOT] startup bootstrap check failed:', error.message || error);
+    }
+  });
 }
 
 function stopCodalSnapshotCron() {
