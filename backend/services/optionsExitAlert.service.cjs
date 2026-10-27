@@ -1,7 +1,7 @@
 'use strict';
 const prisma = require('../config/prisma.cjs');
 const BID_KEYS = ['bestBidPrice','pd1','pMeDem','bestBid','bidPrice','buyPrice'];
-function number(value){if(typeof value==='number')return Number.isFinite(value)?value:null;if(typeof value!=='string')return null;const s=value.replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[,٬\\s]/g,'').trim();if(!s)return null;const n=Number(s);return Number.isFinite(n)?n:null;}
+function number(value){if(typeof value==='number')return Number.isFinite(value)?value:null;if(typeof value!=='string')return null;const s=value.replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[,٬\s]/g,'').trim();if(!s)return null;const n=Number(s);return Number.isFinite(n)?n:null;}
 function first(row,keys){for(const key of keys){if(row&&row[key]!==undefined&&row[key]!==null&&row[key]!=='')return row[key];}return null;}
 async function evaluateOptionExitAlerts(contracts){
  if(!Array.isArray(contracts)||!contracts.length)return {checked:0,triggered:0};
