@@ -255,13 +255,23 @@ async function extractFinancialDataFromAnnouncement(announcement) {
 }
 
 let cacheRefreshRunning = false;
+let cacheRefreshTimer = null;
+const CACHE_BATCH_DELAY_MS = 15000;
+function scheduleCacheRefresh(options = {}) {
+  if (cacheRefreshTimer) return;
+  cacheRefreshTimer = setTimeout(() => {
+    cacheRefreshTimer = null;
+    refreshFinancialDocumentCache(options).catch(error => console.error('[CODAL DOC CACHE] continuation failed:', error.message || error));
+  }, CACHE_BATCH_DELAY_MS);
+  if (typeof cacheRefreshTimer.unref === 'function') cacheRefreshTimer.unref();
+}
 async function refreshFinancialDocumentCache({ limit = 25, reason = 'manual' } = {}) {
   if (cacheRefreshRunning) return { success: true, skipped: true, reason: 'ALREADY_RUNNING' };
   cacheRefreshRunning = true;
   try {
   const max = Math.max(1, Math.min(50, Number(limit) || 25));
   const rows = await prisma.$queryRawUnsafe(
-    "SELECT TOP (" + max + ") a.AnnouncementKey, a.PayloadJson FROM dbo.CodalSnapshotAnnouncement a INNER JOIN dbo.CodalSnapshotState s ON s.StateId = 1 AND s.ActiveSnapshotId = a.SnapshotId LEFT JOIN dbo.CodalFinancialDocumentCache c ON c.AnnouncementKey = a.AnnouncementKey WHERE (NULLIF(JSON_VALUE(a.PayloadJson, '$.linkExcel'), '') IS NOT NULL OR NULLIF(JSON_VALUE(a.PayloadJson, '$.linkAttachment'), '') IS NOT NULL OR NULLIF(JSON_VALUE(a.PayloadJson, '$.link'), '') IS NOT NULL OR NULLIF(JSON_VALUE(a.PayloadJson, '$.linkPdf'), '') IS NOT NULL) AND (c.AnnouncementKey IS NULL OR (c.Status = 'UNAVAILABLE' AND c.ExtractedAt < DATEADD(day, -7, SYSUTCDATETIME()))) ORDER BY a.PublishedAt DESC"
+    "SELECT TOP (" + max + ") a.AnnouncementKey, a.PayloadJson FROM dbo.CodalSnapshotAnnouncement a INNER JOIN dbo.CodalSnapshotState s ON s.StateId = 1 AND s.ActiveSnapshotId = a.SnapshotId LEFT JOIN dbo.CodalFinancialDocumentCache c ON c.AnnouncementKey = a.AnnouncementKey WHERE (a.Category = '1' OR JSON_VALUE(a.PayloadJson, '$.category') = '1') AND (NULLIF(JSON_VALUE(a.PayloadJson, '$.linkExcel'), '') IS NOT NULL OR NULLIF(JSON_VALUE(a.PayloadJson, '$.linkAttachment'), '') IS NOT NULL OR NULLIF(JSON_VALUE(a.PayloadJson, '$.link'), '') IS NOT NULL OR NULLIF(JSON_VALUE(a.PayloadJson, '$.linkPdf'), '') IS NOT NULL) AND (c.AnnouncementKey IS NULL OR (c.Status = 'UNAVAILABLE' AND c.ExtractedAt < DATEADD(day, -7, SYSUTCDATETIME()))) ORDER BY CASE WHEN NULLIF(JSON_VALUE(a.PayloadJson, '$.linkExcel'), '') IS NOT NULL THEN 0 ELSE 1 END, a.PublishedAt DESC"
   );
   let processed = 0, available = 0, unavailable = 0;
   for (const row of rows) {
@@ -285,6 +295,9 @@ async function refreshFinancialDocumentCache({ limit = 25, reason = 'manual' } =
   }
   const summary = { success: true, processed, available, unavailable, limit: max, reason };
   console.log('[CODAL DOC CACHE] run completed reason=' + reason + ' processed=' + processed + ' available=' + available + ' unavailable=' + unavailable + ' limit=' + max);
+  // Drain the active snapshot in bounded, sequential batches. A full batch means
+  // more eligible financial announcements may remain; pause before continuing.
+  if (rows.length >= max) scheduleCacheRefresh({ limit: max, reason: 'queue-continuation' });
   return summary;
   } finally {
     cacheRefreshRunning = false;
@@ -296,29 +309,31 @@ function startFinancialDocumentCacheCron() {
   if (documentCacheTasks.length) return;
   const cron = require('node-cron');
   documentCacheTasks = [
-    cron.schedule('20 8 * * *', () => refreshFinancialDocumentCache({ limit: 25 }).catch(error => console.error('[CODAL DOC CACHE] morning refresh failed:', error.message || error)), { timezone: 'Asia/Tehran' }),
-    cron.schedule('50 13 * * *', () => refreshFinancialDocumentCache({ limit: 25 }).catch(error => console.error('[CODAL DOC CACHE] afternoon refresh failed:', error.message || error)), { timezone: 'Asia/Tehran' })
+    cron.schedule('20 8 * * *', () => refreshFinancialDocumentCache({ limit: 25, reason: 'scheduled-08:20' }).catch(error => console.error('[CODAL DOC CACHE] morning refresh failed:', error.message || error)), { timezone: 'Asia/Tehran' }),
+    cron.schedule('50 13 * * *', () => refreshFinancialDocumentCache({ limit: 25, reason: 'scheduled-13:50' }).catch(error => console.error('[CODAL DOC CACHE] afternoon refresh failed:', error.message || error)), { timezone: 'Asia/Tehran' })
   ];
-  console.log('[CODAL DOC CACHE] scheduled for 08:20 and 13:50 Asia/Tehran; max 25 documents per run');
-  // If the cache is empty after a deployment/restart, bootstrap it from the
-  // currently active database snapshot instead of waiting for the next cron.
+  console.log('[CODAL DOC CACHE] scheduled for 08:20 and 13:50 Asia/Tehran; batches of up to 25 financial documents continue automatically');
+  // Resume coverage after every deployment, even when the cache already has
+  // some rows. Existing successful documents are skipped by the queue query.
   setImmediate(async () => {
     try {
       const countRows = await prisma.$queryRaw`SELECT COUNT_BIG(1) AS Total FROM dbo.CodalFinancialDocumentCache`;
       const cacheCount = Number(countRows[0] && countRows[0].Total || 0);
-      if (cacheCount === 0) {
-        console.warn('[CODAL DOC CACHE] cache is empty; bootstrapping from active Codal snapshot');
-        const result = await refreshFinancialDocumentCache({ limit: 25, reason: 'empty-cache-bootstrap' });
-        console.log('[CODAL DOC CACHE] empty-cache bootstrap result=' + JSON.stringify(result));
-      }
+      const result = await refreshFinancialDocumentCache({
+        limit: 25,
+        reason: cacheCount === 0 ? 'empty-cache-bootstrap' : 'startup-coverage-resume'
+      });
+      console.log('[CODAL DOC CACHE] startup coverage result=' + JSON.stringify(result));
     } catch (error) {
-      console.error('[CODAL DOC CACHE] empty-cache bootstrap failed:', error.message || error);
+      console.error('[CODAL DOC CACHE] startup coverage failed:', error.message || error);
     }
   });
 }
 function stopFinancialDocumentCacheCron() {
   for (const task of documentCacheTasks) task.stop();
   documentCacheTasks = [];
+  if (cacheRefreshTimer) clearTimeout(cacheRefreshTimer);
+  cacheRefreshTimer = null;
 }
 
 module.exports={normalizeDigits,normalizeText,normalizeMetricLabel,parseNumber,validateDocumentUrl,downloadDocument,extractZipEntries,extractExcelRows,findMetricValues,extractFinancialDataFromExcel,extractFinancialDataFromAnnouncement,refreshFinancialDocumentCache,startFinancialDocumentCacheCron,stopFinancialDocumentCacheCron};
