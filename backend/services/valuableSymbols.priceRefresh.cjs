@@ -16,9 +16,15 @@ function toPositiveNumber(value) {
  * be the latest valid persisted price; age and technical-risk checks remain
  * mandatory, and the caller labels the market as closed.
  */
-function refreshValuableSymbolPrices(results, marketRows, now = new Date(), marketOpen = false) {
+function refreshValuableSymbolPrices(results, marketRows, now = new Date(), marketOpen = false, onReject = null) {
   const nowMs = now instanceof Date ? now.getTime() : new Date(now).getTime();
-  if (!Number.isFinite(nowMs)) return [];
+  const reject = (reason, item) => {
+    if (typeof onReject === 'function') onReject(reason, item && item.symbol ? item.symbol : null);
+  };
+  if (!Number.isFinite(nowMs)) {
+    (Array.isArray(results) ? results : []).forEach(item => reject('invalid_reference_time', item));
+    return [];
+  }
 
   const maxAgeMs = marketOpen
     ? OPEN_MARKET_MAX_PRICE_AGE_MINUTES * 60 * 1000
@@ -36,21 +42,26 @@ function refreshValuableSymbolPrices(results, marketRows, now = new Date(), mark
     const timestamp = row && row.updatedAt ? new Date(row.updatedAt).getTime() : NaN;
     const ageMs = nowMs - timestamp;
 
-    if (!row || (marketOpen && row.isStale) || currentPrice === null ||
-        !Number.isFinite(timestamp) || ageMs < -5 * 60 * 1000 || ageMs > maxAgeMs) {
-      return [];
-    }
+    if (!row) { reject('missing_market_row', item); return []; }
+    if (marketOpen && row.isStale) { reject('market_row_stale', item); return []; }
+    if (currentPrice === null) { reject('invalid_current_price', item); return []; }
+    if (!Number.isFinite(timestamp)) { reject('missing_or_invalid_market_timestamp', item); return []; }
+    if (ageMs < -5 * 60 * 1000) { reject('market_timestamp_in_future', item); return []; }
+    if (ageMs > maxAgeMs) { reject('market_price_too_old', item); return []; }
 
     const support = toPositiveNumber(item.support);
     const sma20 = toPositiveNumber(item.sma20);
     const rsi14 = Number(item.rsi14);
-    if (support === null || sma20 === null || !Number.isFinite(rsi14) ||
-        currentPrice <= support || currentPrice < sma20 || rsi14 < 45 || rsi14 > 68) {
+    if (support === null || sma20 === null || !Number.isFinite(rsi14)) {
+      reject('invalid_cached_technical_metrics', item);
       return [];
     }
+    if (currentPrice <= support) { reject('current_price_at_or_below_support', item); return []; }
+    if (currentPrice < sma20) { reject('current_price_below_sma20', item); return []; }
+    if (rsi14 < 45 || rsi14 > 68) { reject('rsi_outside_45_68', item); return []; }
 
     const risk = currentPrice - support;
-    if (!(risk > 0)) return [];
+    if (!(risk > 0)) { reject('invalid_risk_distance', item); return []; }
 
     return [{
       ...item,

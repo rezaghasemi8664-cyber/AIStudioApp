@@ -38,8 +38,13 @@ router.get('/signals', authenticate, async (_req, res) => {
     // Recommendation fundamentals may be cached, but the displayed price and
     // derived entry/target levels must come from the latest shared market row.
     const marketRows = await market.getSymbols({ limit: 1200 });
+    const filteredReasons = {};
     const refreshedResults = refreshValuableSymbolPrices(
-      cached.results, marketRows, new Date(), session.isOpen
+      cached.results,
+      marketRows,
+      new Date(),
+      session.isOpen,
+      reason => { filteredReasons[reason] = (filteredReasons[reason] || 0) + 1; }
     );
     const stale = cacheIsStale(cached.evaluatedAt);
     return res.json({
@@ -51,6 +56,10 @@ router.get('/signals', authenticate, async (_req, res) => {
         lastEvaluatedAt: cached.evaluatedAt,
         marketStatus: session.status,
         maxPriceAgeHours: Number(process.env.VALUABLE_SYMBOLS_MAX_PRICE_AGE_HOURS) || 72,
+        cachedCount: cached.results.length,
+        displayedCount: refreshedResults.length,
+        filteredCount: Math.max(0, cached.results.length - refreshedResults.length),
+        filteredReasons,
         available: refreshedResults.length > 0,
         pricesRefreshedFromSharedMarket: true
       }

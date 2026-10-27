@@ -137,14 +137,45 @@ function calculateScalpingPriceLevels(candles, signal, currentPrice, market = {}
     const stopLossPrice = Math.min(allowedMax, resistance);
     const risk = stopLossPrice - entryPrice;
     const reward = entryPrice - targetPrice;
-    if (!(entryPrice < current && entryPrice >= allowedMin && targetPrice > 0 &&
-        targetPrice < entryPrice && stopLossPrice > entryPrice && risk > 0 && reward / risk >= 1.2)) {
-      return reject('sell_entry_outside_band_or_invalid', {
-        currentPrice: current, entryPrice, targetPrice, stopLossPrice,
-        allowedMin, allowedMax, risk, reward, rewardRiskRatio: risk > 0 ? reward / risk : null
-      });
+    if (entryPrice < current && entryPrice >= allowedMin && targetPrice > 0 &&
+        targetPrice < entryPrice && stopLossPrice > entryPrice && risk > 0 && reward / risk >= 1.2) {
+      return { entryPrice: round(entryPrice), targetPrice: round(targetPrice), stopLossPrice: round(stopLossPrice), support: round(support), resistance: round(resistance), atr: round(atr), method: 'swing-support-atr' };
     }
-    return { entryPrice: round(entryPrice), targetPrice: round(targetPrice), stopLossPrice: round(stopLossPrice), support: round(support), resistance: round(resistance), atr: round(atr), method: 'swing-support-atr' };
+
+    // SELL is an exit/reduce-risk reference for existing holders, not a short
+    // sale. If a breakdown trigger would fall outside today's legal price band,
+    // evaluate an executable sell-at-current-price plan instead. Keep the same
+    // legal-band, directional-level, and minimum 1.2 reward/risk safeguards.
+    const exitEntry = current;
+    const exitTarget = Math.max(allowedMin, Math.min(support, exitEntry - atr * 0.5));
+    const exitStop = Math.min(allowedMax, Math.max(resistance, exitEntry + atr * 0.5));
+    const exitRisk = exitStop - exitEntry;
+    const exitReward = exitEntry - exitTarget;
+    if (bearishCandle && exitEntry > allowedMin && exitTarget >= allowedMin && exitTarget < exitEntry &&
+        exitStop > exitEntry && exitStop <= allowedMax && exitRisk > 0 &&
+        exitReward / exitRisk >= 1.2) {
+      return {
+        entryPrice: round(exitEntry),
+        targetPrice: round(exitTarget),
+        stopLossPrice: round(exitStop),
+        support: round(support),
+        resistance: round(resistance),
+        atr: round(atr),
+        method: 'sell-exit-reference-atr-v2'
+      };
+    }
+
+    return reject('sell_entry_outside_band_or_invalid', {
+      currentPrice: current, entryPrice, targetPrice, stopLossPrice,
+      allowedMin, allowedMax, risk, reward,
+      rewardRiskRatio: risk > 0 ? reward / risk : null,
+      exitReference: {
+        entryPrice: exitEntry,
+        targetPrice: exitTarget,
+        stopLossPrice: exitStop,
+        rewardRiskRatio: exitRisk > 0 ? exitReward / exitRisk : null
+      }
+    });
   }
   return reject('unsupported_signal', { signal: String(signal) });
 }
