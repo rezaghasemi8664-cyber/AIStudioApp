@@ -71,6 +71,28 @@ describe('valuable-symbols current price refresh', () => {
     expect(result).toEqual([]);
   });
 
+  test('reports why cached valuable symbols are filtered from the live response', () => {
+    const reasons = {};
+    const result = refreshValuableSymbolPrices(
+      [cachedItem(), cachedItem({ symbol: 'OLD' }), cachedItem({ symbol: 'BELOW-SMA' })],
+      [
+        { symbol: 'مثقال', lastPrice: 206700, updatedAt: '2026-10-12T05:40:00.000Z', isStale: false },
+        { symbol: 'OLD', lastPrice: 206700, updatedAt: '2026-10-12T05:59:00.000Z', isStale: true },
+        { symbol: 'BELOW-SMA', lastPrice: 199000, updatedAt: '2026-10-12T05:59:00.000Z', isStale: false }
+      ],
+      now,
+      true,
+      reason => { reasons[reason] = (reasons[reason] || 0) + 1; }
+    );
+
+    expect(result).toEqual([]);
+    expect(reasons).toEqual({
+      market_price_too_old: 1,
+      market_row_stale: 1,
+      current_price_below_sma20: 1
+    });
+  });
+
   test('does not synthesize a current price when no shared market row exists', () => {
     expect(refreshValuableSymbolPrices([cachedItem()], [], now, false)).toEqual([]);
   });
