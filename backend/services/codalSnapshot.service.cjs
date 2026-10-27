@@ -111,7 +111,6 @@ async function fetchPage(page, category = '') {
     error.code = 'CODAL_NOT_CONFIGURED';
     throw error;
   }
-  await reserveDailyRequest();
   const url = new URL(config.url);
   url.searchParams.set('key', config.key);
   url.searchParams.set('page', String(page));
@@ -123,29 +122,44 @@ async function fetchPage(page, category = '') {
     ['CODAL_ONLY_SUBSIDIARIES', 'only_subsidiaries', 'false']
   ]) url.searchParams.set(paramName, String(process.env[envName] || fallback));
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
-  try {
-    const response = await fetch(url, {
-      headers: { Accept: 'application/json', 'User-Agent': process.env.CODAL_USER_AGENT || 'Roniya-Analyzer/1.0' },
-      signal: controller.signal
-    });
-    if (!response.ok) {
-      const error = new Error('Codal API returned HTTP ' + response.status);
-      error.code = 'CODAL_HTTP_ERROR';
-      throw error;
+  // Retry one transient timeout/network/5xx failure. Every attempt is counted
+  // against the shared daily API quota before making the external request.
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    await reserveDailyRequest();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+    try {
+      const response = await fetch(url, {
+        headers: { Accept: 'application/json', 'User-Agent': process.env.CODAL_USER_AGENT || 'Roniya-Analyzer/1.0' },
+        signal: controller.signal
+      });
+      if (!response.ok) {
+        const error = new Error('Codal API returned HTTP ' + response.status);
+        error.code = 'CODAL_HTTP_ERROR';
+        error.status = response.status;
+        throw error;
+      }
+      return await response.json();
+    } catch (error) {
+      let normalized = error;
+      if (error && error.name === 'AbortError') {
+        normalized = new Error('Codal API request timed out');
+        normalized.code = 'CODAL_TIMEOUT';
+      }
+      const retryable = normalized.code === 'CODAL_TIMEOUT' ||
+        normalized instanceof TypeError ||
+        (normalized.code === 'CODAL_HTTP_ERROR' && normalized.status >= 500);
+      if (attempt < 2 && retryable) {
+        console.warn('[CODAL SNAPSHOT] transient request failure; retrying page=' + page +
+          ' category=' + (category || 'general') + ' error=' + (normalized.message || normalized));
+        continue;
+      }
+      throw normalized;
+    } finally {
+      clearTimeout(timer);
     }
-    return await response.json();
-  } catch (error) {
-    if (error && error.name === 'AbortError') {
-      const timeout = new Error('Codal API request timed out');
-      timeout.code = 'CODAL_TIMEOUT';
-      throw timeout;
-    }
-    throw error;
-  } finally {
-    clearTimeout(timer);
   }
+  throw new Error('Codal API request failed after retry.');
 }
 
 async function readUsage() {
@@ -182,10 +196,12 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
       if (!items.length || (financialReportedPages && financialPage >= financialReportedPages)) break;
       financialPage += 1;
     }
+    // The API may report the total number of Codal pages, not the number
+    // available within this category. Treat the configured budget as a
+    // deliberate recent-data window instead of rejecting every snapshot.
     if (financialReportedPages > financialBudget || financialPage > financialBudget) {
-      const error = new Error('Codal financial-statement pages exceed the reserved snapshot budget; previous snapshot preserved.');
-      error.code = 'CODAL_FINANCIAL_PAGE_CAP_REACHED';
-      throw error;
+      console.warn('[CODAL SNAPSHOT] financial page budget reached; continuing with the fetched recent pages (' +
+        financialBudget + ' max, API reported ' + financialReportedPages + ').');
     }
 
     let generalPage = 1;
@@ -199,10 +215,11 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
       if (!items.length || (reportedPages && generalPage >= reportedPages)) break;
       generalPage += 1;
     }
+    // Snapshot is intentionally bounded to protect the daily API quota.
+    // A larger API-reported total must not invalidate the recent pages fetched.
     if (reportedPages > generalBudget || generalPage > generalBudget) {
-      const error = new Error('Codal general-announcement pages exceed the reserved snapshot budget; previous snapshot preserved.');
-      error.code = 'CODAL_GENERAL_PAGE_CAP_REACHED';
-      throw error;
+      console.warn('[CODAL SNAPSHOT] general page budget reached; continuing with the fetched recent pages (' +
+        generalBudget + ' max, API reported ' + reportedPages + ').');
     }
     const unique = new Map();
     for (const item of all) {
@@ -377,6 +394,20 @@ function startCodalSnapshotCron() {
     cron.schedule('30 13 * * *', () => refreshSnapshot({ reason: 'scheduled-13:30' }), { timezone: TEHRAN_TIMEZONE })
   ];
   console.log('[CODAL SNAPSHOT] scheduled daily at 08:00 and 13:30 Asia/Tehran; global daily API cap=' + getApiConfig().dailyLimit);
+
+  // Bootstrap immediately after startup if the database has no active snapshot.
+  // This avoids waiting until the next cron window after a deployment/restart.
+  setImmediate(async () => {
+    try {
+      const status = await getSnapshotStatus();
+      if (!status.state || !status.state.ActiveSnapshotId) {
+        console.log('[CODAL SNAPSHOT] no active snapshot found; starting bootstrap refresh');
+        await refreshSnapshot({ reason: 'startup-bootstrap' });
+      }
+    } catch (error) {
+      console.error('[CODAL SNAPSHOT] startup bootstrap check failed:', error.message || error);
+    }
+  });
 }
 
 function stopCodalSnapshotCron() {
