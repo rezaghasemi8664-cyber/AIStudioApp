@@ -84,6 +84,7 @@ async function refreshOptionsMarketSnapshot(io) {
     const contracts=brsRoutes.enrichOptionContracts(raw,Array.isArray(symbols)?symbols:[]);
     if(!Array.isArray(contracts)||!contracts.length) throw new Error('Option-contract enrichment failed; previous snapshot retained');
     const analysis=analyze(contracts);
+    try { await require('./optionsExitAlert.service.cjs').evaluateOptionExitAlerts(contracts); } catch (alertError) { console.error('[OPTIONS EXIT ALERT] Evaluation failed:', alertError.message); }
     const now=new Date();
     const record=await prisma.optionMarketCurrent.upsert({
       where:{id:1},
