@@ -151,7 +151,7 @@ function calculateScalpingPriceLevels(candles, signal, currentPrice, market = {}
     const exitStop = Math.min(allowedMax, Math.max(resistance, exitEntry + atr * 0.5));
     const exitRisk = exitStop - exitEntry;
     const exitReward = exitEntry - exitTarget;
-    if (exitEntry > allowedMin && exitTarget >= allowedMin && exitTarget < exitEntry &&
+    if (bearishCandle && exitEntry > allowedMin && exitTarget >= allowedMin && exitTarget < exitEntry &&
         exitStop > exitEntry && exitStop <= allowedMax && exitRisk > 0 &&
         exitReward / exitRisk >= 1.2) {
       return {
