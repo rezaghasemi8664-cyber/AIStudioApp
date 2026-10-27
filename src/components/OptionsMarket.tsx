@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { getCached, invalidateCachedGet } from '../services/apiClient';
+import { get, getCached, invalidateCachedGet, put } from '../services/apiClient';
 import { getSocket } from '../services/socketService';
 import OptionsPortfolio from './OptionsPortfolio';
 import { scalpingService } from '../services/scalpingService';
@@ -29,6 +29,12 @@ function parseNumeric(value: unknown): number | null {
 function formatPrice(value: unknown): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
   return value.toLocaleString('fa-IR', { maximumFractionDigits: 4 });
+}
+
+function tehranTodayIso(): string {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const part = (type: string) => parts.find((item) => item.type === type)?.value || '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
 function getNumeric(record: OptionContract, keys: string[]): number | null {
@@ -186,6 +192,11 @@ const OptionsMarket: React.FC = () => {
   const [selectedExpiry, setSelectedExpiry] = useState('');
   const [scenarioUnderlyingPrice, setScenarioUnderlyingPrice] = useState('');
   const [scenarioFeeRatePercent, setScenarioFeeRatePercent] = useState('');
+  const [selectedOptionSymbols, setSelectedOptionSymbols] = useState<Record<string, boolean>>({});
+  const [optionPurchaseQuantities, setOptionPurchaseQuantities] = useState<Record<string, string>>({});
+  const [savingToPortfolio, setSavingToPortfolio] = useState(false);
+  const [portfolioSaveError, setPortfolioSaveError] = useState<string | null>(null);
+  const [portfolioSaveNotice, setPortfolioSaveNotice] = useState<string | null>(null);
 
   const loadContracts = useCallback(async (forceRefresh = false) => {
     if (forceRefresh) invalidateCachedGet('/brs/options');
@@ -283,6 +294,52 @@ const OptionsMarket: React.FC = () => {
       .slice(0, 3),
     [filteredContracts]
   );
+
+  const saveSelectedOptionsToPortfolio = useCallback(async () => {
+    setPortfolioSaveError(null);
+    setPortfolioSaveNotice(null);
+    setSavingToPortfolio(true);
+    try {
+      const selected = rankedContracts.filter((item) => {
+        const symbol = getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase();
+        return Boolean(symbol && selectedOptionSymbols[symbol]);
+      });
+      if (!selected.length) throw new Error('ابتدا حداقل یک نماد پیشنهادی را انتخاب کنید.');
+      const additions = selected.map((item) => {
+        const symbol = getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase();
+        const quantity = parseNumeric(optionPurchaseQuantities[symbol] ?? '1');
+        const contractSize = getPositiveNumeric(item.contract, ['contractSize', 'size_contract', 'sizeContract', 'contract_size']);
+        if (!symbol || quantity === null || !Number.isInteger(quantity) || quantity <= 0 || !contractSize) {
+          throw new Error(`تعداد قرارداد باید عدد صحیح مثبت باشد و اندازه قرارداد ${symbol || 'نامشخص'} معتبر باشد.`);
+        }
+        return {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+          symbol,
+          entryPrice: item.entryPrice,
+          entryDate: tehranTodayIso(),
+          quantity,
+          contractSize,
+          currentPrice: null,
+          priceSource: null,
+        };
+      });
+      const existingResponse = await get<{ value?: string } | null>('/user-preference/optionsPortfolio');
+      if (!existingResponse.success) throw new Error(existingResponse.message || 'دریافت سبد آپشن ذخیره‌شده ناموفق بود.');
+      let existingItems: unknown = [];
+      try { existingItems = existingResponse.data?.value ? JSON.parse(existingResponse.data.value) : []; } catch { throw new Error('اطلاعات فعلی سبد آپشن قابل‌خواندن نیست؛ برای جلوگیری از حذف اطلاعات، ذخیره انجام نشد.'); }
+      if (!Array.isArray(existingItems)) throw new Error('ساختار سبد آپشن نامعتبر است؛ اطلاعات قبلی حفظ شد.');
+      const saveResponse = await put<{ value: string }>('/user-preference/optionsPortfolio', { value: JSON.stringify([...existingItems, ...additions]) });
+      if (!saveResponse.success) throw new Error(saveResponse.message || 'ذخیره نمادهای انتخاب‌شده در سبد آپشن ناموفق بود.');
+      setPortfolioSaveNotice(`${additions.length.toLocaleString('fa-IR')} قرارداد با تعداد واردشده و تاریخ امروز به سبد آپشن افزوده شد.`);
+      setSelectedOptionSymbols({});
+      setOptionPurchaseQuantities({});
+      setActiveView('portfolio');
+    } catch (err) {
+      setPortfolioSaveError(err instanceof Error ? err.message : 'ذخیره در سبد آپشن ناموفق بود.');
+    } finally {
+      setSavingToPortfolio(false);
+    }
+  }, [rankedContracts, selectedOptionSymbols, optionPurchaseQuantities]);
 
   const rankDiagnostics = useMemo(() => {
     const counts: Record<RankRejectionReason, number> = {
@@ -414,6 +471,13 @@ const OptionsMarket: React.FC = () => {
                   <strong>{getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol'])}</strong>
                   <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-bold text-blue-900 dark:bg-blue-900 dark:text-blue-100">امتیاز {item.score}</span>
                 </div>
+                <label className="mt-3 flex items-center gap-2 text-sm font-semibold">
+                  <input type="checkbox" checked={Boolean(selectedOptionSymbols[getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase()])} onChange={(event) => { const symbol = getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase(); setSelectedOptionSymbols((current) => ({ ...current, [symbol]: event.target.checked })); setPortfolioSaveError(null); }} />
+                  انتخاب برای سبد آپشن
+                </label>
+                <label className="mt-2 block text-sm font-semibold">تعداد قرارداد خرید
+                  <input type="number" min="1" step="1" inputMode="numeric" value={optionPurchaseQuantities[getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase()] ?? '1'} onChange={(event) => { const symbol = getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase(); setOptionPurchaseQuantities((current) => ({ ...current, [symbol]: event.target.value })); }} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800" />
+                </label>
                 <p className="mt-2 text-sm">نماد پایه: {getValue(item.contract, BASE_SYMBOL_KEYS)}</p>
                 <p className="text-sm">سررسید: {getValue(item.contract, EXPIRY_KEYS)} · {item.days} روز</p>
                 <p className="mt-1 text-sm">قیمت پیشنهادی ورود (هر واحد): <strong>{formatPrice(item.entryPrice)}</strong></p>
@@ -426,6 +490,12 @@ const OptionsMarket: React.FC = () => {
             ))}
           </div>
         )}
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-gray-600 dark:text-gray-300">نمادهای انتخاب‌شده با قیمت پیشنهادی ورود، تعداد واردشده و تاریخ امروز به سبد آپشن افزوده می‌شوند.</p>
+          <button type="button" onClick={() => void saveSelectedOptionsToPortfolio()} disabled={savingToPortfolio || rankedContracts.length === 0} className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{savingToPortfolio ? 'در حال ذخیره…' : 'ذخیره در سبد آپشن'}</button>
+        </div>
+        {portfolioSaveError && <p role="alert" className="mt-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">{portfolioSaveError}</p>}
+        {portfolioSaveNotice && <p role="status" className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{portfolioSaveNotice}</p>}
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">این رتبه‌بندی، غربالگری اولیه است نه پیش‌بینی سود. پیش از معامله، عمق سفارش، کارمزد، اندازه قرارداد، محدودیت نقدشوندگی و ریسک افت ارزش زمانی را بررسی کن. در نبود داده معتبر، نباید امتیاز را مبنای سفارش قرار داد.</p>
       </section>
 
