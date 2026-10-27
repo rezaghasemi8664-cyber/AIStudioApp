@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { valuableSymbolsService, type ValuableSymbol } from '../services/valuableSymbolsService';
 import { getSocket } from '../services/socketService';
+import apiClient from '../api/apiClient';
 
 let cachedValuableSymbols: Awaited<ReturnType<typeof valuableSymbolsService.getSignals>> | null = null;
 
@@ -17,7 +18,9 @@ const dateTime = (value: string | null) => {
     : new Intl.DateTimeFormat('fa-IR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Tehran', hour12: false }).format(date);
 };
 
-const ValuableSymbolCard: React.FC<{ item: ValuableSymbol; index: number }> = ({ item, index }) => (
+const ValuableSymbolCard: React.FC<{
+  item: ValuableSymbol; index: number; onSave: (item: ValuableSymbol) => void; saving: boolean;
+}> = ({ item, index, onSave, saving }) => (
   <article className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-sm">
     <div className="mb-3 flex items-start justify-between gap-3">
       <div>
@@ -47,6 +50,10 @@ const ValuableSymbolCard: React.FC<{ item: ValuableSymbol; index: number }> = ({
     <p className="mt-3 text-[10px] text-[var(--color-text-secondary)]">
       بررسی بنیادی: داده کدال {item.fundamental?.reportTitle ? `· ${item.fundamental.reportTitle}` : ''}
     </p>
+    <button type="button" onClick={() => onSave(item)} disabled={saving || !(item.stopLoss > 0 && item.entryPrice > item.stopLoss && item.targetPrice > item.entryPrice)}
+      className="mt-4 w-full rounded-lg bg-cyan-600 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50">
+      {saving ? 'در حال ذخیره…' : 'ذخیره در سبد ارزنده‌ها'}
+    </button>
   </article>
 );
 
@@ -57,6 +64,30 @@ const ValuableSymbols: React.FC<{ isOnline: boolean }> = ({ isOnline }) => {
   const [marketStatus, setMarketStatus] = useState<'OPEN' | 'CLOSED'>(() => cachedValuableSymbols?.marketStatus ?? 'CLOSED');
   const [loading, setLoading] = useState(() => !cachedValuableSymbols);
   const [error, setError] = useState('');
+  const [savingSymbol, setSavingSymbol] = useState<string | null>(null);
+  const [saveNotice, setSaveNotice] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const saveToValuableWatchlist = async (item: ValuableSymbol) => {
+    const symbol = String(item.symbol || '').trim().toUpperCase();
+    if (!symbol || !(item.stopLoss > 0 && item.entryPrice > item.stopLoss && item.targetPrice > item.entryPrice)) {
+      setSaveError('سطوح ورود، حد ضرر و خروج این نماد معتبر نیستند و قابل ذخیره نیستند.');
+      setSaveNotice('');
+      return;
+    }
+    setSavingSymbol(symbol); setSaveError(''); setSaveNotice('');
+    try {
+      const dateParts = new Intl.DateTimeFormat('en-US-u-ca-persian-nu-latn', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+      const date = Object.fromEntries(dateParts.map(part => [part.type, part.value]));
+      await apiClient.post('/trade-watchlists/valuable', {
+        symbol, name: item.name || symbol, entryDate: `${date.year}/${date.month}/${date.day}`,
+        quantity: 1, entryPrice: item.entryPrice, targetPrice: item.targetPrice, stopLoss: item.stopLoss,
+        targetAlertEnabled: true, stopLossAlertEnabled: true,
+      });
+      setSaveNotice(`نماد ${symbol} در سبد ارزنده‌ها ذخیره شد؛ هشدار حد ضرر و هدف خروج فعال است. تعداد اولیه برای محاسبه روی ۱ تنظیم شده است.`);
+    } catch (error: any) {
+      setSaveError(error?.response?.data?.message || error?.message || 'ذخیره نماد در سبد ارزنده‌ها ناموفق بود.');
+    } finally { setSavingSymbol(null); }
+  };
 
   const load = useCallback(async () => {
     if (!isOnline) {
@@ -116,6 +147,7 @@ const ValuableSymbols: React.FC<{ isOnline: boolean }> = ({ isOnline }) => {
       <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs leading-6 text-[var(--color-text-secondary)]">
         این فهرست غربالگری داده‌محور است، نه تضمین بازده. قیمت ورود، هدف و حد ضرر مقادیر محاسباتی هستند؛ پیش از معامله تازگی داده و شرایط بازار را بررسی کنید.
       </div>
+      {(saveNotice || saveError) && <div role="status" className={`rounded-lg border p-3 text-sm ${saveError ? 'border-red-500/30 bg-red-500/5 text-red-600' : 'border-emerald-500/30 bg-emerald-500/5 text-emerald-700'}`}>{saveError || saveNotice}</div>}
       {loading && items.length === 0 ? (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">{[1,2,3].map(n => <div key={n} className="h-48 animate-pulse rounded-xl bg-gray-500/10" />)}</div>
       ) : error && items.length === 0 ? (
@@ -126,7 +158,7 @@ const ValuableSymbols: React.FC<{ isOnline: boolean }> = ({ isOnline }) => {
           <p className="mt-2 text-xs text-[var(--color-text-secondary)]">در نبود داده تکنیکال یا بنیادی معتبر، نماد ساختگی نمایش داده نمی‌شود.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">{items.slice(0,20).map((item,index) => <ValuableSymbolCard key={item.symbol} item={item} index={index} />)}</div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">{items.slice(0,20).map((item,index) => <ValuableSymbolCard key={item.symbol} item={item} index={index} onSave={saveToValuableWatchlist} saving={savingSymbol === item.symbol} />)}</div>
       )}
     </section>
   );
