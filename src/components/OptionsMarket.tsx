@@ -119,6 +119,35 @@ function getRankRejectionReason(contract: OptionContract): RankRejectionReason |
   return null;
 }
 
+function normalCdf(x: number): number {
+  const a1=0.319381530,a2=-0.356563782,a3=1.781477937,a4=-1.821255978,a5=1.330274429;
+  const sign=x<0?-1:1,z=Math.abs(x),t=1/(1+0.2316419*z);
+  const density=0.3989422804014327*Math.exp(-z*z/2);
+  const tail=density*t*(a1+t*(a2+t*(a3+t*(a4+t*a5))));
+  return sign===1?1-tail:tail;
+}
+function blackScholes(spot:number,strike:number,years:number,vol:number,kind:'call'|'put'):number {
+  if(spot<=0||strike<=0||years<=0||vol<=0)return Math.max(0,kind==='call'?spot-strike:strike-spot);
+  const root=Math.sqrt(years),d1=(Math.log(spot/strike)+(vol*vol/2)*years)/(vol*root),d2=d1-vol*root;
+  return kind==='call'?spot*normalCdf(d1)-strike*normalCdf(d2):strike*normalCdf(-d2)-spot*normalCdf(-d1);
+}
+function calculateModelExitPrice(spot:number,strike:number,days:number,kind:'call'|'put',bid:number,ask:number):number|null {
+  const years=days/365,mid=(bid+ask)/2;
+  if(!(spot>0&&strike>0&&years>0&&mid>0))return null;
+  // Infer implied volatility from the observed midpoint; do not invent volatility if the premium is outside model bounds.
+  let low=0.0001,high=5;
+  const intrinsic=Math.max(0,kind==='call'?spot-strike:strike-spot);
+  if(mid<intrinsic)return null;
+  for(let i=0;i<64;i++){const vol=(low+high)/2,price=blackScholes(spot,strike,years,vol,kind);if(price>mid)high=vol;else low=vol;}
+  const iv=(low+high)/2;
+  if(!Number.isFinite(iv)||iv<0.0005||iv>4.99)return null;
+  // One implied-volatility standard-deviation move in the favorable direction, revalued with the same model.
+  const projectedSpot=spot*Math.exp((kind==='call'?1:-1)*iv*Math.sqrt(years));
+  const projectedPremium=blackScholes(projectedSpot,strike,years,iv,kind);
+  if(!Number.isFinite(projectedPremium)||projectedPremium<=ask)return null;
+  return Math.round(projectedPremium*10000)/10000;
+}
+
 function rankOptionContract(contract: OptionContract) {
   const spot = getNumeric(contract, ['underlyingLastPrice']);
   const strike = getNumeric(contract, ['strikePrice', 'price_strike', 'priceStrike', 'strike']);
@@ -142,6 +171,7 @@ function rankOptionContract(contract: OptionContract) {
   ) return null;
 
   const entryPrice = ask;
+  const modelExitPrice = calculateModelExitPrice(spot, strike, days, kind, bid, ask);
   const spreadPercent = ((ask - bid) / ((ask + bid) / 2)) * 100;
 
   const moneyness = Math.abs(spot - strike) / spot;
@@ -161,6 +191,7 @@ function rankOptionContract(contract: OptionContract) {
     entryPrice,
     priceSource: 'best-ask',
     exitPrice: bid,
+    modelExitPrice,
     spreadPercent,
     reasons: [
       moneynessScore >= 0.7 ? 'نزدیکی مناسب قیمت اعمال به قیمت پایه' : 'فاصله نسبتاً زیاد از قیمت پایه',
@@ -316,6 +347,9 @@ const OptionsMarket: React.FC = () => {
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
           symbol,
           entryPrice: item.entryPrice,
+          targetExitPrice: item.modelExitPrice,
+          exitAlertEnabled: false,
+          exitAlertTriggered: false,
           entryDate: tehranTodayIso(),
           quantity,
           contractSize,
@@ -482,7 +516,9 @@ const OptionsMarket: React.FC = () => {
                 <p className="text-sm">سررسید: {getValue(item.contract, EXPIRY_KEYS)} · {item.days} روز</p>
                 <p className="mt-1 text-sm">قیمت پیشنهادی ورود (هر واحد): <strong>{formatPrice(item.entryPrice)}</strong></p>
                 <p className="text-xs text-gray-500">بر مبنای بهترین قیمت عرضه ثبت‌شده؛ قیمت سفارش واقعی ممکن است تغییر کند</p>
-                <p className="mt-1 text-sm">قیمت بهترین تقاضا برای خروج: <strong>{formatPrice(item.exitPrice)}</strong></p>
+                <p className="mt-1 text-sm">بهترین تقاضای فعلی (فروش لحظه‌ای): <strong>{formatPrice(item.exitPrice)}</strong></p>
+                <p className="mt-1 text-sm">قیمت هدف خروج مدل‌محور: <strong>{item.modelExitPrice === null ? 'محاسبه نشد؛ داده/فرض مدل کافی نیست' : formatPrice(item.modelExitPrice)}</strong></p>
+                <p className="text-xs text-gray-500">هدف بر پایه نوسان ضمنی استخراج‌شده از قیمت میانی و حرکت یک انحراف معیار به نفع موقعیت در مدل بلک–شولز با نرخ بدون ریسک صفر است؛ تخمین نظری است، نه تضمین قیمت آینده.</p>
                 <ul className="mt-2 list-disc space-y-1 pr-4 text-xs text-gray-600 dark:text-gray-300">
                   {item.reasons.map((reason) => <li key={reason}>{reason}</li>)}
                 </ul>

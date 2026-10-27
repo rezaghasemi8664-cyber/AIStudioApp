@@ -90,6 +90,7 @@ async function refreshOptionsMarketSnapshot(io) {
       create:{id:1,contractCount:contracts.length,contractsJson:JSON.stringify(contracts),analysisJson:JSON.stringify(analysis),source:'brs-live',fetchedAt:now,analyzedAt:new Date(analysis.analyzedAt),updatedAt:now},
       update:{contractCount:contracts.length,contractsJson:JSON.stringify(contracts),analysisJson:JSON.stringify(analysis),source:'brs-live',fetchedAt:now,analyzedAt:new Date(analysis.analyzedAt),updatedAt:now}
     });
+    try { await require('./optionsExitAlert.service.cjs').evaluateOptionExitAlerts(contracts); } catch (alertError) { console.error('[OPTIONS EXIT ALERT] Evaluation failed:', alertError.message); }
     if(io) io.emit('options-market:updated',{contracts,analysis,contractCount:record.contractCount,source:record.source,fetchedAt:record.fetchedAt.toISOString(),analyzedAt:record.analyzedAt.toISOString(),updatedAt:record.updatedAt.toISOString()});
     console.log('[OPTIONS MARKET] Snapshot committed',JSON.stringify({contractCount:record.contractCount,updatedAt:record.updatedAt.toISOString(),eligibleCount:analysis.eligibleCount}));
     return {updated:true,contractCount:record.contractCount,analysis};
