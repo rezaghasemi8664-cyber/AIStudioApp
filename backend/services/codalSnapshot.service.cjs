@@ -111,7 +111,6 @@ async function fetchPage(page, category = '') {
     error.code = 'CODAL_NOT_CONFIGURED';
     throw error;
   }
-  await reserveDailyRequest();
   const url = new URL(config.url);
   url.searchParams.set('key', config.key);
   url.searchParams.set('page', String(page));
@@ -123,29 +122,44 @@ async function fetchPage(page, category = '') {
     ['CODAL_ONLY_SUBSIDIARIES', 'only_subsidiaries', 'false']
   ]) url.searchParams.set(paramName, String(process.env[envName] || fallback));
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
-  try {
-    const response = await fetch(url, {
-      headers: { Accept: 'application/json', 'User-Agent': process.env.CODAL_USER_AGENT || 'Roniya-Analyzer/1.0' },
-      signal: controller.signal
-    });
-    if (!response.ok) {
-      const error = new Error('Codal API returned HTTP ' + response.status);
-      error.code = 'CODAL_HTTP_ERROR';
-      throw error;
+  // Retry one transient timeout/network/5xx failure. Every attempt is counted
+  // against the shared daily API quota before making the external request.
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    await reserveDailyRequest();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+    try {
+      const response = await fetch(url, {
+        headers: { Accept: 'application/json', 'User-Agent': process.env.CODAL_USER_AGENT || 'Roniya-Analyzer/1.0' },
+        signal: controller.signal
+      });
+      if (!response.ok) {
+        const error = new Error('Codal API returned HTTP ' + response.status);
+        error.code = 'CODAL_HTTP_ERROR';
+        error.status = response.status;
+        throw error;
+      }
+      return await response.json();
+    } catch (error) {
+      let normalized = error;
+      if (error && error.name === 'AbortError') {
+        normalized = new Error('Codal API request timed out');
+        normalized.code = 'CODAL_TIMEOUT';
+      }
+      const retryable = normalized.code === 'CODAL_TIMEOUT' ||
+        normalized instanceof TypeError ||
+        (normalized.code === 'CODAL_HTTP_ERROR' && normalized.status >= 500);
+      if (attempt < 2 && retryable) {
+        console.warn('[CODAL SNAPSHOT] transient request failure; retrying page=' + page +
+          ' category=' + (category || 'general') + ' error=' + (normalized.message || normalized));
+        continue;
+      }
+      throw normalized;
+    } finally {
+      clearTimeout(timer);
     }
-    return await response.json();
-  } catch (error) {
-    if (error && error.name === 'AbortError') {
-      const timeout = new Error('Codal API request timed out');
-      timeout.code = 'CODAL_TIMEOUT';
-      throw timeout;
-    }
-    throw error;
-  } finally {
-    clearTimeout(timer);
   }
+  throw new Error('Codal API request failed after retry.');
 }
 
 async function readUsage() {
