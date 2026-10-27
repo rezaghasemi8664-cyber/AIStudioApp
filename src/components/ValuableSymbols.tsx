@@ -91,7 +91,7 @@ const ValuableSymbols: React.FC<{ isOnline: boolean }> = ({ isOnline }) => {
         quantity, entryPrice: item.entryPrice, targetPrice: item.targetPrice, stopLoss: item.stopLoss,
         targetAlertEnabled: true, stopLossAlertEnabled: true,
       });
-      setSaveNotice(`نماد ${symbol} در سبد ارزنده‌ها ذخیره شد؛ هشدار حد ضرر و هدف خروج فعال است. تعداد اولیه برای محاسبه روی ۱ تنظیم شده است.`);
+      setSaveNotice(`نماد ${symbol} در سبد ارزنده‌ها ذخیره شد؛ هشدار حد ضرر و هدف خروج فعال است. تعداد واقعی واردشده توسط شما ثبت شد.`);
     } catch (error: any) {
       setSaveError(error?.response?.data?.message || error?.message || 'ذخیره نماد در سبد ارزنده‌ها ناموفق بود.');
     } finally { setSavingSymbol(null); }
