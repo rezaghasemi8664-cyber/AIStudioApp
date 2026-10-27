@@ -1,5 +1,6 @@
 ﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { scalpingService } from '../services/scalpingService';
+import apiClient from '../api/apiClient';
 import { getSocket } from '../services/socketService';
 import ValuableSymbols from './ValuableSymbols';
 import TradeWatchlist from './TradeWatchlist';
@@ -47,7 +48,11 @@ const formatScore = (value?: number | null) =>
     ? new Intl.NumberFormat('fa-IR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value)
     : new Intl.NumberFormat('fa-IR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(0);
 
-const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ opportunity }) => {
+const OpportunityCard: React.FC<{
+  opportunity: ScalpingOpportunity;
+  onSave: (opportunity: ScalpingOpportunity) => void;
+  saving: boolean;
+}> = ({ opportunity, onSave, saving }) => {
   const entryPrice = opportunity.entryPrice ?? opportunity.price;
   const exitPrice = opportunity.exitPrice ?? opportunity.targetPrice;
   const stopLossPrice = opportunity.stopLossPrice;
@@ -120,6 +125,12 @@ const OpportunityCard: React.FC<{ opportunity: ScalpingOpportunity }> = ({ oppor
           <span className="text-sm font-mono font-bold text-cyan-500">{formatScore(opportunity.confidence)}</span>
         </div>
       </div>
+      <button type="button" onClick={() => onSave(opportunity)} disabled={saving || isSellSignal || !(Number(entryPrice) > Number(stopLossPrice) && Number(exitPrice) > Number(entryPrice))}
+        title={isSellSignal ? 'سیگنال فروش برای ایجاد موقعیت خرید در این سبد مناسب نیست.' : undefined}
+        className="mt-4 w-full rounded-lg bg-cyan-600 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50">
+        {saving ? 'در حال ذخیره…' : 'ذخیره در سبد نوسان‌گیری'}
+      </button>
+      {isSellSignal && <p className="mt-2 text-[10px] text-amber-600">این سیگنال فروش است؛ برای جلوگیری از تنظیم اشتباه هشدار موقعیت خرید، در سبد جدید ذخیره نمی‌شود.</p>}
     </div>
   );
 };
@@ -131,6 +142,34 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
   const [lastEvaluatedAt, setLastEvaluatedAt] = useState<string | null>(() => cachedScalpingOpportunities?.evaluatedAt ?? null);
   const [marketStatus, setMarketStatus] = useState<{ isOpen: boolean; available: boolean }>(() => cachedScalpingOpportunities?.marketStatus ?? { isOpen: false, available: false });
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [savingSymbol, setSavingSymbol] = useState<string | null>(null);
+  const [saveNotice, setSaveNotice] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const saveToScalpingWatchlist = async (opportunity: ScalpingOpportunity) => {
+    const symbol = String(opportunity.symbol || '').trim().toUpperCase();
+    const entryPrice = Number(opportunity.entryPrice ?? opportunity.price);
+    const targetPrice = Number(opportunity.exitPrice ?? opportunity.targetPrice);
+    const stopLoss = Number(opportunity.stopLossPrice);
+    if (!symbol || !Number.isFinite(entryPrice) || !Number.isFinite(targetPrice) || !Number.isFinite(stopLoss) ||
+        !(stopLoss > 0 && entryPrice > stopLoss && targetPrice > entryPrice)) {
+      setSaveError('سطوح ورود، حد ضرر و خروج این سیگنال برای ذخیره در سبد خرید معتبر نیستند.');
+      setSaveNotice('');
+      return;
+    }
+    setSavingSymbol(symbol); setSaveError(''); setSaveNotice('');
+    try {
+      const dateParts = new Intl.DateTimeFormat('en-US-u-ca-persian-nu-latn', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+      const date = Object.fromEntries(dateParts.map(part => [part.type, part.value]));
+      await apiClient.post('/trade-watchlists/scalping', {
+        symbol, name: symbol, entryDate: `${date.year}/${date.month}/${date.day}`,
+        quantity: 1, entryPrice, targetPrice, stopLoss,
+        targetAlertEnabled: true, stopLossAlertEnabled: true,
+      });
+      setSaveNotice(`نماد ${symbol} در سبد نوسان‌گیری ذخیره شد؛ هشدار حد ضرر و هدف خروج فعال است. تعداد اولیه برای محاسبه روی ۱ تنظیم شده است.`);
+    } catch (error: any) {
+      setSaveError(error?.response?.data?.message || error?.message || 'ذخیره نماد در سبد نوسان‌گیری ناموفق بود.');
+    } finally { setSavingSymbol(null); }
+  };
   const [isLoading, setIsLoading] = useState(() => !cachedScalpingOpportunities);
   const requestIdRef = useRef(0);
 
@@ -224,7 +263,7 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
     return (
       <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'flex flex-col gap-2'}>
         {opportunities.map(op => (
-          <OpportunityCard key={op.id || op.symbol} opportunity={op} />
+          <OpportunityCard key={op.id || op.symbol} opportunity={op} onSave={saveToScalpingWatchlist} saving={savingSymbol === op.symbol} />
         ))}
       </div>
     );
@@ -281,6 +320,7 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
         </div>
       </div>
 
+      {(saveNotice || saveError) && <div role="status" className={`rounded-lg border p-3 text-sm ${saveError ? 'border-red-500/30 bg-red-500/5 text-red-600' : 'border-emerald-500/30 bg-emerald-500/5 text-emerald-700'}`}>{saveError || saveNotice}</div>}
       <div className="relative min-h-[300px]">
         {renderContent()}
       </div>
