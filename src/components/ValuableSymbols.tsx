@@ -19,8 +19,10 @@ const dateTime = (value: string | null) => {
 };
 
 const ValuableSymbolCard: React.FC<{
-  item: ValuableSymbol; index: number; onSave: (item: ValuableSymbol) => void; saving: boolean;
-}> = ({ item, index, onSave, saving }) => (
+  item: ValuableSymbol; index: number; onSave: (item: ValuableSymbol, quantity: string) => void; saving: boolean;
+}> = ({ item, index, onSave, saving }) => {
+  const [quantity, setQuantity] = useState('');
+  return (
   <article className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-sm">
     <div className="mb-3 flex items-start justify-between gap-3">
       <div>
@@ -50,12 +52,16 @@ const ValuableSymbolCard: React.FC<{
     <p className="mt-3 text-[10px] text-[var(--color-text-secondary)]">
       بررسی بنیادی: داده کدال {item.fundamental?.reportTitle ? `· ${item.fundamental.reportTitle}` : ''}
     </p>
-    <button type="button" onClick={() => onSave(item)} disabled={saving || !(item.stopLoss > 0 && item.entryPrice > item.stopLoss && item.targetPrice > item.entryPrice)}
+    <label className="mt-4 block text-sm text-[var(--color-text-secondary)]">تعداد واقعی سهام خریداری‌شده
+      <input type="number" min="1" step="1" required value={quantity} onChange={event => setQuantity(event.target.value)} placeholder="تعداد سهم را وارد کنید" className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2" />
+    </label>
+    <button type="button" onClick={() => onSave(item, quantity)} disabled={saving || !(Number(quantity) > 0 && Number.isInteger(Number(quantity)) && item.stopLoss > 0 && item.entryPrice > item.stopLoss && item.targetPrice > item.entryPrice)}
       className="mt-4 w-full rounded-lg bg-cyan-600 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50">
       {saving ? 'در حال ذخیره…' : 'ذخیره در سبد ارزنده‌ها'}
     </button>
   </article>
-);
+  );
+};
 
 const ValuableSymbols: React.FC<{ isOnline: boolean }> = ({ isOnline }) => {
   const [items, setItems] = useState<ValuableSymbol[]>(() => cachedValuableSymbols?.signals ?? []);
@@ -67,8 +73,10 @@ const ValuableSymbols: React.FC<{ isOnline: boolean }> = ({ isOnline }) => {
   const [savingSymbol, setSavingSymbol] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState('');
   const [saveError, setSaveError] = useState('');
-  const saveToValuableWatchlist = async (item: ValuableSymbol) => {
+  const saveToValuableWatchlist = async (item: ValuableSymbol, quantityInput: string) => {
     const symbol = String(item.symbol || '').trim().toUpperCase();
+    const quantity = Number(quantityInput);
+    if (!Number.isInteger(quantity) || quantity <= 0) { setSaveError('تعداد واقعی سهام را به‌صورت عدد صحیح بزرگ‌تر از صفر وارد کنید.'); setSaveNotice(''); return; }
     if (!symbol || !(item.stopLoss > 0 && item.entryPrice > item.stopLoss && item.targetPrice > item.entryPrice)) {
       setSaveError('سطوح ورود، حد ضرر و خروج این نماد معتبر نیستند و قابل ذخیره نیستند.');
       setSaveNotice('');
@@ -80,7 +88,7 @@ const ValuableSymbols: React.FC<{ isOnline: boolean }> = ({ isOnline }) => {
       const date = Object.fromEntries(dateParts.map(part => [part.type, part.value]));
       await apiClient.post('/trade-watchlists/valuable', {
         symbol, name: item.name || symbol, entryDate: `${date.year}/${date.month}/${date.day}`,
-        quantity: 1, entryPrice: item.entryPrice, targetPrice: item.targetPrice, stopLoss: item.stopLoss,
+        quantity, entryPrice: item.entryPrice, targetPrice: item.targetPrice, stopLoss: item.stopLoss,
         targetAlertEnabled: true, stopLossAlertEnabled: true,
       });
       setSaveNotice(`نماد ${symbol} در سبد ارزنده‌ها ذخیره شد؛ هشدار حد ضرر و هدف خروج فعال است. تعداد اولیه برای محاسبه روی ۱ تنظیم شده است.`);
