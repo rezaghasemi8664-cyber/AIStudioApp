@@ -254,10 +254,14 @@ async function extractFinancialDataFromAnnouncement(announcement) {
   };
 }
 
-async function refreshFinancialDocumentCache({ limit = 25 } = {}) {
+let cacheRefreshRunning = false;
+async function refreshFinancialDocumentCache({ limit = 25, reason = 'manual' } = {}) {
+  if (cacheRefreshRunning) return { success: true, skipped: true, reason: 'ALREADY_RUNNING' };
+  cacheRefreshRunning = true;
+  try {
   const max = Math.max(1, Math.min(50, Number(limit) || 25));
   const rows = await prisma.$queryRawUnsafe(
-    "SELECT TOP (" + max + ") a.AnnouncementKey, a.PayloadJson FROM dbo.CodalAnnouncement a LEFT JOIN dbo.CodalFinancialDocumentCache c ON c.AnnouncementKey = a.AnnouncementKey WHERE (NULLIF(JSON_VALUE(a.PayloadJson, '$.linkExcel'), '') IS NOT NULL OR NULLIF(JSON_VALUE(a.PayloadJson, '$.linkAttachment'), '') IS NOT NULL OR NULLIF(JSON_VALUE(a.PayloadJson, '$.link'), '') IS NOT NULL OR NULLIF(JSON_VALUE(a.PayloadJson, '$.linkPdf'), '') IS NOT NULL) AND (c.AnnouncementKey IS NULL OR (c.Status = 'UNAVAILABLE' AND c.ExtractedAt < DATEADD(day, -7, SYSUTCDATETIME()))) ORDER BY a.PublishedAt DESC"
+    "SELECT TOP (" + max + ") a.AnnouncementKey, a.PayloadJson FROM dbo.CodalSnapshotAnnouncement a INNER JOIN dbo.CodalSnapshotState s ON s.StateId = 1 AND s.ActiveSnapshotId = a.SnapshotId LEFT JOIN dbo.CodalFinancialDocumentCache c ON c.AnnouncementKey = a.AnnouncementKey WHERE (NULLIF(JSON_VALUE(a.PayloadJson, '$.linkExcel'), '') IS NOT NULL OR NULLIF(JSON_VALUE(a.PayloadJson, '$.linkAttachment'), '') IS NOT NULL OR NULLIF(JSON_VALUE(a.PayloadJson, '$.link'), '') IS NOT NULL OR NULLIF(JSON_VALUE(a.PayloadJson, '$.linkPdf'), '') IS NOT NULL) AND (c.AnnouncementKey IS NULL OR (c.Status = 'UNAVAILABLE' AND c.ExtractedAt < DATEADD(day, -7, SYSUTCDATETIME()))) ORDER BY a.PublishedAt DESC"
   );
   let processed = 0, available = 0, unavailable = 0;
   for (const row of rows) {
@@ -279,7 +283,12 @@ async function refreshFinancialDocumentCache({ limit = 25 } = {}) {
     processed += 1;
     if (status === 'AVAILABLE') available += 1; else unavailable += 1;
   }
-  return { success: true, processed, available, unavailable, limit: max };
+  const summary = { success: true, processed, available, unavailable, limit: max, reason };
+  console.log('[CODAL DOC CACHE] run completed reason=' + reason + ' processed=' + processed + ' available=' + available + ' unavailable=' + unavailable + ' limit=' + max);
+  return summary;
+  } finally {
+    cacheRefreshRunning = false;
+  }
 }
 
 let documentCacheTasks = [];
@@ -291,6 +300,21 @@ function startFinancialDocumentCacheCron() {
     cron.schedule('50 13 * * *', () => refreshFinancialDocumentCache({ limit: 25 }).catch(error => console.error('[CODAL DOC CACHE] afternoon refresh failed:', error.message || error)), { timezone: 'Asia/Tehran' })
   ];
   console.log('[CODAL DOC CACHE] scheduled for 08:20 and 13:50 Asia/Tehran; max 25 documents per run');
+  // If the cache is empty after a deployment/restart, bootstrap it from the
+  // currently active database snapshot instead of waiting for the next cron.
+  setImmediate(async () => {
+    try {
+      const countRows = await prisma.$queryRaw`SELECT COUNT_BIG(1) AS Total FROM dbo.CodalFinancialDocumentCache`;
+      const cacheCount = Number(countRows[0] && countRows[0].Total || 0);
+      if (cacheCount === 0) {
+        console.warn('[CODAL DOC CACHE] cache is empty; bootstrapping from active Codal snapshot');
+        const result = await refreshFinancialDocumentCache({ limit: 25, reason: 'empty-cache-bootstrap' });
+        console.log('[CODAL DOC CACHE] empty-cache bootstrap result=' + JSON.stringify(result));
+      }
+    } catch (error) {
+      console.error('[CODAL DOC CACHE] empty-cache bootstrap failed:', error.message || error);
+    }
+  });
 }
 function stopFinancialDocumentCacheCron() {
   for (const task of documentCacheTasks) task.stop();
