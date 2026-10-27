@@ -35,6 +35,24 @@ describe('calculateScalpingPriceLevels', () => {
     expect(levels).toBeNull();
   });
 
+  test('uses a confirmed at-market SELL exit reference when the breakdown plan fails legal-band reward/risk checks', () => {
+    const candles = Array.from({ length: 30 }, () => ({
+      open: 1000, high: 1002, low: 998, close: 1001, volume: 1000
+    }));
+    candles[candles.length - 1] = { open: 1002, high: 1003, low: 998, close: 1000, volume: 1000 };
+    const market = { allowedMin: 995, allowedMax: 1100, orderBook: { buy: [], sell: [] } };
+    const levels = calculateScalpingPriceLevels(candles, 'SELL', 1001, market);
+    expect(levels).not.toBeNull();
+    expect(levels.method).toBe('sell-exit-reference-atr-v2');
+    expect(levels.entryPrice).toBe(1001);
+    expect(levels.entryPrice).toBeGreaterThanOrEqual(market.allowedMin);
+    expect(levels.targetPrice).toBeLessThan(levels.entryPrice);
+    expect(levels.targetPrice).toBeGreaterThanOrEqual(market.allowedMin);
+    expect(levels.stopLossPrice).toBeGreaterThan(levels.entryPrice);
+    expect(levels.stopLossPrice).toBeLessThanOrEqual(market.allowedMax);
+    expect((levels.entryPrice - levels.targetPrice) / (levels.stopLossPrice - levels.entryPrice)).toBeGreaterThanOrEqual(1.2);
+  });
+
   test('calculates SELL breakdown only when reward/risk is at least 1.2 and prices fit the daily band', () => {
     const candles = Array.from({ length: 30 }, () => ({
       open: 1000, high: 1002, low: 998, close: 1001, volume: 1000
