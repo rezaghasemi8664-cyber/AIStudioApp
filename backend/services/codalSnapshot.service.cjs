@@ -294,6 +294,20 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
     }
 
     console.log('[CODAL SNAPSHOT] success reason=' + reason + ' id=' + snapshotId + ' records=' + unique.size + ' pages=' + totalPages + ' reported=' + (reportedCount || '-') + '/' + (reportedPages || '-'));
+    // Start financial-document extraction only after the new snapshot is fully
+    // persisted and activated. This removes the race with the fixed 13:50 cron.
+    try {
+      const documentCache = require('./codal-document.service.cjs');
+      const cacheRows = await prisma.$queryRaw`SELECT COUNT_BIG(1) AS Total FROM dbo.CodalFinancialDocumentCache`;
+      const cacheCount = Number(cacheRows[0] && cacheRows[0].Total || 0);
+      const cacheResult = await documentCache.refreshFinancialDocumentCache({
+        limit: 25,
+        reason: cacheCount === 0 ? 'snapshot-complete-empty-cache' : 'snapshot-complete'
+      });
+      console.log('[CODAL SNAPSHOT] financial document cache follow-up=' + JSON.stringify(cacheResult));
+    } catch (cacheError) {
+      console.error('[CODAL SNAPSHOT] financial document cache follow-up failed:', cacheError.message || cacheError);
+    }
     return { success: true, snapshotId, announcementCount: unique.size, pageCount: totalPages, reportedCount, reportedPages, startedAt: startedAt.toISOString(), finishedAt: new Date().toISOString() };
   } catch (error) {
     try {
