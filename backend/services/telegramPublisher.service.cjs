@@ -75,6 +75,14 @@ function getCurrentMarketDateUtc(date = new Date()) {
   return new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day)));
 }
 
+function getScalpingOpportunityQuery(now = new Date()) {
+  return {
+    marketDate: getCurrentMarketDateUtc(now),
+    status: 'ACTIVE',
+    OR: [{ expiresAt: null }, { expiresAt: { gt: now } }]
+  };
+}
+
 function parseState(row) {
   try {
     const parsed = JSON.parse(row?.value || '{}');
@@ -270,8 +278,10 @@ async function publishScalpingOpportunitiesIfAny(now = new Date(), suppliedSetti
   const state = await loadState();
   if (state.lastScalpingSlot === slot) return { skipped: true, reason: 'ALREADY_PUBLISHED_THIS_SLOT' };
 
+  // Never republish yesterday's still-ACTIVE rows when today's scalping list is empty.
+  // The market date is based on Asia/Tehran, independent of the server's timezone.
   const rows = await prisma.marketScalpingOpportunity.findMany({
-    where: { status: 'ACTIVE', OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+    where: getScalpingOpportunityQuery(now),
     orderBy: [{ updatedAt: 'desc' }, { marketDate: 'desc' }],
     take: 100
   });
@@ -385,7 +395,7 @@ async function runTelegramPublisherTick(now = new Date()) {
 module.exports = {
   STATE_KEY, isTradingWeekday, isTradingSession, tehranDateKey, tehranSlot,
   isFresh, formatPercent, normalizeValuableResults, getImportantSymbolChanges,
-  renderValuableChanges, renderIndexMessage, renderSummaryMessage,
+  renderValuableChanges, renderIndexMessage, renderSummaryMessage, getScalpingOpportunityQuery,
   publishIndexIfScheduled, publishValuableChangesIfAny, publishScalpingOpportunitiesIfAny, publishTodaySummaryIfReady,
   runTelegramPublisherTick, sendAndRecord
 };

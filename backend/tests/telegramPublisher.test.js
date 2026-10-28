@@ -3,11 +3,19 @@
 const {
   isTradingWeekday, isTradingSession, tehranDateKey, tehranSlot,
   isFresh, formatPercent, normalizeValuableResults, getImportantSymbolChanges,
-  renderSummaryMessage, renderIndexMessage
+  renderSummaryMessage, renderIndexMessage, getScalpingOpportunityQuery
 } = require('../services/telegramPublisher.service.cjs');
 const { DEFAULT_SETTINGS, normalizeSettings, validateSettings, isAllowedWeekday, isIntervalDue, isBeforeEndTime } = require('../services/telegramPublisherSettings.service.cjs');
 
 describe('Telegram publisher helpers', () => {
+  test('scalping Telegram query only selects active opportunities from the current Tehran market date', () => {
+    const now = new Date('2026-10-10T05:45:00.000Z'); // 09:15 in Tehran
+    expect(getScalpingOpportunityQuery(now)).toEqual({
+      marketDate: new Date('2026-10-10T00:00:00.000Z'),
+      status: 'ACTIVE',
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }]
+    });
+  });
   test('uses configurable Tehran index intervals', () => {
     expect(DEFAULT_SETTINGS.index.startTime).toBe('09:15');
     expect(DEFAULT_SETTINGS.valuable.startTime).toBe('09:00');
