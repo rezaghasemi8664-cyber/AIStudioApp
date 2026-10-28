@@ -3000,7 +3000,7 @@ const clearCurrentAnalysis = () => {
                     tone="blue"
                   />
                   <div className="text-[30px] font-black leading-none text-violet-800">
-                    {faNumber(analysisData.compositeScore ?? null)}
+                    {analysisData.compositeScore == null || !Number.isFinite(Number(analysisData.compositeScore)) ? '—' : faNumber(Math.round(Number(analysisData.compositeScore)))}
                     <span className="mr-2 text-[15px] font-bold text-violet-700">از ۱۰۰</span>
                   </div>
                 </div>
