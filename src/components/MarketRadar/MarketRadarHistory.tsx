@@ -101,9 +101,16 @@ const MarketRadarHistory: React.FC = () => {
   const equalRangeChange = percentChange(validEqualValues[0], lastEqualValid);
   const rangeChangeLabel = rangeChange === null ? '—' : `${rangeChange >= 0 ? '+' : ''}${fa(rangeChange, 2)}٪`;
   const equalRangeChangeLabel = equalRangeChange === null ? '—' : `${equalRangeChange >= 0 ? '+' : ''}${fa(equalRangeChange, 2)}٪`;
-  const pointDateLabel = (value: string) => data?.granularity === 'intraday'
-    ? new Intl.DateTimeFormat('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
-    : dateFa(value);
+  const pointDateLabel = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    const calendarDate = new Intl.DateTimeFormat('fa-IR', {
+      calendar: 'persian', timeZone: 'Asia/Tehran', weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(date);
+    if (data?.granularity !== 'intraday') return calendarDate;
+    const time = new Intl.DateTimeFormat('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit' }).format(date);
+    return calendarDate + ' · ساعت ' + time;
+  };
   // Daily fallback may include the previous-session baseline; intraday points are all from the current session.
   const extremaValues = range === '1d' && data?.granularity !== 'intraday' && values.length > 1 ? values.slice(1).filter(valueIsValid) : validValues;
   const high = extremaValues.length ? Math.max(...extremaValues) : null;
@@ -129,10 +136,19 @@ const MarketRadarHistory: React.FC = () => {
             {hovered && hoveredPoint && <g pointerEvents="none">
               <line x1={hovered.x} x2={hovered.x} y1="25" y2="245" stroke="currentColor" strokeOpacity="0.2" strokeDasharray="4 4" />
               <circle cx={hovered.x} cy={hovered.y} r="7" fill="currentColor" />
-              <rect x={Math.min(Math.max(hovered.x - 112, 8), chartWidth - 232)} y={Math.max(hovered.y - 88, 8)} width="224" height={metric === 'index' && compareIndex ? 76 : 58} rx="12" fill="var(--color-surface)" stroke="currentColor" strokeOpacity="0.25" />
-              <text x={Math.min(Math.max(hovered.x, 120), chartWidth - 120)} y={Math.max(hovered.y - 61, 25)} textAnchor="middle" className="fill-[var(--color-text-primary)] text-[14px] font-black" direction="rtl">زمان: {pointDateLabel(hoveredPoint.timestamp)}</text>
-              <text x={Math.min(Math.max(hovered.x, 120), 640)} y={Math.max(hovered.y - 41, 45)} textAnchor="middle" className="fill-sky-500 text-[14px] font-black dark:fill-sky-300">{selectedMetric.label}: {valueLabel(hoveredValue)}</text>
-              {metric === 'index' && compareIndex && <text x={Math.min(Math.max(hovered.x, 120), 640)} y={Math.max(hovered.y - 21, 65)} textAnchor="middle" className="fill-violet-500 text-[14px] font-black dark:fill-violet-300">هم‌وزن: {fa(hoveredEqual, 2)}</text>}
+              {(() => {
+                const cardWidth = 280;
+                const cardHeight = metric === 'index' && compareIndex ? 108 : 82;
+                const cardX = Math.min(Math.max(hovered.x - cardWidth / 2, 8), chartWidth - cardWidth - 8);
+                const cardY = Math.max(hovered.y - cardHeight - 12, 8);
+                const textX = cardX + cardWidth / 2;
+                return <>
+                  <rect x={cardX} y={cardY} width={cardWidth} height={cardHeight} rx="12" fill="#111827" stroke="#64748b" strokeOpacity="0.85" />
+                  <text x={textX} y={cardY + 24} textAnchor="middle" fill="#f8fafc" fontSize="12" fontWeight="700" direction="rtl">روز و تاریخ: {pointDateLabel(hoveredPoint.timestamp)}</text>
+                  <text x={textX} y={cardY + 51} textAnchor="middle" fill="#7dd3fc" fontSize="14" fontWeight="900" direction="rtl">{selectedMetric.label}: {valueLabel(hoveredValue)}</text>
+                  {metric === 'index' && compareIndex && <text x={textX} y={cardY + 79} textAnchor="middle" fill="#c4b5fd" fontSize="14" fontWeight="900" direction="rtl">هم‌وزن: {fa(hoveredEqual, 2)}</text>}
+                </>;
+              })()}
             </g>}
           </svg>
           {metric === 'index' && compareIndex && <div className="flex justify-center gap-5 pb-2 text-sm font-black text-slate-700 dark:text-slate-300"><span className="inline-flex items-center gap-2"><i className="h-2 w-6 rounded-full bg-sky-400" /> شاخص کل</span><span className="inline-flex items-center gap-2"><i className="h-0.5 w-6 border-t-2 border-dashed border-violet-400" /> شاخص هم‌وزن</span></div>}
