@@ -110,7 +110,22 @@ function calculateScalpingPriceLevels(candles, signal, currentPrice, market = {}
         pullbackTarget > pullbackEntry && pullbackRisk > 0 && pullbackReward / pullbackRisk >= 1.2) {
       return { entryPrice: round(pullbackEntry), targetPrice: round(pullbackTarget), stopLossPrice: round(pullbackStop), support: round(support), resistance: round(resistance), atr: round(atr), method: 'at-market-continuation-atr-v1' };
     }
-    return reject('buy_entry_outside_band_or_invalid', { currentPrice: current, entryPrice, targetPrice, allowedMin, allowedMax });
+    return reject('buy_entry_outside_band_or_invalid', {
+      currentPrice: current,
+      entryPrice,
+      targetPrice,
+      stopLossPrice,
+      allowedMin,
+      allowedMax,
+      support,
+      resistance,
+      atr,
+      risk,
+      reward,
+      rewardRiskRatio: risk > 0 ? reward / risk : null,
+      entryWithinBand: entryPrice >= allowedMin && entryPrice <= allowedMax,
+      targetWithinBand: targetPrice >= allowedMin && targetPrice <= allowedMax
+    });
   }
 
   if (signal === 'SELL') {

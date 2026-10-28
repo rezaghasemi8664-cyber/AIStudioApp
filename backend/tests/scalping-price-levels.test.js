@@ -167,6 +167,32 @@ describe('calculateScalpingPriceLevels', () => {
     expect(reasons).toContain('buy_entry_outside_band_or_invalid');
   });
 
+  test('includes stop, ATR, legal-band and reward/risk values in BUY rejection diagnostics', () => {
+    const rejections = [];
+    const market = { allowedMin: 900, allowedMax: 1080, orderBook: { buy: [], sell: [] } };
+    expect(calculateScalpingPriceLevels(
+      makeCandles(), 'BUY', 1070, market,
+      (reason, details) => rejections.push({ reason, details })
+    )).toBeNull();
+
+    const rejection = rejections.find(item => item.reason === 'buy_entry_outside_band_or_invalid');
+    expect(rejection).toBeDefined();
+    expect(rejection.details).toEqual(expect.objectContaining({
+      currentPrice: 1070,
+      allowedMin: 900,
+      allowedMax: 1080,
+      stopLossPrice: expect.any(Number),
+      support: expect.any(Number),
+      resistance: expect.any(Number),
+      atr: expect.any(Number),
+      risk: expect.any(Number),
+      reward: expect.any(Number),
+      rewardRiskRatio: expect.any(Number),
+      entryWithinBand: expect.any(Boolean),
+      targetWithinBand: expect.any(Boolean)
+    }));
+  });
+
   test('reports a locked upper-limit order book separately from an invalid band', () => {
     const reasons = [];
     const lockedMarket = {
