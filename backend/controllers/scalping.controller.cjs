@@ -149,16 +149,42 @@ async function getStatus(req, res) {
       console.warn('[SCALPING CTRL] Failed to load central opportunity heartbeat:', error.message);
     }
 
-    const lastUpdate = latestOpportunity?.updatedAt || latestOpportunity?.createdAt || null;
-    const lastUpdateMs = lastUpdate ? new Date(lastUpdate).getTime() : 0;
-    const heartbeatAgeMs = lastUpdateMs ? Math.max(0, Date.now() - lastUpdateMs) : Number.POSITIVE_INFINITY;
+    // Worker execution health is tracked independently from whether it found
+    // an actionable opportunity. A zero-signal run is still a successful run.
+    const scalpingWorkerStatus = require('../services/scalping-worker-status.service.cjs').getStatus();
+    const heartbeatTime = ['running', 'failed', 'skipped'].includes(scalpingWorkerStatus.lastStatus)
+      ? scalpingWorkerStatus.lastAttemptAt
+      : scalpingWorkerStatus.lastCompletedAt || scalpingWorkerStatus.lastAttemptAt;
+    const heartbeatMs = heartbeatTime ? new Date(heartbeatTime).getTime() : 0;
+    const heartbeatAgeMs = heartbeatMs ? Math.max(0, Date.now() - heartbeatMs) : Number.POSITIVE_INFINITY;
     const heartbeatFresh = heartbeatAgeMs <= 5 * 60 * 1000;
-    const centralRunning = marketStatus.isOpen === true && heartbeatFresh && !!latestOpportunity;
+    const workerReportedHealthy = heartbeatFresh &&
+      (scalpingWorkerStatus.lastStatus === 'running' || scalpingWorkerStatus.lastStatus === 'completed');
+    const centralRunning = marketStatus.isOpen === true && workerReportedHealthy;
+    const hasActiveOpportunity = !!latestOpportunity;
+    const lastUpdate = scalpingWorkerStatus.lastCompletedAt ||
+      scalpingWorkerStatus.lastAttemptAt ||
+      latestOpportunity?.updatedAt ||
+      latestOpportunity?.createdAt ||
+      null;
+    const lastStatus = centralRunning
+      ? (hasActiveOpportunity ? 'running' : 'running-no-opportunity')
+      : scalpingWorkerStatus.lastStatus === 'failed'
+        ? 'error'
+        : heartbeatTime && !heartbeatFresh
+          ? 'stale'
+          : marketStatus.isOpen !== true
+            ? 'market-closed'
+            : 'not-started';
 
     const mergedStatus = {
       isRunning: centralRunning,
       lastRunId: latestOpportunity?.id || null,
-      lastStatus: centralRunning ? 'running' : (latestOpportunity ? 'stale' : 'no-active-opportunity'),
+      lastStatus,
+      workerLastStatus: scalpingWorkerStatus.lastStatus,
+      workerLastError: scalpingWorkerStatus.lastError,
+      workerLastCandidateCount: scalpingWorkerStatus.lastCandidateCount,
+      hasActiveOpportunity,
       lastUpdate,
       lastUpdated: lastUpdate,
       heartbeatAgeMs: Number.isFinite(heartbeatAgeMs) ? heartbeatAgeMs : null,
