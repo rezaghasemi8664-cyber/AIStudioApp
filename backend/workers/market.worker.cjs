@@ -32,7 +32,7 @@ function isTradingCalendarDay(date = new Date()) {
   const weekday = new Intl.DateTimeFormat('en-US', { timeZone: MARKET_TZ, weekday: 'short' }).format(date);
   return ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'].includes(weekday);
 }
-function isMarketSessionOpenNow(date = new Date()) {
+function getTehranMinuteOfDay(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: MARKET_TZ,
     weekday: 'short',
@@ -40,11 +40,20 @@ function isMarketSessionOpenNow(date = new Date()) {
     minute: '2-digit',
     hourCycle: 'h23'
   }).formatToParts(date);
-  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return Object.fromEntries(parts.map(part => [part.type, part.value]));
+}
+function isTradingDayAndWithinWindow(date, endMinute) {
+  const values = getTehranMinuteOfDay(date);
   const minutesOfDay = Number(values.hour) * 60 + Number(values.minute);
   return ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'].includes(values.weekday) &&
-    minutesOfDay >= 9 * 60 &&
-    minutesOfDay < 12 * 60 + 30;
+    minutesOfDay >= 9 * 60 && minutesOfDay < endMinute;
+}
+function isMarketSessionOpenNow(date = new Date()) {
+  return isTradingDayAndWithinWindow(date, 12 * 60 + 30);
+}
+function isAllSymbolsRefreshWindowNow(date = new Date()) {
+  // Include the 18:30 cron tick; minute precision means 18:31 is excluded.
+  return isTradingDayAndWithinWindow(date, 18 * 60 + 31);
 }
 function num(v, fallback = null) {
   if (v === null || v === undefined || v === '') return fallback;
@@ -183,7 +192,7 @@ function scoreSymbol(item) {
   };
 }
 
-async function updateSymbolsAndMovers(io = null, allowClosedBootstrap = false) {
+async function updateSymbolsAndMovers(io = null, allowClosedBootstrap = false, allowAfterHoursRefresh = false) {
   const response = await brsService.getAllSymbols({ forceFresh: true });
   const rows = unwrap(response);
   if (!Array.isArray(rows) || !rows.length) throw new Error('BRS AllSymbols returned no symbols');
@@ -235,7 +244,7 @@ async function updateSymbolsAndMovers(io = null, allowClosedBootstrap = false) {
 
   // A fetch that began before the 12:30 Tehran close must not publish after
   // the session ends. Empty-database bootstrap remains allowed as a recovery path.
-  if (!allowClosedBootstrap && !isMarketSessionOpenNow()) return symbols;
+  if (!allowClosedBootstrap && !(allowAfterHoursRefresh ? isAllSymbolsRefreshWindowNow() : isMarketSessionOpenNow())) return symbols;
 
   // Build a variable-size, versioned full snapshot. The previous active
   // snapshot remains untouched until the new snapshot is stored, verified,
@@ -611,14 +620,21 @@ async function runMarketWorker(io = null) {
     isMarketSessionOpenNow() &&
     marketCurrent?.marketStatus === 'OPEN' &&
     marketCurrent?.isStale !== true;
-  // Normal BRS snapshots are refreshed only during the Tehran trading session.
-  // Exception: if the shared snapshot database is completely empty, bootstrap
-  // from the latest BRS AllSymbols even while the market is closed.
-  // This is only a recovery path; an existing active snapshot is never replaced
-  // outside market hours.
+  // Refresh AllSymbols from 09:00 through the 18:30 Tehran cron tick on
+  // trading days. Market-open analytics and scalping remain restricted to
+  // the 09:00-12:30 session. If no snapshot exists, bootstrap from BRS even
+  // outside this window as a recovery path.
   const activeSnapshot = await marketSnapshotService.getActiveSnapshot();
   const needsBootstrap = !activeSnapshot;
-  if (!effectiveOpen && !needsBootstrap) return { status: 'skipped', reason: 'market-closed' };
+  if (!effectiveOpen && !needsBootstrap) {
+    // Continue refreshing the canonical AllSymbols snapshot after the trading
+    // session, but do not run market-open analytics or create scalping signals.
+    if (isAllSymbolsRefreshWindowNow()) {
+      const symbols = await updateSymbolsAndMovers(io, false, true);
+      return { status: 'success', symbols: symbols.length, snapshotOnly: true };
+    }
+    return { status: 'skipped', reason: 'market-closed' };
+  }
   if (needsBootstrap) {
     console.log('[MARKET WORKER] No active market snapshot; bootstrapping latest BRS data.');
   }
@@ -663,4 +679,4 @@ function startMarketWorker(io = null) {
   console.log('[MARKET WORKER] Analytics worker started every 2 minutes; index polling remains in market.cron.cjs');
 }
 
-module.exports = { runMarketWorker, startMarketWorker, updateSymbolsAndMovers, updateIndustries, updateMarketDaily, updateScalpingOpportunities };
+module.exports = { runMarketWorker, startMarketWorker, updateSymbolsAndMovers, updateIndustries, updateMarketDaily, updateScalpingOpportunities, isMarketSessionOpenNow, isAllSymbolsRefreshWindowNow };
