@@ -6,6 +6,7 @@ const brsService = require('../services/brs.service.cjs');
 const marketSnapshotService = require('../services/marketSnapshot.service.cjs');
 const { calculateScalpingPriceLevels, selectCandidatesWithValidLevels } = require('../services/scalping-price-levels.service.cjs');
 const { ensureMarketDailyHistory } = require('../services/market-daily-history.service.cjs');
+const scalpingWorkerStatus = require('../services/scalping-worker-status.service.cjs');
 
 const MARKET_TZ = 'Asia/Tehran';
 // Balanced filters: preserve liquidity/data-quality safeguards while allowing more genuine intraday setups.
@@ -383,9 +384,13 @@ async function getScalpingPriceLevels(symbol, signal, currentPrice, marketDate, 
 async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
   const marketDate = sqlDate(tehranDateKey());
 
-  // Stop all scalping writes outside the Tehran trading session. Preserve the
-  // latest valid rows so the UI continues showing the last market snapshot.
-  if (!marketIsOpen || !isMarketSessionOpenNow()) return 0;
+  // A heartbeat records calculation execution, not signal availability.
+  // This lets the status endpoint distinguish a healthy zero-signal run.
+  if (!marketIsOpen || !isMarketSessionOpenNow()) {
+    scalpingWorkerStatus.markSkipped('market-closed');
+    return 0;
+  }
+  scalpingWorkerStatus.markStarted();
 
   const eligibleSymbols = symbols.filter(isMarketAnalyticsEligible);
   const scoredSymbols = eligibleSymbols.map(item => ({ item, scored: scoreSymbol(item) }));
@@ -577,12 +582,17 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
     });
   }
 
+  scalpingWorkerStatus.markCompleted(candidates.length);
   return candidates.length;
 }
 
 async function runJob(name, fn) {
   try { await fn(); console.log('[MARKET WORKER] ' + name + ' completed'); return true; }
-  catch (error) { console.error('[MARKET WORKER] ' + name + ' failed:', error.message); return false; }
+  catch (error) {
+    if (name === 'scalping-opportunities') scalpingWorkerStatus.markFailed(error);
+    console.error('[MARKET WORKER] ' + name + ' failed:', error.message);
+    return false;
+  }
 }
 
 async function runMarketWorker(io = null) {
