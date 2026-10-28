@@ -456,6 +456,24 @@ async function publishMarketSnapshotInternal(symbols) {
     }
 
     await prisma.$transaction(async (tx) => {
+      // The in-memory publishInFlight guard only protects one Node.js process.
+      // Use a SQL Server transaction-owned application lock so multiple PM2
+      // instances cannot concurrently replace the shared current-symbol table.
+      const lockRows = await tx.$queryRaw`
+        DECLARE @lockResult int;
+        EXEC @lockResult = sys.sp_getapplock
+          @Resource = N'RoniyaMarketSnapshotPublish',
+          @LockMode = 'Exclusive',
+          @LockOwner = 'Transaction',
+          @LockTimeout = 30000;
+        SELECT @lockResult AS lockResult;
+      `;
+      const lockResult = Number(lockRows?.[0]?.lockResult);
+      if (!Number.isFinite(lockResult) || lockResult < 0) {
+        throw new Error('Could not acquire market snapshot publish lock (sp_getapplock result=' + String(lockRows?.[0]?.lockResult) + ')');
+      }
+
+      console.log('[MARKET SNAPSHOT] acquired cross-process publish lock:', JSON.stringify({ lockResult, symbolCount: verifiedSymbols.length }));
       await tx.$executeRaw`
         DELETE FROM [dbo].[MarketSnapshot] WHERE [status]='ACTIVE'
       `;
