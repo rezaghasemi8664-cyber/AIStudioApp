@@ -4,7 +4,7 @@ import { getSocket } from '../services/socketService';
 
 type ListType = 'scalping' | 'valuable';
 type WatchItem = {
-  id: string; listType: ListType; symbol: string; name: string; entryDate: string; quantity: number;
+  id: string; listType: ListType; symbol: string; name: string; entryDate: string; quantity: number; tradeIntent?: 'BUY' | 'WATCH';
   entryPrice: number; targetPrice: number | null; stopLoss: number | null; currentPrice: number | null;
   pnl: number | null; pnlPercent: number | null; targetAlertEnabled: boolean; stopLossAlertEnabled: boolean;
   targetAlertTriggered: boolean; stopLossAlertTriggered: boolean; quoteAvailable: boolean;
@@ -29,6 +29,7 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
   const [stopLoss, setStopLoss] = useState('');
   const [targetAlertEnabled, setTargetAlertEnabled] = useState(true);
   const [stopLossAlertEnabled, setStopLossAlertEnabled] = useState(true);
+  const [tradeIntent, setTradeIntent] = useState<'BUY' | 'WATCH'>('WATCH');
 
   const load = useCallback(async () => {
     if (!isOnline) { setLoading(false); setError('برای دریافت سبد به اتصال سرور نیاز است.'); return; }
@@ -52,6 +53,8 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
     };
   }, [load]);
 
+  const sortedItems = useMemo(() => [...items].sort((a, b) => Number((b.tradeIntent || 'WATCH') === 'BUY') - Number((a.tradeIntent || 'WATCH') === 'BUY')), [items]);
+
   const totals = useMemo(() => items.reduce((acc, item) => {
     acc.invested += item.entryPrice * item.quantity;
     if (item.currentPrice !== null) {
@@ -68,10 +71,10 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
     try {
       await api.post(`/trade-watchlists/${listType}`, {
         symbol: symbol.trim().toUpperCase(), name: name.trim() || symbol.trim().toUpperCase(), entryDate,
-        quantity, entryPrice, targetPrice, stopLoss, targetAlertEnabled, stopLossAlertEnabled,
+        quantity, entryPrice, targetPrice, stopLoss, targetAlertEnabled, stopLossAlertEnabled, tradeIntent,
       });
       setSymbol(''); setName(''); setQuantity(''); setEntryPrice(''); setTargetPrice(''); setStopLoss('');
-      setEntryDate(jalaliToday()); setTargetAlertEnabled(true); setStopLossAlertEnabled(true);
+      setEntryDate(jalaliToday()); setTargetAlertEnabled(true); setStopLossAlertEnabled(true); setTradeIntent('WATCH');
       setNotice('نماد با موفقیت در سبد ذخیره شد.');
       await load();
     } catch (e) { setError(errorMessage(e)); }
@@ -131,6 +134,7 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
           <div className="flex flex-col justify-center gap-2 text-sm">
             <label className="flex items-center gap-2"><input type="checkbox" checked={targetAlertEnabled} onChange={e => setTargetAlertEnabled(e.target.checked)} /> هشدار هدف قیمتی</label>
             <label className="flex items-center gap-2"><input type="checkbox" checked={stopLossAlertEnabled} onChange={e => setStopLossAlertEnabled(e.target.checked)} /> هشدار حد ضرر</label>
+            <label className="text-sm">وضعیت نماد در سبد<select value={tradeIntent} onChange={e => setTradeIntent(e.target.value as 'BUY' | 'WATCH')} className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2"><option value="BUY">خرید</option><option value="WATCH">پایش</option></select></label>
           </div>
           <div className="flex items-end"><button disabled={saving} type="submit" className="w-full rounded-lg bg-cyan-600 px-4 py-2 font-bold text-white disabled:opacity-50">{saving ? 'در حال ذخیره…' : 'ذخیره در سبد'}</button></div>
         </form>
@@ -146,9 +150,10 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
       {loading ? <p className="py-8 text-center text-sm text-[var(--color-text-secondary)]">در حال دریافت سبد…</p> : items.length === 0 ? <div className="rounded-xl border border-dashed border-[var(--color-border)] p-8 text-center text-sm text-[var(--color-text-secondary)]">هنوز نمادی در این سبد ثبت نشده است.</div> : (
         <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
           <table className="min-w-[1100px] w-full text-sm">
-            <thead className="bg-[var(--color-surface)]"><tr>{['نماد','تاریخ ورود','تعداد','قیمت ورود','هدف قیمتی','حد ضرر','قیمت فعلی','سود/زیان مبلغی','سود/زیان درصدی','هشدارها','عملیات'].map(title => <th key={title} className="whitespace-nowrap p-3 text-right">{title}</th>)}</tr></thead>
-            <tbody>{items.map(item => <tr key={item.id} className="border-t border-[var(--color-border)]">
+            <thead className="bg-[var(--color-surface)]"><tr>{['نماد','وضعیت','تاریخ ورود','تعداد','قیمت ورود','هدف قیمتی','حد ضرر','قیمت فعلی','سود/زیان مبلغی','سود/زیان درصدی','هشدارها','عملیات'].map(title => <th key={title} className="whitespace-nowrap p-3 text-right">{title}</th>)}</tr></thead>
+            <tbody>{sortedItems.map(item => <tr key={item.id} className={`border-t border-[var(--color-border)] ${item.tradeIntent === 'BUY' ? 'bg-emerald-500/10' : 'bg-amber-500/5'}`}>
               <td className="p-3 font-bold">{item.symbol}<div className="text-xs font-normal text-[var(--color-text-secondary)]">{item.name}</div></td>
+              <td className="p-3"><span className={`rounded-full px-2 py-1 text-xs font-bold ${item.tradeIntent === 'BUY' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'}`}>{item.tradeIntent === 'BUY' ? 'خرید' : 'پایش'}</span></td>
               <td className="whitespace-nowrap p-3">{item.entryDate}</td><td className="p-3">{money(item.quantity)}</td><td className="p-3">{money(item.entryPrice)}</td>
               <td className="p-3">{money(item.targetPrice)}</td><td className="p-3">{money(item.stopLoss)}</td><td className="p-3">{money(item.currentPrice)}</td>
               <td className={`p-3 font-bold ${(item.pnl ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{money(item.pnl)}</td>
