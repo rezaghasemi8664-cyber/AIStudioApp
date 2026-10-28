@@ -225,6 +225,7 @@ const OptionsMarket: React.FC = () => {
   const [scenarioFeeRatePercent, setScenarioFeeRatePercent] = useState('');
   const [selectedOptionSymbols, setSelectedOptionSymbols] = useState<Record<string, boolean>>({});
   const [optionPurchaseQuantities, setOptionPurchaseQuantities] = useState<Record<string, string>>({});
+  const [optionTradeIntents, setOptionTradeIntents] = useState<Record<string, 'BUY' | 'WATCH'>>({});
   const [savingToPortfolio, setSavingToPortfolio] = useState(false);
   const [portfolioSaveError, setPortfolioSaveError] = useState<string | null>(null);
   const [portfolioSaveNotice, setPortfolioSaveNotice] = useState<string | null>(null);
@@ -355,6 +356,7 @@ const OptionsMarket: React.FC = () => {
           contractSize,
           currentPrice: null,
           priceSource: null,
+          tradeIntent: optionTradeIntents[symbol] ?? 'WATCH',
         };
       });
       const existingResponse = await get<{ value?: string } | null>('/user-preference/optionsPortfolio');
@@ -367,13 +369,14 @@ const OptionsMarket: React.FC = () => {
       setPortfolioSaveNotice(`${additions.length.toLocaleString('fa-IR')} قرارداد با تعداد واردشده و تاریخ امروز به سبد آپشن افزوده شد.`);
       setSelectedOptionSymbols({});
       setOptionPurchaseQuantities({});
+      setOptionTradeIntents({});
       setActiveView('portfolio');
     } catch (err) {
       setPortfolioSaveError(err instanceof Error ? err.message : 'ذخیره در سبد آپشن ناموفق بود.');
     } finally {
       setSavingToPortfolio(false);
     }
-  }, [rankedContracts, selectedOptionSymbols, optionPurchaseQuantities]);
+  }, [rankedContracts, selectedOptionSymbols, optionPurchaseQuantities, optionTradeIntents]);
 
   const rankDiagnostics = useMemo(() => {
     const counts: Record<RankRejectionReason, number> = {
@@ -509,7 +512,10 @@ const OptionsMarket: React.FC = () => {
                   <input type="checkbox" checked={Boolean(selectedOptionSymbols[getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase()])} onChange={(event) => { const symbol = getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase(); setSelectedOptionSymbols((current) => ({ ...current, [symbol]: event.target.checked })); setPortfolioSaveError(null); }} />
                   انتخاب برای سبد آپشن
                 </label>
-                <label className="mt-2 block text-sm font-semibold">تعداد قرارداد خرید
+                <label className="mt-2 block text-sm font-semibold">وضعیت در سبد
+                  <select value={optionTradeIntents[getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase()] ?? 'WATCH'} onChange={(event) => { const symbol = getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase(); setOptionTradeIntents((current) => ({ ...current, [symbol]: event.target.value as 'BUY' | 'WATCH' })); }} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800"><option value="BUY">خرید</option><option value="WATCH">پایش</option></select>
+                </label>
+                <label className="mt-2 block text-sm font-semibold">تعداد قرارداد
                   <input type="number" min="1" step="1" inputMode="numeric" value={optionPurchaseQuantities[getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase()] ?? '1'} onChange={(event) => { const symbol = getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase(); setOptionPurchaseQuantities((current) => ({ ...current, [symbol]: event.target.value })); }} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800" />
                 </label>
                 <p className="mt-2 text-sm">نماد پایه: {getValue(item.contract, BASE_SYMBOL_KEYS)}</p>
@@ -527,7 +533,7 @@ const OptionsMarket: React.FC = () => {
           </div>
         )}
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-gray-600 dark:text-gray-300">نمادهای انتخاب‌شده با قیمت پیشنهادی ورود، تعداد واردشده و تاریخ امروز به سبد آپشن افزوده می‌شوند.</p>
+          <p className="text-xs text-gray-600 dark:text-gray-300">برای هر قرارداد وضعیت خرید یا پایش را انتخاب کنید؛ قراردادهای خرید در صدر سبد نمایش داده می‌شوند.</p>
           <button type="button" onClick={() => void saveSelectedOptionsToPortfolio()} disabled={savingToPortfolio || rankedContracts.length === 0} className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{savingToPortfolio ? 'در حال ذخیره…' : 'ذخیره در سبد آپشن'}</button>
         </div>
         {portfolioSaveError && <p role="alert" className="mt-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">{portfolioSaveError}</p>}
