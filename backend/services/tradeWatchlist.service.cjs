@@ -42,6 +42,7 @@ function normalizeItem(item) {
     id: String(item.id), listType: item.listType === 'valuable' ? 'valuable' : 'scalping',
     symbol, name: String(item.name || symbol), entryDate: String(item.entryDate || ''),
     quantity, entryPrice, targetPrice: normalizePrice(item.targetPrice), stopLoss: normalizePrice(item.stopLoss),
+    tradeIntent: item.tradeIntent === 'BUY' ? 'BUY' : 'WATCH',
     targetAlertEnabled: item.targetAlertEnabled !== false, stopLossAlertEnabled: item.stopLossAlertEnabled !== false,
     targetAlertTriggered: item.targetAlertTriggered === true, stopLossAlertTriggered: item.stopLossAlertTriggered === true,
   };
@@ -114,6 +115,7 @@ async function addWatchlistItem(userId, listType, input) {
   const item = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, listType, symbol, name, entryDate,
     quantity, entryPrice, targetPrice, stopLoss,
+    tradeIntent: input?.tradeIntent === 'BUY' ? 'BUY' : 'WATCH',
     targetAlertEnabled: input?.targetAlertEnabled !== false,
     stopLossAlertEnabled: input?.stopLossAlertEnabled !== false,
     targetAlertTriggered: false, stopLossAlertTriggered: false,
@@ -135,6 +137,7 @@ async function updateWatchlistItem(userId, listType, itemId, input) {
   if (input?.stopLoss !== undefined && input.stopLoss !== '' && input.stopLoss != null && !stopLoss) throw Object.assign(new Error('حد ضرر باید عددی بزرگ‌تر از صفر باشد.'), { statusCode: 400 });
   const next = {
     ...item, targetPrice, stopLoss,
+    tradeIntent: input?.tradeIntent === undefined ? item.tradeIntent : input.tradeIntent === 'BUY' ? 'BUY' : 'WATCH',
     targetAlertEnabled: input?.targetAlertEnabled === undefined ? item.targetAlertEnabled : input.targetAlertEnabled === true,
     stopLossAlertEnabled: input?.stopLossAlertEnabled === undefined ? item.stopLossAlertEnabled : input.stopLossAlertEnabled === true,
     targetAlertTriggered: targetPrice === item.targetPrice ? item.targetAlertTriggered : false,

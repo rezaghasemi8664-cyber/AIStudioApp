@@ -19,9 +19,10 @@ const dateTime = (value: string | null) => {
 };
 
 const ValuableSymbolCard: React.FC<{
-  item: ValuableSymbol; index: number; onSave: (item: ValuableSymbol, quantity: string) => void; saving: boolean;
+  item: ValuableSymbol; index: number; onSave: (item: ValuableSymbol, quantity: string, tradeIntent: 'BUY' | 'WATCH') => void; saving: boolean;
 }> = ({ item, index, onSave, saving }) => {
   const [quantity, setQuantity] = useState('');
+  const [tradeIntent, setTradeIntent] = useState<'BUY' | 'WATCH'>('WATCH');
   return (
   <article className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-sm">
     <div className="mb-3 flex items-start justify-between gap-3">
@@ -55,7 +56,10 @@ const ValuableSymbolCard: React.FC<{
     <label className="mt-4 block text-sm text-[var(--color-text-secondary)]">تعداد واقعی سهام خریداری‌شده
       <input type="number" min="1" step="1" required value={quantity} onChange={event => setQuantity(event.target.value)} placeholder="تعداد سهم را وارد کنید" className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2" />
     </label>
-    <button type="button" onClick={() => onSave(item, quantity)} disabled={saving || !(Number(quantity) > 0 && Number.isInteger(Number(quantity)) && item.stopLoss > 0 && item.entryPrice > item.stopLoss && item.targetPrice > item.entryPrice)}
+    <label className="mt-3 block text-sm text-[var(--color-text-secondary)]">وضعیت در سبد
+      <select value={tradeIntent} onChange={event => setTradeIntent(event.target.value as 'BUY' | 'WATCH')} className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2"><option value="BUY">خرید</option><option value="WATCH">پایش</option></select>
+    </label>
+    <button type="button" onClick={() => onSave(item, quantity, tradeIntent)} disabled={saving || !(Number(quantity) > 0 && Number.isInteger(Number(quantity)) && item.stopLoss > 0 && item.entryPrice > item.stopLoss && item.targetPrice > item.entryPrice)}
       className="mt-4 w-full rounded-lg bg-cyan-600 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50">
       {saving ? 'در حال ذخیره…' : 'ذخیره در سبد ارزنده‌ها'}
     </button>
@@ -73,7 +77,7 @@ const ValuableSymbols: React.FC<{ isOnline: boolean }> = ({ isOnline }) => {
   const [savingSymbol, setSavingSymbol] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState('');
   const [saveError, setSaveError] = useState('');
-  const saveToValuableWatchlist = async (item: ValuableSymbol, quantityInput: string) => {
+  const saveToValuableWatchlist = async (item: ValuableSymbol, quantityInput: string, tradeIntent: 'BUY' | 'WATCH') => {
     const symbol = String(item.symbol || '').trim().toUpperCase();
     const quantity = Number(quantityInput);
     if (!Number.isInteger(quantity) || quantity <= 0) { setSaveError('تعداد واقعی سهام را به‌صورت عدد صحیح بزرگ‌تر از صفر وارد کنید.'); setSaveNotice(''); return; }
@@ -88,10 +92,10 @@ const ValuableSymbols: React.FC<{ isOnline: boolean }> = ({ isOnline }) => {
       const date = Object.fromEntries(dateParts.map(part => [part.type, part.value]));
       await apiClient.post('/trade-watchlists/valuable', {
         symbol, name: item.name || symbol, entryDate: `${date.year}/${date.month}/${date.day}`,
-        quantity, entryPrice: item.entryPrice, targetPrice: item.targetPrice, stopLoss: item.stopLoss,
+        quantity, entryPrice: item.entryPrice, targetPrice: item.targetPrice, stopLoss: item.stopLoss, tradeIntent,
         targetAlertEnabled: true, stopLossAlertEnabled: true,
       });
-      setSaveNotice(`نماد ${symbol} در سبد ارزنده‌ها ذخیره شد؛ هشدار حد ضرر و هدف خروج فعال است. تعداد واقعی واردشده توسط شما ثبت شد.`);
+      setSaveNotice(`نماد ${symbol} با وضعیت ${tradeIntent === 'BUY' ? 'خرید' : 'پایش'} در سبد ارزنده‌ها ذخیره شد؛ هشدارهای قیمتی فعال هستند.`);
     } catch (error: any) {
       setSaveError(error?.response?.data?.message || error?.message || 'ذخیره نماد در سبد ارزنده‌ها ناموفق بود.');
     } finally { setSavingSymbol(null); }

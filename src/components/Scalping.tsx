@@ -50,10 +50,11 @@ const formatScore = (value?: number | null) =>
 
 const OpportunityCard: React.FC<{
   opportunity: ScalpingOpportunity;
-  onSave: (opportunity: ScalpingOpportunity, quantity: string) => void;
+  onSave: (opportunity: ScalpingOpportunity, quantity: string, tradeIntent: 'BUY' | 'WATCH') => void;
   saving: boolean;
 }> = ({ opportunity, onSave, saving }) => {
   const [quantity, setQuantity] = useState('');
+  const [tradeIntent, setTradeIntent] = useState<'BUY' | 'WATCH'>('WATCH');
   const entryPrice = opportunity.entryPrice ?? opportunity.price;
   const exitPrice = opportunity.exitPrice ?? opportunity.targetPrice;
   const stopLossPrice = opportunity.stopLossPrice;
@@ -129,7 +130,12 @@ const OpportunityCard: React.FC<{
       <label className="mt-4 block text-sm text-[var(--color-text-secondary)]">تعداد واقعی سهام خریداری‌شده
         <input type="number" min="1" step="1" required value={quantity} onChange={event => setQuantity(event.target.value)} placeholder="تعداد سهم را وارد کنید" className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2" />
       </label>
-      <button type="button" onClick={() => onSave(opportunity, quantity)} disabled={saving || isSellSignal || !(Number(quantity) > 0 && Number.isInteger(Number(quantity)) && Number(entryPrice) > Number(stopLossPrice) && Number(exitPrice) > Number(entryPrice))}
+      <label className="mt-3 block text-sm text-[var(--color-text-secondary)]">وضعیت در سبد
+        <select value={tradeIntent} onChange={event => setTradeIntent(event.target.value as 'BUY' | 'WATCH')} className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2">
+          <option value="BUY">خرید</option><option value="WATCH">پایش</option>
+        </select>
+      </label>
+      <button type="button" onClick={() => onSave(opportunity, quantity, tradeIntent)} disabled={saving || isSellSignal || !(Number(quantity) > 0 && Number.isInteger(Number(quantity)) && Number(entryPrice) > Number(stopLossPrice) && Number(exitPrice) > Number(entryPrice))}
         title={isSellSignal ? 'سیگنال فروش برای ایجاد موقعیت خرید در این سبد مناسب نیست.' : undefined}
         className="mt-4 w-full rounded-lg bg-cyan-600 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50">
         {saving ? 'در حال ذخیره…' : 'ذخیره در سبد نوسان‌گیری'}
@@ -149,7 +155,7 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
   const [savingSymbol, setSavingSymbol] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState('');
   const [saveError, setSaveError] = useState('');
-  const saveToScalpingWatchlist = async (opportunity: ScalpingOpportunity, quantityInput: string) => {
+  const saveToScalpingWatchlist = async (opportunity: ScalpingOpportunity, quantityInput: string, tradeIntent: 'BUY' | 'WATCH') => {
     const symbol = String(opportunity.symbol || '').trim().toUpperCase();
     const entryPrice = Number(opportunity.entryPrice ?? opportunity.price);
     const targetPrice = Number(opportunity.exitPrice ?? opportunity.targetPrice);
@@ -170,10 +176,10 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
       const date = Object.fromEntries(dateParts.map(part => [part.type, part.value]));
       await apiClient.post('/trade-watchlists/scalping', {
         symbol, name: symbol, entryDate: `${date.year}/${date.month}/${date.day}`,
-        quantity, entryPrice, targetPrice, stopLoss,
+        quantity, entryPrice, targetPrice, stopLoss, tradeIntent,
         targetAlertEnabled: true, stopLossAlertEnabled: true,
       });
-      setSaveNotice(`نماد ${symbol} در سبد نوسان‌گیری ذخیره شد؛ هشدار حد ضرر و هدف خروج فعال است. تعداد واقعی واردشده توسط شما ثبت شد.`);
+      setSaveNotice(`نماد ${symbol} با وضعیت ${tradeIntent === 'BUY' ? 'خرید' : 'پایش'} در سبد نوسان‌گیری ذخیره شد؛ هشدارهای قیمتی فعال هستند.`);
     } catch (error: any) {
       setSaveError(error?.response?.data?.message || error?.message || 'ذخیره نماد در سبد نوسان‌گیری ناموفق بود.');
     } finally { setSavingSymbol(null); }
