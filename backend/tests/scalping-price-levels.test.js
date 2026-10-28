@@ -68,9 +68,26 @@ describe('calculateScalpingPriceLevels', () => {
   });
 
 
+  test('uses recent support and resistance instead of distant historical extremes', () => {
+    const candles = Array.from({ length: 30 }, () => ({
+      open: 1000, high: 1010, low: 999, close: 1001, volume: 1000
+    }));
+    candles[2] = { open: 1000, high: 1500, low: 500, close: 1001, volume: 1000 };
+    candles[candles.length - 1] = { open: 999, high: 1010, low: 999, close: 1000, volume: 1000 };
+    const levels = calculateScalpingPriceLevels(candles, 'BUY', 1000, {
+      allowedMin: 900, allowedMax: 1100, orderBook: { buy: [], sell: [] }
+    });
+    expect(levels).not.toBeNull();
+    expect(levels.support).toBe(999);
+    expect(levels.resistance).toBe(1010);
+    expect(levels.stopLossPrice).toBeGreaterThan(900);
+    expect(levels.targetPrice).toBeLessThanOrEqual(1100);
+    expect((levels.targetPrice - levels.entryPrice) / (levels.entryPrice - levels.stopLossPrice)).toBeGreaterThanOrEqual(1.2);
+  });
+
   test('creates a BUY support-rebound setup near support with a bullish candle and valid risk/reward', () => {
     const candles = Array.from({ length: 30 }, (_, i) => ({
-      open: 1000, high: i === 10 ? 1010 : 1003, low: 998, close: 1001, volume: 1000
+      open: 1000, high: i === 28 ? 1010 : 1003, low: 998, close: 1001, volume: 1000
     }));
     candles[candles.length - 1] = { open: 999, high: 1003, low: 998, close: 1000, volume: 1000 };
     const levels = calculateScalpingPriceLevels(candles, 'BUY', 1000, {

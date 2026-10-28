@@ -43,7 +43,11 @@ function calculateScalpingPriceLevels(candles, signal, currentPrice, market = {}
   if (!isFinitePositive(allowedMin) || !isFinitePositive(allowedMax) || allowedMin >= allowedMax) {
     return reject('invalid_price_band', { allowedMin: Number.isFinite(allowedMin) ? allowedMin : null, allowedMax: Number.isFinite(allowedMax) ? allowedMax : null });
   }
-  const recent = valid.slice(-20);
+  // Scalping uses near-term structure, not the full 20-session swing range.
+  // Keep ATR on its 14-period window below, but derive actionable support and
+  // resistance from the latest five valid candles so distant historical
+  // extremes do not make same-day targets fail legal-band/reward-risk checks.
+  const recent = valid.slice(-5);
   const support = Math.min(...recent.map(c => Number(c.low)));
   const resistance = Math.max(...recent.map(c => Number(c.high)));
   const ranges = [];
