@@ -30,21 +30,21 @@ function extractZipEntries(b){const m=new Map();let p=-1;for(let i=Math.max(0,b.
 function xmlDecode(v){return String(v||'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'")}
 function parseSharedStrings(x){return Array.from(String(x||'').matchAll(/<si[\s\S]*?<\/si>/gi)).map(m=>Array.from(m[0].matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/gi)).map(x=>xmlDecode(x[1])).join(''))}
 function parseWorksheet(x,shared){const rows=[];for(const rm of String(x||'').matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/gi)){const cells=[];for(const cm of rm[1].matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/gi)){const a=cm[1],body=cm[2],ref=(a.match(/\br="([A-Z]+)\d+"/i)||[])[1],type=(a.match(/\bt="([^"]+)"/i)||[])[1]||'',v=(body.match(/<v>([\s\S]*?)<\/v>/i)||[])[1],t=(body.match(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/i)||[])[1];let val=type==='s'?(shared[Number(v)]??''):type==='inlineStr'?xmlDecode(t):v!==undefined?xmlDecode(v):xmlDecode(t);let i=0;if(ref)for(const ch of ref)i=i*26+ch.charCodeAt(0)-64;cells[i-1]=val}rows.push(cells.map(v=>v??''))}return rows}
-function htmlCellText(raw){return xmlDecode(String(raw||'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/gi,' ')).replace(/\\s+/g,' ').trim();}
+function htmlCellText(raw){return xmlDecode(String(raw||'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/gi,' ')).replace(/\s+/g,' ').trim();}
 function parseHtmlWorkbook(b){
-  const h=b.toString('utf8').replace(/<!--[\\s\\S]*?-->/g,'');
+  const h=b.toString('utf8').replace(/<!--[\s\S]*?-->/g,'');
   const rows=[];
   // CODAL may return an HTML table or Excel's XML Spreadsheet markup.
-  for(const rm of h.matchAll(/<tr\\b[^>]*>([\\s\\S]*?)<\\/tr>/gi)){
+  for(const rm of h.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)){
     const cells=[];
-    for(const cm of rm[1].matchAll(/<t[dh]\\b[^>]*>([\\s\\S]*?)<\\/t[dh]>/gi))cells.push(htmlCellText(cm[1]));
+    for(const cm of rm[1].matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi))cells.push(htmlCellText(cm[1]));
     if(cells.length)rows.push(cells);
   }
   if(!rows.length){
-    for(const rm of h.matchAll(/<(?:ss:)?Row\\b[^>]*>([\\s\\S]*?)<\\/(?:ss:)?Row>/gi)){
+    for(const rm of h.matchAll(/<(?:ss:)?Row\b[^>]*>([\s\S]*?)<\/(?:ss:)?Row>/gi)){
       const cells=[];
-      for(const cm of rm[1].matchAll(/<(?:ss:)?Cell\\b[^>]*>([\\s\\S]*?)<\\/(?:ss:)?Cell>/gi)){
-        const dm=cm[1].match(/<(?:ss:)?Data\\b[^>]*>([\\s\\S]*?)<\\/(?:ss:)?Data>/i);
+      for(const cm of rm[1].matchAll(/<(?:ss:)?Cell\b[^>]*>([\s\S]*?)<\/(?:ss:)?Cell>/gi)){
+        const dm=cm[1].match(/<(?:ss:)?Data\b[^>]*>([\s\S]*?)<\/(?:ss:)?Data>/i);
         cells.push(htmlCellText(dm?dm[1]:cm[1]));
       }
       if(cells.length)rows.push(cells);
@@ -52,14 +52,14 @@ function parseHtmlWorkbook(b){
   }
   return rows.length?[{name:'html',rows:rows.slice(0,2000)}]:[];
 }
-function looksLikeExcel(ct,url,b){return /spreadsheet|excel|octet-stream/i.test(String(ct||''))||/\\.(xlsx?|xlsm)(?:[?#]|$)/i.test(String(url||''))||b.slice(0,4).toString('hex')==='504b0304'}
+function looksLikeExcel(ct,url,b){return /spreadsheet|excel|octet-stream/i.test(String(ct||''))||/\.(xlsx?|xlsm)(?:[?#]|$)/i.test(String(url||''))||b.slice(0,4).toString('hex')==='504b0304'}
 function extractExcelRows(buffer){
   if(buffer.slice(0,8).toString('hex')==='d0cf11e0a1b11ae1')throw new Error('Legacy binary XLS (OLE/BIFF) detected; this format requires a dedicated XLS parser and must not be treated as an empty workbook');
   if(buffer.slice(0,4).toString('hex')!=='504b0304')return parseHtmlWorkbook(buffer);
   const entries=extractZipEntries(buffer),shared=parseSharedStrings(entries.has('xl/sharedStrings.xml')?entries.get('xl/sharedStrings.xml').toString('utf8'):'');
   const sheets=[];
   for(const [name,content] of entries){
-    if(!/^xl\\/worksheets\\/sheet\\d+\\.xml$/i.test(name))continue;
+    if(!/^xl\/worksheets\/sheet\d+\.xml$/i.test(name))continue;
     sheets.push({name,rows:parseWorksheet(content.toString('utf8'),shared).slice(0,2000)});
   }
   return sheets.sort((a,b)=>a.name.localeCompare(b.name));
