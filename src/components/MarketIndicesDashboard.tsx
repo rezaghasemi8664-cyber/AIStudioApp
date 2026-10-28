@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getMarketRadarSnapshot, readMarketRadarCache, writeMarketRadarCache } from '../services/marketRadarService';
+import { getMarketRadarSnapshot, getMarketRadarSymbols, readMarketRadarCache, writeMarketRadarCache } from '../services/marketRadarService';
 import { getSocket } from '../services/socketService';
-import type { MarketRadarSnapshot, MarketRadarSector } from '../types/marketRadar';
+import type { MarketRadarSnapshot, MarketRadarSymbol } from '../types/marketRadar';
 import IndustryHeatmap from './MarketRadar/IndustryHeatmap';
 import MarketRadarHistoryChart from './MarketRadar/MarketRadarHistory';
 
@@ -107,7 +107,9 @@ const MarketIndicesDashboard: React.FC = () => {
   const [loading, setLoading] = useState(() => !readMarketRadarCache());
   const [error, setError] = useState<string | null>(null);
   const [stale, setStale] = useState(() => { const cached = readMarketRadarCache(); return cached ? !cached.fresh : false; });
-  const [selectedSector, setSelectedSector] = useState<MarketRadarSector | null>(null);
+  const [industrySymbols, setIndustrySymbols] = useState<MarketRadarSymbol[]>([]);
+  const [industrySymbolsLoading, setIndustrySymbolsLoading] = useState(true);
+  const [industrySymbolsAvailable, setIndustrySymbolsAvailable] = useState(false);
   const previousRef = useRef<MarketRadarSnapshot | null>(null);
   const dataRef = useRef<MarketRadarSnapshot | null>(readMarketRadarCache()?.snapshot ?? null);
   const [previous, setPrevious] = useState<MarketRadarSnapshot | null>(null);
@@ -134,23 +136,43 @@ const MarketIndicesDashboard: React.FC = () => {
     } finally { setLoading(false); }
   }, []);
 
+  const refreshIndustrySymbols = useCallback(async () => {
+    try {
+      const snapshotSymbols = await getMarketRadarSymbols();
+      setIndustrySymbols(snapshotSymbols);
+      setIndustrySymbolsAvailable(true);
+    } catch (err) {
+      console.error('[MarketIndicesDashboard] industry symbol snapshot refresh failed:', err);
+    } finally {
+      setIndustrySymbolsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
-    const refreshIfActive = () => { if (active) void refresh(); };
+    const refreshIfActive = () => {
+      if (active) {
+        void refresh();
+        void refreshIndustrySymbols();
+      }
+    };
     void refresh();
+    void refreshIndustrySymbols();
     const socket = getSocket();
     socket?.on('market-indices:updated', refreshIfActive);
+    socket?.on('market-snapshot:updated', refreshIfActive);
     socket?.on('connect', refreshIfActive);
     const timer = window.setInterval(() => {
-      if (active && !socket?.connected) void refresh();
+      if (active && !socket?.connected) { void refresh(); void refreshIndustrySymbols(); }
     }, 120_000);
     return () => {
       active = false;
       window.clearInterval(timer);
       socket?.off('market-indices:updated', refreshIfActive);
+      socket?.off('market-snapshot:updated', refreshIfActive);
       socket?.off('connect', refreshIfActive);
     };
-  }, [refresh]);
+  }, [refresh, refreshIndustrySymbols]);
 
   const score = useMemo(() => calculateScore(data), [data]);
   const marketStrength = useMemo(() => calculateMarketStrength(data), [data]);
@@ -203,7 +225,13 @@ const MarketIndicesDashboard: React.FC = () => {
 
     <article className={card}><div className="mb-4"><h2 className="text-lg font-black text-[var(--color-text-primary)]">هشدارهای تحلیلی</h2><p className="mt-1 text-xs text-slate-500">هشدارها بر اساس قواعد و داده‌های همین دریافت ساخته می‌شوند؛ سیگنال خرید یا فروش نیستند.</p></div>{alerts.length ? <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{alerts.map((alert, index) => <div key={`${alert.title}-${index}`} className={`rounded-2xl border p-4 ${alert.kind === 'warning' ? 'border-amber-500/20 bg-amber-500/5' : 'border-sky-500/20 bg-sky-500/5'}`}><div className={`font-black ${alert.kind === 'warning' ? 'text-amber-500' : 'text-sky-500'}`}>{alert.title}</div><p className="mt-2 text-sm leading-6 text-[var(--color-text-primary)]">{alert.detail}</p></div>)}</div> : <p className="rounded-2xl bg-slate-500/5 p-4 text-sm text-slate-500">در داده‌های فعلی هشدار فعالی شناسایی نشد؛ این به معنی نبود ریسک نیست.</p>}</article>
 
-    <article className={card}><div className="mb-4"><h2 className="text-lg font-black text-[var(--color-text-primary)]">نقشه حرارتی صنایع</h2><p className="mt-1 text-xs text-slate-500">رنگ نشان‌دهنده تغییر گزارش‌شده صنعت است؛ اطلاعات صف و نمادهای تشکیل‌دهنده فقط در صورت وجود در منبع نمایش داده می‌شوند.</p></div><IndustryHeatmap rows={breadth?.sectors.rows ?? []} /><div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">{(breadth?.sectors.rows ?? []).map(sector => <button key={sector.name} onClick={() => setSelectedSector(sector)} className={`rounded-xl border px-3 py-3 text-right transition ${selectedSector?.name === sector.name ? 'border-sky-500 bg-sky-500/10' : 'border-[var(--color-border)] hover:bg-slate-500/5'}`}><span className="font-black text-[var(--color-text-primary)]">{sector.name}</span><span className={`mr-3 font-black ${tone(sector.changePercent)}`}>{pct(sector.changePercent)}</span></button>)}</div>{selectedSector && <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4"><div className="flex items-center justify-between gap-2"><h3 className="font-black text-[var(--color-text-primary)]">{selectedSector.name}</h3><button onClick={() => setSelectedSector(null)} className="rounded-lg px-3 py-1 text-sm text-slate-500 hover:bg-slate-500/10">بستن</button></div><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4"><Metric label="تعداد نمادهای صنعت" value={fa(selectedSector.symbols)} /><Metric label="مثبت" value={fa(selectedSector.positive)} /><Metric label="منفی" value={fa(selectedSector.negative)} /><Metric label="ارزش معاملات صنعت" value={fa(selectedSector.value)} /><Metric label="خالص پول حقیقی صنعت" value={selectedSector.realMoneyFlow == null ? 'در دسترس نیست' : fa(selectedSector.realMoneyFlow) + ' ریال'} /></div><p className="mt-3 text-xs text-slate-500">فهرست نمادهای عضو هر صنعت در قرارداد API فعلی ارائه نشده است؛ ازاین‌رو فقط آمار واقعی صنعت نمایش داده می‌شود.</p></div>}</article>
+    <article className={card}>
+      <div className="mb-4">
+        <h2 className="text-lg font-black text-[var(--color-text-primary)]">نقشه حرارتی صنایع</h2>
+        <p className="mt-1 text-xs text-slate-500">تعداد کل نمادها از اسنپ‌شات ذخیره‌شده AllSymbols در دیتابیس خوانده می‌شود. برای مشاهده قیمت و درصد تغییر نمادها روی کارت صنعت کلیک کنید.</p>
+      </div>
+      <IndustryHeatmap rows={breadth?.sectors.rows ?? []} symbols={industrySymbols} symbolsLoading={industrySymbolsLoading} symbolsAvailable={industrySymbolsAvailable} />
+    </article>
 
     <MarketRadarHistoryChart />
   </section>;
