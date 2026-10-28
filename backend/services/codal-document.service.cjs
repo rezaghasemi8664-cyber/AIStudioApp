@@ -1,6 +1,7 @@
 'use strict';
 const zlib = require('zlib');
 const crypto = require('crypto');
+const XLSX = require('@e965/xlsx');
 const prisma = require('../config/prisma.cjs');
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_BYTES = 16 * 1024 * 1024;
@@ -54,7 +55,20 @@ function parseHtmlWorkbook(b){
 }
 function looksLikeExcel(ct,url,b){return /spreadsheet|excel|octet-stream/i.test(String(ct||''))||/\.(xlsx?|xlsm)(?:[?#]|$)/i.test(String(url||''))||b.slice(0,4).toString('hex')==='504b0304'}
 function extractExcelRows(buffer){
-  if(buffer.slice(0,8).toString('hex')==='d0cf11e0a1b11ae1')throw new Error('Legacy binary XLS (OLE/BIFF) detected; this format requires a dedicated XLS parser and must not be treated as an empty workbook');
+  const signature=buffer.slice(0,8).toString('hex');
+  // Legacy .xls files are OLE Compound Files (BIFF). Delegate these to the
+  // dedicated workbook parser; the custom reader below only handles .xlsx.
+  if(signature==='d0cf11e0a1b11ae1'){
+    try{
+      const workbook=XLSX.read(buffer,{type:'buffer',raw:true,cellDates:false});
+      return workbook.SheetNames.map(name=>({
+        name,
+        rows:XLSX.utils.sheet_to_json(workbook.Sheets[name],{header:1,raw:false,defval:''}).slice(0,2000)
+      })).filter(sheet=>sheet.rows.some(row=>row.some(cell=>String(cell??'').trim()!=='')));
+    }catch(error){
+      throw new Error('Legacy binary XLS parsing failed: '+String(error.message||error).slice(0,300));
+    }
+  }
   if(buffer.slice(0,4).toString('hex')!=='504b0304')return parseHtmlWorkbook(buffer);
   const entries=extractZipEntries(buffer),shared=parseSharedStrings(entries.has('xl/sharedStrings.xml')?entries.get('xl/sharedStrings.xml').toString('utf8'):'');
   const sheets=[];
@@ -64,7 +78,6 @@ function extractExcelRows(buffer){
   }
   return sheets.sort((a,b)=>a.name.localeCompare(b.name));
 }
-
 const METRIC_PATTERNS={
   revenue:['جمع درآمدهای عملیاتی','جمع درآمد عملیاتی','درآمدهای عملیاتی','درآمد عملیاتی','درآمد حاصل از فروش','درآمد فروش','فروش خالص','فروش','درآمد','operating revenue','revenue','sales'],
   operatingProfit:['سود (زیان) عملیاتی','سود زیان عملیاتی','سود و زیان عملیاتی','سود عملیاتی','سود عملیات','operating profit','operating income'],
@@ -198,7 +211,8 @@ async function extractFinancialDataFromAnnouncementLive(announcement){
       if(!sheets.length){
         const signature=downloaded.buffer.slice(0,8).toString('hex');
         if(signature==='d0cf11e0a1b11ae1')throw new Error('فایل XLS باینری قدیمی دریافت شد اما این نسخه از استخراج‌گر آن را پشتیبانی نمی‌کند.');
-        throw new Error('پاسخ دریافت شد اما هیچ ردیف جدولی/کاربرگ قابل استخراج در آن وجود ندارد؛ این پاسخ به‌عنوان کش موفق ثبت نمی‌شود.');
+        if(isHtml)throw new Error('CODAL returned an HTML response without table rows or SpreadsheetML cells; no financial metrics can be extracted from this response.');
+        throw new Error('Document response contains no extractable worksheet rows; it must not be cached as successful.');
       }
       const metrics=findMetricValues(sheets);
       if(Object.keys(metrics).length>0){
