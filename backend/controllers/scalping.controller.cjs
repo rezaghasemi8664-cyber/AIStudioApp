@@ -152,7 +152,7 @@ async function getStatus(req, res) {
     // Worker execution health is tracked independently from whether it found
     // an actionable opportunity. A zero-signal run is still a successful run.
     const scalpingWorkerStatus = require('../services/scalping-worker-status.service.cjs').getStatus();
-    const heartbeatTime = scalpingWorkerStatus.lastStatus === 'running'
+    const heartbeatTime = ['running', 'failed', 'skipped'].includes(scalpingWorkerStatus.lastStatus)
       ? scalpingWorkerStatus.lastAttemptAt
       : scalpingWorkerStatus.lastCompletedAt || scalpingWorkerStatus.lastAttemptAt;
     const heartbeatMs = heartbeatTime ? new Date(heartbeatTime).getTime() : 0;
