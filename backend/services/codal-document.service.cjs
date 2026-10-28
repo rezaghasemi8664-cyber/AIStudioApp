@@ -195,6 +195,11 @@ async function extractFinancialDataFromAnnouncementLive(announcement){
         throw new Error('CODAL report response is not a readable HTML/Excel document');
       }
       const sheets=extractExcelRows(downloaded.buffer);
+      if(!sheets.length){
+        const signature=downloaded.buffer.slice(0,8).toString('hex');
+        if(signature==='d0cf11e0a1b11ae1')throw new Error('فایل XLS باینری قدیمی دریافت شد اما این نسخه از استخراج‌گر آن را پشتیبانی نمی‌کند.');
+        throw new Error('پاسخ دریافت شد اما هیچ ردیف جدولی/کاربرگ قابل استخراج در آن وجود ندارد؛ این پاسخ به‌عنوان کش موفق ثبت نمی‌شود.');
+      }
       const metrics=findMetricValues(sheets);
       if(Object.keys(metrics).length>0){
         results.push({ok:true,item:{
@@ -368,4 +373,4 @@ function stopFinancialDocumentCacheCron() {
   cacheRefreshTimer = null;
 }
 
-module.exports={normalizeDigits,normalizeText,normalizeMetricLabel,parseNumber,validateDocumentUrl,downloadDocument,extractZipEntries,extractExcelRows,findMetricValues,extractFinancialDataFromExcel,extractFinancialDataFromAnnouncement,refreshFinancialDocumentCache,startFinancialDocumentCacheCron,stopFinancialDocumentCacheCron};
+module.exports={normalizeDigits,normalizeText,normalizeMetricLabel,parseNumber,validateDocumentUrl,downloadDocument,extractZipEntries,parseHtmlWorkbook,extractExcelRows,findMetricValues,extractFinancialDataFromExcel,extractFinancialDataFromAnnouncement,refreshFinancialDocumentCache,startFinancialDocumentCacheCron,stopFinancialDocumentCacheCron};
