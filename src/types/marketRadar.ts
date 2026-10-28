@@ -79,6 +79,16 @@ export interface MarketRadarBreadth {
   marketValueVsAverage?: { available: boolean; currentValue: number; historicalAverage: number | null; changePercent: number | null; sampleDays: number; baseline: string };
 }
 
+export interface MarketRadarSymbol {
+  symbol: string;
+  name: string | null;
+  sector: string | null;
+  lastPrice: number | null;
+  closePrice: number | null;
+  lastChangePercent: number | null;
+  closeChangePercent: number | null;
+}
+
 export interface MarketRadarHistoryPoint {
   timestamp: string;
   index: number | null;
