@@ -1,5 +1,5 @@
 import { apiFetch } from './apiConfigService';
-import type { MarketRadarBreadth, MarketRadarHistory, MarketRadarHistoryRange, MarketRadarIndex, MarketRadarSnapshot, MarketRadarMover, MarketRadarSector } from '../types/marketRadar';
+import type { MarketRadarBreadth, MarketRadarHistory, MarketRadarHistoryRange, MarketRadarIndex, MarketRadarSnapshot, MarketRadarMover, MarketRadarSector, MarketRadarSymbol } from '../types/marketRadar';
 
 type RecordValue = Record<string, unknown>;
 type MarketRadarCacheEnvelope = { version: 1; cachedAt: number; snapshot: MarketRadarSnapshot };
@@ -142,6 +142,23 @@ export async function getMarketRadarSnapshot(): Promise<MarketRadarSnapshot> {
   const root = record(unwrap(indexPayload));
   const marketOpen = typeof root.isMarketOpen === 'boolean' ? root.isMarketOpen : false;
   return { fetchedAt: new Date().toISOString(), dataStatus: 'LIVE', source: 'shared-db', stale: false, marketOpen, indices: normalizeIndexRows(indexPayload), totalValue: numberFrom(root, ['totalValue', 'tval', 'marketValue', 'tradeValue', 'totalTradeValue', 'valueTraded']), totalVolume: numberFrom(root, ['totalVolume', 'tvol', 'volume', 'tradeVolume', 'totalTradeVolume']), totalTrades: numberFrom(root, ['totalTrades', 'tno', 'trades', 'tradeCount']), breadth: normalizeBreadth(breadthPayload) };
+}
+
+export async function getMarketRadarSymbols(): Promise<MarketRadarSymbol[]> {
+  // Read the active AllSymbols snapshot through the shared DB endpoint; no direct BRS request.
+  const payload = await apiFetch('/market/symbols?limit=10000');
+  return arrayFrom(unwrap(payload)).map((item) => {
+    const row = record(item);
+    return {
+      symbol: String(row.symbol ?? row.ticker ?? ''),
+      name: row.name == null ? null : String(row.name),
+      sector: row.sector == null ? null : String(row.sector),
+      lastPrice: numberFrom(row, ['lastPrice', 'last', 'pl']),
+      closePrice: numberFrom(row, ['closePrice', 'closingPrice', 'close', 'pc']),
+      lastChangePercent: numberFrom(row, ['lastChangePercent', 'changePercent', 'plp']),
+      closeChangePercent: numberFrom(row, ['closeChangePercent', 'closingChangePercent', 'pcp'])
+    };
+  }).filter((row) => row.symbol && row.sector);
 }
 
 export async function getMarketRadarHistory(range: MarketRadarHistoryRange): Promise<MarketRadarHistory> {
