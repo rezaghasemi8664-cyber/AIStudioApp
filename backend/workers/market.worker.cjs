@@ -52,7 +52,8 @@ function isMarketSessionOpenNow(date = new Date()) {
   return isTradingDayAndWithinWindow(date, 12 * 60 + 30);
 }
 function isAllSymbolsRefreshWindowNow(date = new Date()) {
-  return isTradingDayAndWithinWindow(date, 18 * 60 + 30);
+  // Include the 18:30 cron tick; minute precision means 18:31 is excluded.
+  return isTradingDayAndWithinWindow(date, 18 * 60 + 31);
 }
 function num(v, fallback = null) {
   if (v === null || v === undefined || v === '') return fallback;
@@ -619,11 +620,10 @@ async function runMarketWorker(io = null) {
     isMarketSessionOpenNow() &&
     marketCurrent?.marketStatus === 'OPEN' &&
     marketCurrent?.isStale !== true;
-  // Normal BRS snapshots are refreshed only during the Tehran trading session.
-  // Exception: if the shared snapshot database is completely empty, bootstrap
-  // from the latest BRS AllSymbols even while the market is closed.
-  // This is only a recovery path; an existing active snapshot is never replaced
-  // outside market hours.
+  // Refresh AllSymbols from 09:00 through the 18:30 Tehran cron tick on
+  // trading days. Market-open analytics and scalping remain restricted to
+  // the 09:00-12:30 session. If no snapshot exists, bootstrap from BRS even
+  // outside this window as a recovery path.
   const activeSnapshot = await marketSnapshotService.getActiveSnapshot();
   const needsBootstrap = !activeSnapshot;
   if (!effectiveOpen && !needsBootstrap) {
