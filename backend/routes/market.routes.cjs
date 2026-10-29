@@ -7,10 +7,24 @@ var marketHistoryController = require('../controllers/marketHistory.controller.c
 var marketSummaryController = require('../controllers/marketSummary.controller.cjs');
 var marketRadarHistoryController = require('../controllers/marketRadarHistory.controller.cjs');
 var marketSummaryService = require('../services/marketSummary.service.cjs');
+var compactMarketSummaryService = require('../services/marketSummaryCompact.service.cjs');
 var allSymbolsSnapshotService = require('../services/allSymbolsSnapshot.service.cjs');
 
 // شاخص بازار
 router.get('/index', marketHistoryController.getMarketIndex);
+
+// خلاصه سبک بازار برای پنل مدیریت؛ فقط ستون‌های موردنیاز از دیتابیس خوانده می‌شوند.
+router.get('/summary/compact', async function getCompactMarketSummary(_req, res, next) {
+  try {
+    const data = await compactMarketSummaryService.getLatestCompactMarketSummary();
+    if (!data) {
+      return res.status(404).json({ success: false, data: null, code: 'MARKET_SUMMARY_NOT_FOUND' });
+    }
+    return res.json({ success: true, data, source: 'market-summary-db' });
+  } catch (error) {
+    return next(error);
+  }
+});
 
 // خلاصه بازار
 router.get('/summary', marketSummaryController.getLatestMarketSummary);
