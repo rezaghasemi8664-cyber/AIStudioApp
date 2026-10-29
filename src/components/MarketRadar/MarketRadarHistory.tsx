@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getMarketRadarHistory } from '../../services/marketRadarService';
 import type { MarketRadarHistory as HistoryData, MarketRadarHistoryRange, MarketRadarHistoryPoint } from '../../types/marketRadar';
 
@@ -64,7 +64,17 @@ const MarketRadarHistory: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [hovered, setHovered] = useState<{ index: number; x: number; y: number } | null>(null);
+  const chartSvgRef = useRef<SVGSVGElement | null>(null);
   const chartWidth = Math.max(760, (data?.points.length ?? 0) * 14);
+
+  useEffect(() => {
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && !chartSvgRef.current?.contains(target)) setHovered(null);
+    };
+    document.addEventListener('pointerdown', handleOutsidePointerDown);
+    return () => document.removeEventListener('pointerdown', handleOutsidePointerDown);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -131,7 +141,7 @@ const MarketRadarHistory: React.FC = () => {
     {loading ? <div className="mt-5 h-72 animate-pulse rounded-2xl bg-white/[0.03]" /> : error ? <div className="mt-5 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-8 text-center text-sm text-rose-300">دریافت تاریخچه انجام نشد.</div> : !data?.available || !data.points.length ? <div className="mt-5 rounded-2xl border border-white/5 bg-white/[0.02] p-10 text-center text-sm text-slate-500">داده تاریخی موجود نیست.</div> : <>
       <div className="mt-5 overflow-x-auto rounded-2xl border border-white/5 bg-black/5 p-2">
         <div className="relative" style={{ minWidth: `${chartWidth}px` }}>
-          <svg viewBox={`0 0 ${chartWidth} 270`} className="h-72 w-full text-sky-400" role="img" aria-label={`نمودار تاریخی ${selectedMetric.label}`} onMouseLeave={() => setHovered(null)}>
+          <svg ref={chartSvgRef} viewBox={`0 0 ${chartWidth} 270`} className="h-72 w-full text-sky-400" role="img" aria-label={`نمودار تاریخی ${selectedMetric.label}`} onMouseLeave={() => setHovered(null)}>
             <ChartLine width={chartWidth} values={values} secondaryValues={metric === 'index' && compareIndex ? equalValues : undefined} pointDates={data.points.map((point) => pointDateLabel(point.timestamp))} pointLabel={selectedMetric.label} onPoint={(index, x, y) => setHovered({ index, x, y })} />
             {hovered && hoveredPoint && <g pointerEvents="none">
               <line x1={hovered.x} x2={hovered.x} y1="25" y2="245" stroke="currentColor" strokeOpacity="0.2" strokeDasharray="4 4" />
