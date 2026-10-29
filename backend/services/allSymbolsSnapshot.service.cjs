@@ -2,6 +2,7 @@
 
 const prisma = require('../config/prisma.cjs');
 const brsService = require('./brs.service.cjs');
+const marketSnapshotService = require('./marketSnapshot.service.cjs');
 
 let ensureTablePromise = null;
 
@@ -121,44 +122,46 @@ async function refreshSnapshot() {
   console.log('[ALL-SYMBOLS-SNAPSHOT] Saved verified latest snapshot', JSON.stringify({ snapshotDate: dateKey, symbolCount: symbols.length, updatedAt: updatedAt.toISOString() }));
   return { snapshotDate: dateKey, symbolCount: symbols.length, updatedAt: updatedAt, source: 'brsapi-allsymbols' };
 }
+async function getActiveStoredSnapshot() {
+  const active = await marketSnapshotService.getActiveSnapshot();
+  if (!active) return null;
+  let rawSymbols;
+  try { rawSymbols = JSON.parse(active.symbolsJson); } catch (_) { rawSymbols = null; }
+  if (!Array.isArray(rawSymbols) || !rawSymbols.length || Number(active.symbolCount) !== rawSymbols.length) {
+    throw new Error('Active MarketSnapshot payload is invalid');
+  }
+  const symbols = rawSymbols.map(normalizeSnapshotSymbol).filter((item) => item.symbol);
+  if (symbols.length !== rawSymbols.length) throw new Error('Active MarketSnapshot contains invalid symbol keys');
+  return {
+    id: Number(active.id),
+    snapshotDate: active.activatedAt || active.verifiedAt || active.createdAt,
+    symbolCount: Number(active.symbolCount),
+    symbols,
+    updatedAt: active.activatedAt || active.verifiedAt || active.createdAt,
+    source: active.source || 'versioned-market-snapshot'
+  };
+}
 async function hasSnapshot() {
-  await ensureTable();
-  const snapshot = await getStoredSnapshot();
-  if (!snapshot) return false;
-  let symbols;
-  try { symbols = JSON.parse(snapshot.symbolsJson); } catch (_) { return false; }
-  return Array.isArray(symbols) && symbols.length >= 1000 && Number(snapshot.symbolCount) === symbols.length;
+  const snapshot = await getActiveStoredSnapshot();
+  return Boolean(snapshot && snapshot.symbolCount === snapshot.symbols.length);
 }
 async function searchSymbol(query) {
-  await ensureTable();
-  const snapshot = await getStoredSnapshot();
+  const snapshot = await getActiveStoredSnapshot();
   if (!snapshot) return { status: 'NO_SNAPSHOT' };
-  let symbols;
-  try { symbols = JSON.parse(snapshot.symbolsJson); } catch (_) { symbols = null; }
-  if (!Array.isArray(symbols) || !symbols.length) return { status: 'NO_SNAPSHOT' };
   const key = normalizeKey(query);
-  const symbol = symbols.find((item) => normalizeKey(item.symbol) === key);
+  const symbol = snapshot.symbols.find((item) => normalizeKey(item.symbol) === key);
   const dateValue = snapshot.snapshotDate instanceof Date ? snapshot.snapshotDate.toISOString().slice(0, 10) : String(snapshot.snapshotDate || '').slice(0, 10);
-  if (!symbol) return { status: 'NOT_FOUND', snapshotUpdatedAt: snapshot.updatedAt, snapshotDate: dateValue, symbolCount: Number(snapshot.symbolCount) };
-  return { status: 'FOUND', symbol: symbol, snapshotUpdatedAt: snapshot.updatedAt, snapshotDate: dateValue, symbolCount: Number(snapshot.symbolCount), source: snapshot.source };
+  const metadata = { snapshotId: snapshot.id, snapshotUpdatedAt: snapshot.updatedAt, snapshotDate: dateValue, symbolCount: snapshot.symbolCount, source: snapshot.source };
+  if (!symbol) return { status: 'NOT_FOUND', ...metadata };
+  return { status: 'FOUND', symbol, ...metadata };
 }
 async function getSnapshot() {
-  await ensureTable();
-  const snapshot = await getStoredSnapshot();
+  const snapshot = await getActiveStoredSnapshot();
   if (!snapshot) return { status: 'NO_SNAPSHOT' };
-  let symbols;
-  try { symbols = JSON.parse(snapshot.symbolsJson); } catch (_) { symbols = null; }
-  if (!Array.isArray(symbols) || symbols.length < 1000 || Number(snapshot.symbolCount) !== symbols.length) {
-    return { status: 'INVALID_SNAPSHOT', snapshotUpdatedAt: snapshot.updatedAt, symbolCount: Number(snapshot.symbolCount || 0) };
-  }
   const snapshotDate = snapshot.snapshotDate instanceof Date ? snapshot.snapshotDate.toISOString().slice(0, 10) : String(snapshot.snapshotDate || '').slice(0, 10);
   return {
-    status: 'FOUND',
-    symbols,
-    snapshotDate,
-    snapshotUpdatedAt: snapshot.updatedAt,
-    symbolCount: Number(snapshot.symbolCount),
-    source: snapshot.source
+    status: 'FOUND', snapshotId: snapshot.id, symbols: snapshot.symbols,
+    snapshotDate, snapshotUpdatedAt: snapshot.updatedAt, symbolCount: snapshot.symbolCount, source: snapshot.source
   };
 }
 module.exports = { ensureTable, hasSnapshot, refreshSnapshot, searchSymbol, getSnapshot, normalizeSnapshotSymbol, normalizeKey, tehranDateKey };
