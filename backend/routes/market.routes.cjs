@@ -97,7 +97,7 @@ router.get('/all-symbols/search', async function searchAllSymbolsSnapshot(req, r
     const result = await allSymbolsSnapshotService.searchSymbol(symbol);
     if (result.status === 'NO_SNAPSHOT') return res.status(503).json({ success: false, code: 'ALL_SYMBOLS_SNAPSHOT_UNAVAILABLE', message: 'هنوز اسنپ‌شات AllSymbols در دیتابیس ثبت نشده است.' });
     if (result.status === 'NOT_FOUND') return res.status(404).json({ success: false, code: 'SYMBOL_NOT_FOUND', message: 'نماد در آخرین اسنپ‌شات بازار پیدا نشد.', snapshotUpdatedAt: result.snapshotUpdatedAt, snapshotDate: result.snapshotDate });
-    return res.json({ success: true, data: result.symbol, snapshot: { updatedAt: result.snapshotUpdatedAt, date: result.snapshotDate, symbolCount: result.symbolCount, source: result.source } });
+    return res.json({ success: true, data: result.symbol, snapshot: { id: result.snapshotId, updatedAt: result.snapshotUpdatedAt, date: result.snapshotDate, symbolCount: result.symbolCount, source: result.source } });
   } catch (error) { return next(error); }
 });
 
