@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 var express = require('express');
 var router = express.Router();
@@ -36,7 +36,17 @@ router.get('/history/radar', marketRadarHistoryController.getHistory);
 // درخواست کاربر نباید مستقیماً به BRS/TSETMC متصل شود.
 var sharedMarketService = require('../services/sharedMarket.service.cjs');
 
-router.get('/movers', async function getMarketMovers(_req, res, next) {
+function toDashboardMover(row) {
+  return {
+    symbol: row.symbol,
+    name: row.name,
+    lastPrice: row.lastPrice,
+    changePercent: row.changePercent,
+    volume: row.volume
+  };
+}
+
+router.get('/movers', async function getMarketMovers(req, res, next) {
   try {
     const breadth = await sharedMarketService.getBreadth();
     if (!breadth) {
@@ -44,6 +54,22 @@ router.get('/movers', async function getMarketMovers(_req, res, next) {
         success: false,
         message: 'هنوز داده مشترک بازار ثبت نشده است',
         code: 'NO_SHARED_MARKET_DATA'
+      });
+    }
+
+    // The dashboard only renders symbol, name, price, percent change and volume.
+    // Keep the legacy full response as the default for API compatibility, while
+    // allowing the dashboard to avoid sending the same large objects four times.
+    if (String(req.query.compact || '') === '1') {
+      return res.json({
+        success: true,
+        data: {
+          gainers: breadth.topGainers.map(toDashboardMover),
+          losers: breadth.topLosers.map(toDashboardMover),
+          highVolume: breadth.topVolumes.map(toDashboardMover)
+        },
+        source: 'shared-db',
+        stale: breadth.stale
       });
     }
 

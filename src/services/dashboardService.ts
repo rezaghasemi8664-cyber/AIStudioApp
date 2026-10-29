@@ -50,17 +50,12 @@ const normalizeMovers = (payload: unknown): DashboardMover[] => {
 
 export async function getDashboardMovers(): Promise<{ gainers: DashboardMover[]; losers: DashboardMover[]; highVolume: DashboardMover[] }> {
   try {
-    const response = await apiFetch('/market/movers');
+    const response = await apiFetch('/market/movers?compact=1');
     const data = record(unwrap(response));
-    const all = normalizeMovers(data.items ?? data.symbols ?? data.movers ?? []);
     const gainers = normalizeMovers(data.gainers ?? data.positive ?? data.topGainers ?? []).slice(0, 10);
     const losers = normalizeMovers(data.losers ?? data.negative ?? data.topLosers ?? []).slice(0, 10);
     const highVolume = normalizeMovers(data.highVolume ?? data.topVolume ?? data.mostTraded ?? []).slice(0, 10);
-    const combined = [...all, ...gainers, ...losers, ...highVolume];
-    const unique = new Map<string, DashboardMover>();
-    combined.forEach((item) => unique.set(item.symbol, item));
-    const fallbackHighVolume = [...unique.values()].filter((item) => item.volume !== null && item.volume !== undefined).sort((a, b) => (b.volume ?? 0) - (a.volume ?? 0)).slice(0, 10);
-    return { gainers, losers, highVolume: highVolume.length ? highVolume : fallbackHighVolume };
+    return { gainers, losers, highVolume };
   } catch { return { gainers: [], losers: [], highVolume: [] }; }
 }
 
