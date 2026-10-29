@@ -3,6 +3,67 @@
 const prisma = require('../config/prisma.cjs');
 const { getSecurityPolicy } = require('../middlewares/securityPolicy.middleware.cjs');
 
+const SESSION_SELECT = { id: true, userId: true, createdAt: true };
+
+// Coalesce concurrent requests for the same token inside this Node.js process.
+// The database unique constraint remains the source of truth across processes.
+const sessionCreationInFlight = new Map();
+
+function isUniqueConstraintError(error) {
+  const codes = [
+    error?.code,
+    error?.cause?.code,
+    error?.number,
+    error?.originalError?.info?.number,
+    error?.cause?.originalError?.info?.number,
+  ].map((value) => String(value ?? ''));
+  return codes.some((code) => code === 'P2002' || code === '2601' || code === '2627');
+}
+
+async function findOrCreateSession(token, userId) {
+  const pending = sessionCreationInFlight.get(token);
+  if (pending) {
+    return { session: await pending, createdSession: false };
+  }
+
+  let createdSession = false;
+  const lookup = (async () => {
+    let session = await prisma.session.findUnique({
+      where: { token },
+      select: SESSION_SELECT,
+    });
+    if (session) return session;
+
+    try {
+      session = await prisma.session.create({
+        data: { userId: Number(userId), token, createdAt: new Date() },
+        select: SESSION_SELECT,
+      });
+      createdSession = true;
+      return session;
+    } catch (createError) {
+      // A different Node.js process may have won the unique-token race.
+      // Only recover from a unique-key conflict; surface unrelated DB failures.
+      if (!isUniqueConstraintError(createError)) throw createError;
+      session = await prisma.session.findUnique({
+        where: { token },
+        select: SESSION_SELECT,
+      });
+      if (!session) throw createError;
+      return session;
+    }
+  })();
+
+  sessionCreationInFlight.set(token, lookup);
+  try {
+    return { session: await lookup, createdSession };
+  } finally {
+    if (sessionCreationInFlight.get(token) === lookup) {
+      sessionCreationInFlight.delete(token);
+    }
+  }
+}
+
 async function enforceSession(token, userId) {
   if (!token || !userId) return { valid: false, code: 'SESSION_REQUIRED' };
 
@@ -11,33 +72,10 @@ async function enforceSession(token, userId) {
   const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
   const now = Date.now();
 
-  let session = await prisma.session.findUnique({
-    where: { token },
-    select: { id: true, userId: true, createdAt: true },
-  });
-
-  // Only enforce the per-user session limit when a new session is created.
-  // Existing sessions still undergo ownership and expiry validation on every request.
-  let createdSession = false;
-  if (!session) {
-    try {
-      session = await prisma.session.create({
-        data: { userId: Number(userId), token, createdAt: new Date() },
-        select: { id: true, userId: true, createdAt: true },
-      });
-      createdSession = true;
-    } catch (createError) {
-      // Another concurrent request may have created this unique token.
-      session = await prisma.session.findUnique({
-        where: { token },
-        select: { id: true, userId: true, createdAt: true },
-      });
-      if (!session) throw createError;
-    }
-  }
+  const { session, createdSession } = await findOrCreateSession(token, userId);
 
   if (Number(session.userId) !== Number(userId)) {
-    await prisma.session.delete({ where: { id: session.id } }).catch(() => {});
+    // Never revoke another user's session just because a request supplied its token.
     return { valid: false, code: 'SESSION_USER_MISMATCH' };
   }
 
