@@ -553,47 +553,68 @@ async function getActiveSnapshot() {
   return rows?.[0] || null;
 }
 
+// Shared market data is refreshed by the central worker, not by end-user requests.
+// A short read-through cache prevents every dashboard request from fetching the
+// full symbolsJson/derivedJson payload from SQL Server. Single-flight also
+// collapses concurrent cache misses into one database read.
+const ACTIVE_DERIVED_CACHE_TTL_MS = 2_000;
 let activeDerivedReadCache = null;
+let activeDerivedReadInFlight = null;
 
 async function getActiveDerived() {
-  const row = await getActiveSnapshot();
-  if (!row?.derivedJson) return null;
-
-  const updatedAt = row.activatedAt || row.createdAt || null;
-  const cacheKey = String(row.id) + ':' + String(updatedAt || '');
-  if (activeDerivedReadCache?.key === cacheKey && Date.now() - activeDerivedReadCache.cachedAt < 30_000) {
+  const now = Date.now();
+  if (activeDerivedReadCache && now - activeDerivedReadCache.cachedAt < ACTIVE_DERIVED_CACHE_TTL_MS) {
     return activeDerivedReadCache.value;
   }
+  if (activeDerivedReadInFlight) return activeDerivedReadInFlight;
 
-  try {
-    let derived = JSON.parse(row.derivedJson);
-    const breadth = derived?.breadth;
-    const needsRebuild = !breadth ||
-      !Object.prototype.hasOwnProperty.call(breadth, 'abnormalVolume') ||
-      !Object.prototype.hasOwnProperty.call(breadth, 'queues') ||
-      !Object.prototype.hasOwnProperty.call(breadth, 'marketValueVsAverage') ||
-      breadth.abnormalVolume?.available === false ||
-      breadth.marketValueVsAverage?.available === false;
+  activeDerivedReadInFlight = (async () => {
+    const row = await getActiveSnapshot();
+    if (!row?.derivedJson) return null;
 
-    // Older ACTIVE snapshots can predate newer market-indicator fields. Rebuild
-    // the derived view from the same verified BRS symbol snapshot without
-    // changing the stored snapshot or fabricating unavailable source values.
-    if (needsRebuild && row.symbolsJson) {
-      const symbols = JSON.parse(row.symbolsJson);
-      if (Array.isArray(symbols) && symbols.length) {
-        // Recompute missing availability flags using the existing verified
-        // snapshot and historical DB baselines; do not fabricate market data.
-        await addHistoricalVolumeBaselines(symbols);
-        derived = buildDerived(symbols, updatedAt || new Date());
-        await addHistoricalValueComparison(derived, symbols);
-      }
+    const updatedAt = row.activatedAt || row.createdAt || null;
+    const cacheKey = String(row.id) + ':' + String(updatedAt || '');
+    if (activeDerivedReadCache?.key === cacheKey) {
+      activeDerivedReadCache = { ...activeDerivedReadCache, cachedAt: Date.now() };
+      return activeDerivedReadCache.value;
     }
 
-    const value = { snapshotId:Number(row.id), symbolCount:Number(row.symbolCount), ...derived,
-      source:row.source, updatedAt };
-    activeDerivedReadCache = { key: cacheKey, cachedAt: Date.now(), value };
-    return value;
-  } catch { return null; }
+    try {
+      let derived = JSON.parse(row.derivedJson);
+      const breadth = derived?.breadth;
+      const needsRebuild = !breadth ||
+        !Object.prototype.hasOwnProperty.call(breadth, 'abnormalVolume') ||
+        !Object.prototype.hasOwnProperty.call(breadth, 'queues') ||
+        !Object.prototype.hasOwnProperty.call(breadth, 'marketValueVsAverage') ||
+        breadth.abnormalVolume?.available === false ||
+        breadth.marketValueVsAverage?.available === false;
+
+      // Older ACTIVE snapshots can predate newer market-indicator fields. Rebuild
+      // the derived view from the same verified BRS symbol snapshot without
+      // changing the stored snapshot or fabricating unavailable source values.
+      if (needsRebuild && row.symbolsJson) {
+        const symbols = JSON.parse(row.symbolsJson);
+        if (Array.isArray(symbols) && symbols.length) {
+          // Recompute missing availability flags using the existing verified
+          // snapshot and historical DB baselines; do not fabricate market data.
+          await addHistoricalVolumeBaselines(symbols);
+          derived = buildDerived(symbols, updatedAt || new Date());
+          await addHistoricalValueComparison(derived, symbols);
+        }
+      }
+
+      const value = { snapshotId:Number(row.id), symbolCount:Number(row.symbolCount), ...derived,
+        source:row.source, updatedAt };
+      activeDerivedReadCache = { key: cacheKey, cachedAt: Date.now(), value };
+      return value;
+    } catch { return null; }
+  })();
+
+  try {
+    return await activeDerivedReadInFlight;
+  } finally {
+    activeDerivedReadInFlight = null;
+  }
 }
 
 async function getActiveSymbols() {
