@@ -662,7 +662,7 @@ function buildDeterministicSummary(data) {
   ].join('\n\n');
 }
 
-function normalizeSummaryRecord(record, diagnostics = null) {
+function normalizeSummaryRecord(record, diagnostics = null, includeRawJson = true) {
   if (!record) return null;
   const raw = parseJsonSafe(record.rawJson) || {};
   const rawData = raw?.data || {};
@@ -698,7 +698,7 @@ function normalizeSummaryRecord(record, diagnostics = null) {
     topGainers: parseJsonSafe(record.topGainers) || [],
     topLosers: parseJsonSafe(record.topLosers) || [],
     topVolumes: parseJsonSafe(record.topVolumes) || [],
-    rawJson: record.rawJson || null,
+    rawJson: includeRawJson ? (record.rawJson || null) : undefined,
     createdAt: toTehranWallClockISO(record.createdAt) || toTehranWallClockISO(new Date()),
     updatedAt: record.updatedAt ? new Date(record.updatedAt).toISOString() : null,
     content,
@@ -1025,7 +1025,7 @@ exports.findHistory = async ({ page = 1, limit = 10 }) => {
     model.findMany({ orderBy: [{ summaryDate: 'desc' }, { id: 'desc' }], skip: (p - 1) * l, take: l }),
     model.count()
   ]);
-  return { data: items.map(normalizeSummaryRecord).filter(Boolean), pagination: { total, page: p, limit: l, totalPages: Math.ceil(total / l) } };
+  return { data: items.map((record) => normalizeSummaryRecord(record, null, false)).filter(Boolean), pagination: { total, page: p, limit: l, totalPages: Math.ceil(total / l) } };
 };
 exports.getAvailableDates = async () => {
   const model = getMarketSummaryModel();
