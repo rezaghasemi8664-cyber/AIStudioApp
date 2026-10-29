@@ -343,12 +343,12 @@ async function addHistoricalValueComparison(derived, symbols) {
   let rows = [];
   try {
     rows = await prisma.$queryRaw`
-      SELECT TOP 20 CAST([date] AS date) AS [marketDate],
+      SELECT TOP 20 [date] AS [marketDate],
         SUM(CAST([value] AS decimal(38,0))) AS [totalValue]
       FROM [dbo].[MarketDaily]
       WHERE [date] < ${marketDate} AND [value] IS NOT NULL
-      GROUP BY CAST([date] AS date)
-      ORDER BY CAST([date] AS date) DESC
+      GROUP BY [date]
+      ORDER BY [date] DESC
     `;
   } catch (error) {
     derived.breadth.marketValueVsAverage = {
@@ -388,15 +388,15 @@ async function addHistoricalVolumeBaselines(symbols) {
   try {
     rows = await prisma.$queryRaw`
       WITH [RecentTradingDates] AS (
-        SELECT TOP 20 CAST([date] AS date) AS [marketDate]
+        SELECT TOP 20 [date] AS [marketDate]
         FROM [dbo].[MarketDaily]
         WHERE [date] < ${marketDate} AND [volume] > 0
-        GROUP BY CAST([date] AS date)
-        ORDER BY CAST([date] AS date) DESC
+        GROUP BY [date]
+        ORDER BY [date] DESC
       )
       SELECT md.[symbol], AVG(CAST(md.[volume] AS float)) AS [averageVolume]
       FROM [dbo].[MarketDaily] md
-      INNER JOIN [RecentTradingDates] d ON CAST(md.[date] AS date) = d.[marketDate]
+      INNER JOIN [RecentTradingDates] d ON md.[date] = d.[marketDate]
       WHERE md.[volume] > 0
       GROUP BY md.[symbol]
     `;
