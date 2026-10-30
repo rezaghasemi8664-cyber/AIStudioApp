@@ -103,11 +103,14 @@ async function getFilters(){
  const stored=await centralCache.getOrLoad(DAILY_FILTERS_CACHE_KEY,DAILY_FILTERS_CACHE_TTL_MS,readStored);
  if(!stored)return{success:true,marketStatus:{isOpen:false,available:false,reason:'NO_DAILY_FILTER_SNAPSHOT'},filters:defs.map(([id,label])=>({id,label,count:0,updatedAt:null,rows:[]})),meta:{status:'UNAVAILABLE',source:'central-cache+database',fetchedAt:null,cachedAt:null,stale:false,centralSnapshot:null}};
  const marketStatus=stored.marketStatus||{isOpen:false,available:true,reason:'CACHED_MARKET_STATUS'};
+ const currentSessionOpen=isTradingSession();
+ const effectiveMarketStatus=currentSessionOpen?marketStatus:{...marketStatus,isOpen:false,reason:marketStatus.reason||'OUTSIDE_TRADING_HOURS',source:'tehran-schedule'};
+
  const updatedAt=stored.updatedAt instanceof Date?stored.updatedAt.toISOString():new Date(stored.updatedAt).toISOString();
  const snapshotUpdatedAt=stored.snapshotUpdatedAt instanceof Date?stored.snapshotUpdatedAt.toISOString():new Date(stored.snapshotUpdatedAt).toISOString();
  const filters=stored.filters||{};
  const hasSnapshot=Boolean(updatedAt&&Object.keys(filters).length);
- const dataStatus=!hasSnapshot?'UNAVAILABLE':(marketStatus.isOpen?'LIVE':'CACHED');
- return{success:true,marketStatus,filters:defs.map(([id,label])=>({id,label,count:hasSnapshot?(filters[id]?.rows||[]).length:0,updatedAt:filters[id]?.updatedAt||updatedAt,rows:hasSnapshot?(filters[id]?.rows||[]).slice(0,MAX_FILTER_ROWS):[]})),meta:{status:dataStatus,source:stored.source||'central-all-symbols-db',fetchedAt:updatedAt,cachedAt:dataStatus==='CACHED'?updatedAt:null,stale:dataStatus==='CACHED',centralSnapshot:{date:stored.snapshotDate,updatedAt:snapshotUpdatedAt,symbolCount:Number(stored.symbolCount)||0,source:stored.source||'central-all-symbols-db'}}};
+ const dataStatus=!hasSnapshot?'UNAVAILABLE':(effectiveMarketStatus.isOpen?'LIVE':'CACHED');
+ return{success:true,marketStatus:effectiveMarketStatus,filters:defs.map(([id,label])=>({id,label,count:hasSnapshot?(filters[id]?.rows||[]).length:0,updatedAt:filters[id]?.updatedAt||updatedAt,rows:hasSnapshot?(filters[id]?.rows||[]).slice(0,MAX_FILTER_ROWS):[]})),meta:{status:dataStatus,source:stored.source||'central-all-symbols-db',fetchedAt:updatedAt,cachedAt:dataStatus==='CACHED'?updatedAt:null,stale:dataStatus==='CACHED',centralSnapshot:{date:stored.snapshotDate,updatedAt:snapshotUpdatedAt,symbolCount:Number(stored.symbolCount)||0,source:stored.source||'central-all-symbols-db'}}};
 }
 module.exports={getFilters,refresh,ensureTable};
