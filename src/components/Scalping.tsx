@@ -48,6 +48,9 @@ const formatScore = (value?: number | null) =>
     ? new Intl.NumberFormat('fa-IR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value)
     : new Intl.NumberFormat('fa-IR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(0);
 
+const formatProbability = (value?: number | null) =>
+  typeof value === 'number' && Number.isFinite(value) ? formatScore(value) : '—';
+
 const OpportunityCard: React.FC<{
   opportunity: ScalpingOpportunity;
   onSave: (opportunity: ScalpingOpportunity, quantity: string, tradeIntent: 'BUY' | 'WATCH') => void;
@@ -135,9 +138,9 @@ const OpportunityCard: React.FC<{
         {opportunity.historicalProbabilities?.status === 'CALIBRATED' ? (
           <>
             <div className="grid grid-cols-3 gap-2 text-center">
-              <div><span className="block text-[10px] text-[var(--color-text-secondary)]">رسیدن به ورود</span><strong className="text-sm">{formatScore(opportunity.historicalProbabilities.entryHitProbability)}٪</strong></div>
-              <div><span className="block text-[10px] text-[var(--color-text-secondary)]">تأیید برگشت</span><strong className="text-sm">{formatScore(opportunity.historicalProbabilities.reversalAfterEntryProbability)}٪</strong></div>
-              <div><span className="block text-[10px] text-[var(--color-text-secondary)]">هدف قبل از حد ضرر</span><strong className="text-sm">{formatScore(opportunity.historicalProbabilities.targetBeforeStopProbability)}٪</strong></div>
+              <div><span className="block text-[10px] text-[var(--color-text-secondary)]">رسیدن به ورود</span><strong className="text-sm">{formatProbability(opportunity.historicalProbabilities.entryHitProbability)}{opportunity.historicalProbabilities.entryHitProbability == null ? '' : '٪'}</strong></div>
+              <div><span className="block text-[10px] text-[var(--color-text-secondary)]">تأیید برگشت</span><strong className="text-sm">{formatProbability(opportunity.historicalProbabilities.reversalAfterEntryProbability)}{opportunity.historicalProbabilities.reversalAfterEntryProbability == null ? '' : '٪'}</strong></div>
+              <div><span className="block text-[10px] text-[var(--color-text-secondary)]">هدف قبل از حد ضرر</span><strong className="text-sm">{formatProbability(opportunity.historicalProbabilities.targetBeforeStopProbability)}{opportunity.historicalProbabilities.targetBeforeStopProbability == null ? '' : '٪'}</strong></div>
             </div>
             <p className="mt-2 text-[10px] text-[var(--color-text-secondary)]">بر پایه {new Intl.NumberFormat('fa-IR').format(opportunity.historicalProbabilities.samples)} نمونه تاریخی و افق {new Intl.NumberFormat('fa-IR').format(opportunity.historicalProbabilities.lookaheadSessions || 5)} جلسه؛ تضمین عملکرد آینده نیست.</p>
           </>
