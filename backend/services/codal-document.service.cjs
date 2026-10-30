@@ -505,25 +505,9 @@ function startFinancialDocumentCacheCron() {
   if (documentCacheTasks.length) return;
   const cron = require('node-cron');
   documentCacheTasks = [
-    cron.schedule('20 8 * * *', () => refreshFinancialDocumentCache({ limit: 25, reason: 'scheduled-08:20' }).catch(error => console.error('[CODAL DOC CACHE] morning refresh failed:', error.message || error)), { timezone: 'Asia/Tehran' }),
-    cron.schedule('50 13 * * *', () => refreshFinancialDocumentCache({ limit: 25, reason: 'scheduled-13:50' }).catch(error => console.error('[CODAL DOC CACHE] afternoon refresh failed:', error.message || error)), { timezone: 'Asia/Tehran' })
+    cron.schedule('20 8 * * *', () => refreshFinancialDocumentCache({ limit: 25, reason: 'scheduled-08:20' }).catch(error => console.error('[CODAL DOC CACHE] morning refresh failed:', error.message || error)), { timezone: 'Asia/Tehran' })
   ];
-  console.log('[CODAL DOC CACHE] scheduled for 08:20 and 13:50 Asia/Tehran; batches of up to 25 financial documents continue automatically');
-  // Resume coverage after every deployment, even when the cache already has
-  // some rows. Existing successful documents are skipped by the queue query.
-  setImmediate(async () => {
-    try {
-      const countRows = await prisma.$queryRaw`SELECT COUNT_BIG(1) AS Total FROM dbo.CodalFinancialDocumentCache`;
-      const cacheCount = Number(countRows[0] && countRows[0].Total || 0);
-      const result = await refreshFinancialDocumentCache({
-        limit: 25,
-        reason: cacheCount === 0 ? 'empty-cache-bootstrap' : 'startup-coverage-resume'
-      });
-      console.log('[CODAL DOC CACHE] startup coverage result=' + JSON.stringify(result));
-    } catch (error) {
-      console.error('[CODAL DOC CACHE] startup coverage failed:', error.message || error);
-    }
-  });
+  console.log('[CODAL DOC CACHE] scheduled daily at 08:20 Asia/Tehran; sequential batches continue automatically');
 }
 function stopFinancialDocumentCacheCron() {
   for (const task of documentCacheTasks) task.stop();
