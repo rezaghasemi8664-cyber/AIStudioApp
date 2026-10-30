@@ -3,6 +3,7 @@ const {
   fetchIndex,
   saveMarketSnapshot,
 } = require('../services/marketHistory.service.cjs');
+const sharedMarketService = require('../services/sharedMarket.service.cjs');
 
 const MARKET_TZ = 'Asia/Tehran';
 const MARKET_OPEN_MINUTE = 9 * 60;
@@ -73,6 +74,7 @@ function registerMarketCron(io = null) {
     // accidental boundary execution.
     const saved = await saveMarketSnapshot(data);
       if (saved) {
+        sharedMarketService.invalidateSharedMarketCache('market:current');
         if (io) io.emit('market-indices:updated', { updatedAt: new Date().toISOString() });
         console.log(
           `[CRON] Market snapshot saved at ${new Date().toISOString()}`
