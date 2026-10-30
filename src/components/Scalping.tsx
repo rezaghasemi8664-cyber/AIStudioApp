@@ -53,11 +53,12 @@ const formatProbability = (value?: number | null) =>
 
 const OpportunityCard: React.FC<{
   opportunity: ScalpingOpportunity;
-  onSave: (opportunity: ScalpingOpportunity, quantity: string, tradeIntent: 'BUY' | 'WATCH') => void;
+  onSave: (opportunity: ScalpingOpportunity, quantity: string, tradeIntent: 'BUY' | 'WATCH', entryPriceInput: string) => void;
   saving: boolean;
 }> = ({ opportunity, onSave, saving }) => {
   const [quantity, setQuantity] = useState('');
   const [tradeIntent, setTradeIntent] = useState<'BUY' | 'WATCH'>('WATCH');
+  const [entryPriceInput, setEntryPriceInput] = useState('');
   const entryPrice = opportunity.entryPrice ?? opportunity.price;
   const exitPrice = opportunity.exitPrice ?? opportunity.targetPrice;
   const stopLossPrice = opportunity.stopLossPrice;
@@ -156,7 +157,12 @@ const OpportunityCard: React.FC<{
           <option value="BUY">خرید</option><option value="WATCH">پایش</option>
         </select>
       </label>
-      <button type="button" onClick={() => onSave(opportunity, quantity, tradeIntent)} disabled={saving || isSellSignal || !(Number(quantity) > 0 && Number.isInteger(Number(quantity)) && Number(entryPrice) > Number(stopLossPrice) && Number(exitPrice) > Number(entryPrice))}
+      {tradeIntent === 'BUY' && (
+        <label className="mt-3 block text-sm text-[var(--color-text-secondary)]">قیمت ورود در سبد (ریال)
+          <input type="number" min="1" step="any" inputMode="decimal" value={entryPriceInput} onChange={event => setEntryPriceInput(event.target.value)} placeholder={`خالی بماند: قیمت پیشنهادی ${formatPrice(entryPrice)}`} className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2" />
+        </label>
+      )}
+      <button type="button" onClick={() => onSave(opportunity, quantity, tradeIntent, entryPriceInput)} disabled={saving || isSellSignal || !(Number(quantity) > 0 && Number.isInteger(Number(quantity)) && Number(entryPrice) > Number(stopLossPrice) && Number(exitPrice) > Number(entryPrice))}
         title={isSellSignal ? 'سیگنال فروش برای ایجاد موقعیت خرید در این سبد مناسب نیست.' : undefined}
         className="mt-4 w-full rounded-lg bg-cyan-600 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50">
         {saving ? 'در حال ذخیره…' : 'ذخیره در سبد نوسان‌گیری'}
@@ -176,16 +182,18 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
   const [savingSymbol, setSavingSymbol] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState('');
   const [saveError, setSaveError] = useState('');
-  const saveToScalpingWatchlist = async (opportunity: ScalpingOpportunity, quantityInput: string, tradeIntent: 'BUY' | 'WATCH') => {
+  const saveToScalpingWatchlist = async (opportunity: ScalpingOpportunity, quantityInput: string, tradeIntent: 'BUY' | 'WATCH', entryPriceInput: string) => {
     const symbol = String(opportunity.symbol || '').trim().toUpperCase();
-    const entryPrice = Number(opportunity.entryPrice ?? opportunity.price);
+    const suggestedEntryPrice = Number(opportunity.entryPrice ?? opportunity.price);
+    const customEntryPrice = entryPriceInput.trim() === '' ? null : Number(entryPriceInput);
+    const entryPrice = tradeIntent === 'BUY' && customEntryPrice !== null ? customEntryPrice : suggestedEntryPrice;
     const targetPrice = Number(opportunity.exitPrice ?? opportunity.targetPrice);
     const stopLoss = Number(opportunity.stopLossPrice);
     const quantity = Number(quantityInput);
     if (!Number.isInteger(quantity) || quantity <= 0) {
       setSaveError('تعداد واقعی سهام را به‌صورت عدد صحیح بزرگ‌تر از صفر وارد کنید.'); setSaveNotice(''); return;
     }
-    if (!symbol || !Number.isFinite(entryPrice) || !Number.isFinite(targetPrice) || !Number.isFinite(stopLoss) ||
+    if ((tradeIntent === 'BUY' && customEntryPrice !== null && (!Number.isFinite(customEntryPrice) || customEntryPrice <= 0)) || !symbol || !Number.isFinite(entryPrice) || !Number.isFinite(targetPrice) || !Number.isFinite(stopLoss) ||
         !(stopLoss > 0 && entryPrice > stopLoss && targetPrice > entryPrice)) {
       setSaveError('سطوح ورود، حد ضرر و خروج این سیگنال برای ذخیره در سبد خرید معتبر نیستند.');
       setSaveNotice('');
@@ -200,7 +208,7 @@ const Scalping: React.FC<ScalpingProps> = ({ isOnline }) => {
         quantity, entryPrice, targetPrice, stopLoss, tradeIntent,
         targetAlertEnabled: true, stopLossAlertEnabled: true,
       });
-      setSaveNotice(`نماد ${symbol} با وضعیت ${tradeIntent === 'BUY' ? 'خرید' : 'پایش'} در سبد نوسان‌گیری ذخیره شد؛ هشدارهای قیمتی فعال هستند.`);
+      setSaveNotice(`نماد ${symbol} با قیمت ورود ${formatPrice(entryPrice)} ریال و وضعیت ${tradeIntent === 'BUY' ? 'خرید' : 'پایش'} در سبد نوسان‌گیری ذخیره شد؛ هشدارهای قیمتی فعال هستند.`);
     } catch (error: any) {
       setSaveError(error?.response?.data?.message || error?.message || 'ذخیره نماد در سبد نوسان‌گیری ناموفق بود.');
     } finally { setSavingSymbol(null); }
