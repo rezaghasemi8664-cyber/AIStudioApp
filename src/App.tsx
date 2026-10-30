@@ -18,6 +18,7 @@ import Dashboard from './components/Dashboard';
 import LoadingSpinner from './components/LoadingSpinner';
 import RequestActivityIndicator from './components/RequestActivityIndicator';
 import WelcomeBanner from './components/WelcomeBanner';
+import ComprehensiveGuide from './components/ComprehensiveGuide';
 
 import * as authServiceModule from './services/authService';
 import type { StoredUser } from './services/authService';
@@ -91,6 +92,7 @@ const PaperTrading = lazy(() => import('./components/PaperTrading'));
 const TraderPerformance = lazy(() => import('./components/TraderPerformance'));
 const RoniaAssistant = lazy(() => import('./components/RoniaAssistant'));
 const OptionsMarket = lazy(() => import('./components/OptionsMarket'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
 
 type Tab =
   | 'dashboard'
@@ -110,7 +112,9 @@ type Tab =
   | 'paperTrading'
   | 'traderPerformance'
   | 'roniaAssistant'
-  | 'optionsMarket';
+  | 'optionsMarket'
+  | 'comprehensiveGuide'
+  | 'adminPanel';
 
 const SUBSCRIPTION_RESTRICTED_TABS: Tab[] = ['analysis', 'scalping', 'comparison', 'dailyFilters'];
 const isSubscriptionRestrictedTab = (tab: Tab): boolean => SUBSCRIPTION_RESTRICTED_TABS.includes(tab);
@@ -1135,6 +1139,8 @@ const App: React.FC = () => {
         return <TraderPerformance />;
       case 'roniaAssistant': return <RoniaAssistant isOnline={isOnline} onNavigate={(tab) => handleTabClick(tab as Tab)} />;
       case 'dailyFilters': return <DailyFilters />;
+      case 'comprehensiveGuide': return <ComprehensiveGuide />;
+      case 'adminPanel': return currentUser.isAdmin ? <AdminPanel isOnline={isOnline} onMessageUpdate={() => refreshUnreadCount(currentUser)} onlineCount={onlineUserCount} /> : <div className="py-8 text-center text-gray-500">شما دسترسی ندارید.</div>;
       case 'settings':
         return <Settings currentUser={currentUser} />;
       case 'profile': return <UserProfile currentUser={currentUser} onProfileUpdate={handleProfileUpdate} onPasswordChange={handlePasswordChange} />;
@@ -1236,6 +1242,8 @@ const App: React.FC = () => {
           <TabButton tab="strategyLab" label="آزمایشگاه استراتژی" icon={<PresentationChartLineIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="dailyFilters" label="فیلترهای روزانه" icon={<PresentationChartLineIcon />} alertType="none" locked={isExpired && isSubscriptionRestrictedTab('dailyFilters')} activeTab={activeTab} onTabClick={handleTabClick} />
           {currentUser.isAdmin && <><TabButton tab="users" label="کاربران" icon={<UserGroupIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /><TabButton tab="notifications" label="اطلاعیه‌ها" icon={<MegaphoneIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /></>}
+          <TabButton tab="comprehensiveGuide" label="راهنمای جامع نرم‌افزار" icon={<DocumentTextIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
+          {currentUser.isAdmin && <TabButton tab="adminPanel" label="پنل مدیریت" icon={<Cog6ToothIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />}
           <TabButton tab="profile" label="پروفایل" icon={<UserCircleIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /><TabButton tab="settings" label="تنظیمات" icon={<Cog6ToothIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
         </div></nav>
         <RequestActivityIndicator />
