@@ -157,17 +157,27 @@ function buildSummary(items) {
 async function getReports({ symbol = '', from = '', to = '', limit = 50 } = {}) {
   const snapshot = require('./codalSnapshot.service.cjs');
   const boundedLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
-  const archived = await snapshot.getArchivedReports({ symbol, from, to, limit: boundedLimit });
-  let items = archived.map(normalizeItem).filter(item => item.title || item.symbol || item.publishDate || item.url).slice(0, boundedLimit);
-  const status = await snapshot.getSnapshotStatus();
+  const cached = await snapshot.getCodalSnapshotFromCache();
+  const normalizeDate = value => normalizeDigits(value).replace(/[^0-9]/g, '');
+  const fromKey = normalizeDate(from);
+  const toKey = normalizeDate(to);
+  const symbolKey = String(symbol || '').trim().toLowerCase();
+  let sourceItems = cached && Array.isArray(cached.announcements) ? cached.announcements : [];
+  if (symbolKey) sourceItems = sourceItems.filter(item => String(first(item, ['l18', 'symbol', 'Symbol']) || '').trim().toLowerCase() === symbolKey);
+  if (fromKey) sourceItems = sourceItems.filter(item => normalizeDate(first(item, ['datePublish', 'date_publish', 'dateSend', 'date_send', 'dateTitle'])) >= fromKey);
+  if (toKey) sourceItems = sourceItems.filter(item => normalizeDate(first(item, ['datePublish', 'date_publish', 'dateSend', 'date_send', 'dateTitle'])) <= toKey);
+  const items = sourceItems.map(normalizeItem)
+    .filter(item => item.title || item.symbol || item.publishDate || item.url)
+    .sort((a, b) => normalizeDate(b.publishDate).localeCompare(normalizeDate(a.publishDate)))
+    .slice(0, boundedLimit);
   return {
     items,
     summary: buildSummary(items),
-    fetchedAt: status.state && status.state.LastSuccessAt ? new Date(status.state.LastSuccessAt).toISOString() : null,
-    source: 'codal-db-archive',
+    fetchedAt: cached?.fetchedAt || null,
+    source: 'codal-db-snapshot-central-cache',
     configured: true,
-    stale: !(status.state && status.state.ActiveSnapshotId),
-    snapshotId: status.state && status.state.ActiveSnapshotId ? String(status.state.ActiveSnapshotId) : null
+    stale: !(cached && cached.snapshotId),
+    snapshotId: cached?.snapshotId || null
   };
 }
 module.exports = { getReports, normalizeNumber, normalizeDigits, normalizeItem, classifyReport, extractFinancialMetrics, buildPeriodicTrend, buildSensitiveEvents };
