@@ -2,6 +2,7 @@
 const zlib = require('zlib');
 const crypto = require('crypto');
 const XLSX = require('@e965/xlsx');
+const pdfParse = require('pdf-parse');
 const prisma = require('../config/prisma.cjs');
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_BYTES = 16 * 1024 * 1024;
@@ -41,8 +42,30 @@ function validateDocumentUrl(rawUrl) {
     throw new Error('CODAL document URL protocol is not allowed');
   }
 
+  if (target.protocol !== 'https:' || target.username || target.password || (target.port && target.port !== '443')) {
+    throw new Error('CODAL document URL must use HTTPS on the standard port');
+  }
   const isCodalHost = /^(?:www\.|excel\.)?codal\.ir$/i.test(target.hostname);
-  if (!isCodalHost) return target.toString();
+  if (!isCodalHost) {
+    let configuredRelay;
+    try {
+      configuredRelay = new URL(process.env.CODAL_DOCUMENT_RELAY_URL || 'https://codal-relay.codal.mytestdomain123.ir');
+    } catch (_) {
+      throw new Error('CODAL document relay URL is invalid');
+    }
+    if (target.origin !== configuredRelay.origin || target.pathname !== (configuredRelay.pathname || '/') || !target.searchParams.has('url')) {
+      throw new Error('CODAL document host is not on the allowed domain list');
+    }
+    let upstream;
+    try { upstream = new URL(target.searchParams.get('url')); } catch (_) {
+      throw new Error('CODAL relay target URL is invalid');
+    }
+    if (upstream.protocol !== 'https:' || !/^(?:www\.|excel\.)?codal\.ir$/i.test(upstream.hostname) ||
+        upstream.username || upstream.password || (upstream.port && upstream.port !== '443')) {
+      throw new Error('CODAL relay target host is not allowed');
+    }
+    return target.toString();
+  }
 
   const relayValue = String(
     process.env.CODAL_DOCUMENT_RELAY_URL ||
@@ -63,7 +86,63 @@ function validateDocumentUrl(rawUrl) {
   relay.searchParams.set('url', target.toString());
   return relay.toString();
 }
-async function downloadDocument(rawUrl){const url=validateDocumentUrl(rawUrl),ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),envNumber('CODAL_DOCUMENT_TIMEOUT_MS',DEFAULT_TIMEOUT_MS,3000,60000));try{const r=await fetch(url,{headers:{Accept:'text/html,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,*/*','User-Agent':'RoniyaAnalyzer/5.2.1'},signal:ctl.signal});if(!r.ok)throw new Error('CODAL document HTTP '+r.status);const a=await r.arrayBuffer();if(a.byteLength>envNumber('CODAL_DOCUMENT_MAX_BYTES',DEFAULT_MAX_BYTES,1048576,33554432))throw new Error('CODAL document exceeds maximum allowed size');return{buffer:Buffer.from(a),bytes:a.byteLength,contentType:String(r.headers.get('content-type')||''),finalUrl:r.url||url}}catch(e){if(e?.name==='AbortError')throw new Error('CODAL document download timed out');throw e}finally{clearTimeout(timer)}}
+async function downloadDocument(rawUrl) {
+  const url = validateDocumentUrl(rawUrl);
+  const maxBytes = envNumber('CODAL_DOCUMENT_MAX_BYTES', DEFAULT_MAX_BYTES, 1048576, 33554432);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), envNumber('CODAL_DOCUMENT_TIMEOUT_MS', DEFAULT_TIMEOUT_MS, 3000, 60000));
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Accept: 'application/pdf,text/html,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,*/*',
+        'User-Agent': 'RoniyaAnalyzer/5.2.1'
+      },
+      redirect: 'error',
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error('CODAL document HTTP ' + response.status);
+    const declaredLength = Number(response.headers.get('content-length'));
+    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+      await response.body?.cancel();
+      throw new Error('CODAL document exceeds maximum allowed size');
+    }
+    const reader = response.body && response.body.getReader ? response.body.getReader() : null;
+    const chunks = [];
+    let total = 0;
+    if (reader) {
+      while (true) {
+        const part = await reader.read();
+        if (part.done) break;
+        const chunk = Buffer.from(part.value);
+        total += chunk.length;
+        if (total > maxBytes) {
+          await reader.cancel();
+          throw new Error('CODAL document exceeds maximum allowed size');
+        }
+        chunks.push(chunk);
+      }
+    } else {
+      const chunk = Buffer.from(await response.arrayBuffer());
+      total = chunk.length;
+      if (total > maxBytes) throw new Error('CODAL document exceeds maximum allowed size');
+      chunks.push(chunk);
+    }
+    return {
+      buffer: Buffer.concat(chunks, total),
+      bytes: total,
+      contentType: String(response.headers.get('content-type') || ''),
+      finalUrl: response.url || url
+    };
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('CODAL document download timed out');
+    if (error?.name === 'TypeError' && /redirect/i.test(error.message || '')) {
+      throw new Error('CODAL document redirect was blocked by security policy');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 function extractZipEntries(b){const m=new Map();let p=-1;for(let i=Math.max(0,b.length-65557);i<=b.length-22;i++)if(b.readUInt32LE(i)===0x06054b50)p=i;if(p<0)throw new Error('Invalid ZIP document');const count=b.readUInt16LE(p+10),off=b.readUInt32LE(p+16);let c=off;for(let n=0;n<count&&c+46<=b.length;n++){if(b.readUInt32LE(c)!==0x02014b50)break;const method=b.readUInt16LE(c+10),size=b.readUInt32LE(c+20),nl=b.readUInt16LE(c+28),el=b.readUInt16LE(c+30),cl=b.readUInt16LE(c+32),lo=b.readUInt32LE(c+42),name=b.slice(c+46,c+46+nl).toString(),lnl=b.readUInt16LE(lo+26),lel=b.readUInt16LE(lo+28),raw=b.slice(lo+30+lnl+lel,lo+30+lnl+lel+size);m.set(name,method===0?raw:zlib.inflateRawSync(raw));c+=46+nl+el+cl}return m}
 function xmlDecode(v){return String(v||'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'")}
 function parseSharedStrings(x){return Array.from(String(x||'').matchAll(/<si[\s\S]*?<\/si>/gi)).map(m=>Array.from(m[0].matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/gi)).map(x=>xmlDecode(x[1])).join(''))}
@@ -114,6 +193,34 @@ function extractExcelRows(buffer){
     sheets.push({name,rows:parseWorksheet(content.toString('utf8'),shared).slice(0,2000)});
   }
   return sheets.sort((a,b)=>a.name.localeCompare(b.name));
+}
+function isPdfDocument(contentType, url, buffer) {
+  return buffer.slice(0, 5).toString('ascii') === '%PDF-' ||
+    String(contentType || '').toLowerCase().includes('application/pdf') ||
+    /[.]pdf(?:[?#]|$)/i.test(String(url || ''));
+}
+async function extractPdfRows(buffer) {
+  if (buffer.slice(0, 5).toString('ascii') !== '%PDF-') {
+    throw new Error('PDF response does not have a valid PDF signature');
+  }
+  const parsed = await pdfParse(buffer, { max: 0 });
+  const text = String(parsed && parsed.text || '')
+    .replace(/[\x00]/g, '')
+    .replace(/\r/g, '\n');
+  const lines = text.split(/\n+/)
+    .map(line => line.trim())
+    .filter(Boolean)
+    .slice(0, 12000);
+  const rows = lines.map(line => {
+    const columns = line.split(/\t+|\s{2,}/).map(cell => cell.trim()).filter(Boolean);
+    if (columns.length > 1) return columns;
+    const trailingValue = line.match(/^(.*?\S)\s+([-+]?[\(]?[0-9۰-۹٠-٩][0-9۰-۹٠-٩٬،,.٫]*\)?)\s*$/);
+    return trailingValue ? [trailingValue[1], trailingValue[2]] : [line];
+  });
+  if (!rows.length) {
+    throw new Error('PDF contains no extractable text; scanned PDFs require OCR');
+  }
+  return [{ name: 'pdf-text', rows }];
 }
 const METRIC_PATTERNS={
   revenue:['جمع درآمدهای عملیاتی','جمع درآمد عملیاتی','درآمدهای عملیاتی','درآمد عملیاتی','درآمد حاصل از فروش','درآمد فروش','فروش خالص','فروش','درآمد','operating revenue','revenue','sales'],
@@ -240,11 +347,12 @@ async function extractFinancialDataFromAnnouncementLive(announcement){
     try{
       const downloaded=await downloadDocument(candidate.url);
       const head=downloaded.buffer.slice(0,4096).toString('utf8');
-      const isHtml=/text\/html|application\/html/i.test(downloaded.contentType)||/<(?:html|table|tr|td|th)\\b/i.test(head);
-      if(candidate.type==='report'&&!isHtml&&!looksLikeExcel(downloaded.contentType,downloaded.finalUrl,downloaded.buffer)){
-        throw new Error('CODAL report response is not a readable HTML/Excel document');
+      const isHtml=/text\/html|application\/html/i.test(downloaded.contentType)||/<(?:html|table|tr|td|th)\b/i.test(head);
+      const isPdf=isPdfDocument(downloaded.contentType,downloaded.finalUrl,downloaded.buffer);
+      if(candidate.type==='report'&&!isHtml&&!isPdf&&!looksLikeExcel(downloaded.contentType,downloaded.finalUrl,downloaded.buffer)){
+        throw new Error('CODAL report response is not a readable HTML, PDF or Excel document');
       }
-      const sheets=extractExcelRows(downloaded.buffer);
+      const sheets=isPdf?await extractPdfRows(downloaded.buffer):extractExcelRows(downloaded.buffer);
       if(!sheets.length){
         const signature=downloaded.buffer.slice(0,8).toString('hex');
         if(signature==='d0cf11e0a1b11ae1')throw new Error('فایل XLS باینری قدیمی دریافت شد اما این نسخه از استخراج‌گر آن را پشتیبانی نمی‌کند.');
@@ -254,7 +362,7 @@ async function extractFinancialDataFromAnnouncementLive(announcement){
       const metrics=findMetricValues(sheets);
       if(Object.keys(metrics).length>0){
         results.push({ok:true,item:{
-          sourceType:isHtml?'codal-html-report':'excel',
+          sourceType:isPdf?'pdf-text':(isHtml?'codal-html-report':'excel'),
           url:downloaded.finalUrl,
           bytes:downloaded.bytes,
           sheetCount:sheets.length,
@@ -424,4 +532,4 @@ function stopFinancialDocumentCacheCron() {
   cacheRefreshTimer = null;
 }
 
-module.exports={normalizeDigits,normalizeText,normalizeMetricLabel,parseNumber,validateDocumentUrl,downloadDocument,extractZipEntries,parseHtmlWorkbook,extractExcelRows,findMetricValues,extractFinancialDataFromExcel,extractFinancialDataFromAnnouncement,refreshFinancialDocumentCache,startFinancialDocumentCacheCron,stopFinancialDocumentCacheCron};
+module.exports={normalizeDigits,normalizeText,normalizeMetricLabel,parseNumber,validateDocumentUrl,downloadDocument,extractZipEntries,parseHtmlWorkbook,extractExcelRows,isPdfDocument,extractPdfRows,findMetricValues,extractFinancialDataFromExcel,extractFinancialDataFromAnnouncement,refreshFinancialDocumentCache,startFinancialDocumentCacheCron,stopFinancialDocumentCacheCron};
