@@ -401,24 +401,9 @@ async function getReports({ symbol = '', from = '', to = '', limit = 50 } = {}) 
 function startCodalSnapshotCron() {
   if (cronTasks.length) return;
   cronTasks = [
-    cron.schedule('0 8 * * *', () => refreshSnapshot({ reason: 'scheduled-08:00' }), { timezone: TEHRAN_TIMEZONE }),
-    cron.schedule('30 13 * * *', () => refreshSnapshot({ reason: 'scheduled-13:30' }), { timezone: TEHRAN_TIMEZONE })
+    cron.schedule('0 8 * * *', () => refreshSnapshot({ reason: 'scheduled-08:00' }), { timezone: TEHRAN_TIMEZONE })
   ];
-  console.log('[CODAL SNAPSHOT] scheduled daily at 08:00 and 13:30 Asia/Tehran; global daily API cap=' + getApiConfig().dailyLimit);
-
-  // Bootstrap immediately after startup if the database has no active snapshot.
-  // This avoids waiting until the next cron window after a deployment/restart.
-  setImmediate(async () => {
-    try {
-      const status = await getSnapshotStatus();
-      if (!status.state || !status.state.ActiveSnapshotId) {
-        console.log('[CODAL SNAPSHOT] no active snapshot found; starting bootstrap refresh');
-        await refreshSnapshot({ reason: 'startup-bootstrap' });
-      }
-    } catch (error) {
-      console.error('[CODAL SNAPSHOT] startup bootstrap check failed:', error.message || error);
-    }
-  });
+  console.log('[CODAL SNAPSHOT] scheduled daily at 08:00 Asia/Tehran; global daily API cap=' + getApiConfig().dailyLimit);
 }
 
 function stopCodalSnapshotCron() {
