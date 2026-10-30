@@ -10,3 +10,9 @@ export const getSocket = (): Socket | null => socket;
 export const onGlobalSettingsUpdated = (handler: GlobalSettingsHandler): (() => void) => { if (!socket) { console.warn('[socketService] Socket is not initialized.'); return () => {}; } GLOBAL_SETTINGS_EVENTS.forEach(eventName => socket?.on(eventName, handler)); return () => GLOBAL_SETTINGS_EVENTS.forEach(eventName => socket?.off(eventName, handler)); };
 export const offGlobalSettingsUpdated = (handler: GlobalSettingsHandler): void => { if (!socket) return; GLOBAL_SETTINGS_EVENTS.forEach(eventName => socket?.off(eventName, handler)); };
 export const disconnectSocket = () => { if (!socket) return; GLOBAL_SETTINGS_EVENTS.forEach(eventName => socket?.removeAllListeners(eventName)); socket.disconnect(); socket = null; };
+
+export const onMarketSummaryUpdated = (handler: (payload: any) => void): (() => void) => {
+  if (!socket) { console.warn('[socketService] Socket is not initialized.'); return () => {}; }
+  socket.on('market-summary:updated', handler);
+  return () => socket?.off('market-summary:updated', handler);
+};
