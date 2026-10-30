@@ -37,7 +37,8 @@ export interface PortfolioItem { id: string; symbol: string; name?: string; entr
 
 // --- Scalping ---
 export type ScalpingSignalType = 'BUY' | 'SELL' | 'NONE';
-export interface ScalpingOpportunity { id?: string | number; symbol: string; price: number | null; currentPrice?: number | null; reason: string; score: number; confidence?: number | null; signal?: ScalpingSignalType; signalType?: ScalpingSignalType; type?: ScalpingSignalType; entryPrice?: number | null; exitPrice?: number | null; targetPrice?: number | null; stopLossPrice?: number | null; timestamp?: number; createdAt?: string; updatedAt?: string; strategyName?: string | null; }
+export interface ScalpingHistoricalProbabilities { status: 'CALIBRATED' | 'INSUFFICIENT_DATA'; samples: number; minimumSamples?: number; lookaheadSessions?: number; entryHitProbability: number | null; reversalAfterEntryProbability: number | null; targetBeforeStopProbability: number | null; method?: string; note?: string; }
+export interface ScalpingOpportunity { id?: string | number; symbol: string; price: number | null; currentPrice?: number | null; reason: string; score: number; confidence?: number | null; signal?: ScalpingSignalType; signalType?: ScalpingSignalType; type?: ScalpingSignalType; entryPrice?: number | null; exitPrice?: number | null; targetPrice?: number | null; stopLossPrice?: number | null; timestamp?: number; createdAt?: string; updatedAt?: string; strategyName?: string | null; historicalProbabilities?: ScalpingHistoricalProbabilities; }
 export interface ScalpingHistoryItem extends ScalpingOpportunity {}
 export interface ScalpingHistoryResult { items: ScalpingHistoryItem[]; page: number; limit: number; total: number; totalPages: number; }
 export interface ScalpingCache { data: ScalpingOpportunity[]; timestamp: number; }
