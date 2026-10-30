@@ -429,7 +429,7 @@ async function refreshCodalSnapshotCache({ reason = 'manual' } = {}) {
 }
 
 async function getCodalSnapshotFromCache() {
-  return centralCache.getOrLoad(CODAL_SNAPSHOT_CACHE_KEY, 0, () => refreshCodalSnapshotCache({ reason: 'cache-hydration' }));
+  return centralCache.getOrLoad(CODAL_SNAPSHOT_CACHE_KEY, 24 * 60 * 60 * 1000, () => refreshCodalSnapshotCache({ reason: 'cache-hydration' }));
 }
 
 async function getReports({ symbol = '', from = '', to = '', limit = 50 } = {}) {
