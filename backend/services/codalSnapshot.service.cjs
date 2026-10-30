@@ -3,6 +3,9 @@
 const crypto = require('crypto');
 const cron = require('node-cron');
 const prisma = require('../config/prisma.cjs');
+const centralCache = require('./centralMarketCache.service.cjs');
+
+const CODAL_SNAPSHOT_CACHE_KEY = 'codal:snapshot:active';
 
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
 const DEFAULT_DAILY_LIMIT = 500;
@@ -293,6 +296,14 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
       console.warn('[CODAL SNAPSHOT] old snapshot cleanup deferred:', cleanupError.message || cleanupError);
     }
 
+    try {
+      await refreshCodalSnapshotCache({ reason: 'snapshot-activated' });
+    } catch (cacheError) {
+      // The database snapshot is already active; keep the successful DB commit
+      // and let the next startup/read-through hydrate the process cache.
+      console.error('[CODAL SNAPSHOT] cache refresh failed after activation:', cacheError.message || cacheError);
+    }
+
     console.log('[CODAL SNAPSHOT] success reason=' + reason + ' id=' + snapshotId + ' records=' + unique.size + ' pages=' + totalPages + ' reported=' + (reportedCount || '-') + '/' + (reportedPages || '-'));
     // Financial-document processing starts only from its dedicated 08:20 daily schedule.
     return { success: true, snapshotId, announcementCount: unique.size, pageCount: totalPages, reportedCount, reportedPages, startedAt: startedAt.toISOString(), finishedAt: new Date().toISOString() };
@@ -379,6 +390,48 @@ async function getArchivedReports({ symbol = '', category = '', from = '', to = 
   }).filter(Boolean);
 }
 
+async function refreshCodalSnapshotCache({ reason = 'manual' } = {}) {
+  const stateRows = await prisma.$queryRaw`SELECT ActiveSnapshotId, LastSuccessAt, AnnouncementCount, PageCount FROM dbo.CodalSnapshotState WHERE StateId = 1`;
+  const state = stateRows[0] || null;
+  const snapshotId = state && state.ActiveSnapshotId ? String(state.ActiveSnapshotId) : '';
+  if (!snapshotId) {
+    const empty = { snapshotId: null, fetchedAt: null, announcementCount: 0, pageCount: 0, announcements: [], updatedAt: new Date().toISOString() };
+    centralCache.set(CODAL_SNAPSHOT_CACHE_KEY, empty);
+    return empty;
+  }
+  const rows = await prisma.$queryRaw`SELECT AnnouncementKey, PayloadJson FROM dbo.CodalSnapshotAnnouncement WHERE SnapshotId = ${snapshotId} ORDER BY PublishedAt DESC, AnnouncementKey`;
+  const announcements = rows.map(row => {
+    try { return JSON.parse(row.PayloadJson); } catch (_) { return null; }
+  }).filter(Boolean);
+  const snapshot = {
+    snapshotId,
+    fetchedAt: state.LastSuccessAt ? new Date(state.LastSuccessAt).toISOString() : null,
+    announcementCount: Number(state.AnnouncementCount || announcements.length),
+    pageCount: Number(state.PageCount || 0),
+    announcements,
+    updatedAt: new Date().toISOString()
+  };
+  // Replace the whole snapshot in one operation only after all rows are read.
+  centralCache.set(CODAL_SNAPSHOT_CACHE_KEY, snapshot);
+  const io = global.io;
+  if (io && typeof io.emit === 'function') {
+    io.emit('codal-snapshot:updated', {
+      snapshotId: snapshot.snapshotId,
+      fetchedAt: snapshot.fetchedAt,
+      announcementCount: snapshot.announcementCount,
+      pageCount: snapshot.pageCount,
+      updatedAt: snapshot.updatedAt,
+      reason
+    });
+  }
+  console.log('[CODAL SNAPSHOT] central cache updated reason=' + reason + ' id=' + snapshotId + ' records=' + announcements.length);
+  return snapshot;
+}
+
+async function getCodalSnapshotFromCache() {
+  return centralCache.getOrLoad(CODAL_SNAPSHOT_CACHE_KEY, 0, () => refreshCodalSnapshotCache({ reason: 'cache-hydration' }));
+}
+
 async function getReports({ symbol = '', from = '', to = '', limit = 50 } = {}) {
   const boundedLimit = Math.max(1, Math.min(200, Number(limit) || 50));
   const stored = await getCompanyReports({ symbol, page: 1 });
@@ -400,6 +453,9 @@ async function getReports({ symbol = '', from = '', to = '', limit = 50 } = {}) 
 
 function startCodalSnapshotCron() {
   if (cronTasks.length) return;
+  void refreshCodalSnapshotCache({ reason: 'startup-hydration' }).catch(error => {
+    console.error('[CODAL SNAPSHOT] startup cache hydration failed:', error.message || error);
+  });
   cronTasks = [
     cron.schedule('0 8 * * *', () => refreshSnapshot({ reason: 'scheduled-08:00' }), { timezone: TEHRAN_TIMEZONE })
   ];
@@ -416,4 +472,4 @@ async function getSnapshotStatus() {
   return { state: rows[0] || null, usage: await readUsage() };
 }
 
-module.exports = { getCompanyReports, getArchivedReports, getReports, refreshSnapshot, startCodalSnapshotCron, stopCodalSnapshotCron, getSnapshotStatus, normalizeAnnouncement };
+module.exports = { getCompanyReports, getArchivedReports, getReports, refreshSnapshot, refreshCodalSnapshotCache, getCodalSnapshotFromCache, startCodalSnapshotCron, stopCodalSnapshotCron, getSnapshotStatus, normalizeAnnouncement };
