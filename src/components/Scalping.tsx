@@ -61,7 +61,8 @@ const OpportunityCard: React.FC<{
   const currentPrice = opportunity.currentPrice ?? opportunity.price;
   const signalType = opportunity.signalType ?? opportunity.signal ?? opportunity.type;
   const isSellSignal = signalType === 'SELL';
-  const isConditionalBreakout = opportunity.strategyName === 'technical-breakout-atr-v1';
+  const isConditionalBreakout = ['technical-breakout-atr-v1', 'technical-breakout-atr-v2'].includes(opportunity.strategyName || '');
+  const isPendingPullback = opportunity.strategyName === 'technical-support-pullback-atr-v2';
   const isSupportRebound = opportunity.strategyName === 'technical-support-rebound-atr-v1';
   const isResistanceRejection = opportunity.strategyName === 'technical-resistance-rejection-exit-atr-v1';
 
@@ -71,7 +72,7 @@ const OpportunityCard: React.FC<{
         <h3 className="text-lg font-bold text-[var(--color-accent)]">{opportunity.symbol}</h3>
         <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${signalType === 'SELL' ? 'text-red-500 bg-red-500/10' : 'text-green-500 bg-green-500/10'}`}>
           <ArrowTrendingUpIcon className="w-3 h-3" />
-          <span>{isConditionalBreakout ? (isSellSignal ? 'در انتظار شکست حمایت' : 'در انتظار شکست مقاومت') : isSupportRebound ? 'بازگشت از حمایت' : isResistanceRejection ? 'رد مقاومت؛ بررسی خروج' : (isSellSignal ? 'پیشنهاد فروش سهم' : 'سیگنال خرید')}</span>
+          <span>{isConditionalBreakout ? (isSellSignal ? 'در انتظار شکست حمایت' : 'در انتظار شکست مقاومت') : isPendingPullback ? 'خرید در اصلاح' : isSupportRebound ? 'بازگشت از حمایت' : isResistanceRejection ? 'رد مقاومت؛ بررسی خروج' : (isSellSignal ? 'پیشنهاد فروش سهم' : 'سیگنال خرید')}</span>
         </div>
       </div>
 
@@ -99,9 +100,11 @@ const OpportunityCard: React.FC<{
         </div>
       </div>
 
-      {(isConditionalBreakout || isSupportRebound || isResistanceRejection) && (
+      {(isConditionalBreakout || isPendingPullback || isSupportRebound || isResistanceRejection) && (
         <p className={`text-xs text-[var(--color-text-secondary)] border rounded-lg p-2 mb-3 ${isSellSignal ? 'bg-red-500/5 border-red-500/15' : 'bg-amber-500/5 border-amber-500/20'}`}>
-          {isSupportRebound
+          {isPendingPullback
+            ? 'این سناریو منتظر اصلاح قیمت تا محدوده ورود است؛ رسیدن قیمت به این سطح قطعی نیست و سفارش فقط پس از مشاهده واکنش معتبر به حمایت بررسی شود.'
+            : isSupportRebound
             ? 'سناریوی بازگشت از حمایت بر اساس کندل صعودی و نسبت سود به ریسک بررسی شده است؛ حمایت ممکن است بشکند و حد ضرر باید رعایت شود.'
             : isResistanceRejection
               ? 'این سطح مرجع بررسی کاهش ریسک یا خروج از سهم موجود پس از رد مقاومت است؛ سیگنال فروش استقراضی نیست.'
