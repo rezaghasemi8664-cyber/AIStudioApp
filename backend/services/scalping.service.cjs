@@ -73,7 +73,16 @@ async function getOpportunities(userId, options) {
     updatedAt: row.updatedAt || null,
     source: row.source || 'shared-db',
     marketDate: row.marketDate || null,
-    status: row.status || 'ACTIVE'
+    status: row.status || 'ACTIVE',
+    historicalProbabilities: (() => {
+      const meta = safeJsonParse(row.meta, {});
+      return meta && meta.historicalProbabilities ? meta.historicalProbabilities : {
+        status: 'INSUFFICIENT_DATA',
+        entryHitProbability: null,
+        reversalAfterEntryProbability: null,
+        targetBeforeStopProbability: null
+      };
+    })()
   }));
 }
 async function getBest(userId) { return (await getOpportunities(userId, { limit: 1 }))[0] || null; }
