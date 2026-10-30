@@ -16,3 +16,9 @@ export const onMarketSummaryUpdated = (handler: (payload: any) => void): (() => 
   socket.on('market-summary:updated', handler);
   return () => socket?.off('market-summary:updated', handler);
 };
+
+export const onCodalSnapshotUpdated = (handler: (payload: { snapshotId?: string | null; fetchedAt?: string | null; announcementCount?: number; pageCount?: number; updatedAt?: string; reason?: string }) => void): (() => void) => {
+  if (!socket) { console.warn('[socketService] Socket is not initialized.'); return () => {}; }
+  socket.on('codal-snapshot:updated', handler);
+  return () => socket?.off('codal-snapshot:updated', handler);
+};
