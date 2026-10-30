@@ -6,6 +6,7 @@ const brsService = require('../services/brs.service.cjs');
 const marketSnapshotService = require('../services/marketSnapshot.service.cjs');
 const { calculateScalpingPriceLevels, selectCandidatesWithValidLevels } = require('../services/scalping-price-levels.service.cjs');
 const { ensureMarketDailyHistory } = require('../services/market-daily-history.service.cjs');
+const { getHistoricalScalpingProbabilities } = require('../services/scalping-historical-probability.service.cjs');
 const scalpingWorkerStatus = require('../services/scalping-worker-status.service.cjs');
 
 const MARKET_TZ = 'Asia/Tehran';
@@ -573,6 +574,23 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
                   ? 'مومنتوم و جریان خرید حقیقی هم‌جهت هستند؛ ورود فقط طبق سطح تکنیکال و نوع ورود مشخص‌شده بررسی شود.'
                   : 'مومنتوم و جریان فروش حقیقی هم‌جهت هستند؛ سناریوی تکنیکال برای بررسی خروج از سهم موجود است.';
 
+    let historicalProbabilities = {
+      status: 'INSUFFICIENT_DATA',
+      minimumSamples: 30,
+      samples: 0,
+      entryHitProbability: null,
+      reversalAfterEntryProbability: null,
+      targetBeforeStopProbability: null,
+      method: 'walk-forward-ohlc-atr-v1'
+    };
+    try {
+      historicalProbabilities = await getHistoricalScalpingProbabilities(
+        prisma, item.symbol, marketDate, levels, scored.last
+      );
+    } catch (error) {
+      console.warn('[SCALPING] Historical probability unavailable for ' + item.symbol + ': ' + error.message);
+    }
+
     const meta = {
       pct: scored.pct,
       position: scored.position,
@@ -581,7 +599,8 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
       volume: scored.volume,
       trades: scored.trades,
       source: 'brs-central-worker',
-      technicalLevels: levels
+      technicalLevels: levels,
+      historicalProbabilities
     };
 
     await prisma.marketScalpingOpportunity.upsert({
