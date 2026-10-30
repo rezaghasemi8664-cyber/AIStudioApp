@@ -383,7 +383,7 @@ const OptionsMarket: React.FC = () => {
     } finally {
       setSavingToPortfolio(false);
     }
-  }, [rankedContracts, selectedOptionSymbols, optionPurchaseQuantities, optionTradeIntents]);
+  }, [rankedContracts, selectedOptionSymbols, optionPurchaseQuantities, optionTradeIntents, optionEntryPrices]);
 
   const rankDiagnostics = useMemo(() => {
     const counts: Record<RankRejectionReason, number> = {
