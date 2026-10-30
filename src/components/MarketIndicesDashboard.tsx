@@ -182,15 +182,15 @@ const MarketIndicesDashboard: React.FC = () => {
   const equalIndex = data?.indices.find(item => /هم.?وزن/.test(item.name));
   const priceIndex = data?.indices.find(item => /شاخص قیمت|price index/i.test(item.name));
   const freeFloatIndex = data?.indices.find(item => /آزاد\s*شناور|free.?float/i.test(item.name));
-  const lastUpdated = breadth?.generatedAt ? new Intl.DateTimeFormat('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(breadth.generatedAt)) : 'زمان منبع نامشخص';
+  const lastUpdated = breadth?.generatedAt ? new Intl.DateTimeFormat('fa-IR', { timeZone: 'Asia/Tehran', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(breadth.generatedAt)) : 'زمان ثبت در منبع نامشخص';
   const marketLabel = breadth?.available && breadth.total > 0 ? breadth.positive > breadth.negative ? 'مثبت' : breadth.negative > breadth.positive ? 'منفی' : 'متعادل' : 'نامشخص';
 
   if (loading && !data) return <section dir="rtl" className={`${card} animate-pulse text-slate-500`}>در حال دریافت داده‌های معتبر بازار…</section>;
-  if (error && !data) return <section dir="rtl" className={`${card} text-center`}><p className="text-rose-500">{error}</p><p className="mt-2 text-xs text-slate-500">سامانه به‌صورت خودکار دوباره دیتابیس را بررسی می‌کند؛ درخواست مستقیم به BRS انجام نمی‌شود.</p></section>;
+  if (error && !data) return <section dir="rtl" className={`${card} text-center`}><p className="text-rose-500">{error}</p></section>;
 
   return <section dir="rtl" className="page-shell space-y-5">
     <header className={`${card} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
-      <div><div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-black text-[var(--color-text-primary)]">شاخص‌های بازار</h1><span className={`rounded-full px-3 py-1 text-xs font-bold ${data?.marketOpen ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-500/10 text-slate-500'}`}>{data?.marketOpen ? 'بازار باز' : 'بازار بسته / خارج از جلسه'}</span><span className={`rounded-full px-3 py-1 text-xs font-bold ${stale ? 'bg-amber-500/10 text-amber-500' : 'bg-sky-500/10 text-sky-500'}`}>{stale ? 'داده ذخیره‌شده یا قدیمی' : 'داده خوانده‌شده از دیتابیس مشترک'}</span></div><p className="mt-2 text-xs text-slate-500">زمان ثبت داده در منبع: {lastUpdated} · خواندن خودکار از دیتابیس هر دو دقیقه · بدون درخواست مستقیم BRS یا اجرای تحلیل سمت سرور</p></div>
+      <div><div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-black text-[var(--color-text-primary)]">شاخص‌های بازار</h1><span className={`rounded-full px-3 py-1 text-xs font-bold ${data?.marketOpen ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-500/10 text-slate-500'}`}>{data?.marketOpen ? 'بازار باز' : 'بازار بسته / خارج از جلسه'}</span><span className={`rounded-full px-3 py-1 text-xs font-bold ${stale ? 'bg-amber-500/10 text-amber-500' : 'bg-sky-500/10 text-sky-500'}`}>{stale ? 'داده ذخیره‌شده یا قدیمی' : 'داده خوانده‌شده از دیتابیس مشترک'}</span></div><p className="mt-2 text-xs text-slate-500">تاریخ و زمان ثبت داده در منبع: {lastUpdated}</p></div>
     </header>
 
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
