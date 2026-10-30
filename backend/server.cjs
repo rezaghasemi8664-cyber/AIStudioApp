@@ -204,6 +204,7 @@ const io = new Server(httpServer, {
 
 bootstrapSockets(io);
 app.set('io', io);
+global.io = io;
 console.log('[SERVER] Socket.IO initialized');
 
 // ═══════════════════════════════════════════════════════════════════
