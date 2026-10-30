@@ -1,6 +1,7 @@
 'use strict';
 
 const prisma = require('../config/prisma.cjs');
+const centralCache = require('./centralMarketCache.service.cjs');
 
 function toNumber(value) {
   const n = Number(value);
@@ -515,6 +516,13 @@ async function publishMarketSnapshotInternal(symbols) {
       `;
     }, { maxWait: 15000, timeout: 120000 });
 
+    const publishedAt = new Date();
+    const activeValue = { snapshotId:id, symbolCount:verifiedSymbols.length, ...derivedCheck, source:'brs-central-worker', updatedAt:publishedAt };
+    centralCache.set('market:active-derived', activeValue);
+    centralCache.invalidatePrefix('market:symbols:');
+    centralCache.invalidatePrefix('market:breadth:');
+    centralCache.invalidatePrefix('market:movers:');
+    centralCache.invalidatePrefix('market:industries:');
     return { snapshotId:id, symbolCount:verifiedSymbols.length, health, derived:derivedCheck };
   } catch (error) {
     if (id !== null) {
@@ -557,11 +565,13 @@ async function getActiveSnapshot() {
 // A short read-through cache prevents every dashboard request from fetching the
 // full symbolsJson/derivedJson payload from SQL Server. Single-flight also
 // collapses concurrent cache misses into one database read.
-const ACTIVE_DERIVED_CACHE_TTL_MS = 2_000;
+const ACTIVE_DERIVED_CACHE_TTL_MS = 30_000;
 let activeDerivedReadCache = null;
 let activeDerivedReadInFlight = null;
 
 async function getActiveDerived() {
+  const sharedValue = centralCache.get('market:active-derived');
+  if (sharedValue) return sharedValue;
   const now = Date.now();
   if (activeDerivedReadCache && now - activeDerivedReadCache.cachedAt < ACTIVE_DERIVED_CACHE_TTL_MS) {
     return activeDerivedReadCache.value;
@@ -606,6 +616,7 @@ async function getActiveDerived() {
       const value = { snapshotId:Number(row.id), symbolCount:Number(row.symbolCount), ...derived,
         source:row.source, updatedAt };
       activeDerivedReadCache = { key: cacheKey, cachedAt: Date.now(), value };
+      centralCache.set('market:active-derived', value);
       return value;
     } catch { return null; }
   })();
