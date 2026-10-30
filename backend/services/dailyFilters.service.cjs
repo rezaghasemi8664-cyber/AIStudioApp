@@ -1,5 +1,7 @@
 'use strict';
-const prisma=require('../config/prisma.cjs'); const brs=require('./brs.service.cjs'); const allSymbolsSnapshot=require('./allSymbolsSnapshot.service.cjs');
+const prisma=require('../config/prisma.cjs'); const brs=require('./brs.service.cjs'); const allSymbolsSnapshot=require('./allSymbolsSnapshot.service.cjs'); const centralCache=require('./centralMarketCache.service.cjs');
+const DAILY_FILTERS_CACHE_KEY='daily-filters:current';
+const DAILY_FILTERS_CACHE_TTL_MS=60_000;
 const defs=[['high-buy-power','قدرت خرید بالا'],['highest-volume','بالاترین حجم'],['positive','سهم‌های مثبت'],['negative','سهم‌های منفی'],['highest-value','بالاترین ارزش معاملات'],['real-buy-volume','بالاترین حجم خرید حقیقی'],['real-sell-volume','بالاترین حجم فروش حقیقی'],['legal-buy-volume','بالاترین حجم خرید حقوقی'],['legal-sell-volume','بالاترین حجم فروش حقوقی'],['highest-buy-power','بالاترین قدرت خرید'],['growth-candidates','مستعد رشد'],['momentum','مومنتوم قوی'],['real-money-inflow','ورود پول حقیقی'],['value-candidates','ارزش‌گذاری و قدرت خرید'],['high-liquidity','نقدشوندگی بالا'],['buy-queue','صف‌های خرید'],['sell-queue','صف‌های فروش'],['suspicious-volume','حجم معاملات مشکوک'],['buy-queue-contracting','جمع شدن صف خرید'],['sell-queue-contracting','جمع شدن صف فروش'],['queue-balance','تعادل صف خرید و فروش']];
 let snap={updatedAt:null,marketStatus:null,filters:{},previous:{buy:{},sell:{}},centralSnapshot:null};
 let ensureTablePromise=null;
@@ -90,16 +92,22 @@ async function refresh(){
   const verify=await tx.$queryRawUnsafe("SELECT [snapshotUpdatedAt],[symbolCount],[filtersJson] FROM [dbo].[DailyFiltersCurrent] WHERE [id]=1");
   if(!verify?.[0]||Number(verify[0].symbolCount)!==central.symbolCount||new Date(verify[0].snapshotUpdatedAt).getTime()!==centralUpdatedAt.getTime())throw new Error('Daily filters database verification failed');
  },{maxWait:10000,timeout:60000});
+ const published={snapshotDate:central.snapshotDate,snapshotUpdatedAt:centralUpdatedAt,symbolCount:central.symbolCount,filters,previous:prev,marketStatus:status,updatedAt:computedAt,source:'central-all-symbols-db'};
+ // Publish only after the database transaction and verification have succeeded.
+ centralCache.set(DAILY_FILTERS_CACHE_KEY,published);
  snap={updatedAt:computedAt.toISOString(),marketStatus:status,filters,previous:prev,centralSnapshot:{date:central.snapshotDate,updatedAt:centralUpdatedAt.toISOString(),symbolCount:central.symbolCount,source:central.source}};
- console.log('[DAILY-FILTERS] Saved latest calculation to database',JSON.stringify({snapshotDate:central.snapshotDate,symbolCount:central.symbolCount,filterCount:Object.keys(filters).length,computedAt:computedAt.toISOString()}));
+ console.log('[DAILY-FILTERS] Database committed; central cache atomically updated',JSON.stringify({snapshotDate:central.snapshotDate,symbolCount:central.symbolCount,filterCount:Object.keys(filters).length,computedAt:computedAt.toISOString()}));
  return true;
 }
 async function getFilters(){
- const status=await brs.getMarketStatus();
- const stored=await readStored();
- if(stored)snap={updatedAt:stored.updatedAt instanceof Date?stored.updatedAt.toISOString():new Date(stored.updatedAt).toISOString(),marketStatus:stored.marketStatus,filters:stored.filters,previous:stored.previous,centralSnapshot:{date:stored.snapshotDate,updatedAt:stored.snapshotUpdatedAt instanceof Date?stored.snapshotUpdatedAt.toISOString():new Date(stored.snapshotUpdatedAt).toISOString(),symbolCount:stored.symbolCount,source:stored.source}};
- const hasSnapshot=Boolean(stored&&snap.updatedAt&&Object.keys(snap.filters||{}).length);
- const dataStatus=!hasSnapshot?'UNAVAILABLE':(status.isOpen?'LIVE':'CACHED');
- return{success:true,marketStatus:status,filters:defs.map(([id,label])=>({id,label,count:hasSnapshot?(snap.filters[id]?.rows||[]).length:0,updatedAt:snap.filters[id]?.updatedAt||snap.updatedAt||null,rows:hasSnapshot?(snap.filters[id]?.rows||[]).slice(0,MAX_FILTER_ROWS):[]})),meta:{status:dataStatus,source:stored?.source||'central-all-symbols-db',fetchedAt:snap.updatedAt||null,cachedAt:dataStatus==='CACHED'?(snap.updatedAt||null):null,stale:dataStatus==='CACHED',centralSnapshot:snap.centralSnapshot||null}};
+ const stored=await centralCache.getOrLoad(DAILY_FILTERS_CACHE_KEY,DAILY_FILTERS_CACHE_TTL_MS,readStored);
+ if(!stored)return{success:true,marketStatus:{isOpen:false,available:false,reason:'NO_DAILY_FILTER_SNAPSHOT'},filters:defs.map(([id,label])=>({id,label,count:0,updatedAt:null,rows:[]})),meta:{status:'UNAVAILABLE',source:'central-cache+database',fetchedAt:null,cachedAt:null,stale:false,centralSnapshot:null}};
+ const marketStatus=stored.marketStatus||{isOpen:false,available:true,reason:'CACHED_MARKET_STATUS'};
+ const updatedAt=stored.updatedAt instanceof Date?stored.updatedAt.toISOString():new Date(stored.updatedAt).toISOString();
+ const snapshotUpdatedAt=stored.snapshotUpdatedAt instanceof Date?stored.snapshotUpdatedAt.toISOString():new Date(stored.snapshotUpdatedAt).toISOString();
+ const filters=stored.filters||{};
+ const hasSnapshot=Boolean(updatedAt&&Object.keys(filters).length);
+ const dataStatus=!hasSnapshot?'UNAVAILABLE':(marketStatus.isOpen?'LIVE':'CACHED');
+ return{success:true,marketStatus,filters:defs.map(([id,label])=>({id,label,count:hasSnapshot?(filters[id]?.rows||[]).length:0,updatedAt:filters[id]?.updatedAt||updatedAt,rows:hasSnapshot?(filters[id]?.rows||[]).slice(0,MAX_FILTER_ROWS):[]})),meta:{status:dataStatus,source:stored.source||'central-all-symbols-db',fetchedAt:updatedAt,cachedAt:dataStatus==='CACHED'?updatedAt:null,stale:dataStatus==='CACHED',centralSnapshot:{date:stored.snapshotDate,updatedAt:snapshotUpdatedAt,symbolCount:Number(stored.symbolCount)||0,source:stored.source||'central-all-symbols-db'}}};
 }
 module.exports={getFilters,refresh,ensureTable};
