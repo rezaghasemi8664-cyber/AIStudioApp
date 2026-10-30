@@ -382,8 +382,10 @@ async function evaluateValuableSymbolsInternal({ limit = MAX_RESULTS, now = new 
       const priceTimestamp = parseTimestamp(row.updatedAt);
       results.push({
         symbol: row.symbol, name: row.name || row.symbol, sector: row.sector || null,
+        ...technical,
+        technicalScore: technical.score,
         score: Math.round(technical.score * 0.6 + fundamental.score * 0.4),
-        ...technical, fundamental, source: 'shared-market-db+codal',
+        fundamental, source: 'shared-market-db+codal',
         marketUpdatedAt: new Date(priceTimestamp).toISOString(),
         marketSnapshotId: snapshotId,
         marketDataAgeMinutes: Math.max(0, Math.floor((nowMs - priceTimestamp) / 60000)),
