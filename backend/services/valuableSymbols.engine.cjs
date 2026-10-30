@@ -6,6 +6,7 @@ const codal = require('./codalIntelligence.service.cjs');
 const fundamentalAnalysis = require('./fundamental-analysis.v2.service.cjs');
 const prisma = require('../config/prisma.cjs');
 const marketSnapshotService = require('./marketSnapshot.service.cjs');
+const centralCache = require('./centralMarketCache.service.cjs');
 
 const PERSISTENCE_KEY = 'valuableSymbols.snapshot.v1';
 
@@ -25,6 +26,8 @@ let evaluationRunId = 0;
 const EVALUATION_TIMEOUT_MS = positiveEnv('VALUABLE_SYMBOLS_EVALUATION_TIMEOUT_MS', 8 * 60 * 1000);
 
 async function getStoredValuableSymbols({ force = false } = {}) {
+  const memoryValue = centralCache.get('market:valuable-symbols');
+  if (!force && memoryValue) return memoryValue;
   if (!force && Date.now() - persistenceReadAt < 5000 && cachedEvaluatedAt) {
     return { results: cachedResults, evaluatedAt: cachedEvaluatedAt, snapshotId: null };
   }
@@ -38,7 +41,9 @@ async function getStoredValuableSymbols({ force = false } = {}) {
       cachedEvaluatedAt = payload.evaluatedAt || null;
     }
     persistenceReadAt = Date.now();
-    return { results: cachedResults, evaluatedAt: cachedEvaluatedAt, snapshotId: payload?.snapshotId ?? null, snapshotUpdatedAt: payload?.snapshotUpdatedAt || null };
+    const result = { results: cachedResults, evaluatedAt: cachedEvaluatedAt, snapshotId: payload?.snapshotId ?? null, snapshotUpdatedAt: payload?.snapshotUpdatedAt || null };
+    if (result.results.length) centralCache.set('market:valuable-symbols', result);
+    return result;
   })();
   try { return await persistenceReadInFlight; }
   finally { persistenceReadInFlight = null; }
@@ -67,6 +72,7 @@ async function persistValuableSymbols(results, evaluatedAt, snapshotId = null) {
   cachedResults = payload.results;
   cachedEvaluatedAt = evaluatedAt;
   persistenceReadAt = Date.now();
+  centralCache.set('market:valuable-symbols', { results: cachedResults, evaluatedAt: cachedEvaluatedAt, snapshotId: payload.snapshotId, snapshotUpdatedAt: payload.snapshotUpdatedAt });
   return true;
 }
 
