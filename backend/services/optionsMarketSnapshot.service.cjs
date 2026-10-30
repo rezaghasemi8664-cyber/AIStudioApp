@@ -4,6 +4,7 @@ const prisma = require('../config/prisma.cjs');
 const brsService = require('./brs.service.cjs');
 const sharedMarketService = require('./sharedMarket.service.cjs');
 const brsRoutes = require('../routes/brs.routes.cjs');
+const centralCache = require('./centralMarketCache.service.cjs');
 
 let running = false;
 
@@ -90,6 +91,8 @@ async function refreshOptionsMarketSnapshot(io) {
       create:{id:1,contractCount:contracts.length,contractsJson:JSON.stringify(contracts),analysisJson:JSON.stringify(analysis),source:'brs-live',fetchedAt:now,analyzedAt:new Date(analysis.analyzedAt),updatedAt:now},
       update:{contractCount:contracts.length,contractsJson:JSON.stringify(contracts),analysisJson:JSON.stringify(analysis),source:'brs-live',fetchedAt:now,analyzedAt:new Date(analysis.analyzedAt),updatedAt:now}
     });
+    const cachedSnapshot = { contracts, analysis, contractCount:record.contractCount, source:record.source, fetchedAt:record.fetchedAt, analyzedAt:record.analyzedAt, updatedAt:record.updatedAt };
+    centralCache.set('market:options:current', cachedSnapshot);
     try { await require('./optionsExitAlert.service.cjs').evaluateOptionExitAlerts(contracts); } catch (alertError) { console.error('[OPTIONS EXIT ALERT] Evaluation failed:', alertError.message); }
     if(io) io.emit('options-market:updated',{contracts,analysis,contractCount:record.contractCount,source:record.source,fetchedAt:record.fetchedAt.toISOString(),analyzedAt:record.analyzedAt.toISOString(),updatedAt:record.updatedAt.toISOString()});
     console.log('[OPTIONS MARKET] Snapshot committed',JSON.stringify({contractCount:record.contractCount,updatedAt:record.updatedAt.toISOString(),eligibleCount:analysis.eligibleCount}));
@@ -100,11 +103,15 @@ async function refreshOptionsMarketSnapshot(io) {
   } finally { running=false; }
 }
 async function getCurrentOptionsMarket() {
-  const row=await prisma.optionMarketCurrent.findUnique({where:{id:1}});
-  if(!row)return null;
-  let contracts=[],analysis=null;
-  try{contracts=JSON.parse(row.contractsJson);}catch{}
-  try{analysis=JSON.parse(row.analysisJson);}catch{}
-  return {contracts:Array.isArray(contracts)?contracts:[],analysis,contractCount:row.contractCount,source:row.source,fetchedAt:row.fetchedAt,analyzedAt:row.analyzedAt,updatedAt:row.updatedAt};
+  const cached = centralCache.get('market:options:current');
+  if (cached) return cached;
+  return centralCache.getOrLoad('market:options:current', 30000, async () => {
+    const row=await prisma.optionMarketCurrent.findUnique({where:{id:1}});
+    if(!row)return null;
+    let contracts=[],analysis=null;
+    try{contracts=JSON.parse(row.contractsJson);}catch{}
+    try{analysis=JSON.parse(row.analysisJson);}catch{}
+    return {contracts:Array.isArray(contracts)?contracts:[],analysis,contractCount:row.contractCount,source:row.source,fetchedAt:row.fetchedAt,analyzedAt:row.analyzedAt,updatedAt:row.updatedAt};
+  });
 }
 module.exports={refreshOptionsMarketSnapshot,getCurrentOptionsMarket,analyze};
