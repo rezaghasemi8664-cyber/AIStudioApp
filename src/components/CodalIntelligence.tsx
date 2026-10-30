@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import JalaliDatePicker from './JalaliDatePicker';
 import { getCodalReports, CodalReport, CodalReportsResult } from '../services/codalIntelligenceService';
+import { onCodalSnapshotUpdated } from '../services/socketService';
 import { JalaliDate, isoToJalali, jalaliToIso } from '../utils/jalaliDate';
 
 interface Props { isOnline: boolean; }
@@ -15,6 +16,7 @@ const CodalIntelligence: React.FC<Props> = ({ isOnline }) => {
   const [result, setResult] = useState<CodalReportsResult | null>(null); const [selected, setSelected] = useState<CodalReport | null>(null); const [loading, setLoading] = useState(false); const [error, setError] = useState('');
   const load = useCallback(async () => { if (!isOnline) { setError('اتصال آنلاین در دسترس نیست.'); return; } setLoading(true); setError(''); try { setResult(await getCodalReports({ symbol: symbol.trim(), from, to, limit })); } catch (e: any) { setError(e?.response?.data?.message || e?.message || 'دریافت اطلاعیه‌های کدال ناموفق بود.'); } finally { setLoading(false); } }, [isOnline, symbol, from, to, limit]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => onCodalSnapshotUpdated(() => { void load(); }), [load]);
   const filteredItems = useMemo(() => { const items = category === 'all' ? [...(result?.items || [])] : (result?.items || []).filter(item => item.category === category); const timeValue = (item: CodalReport) => { const parsed = Date.parse(item.publishDate || ''); return Number.isNaN(parsed) ? 0 : parsed; }; if (sort === 'oldest') return items.sort((a, b) => timeValue(a) - timeValue(b)); if (sort === 'important') return items.sort((a, b) => (timelineOrder.indexOf(a.category) - timelineOrder.indexOf(b.category)) || (timeValue(b) - timeValue(a))); return items.sort((a, b) => timeValue(b) - timeValue(a)); }, [result, category, sort]);
   const categories = useMemo(() => Object.entries(result?.summary.byCategory || {}).filter(([, count]) => count > 0), [result]);
   const previousMetricReport = useMemo(() => { if (!selected || !result) return null; const selectedTime = Date.parse(selected.publishDate || ''); const candidates = result.items.filter(item => item !== selected && Object.keys(item.financialMetrics || {}).length > 0 && item.category === selected.category && Date.parse(item.publishDate || '') < selectedTime); return candidates.sort((a, b) => Date.parse(b.publishDate || '') - Date.parse(a.publishDate || ''))[0] || null; }, [result, selected]);
