@@ -8,6 +8,7 @@ const { calculateScalpingPriceLevels, selectCandidatesWithValidLevels } = requir
 const { ensureMarketDailyHistory } = require('../services/market-daily-history.service.cjs');
 const { getHistoricalScalpingProbabilities } = require('../services/scalping-historical-probability.service.cjs');
 const scalpingWorkerStatus = require('../services/scalping-worker-status.service.cjs');
+const centralCache = require('../services/centralMarketCache.service.cjs');
 
 const MARKET_TZ = 'Asia/Tehran';
 // Balanced filters: preserve liquidity/data-quality safeguards while allowing more genuine intraday setups.
@@ -702,6 +703,7 @@ async function runMarketWorker(io = null) {
   await runJob('market-daily', () => updateMarketDaily(symbols));
   // Industries are already computed once from the same verified snapshot.
   const scalpingUpdated = await runJob('scalping-opportunities', () => updateScalpingOpportunities(symbols, effectiveOpen));
+  if (scalpingUpdated) centralCache.invalidatePrefix('market:scalping:');
   if (io && scalpingUpdated) io.emit('scalping-opportunities:updated', { updatedAt: new Date().toISOString(), marketDate: todayMarketDate });
   return { status: 'success', symbols: symbols.length };
 }
