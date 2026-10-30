@@ -121,6 +121,10 @@ function startMarketSummaryCron() {
     return { tasks };
   }
 
+  marketSummaryService.refreshMarketSummariesCache()
+    .then(rows => console.log('[Cron][MarketSummary] central cache hydrated', rows.length))
+    .catch(error => console.error('[Cron][MarketSummary] central cache hydration failed:', error?.message || error));
+
   tasks = SCHEDULES.map(({ expression, attempt, label }) =>
     cron.schedule(
       expression,
