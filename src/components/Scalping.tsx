@@ -127,6 +127,21 @@ const OpportunityCard: React.FC<{
           <span className="text-sm font-mono font-bold text-cyan-500">{formatScore(opportunity.confidence)}</span>
         </div>
       </div>
+      <div className="mt-3 rounded-lg border border-[var(--color-border)] p-3">
+        <div className="mb-2 text-xs font-bold text-[var(--color-text-primary)]">احتمال‌های برآوردشده از تاریخچه واقعی</div>
+        {opportunity.historicalProbabilities?.status === 'CALIBRATED' ? (
+          <>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div><span className="block text-[10px] text-[var(--color-text-secondary)]">رسیدن به ورود</span><strong className="text-sm">{formatScore(opportunity.historicalProbabilities.entryHitProbability)}٪</strong></div>
+              <div><span className="block text-[10px] text-[var(--color-text-secondary)]">تأیید برگشت</span><strong className="text-sm">{formatScore(opportunity.historicalProbabilities.reversalAfterEntryProbability)}٪</strong></div>
+              <div><span className="block text-[10px] text-[var(--color-text-secondary)]">هدف قبل از حد ضرر</span><strong className="text-sm">{formatScore(opportunity.historicalProbabilities.targetBeforeStopProbability)}٪</strong></div>
+            </div>
+            <p className="mt-2 text-[10px] text-[var(--color-text-secondary)]">بر پایه {new Intl.NumberFormat('fa-IR').format(opportunity.historicalProbabilities.samples)} نمونه تاریخی و افق {new Intl.NumberFormat('fa-IR').format(opportunity.historicalProbabilities.lookaheadSessions || 5)} جلسه؛ تضمین عملکرد آینده نیست.</p>
+          </>
+        ) : (
+          <p className="text-xs text-amber-600">داده تاریخی کافی برای محاسبه احتمال معتبر نیست؛ درصدی نمایش داده نمی‌شود.</p>
+        )}
+      </div>
       <label className="mt-4 block text-sm text-[var(--color-text-secondary)]">تعداد واقعی سهام خریداری‌شده
         <input type="number" min="1" step="1" required value={quantity} onChange={event => setQuantity(event.target.value)} placeholder="تعداد سهم را وارد کنید" className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2" />
       </label>
