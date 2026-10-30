@@ -226,6 +226,7 @@ const OptionsMarket: React.FC = () => {
   const [selectedOptionSymbols, setSelectedOptionSymbols] = useState<Record<string, boolean>>({});
   const [optionPurchaseQuantities, setOptionPurchaseQuantities] = useState<Record<string, string>>({});
   const [optionTradeIntents, setOptionTradeIntents] = useState<Record<string, 'BUY' | 'WATCH'>>({});
+  const [optionEntryPrices, setOptionEntryPrices] = useState<Record<string, string>>({});
   const [savingToPortfolio, setSavingToPortfolio] = useState(false);
   const [portfolioSaveError, setPortfolioSaveError] = useState<string | null>(null);
   const [portfolioSaveNotice, setPortfolioSaveNotice] = useState<string | null>(null);
@@ -340,6 +341,11 @@ const OptionsMarket: React.FC = () => {
       const additions = selected.map((item) => {
         const symbol = getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase();
         const quantity = parseNumeric(optionPurchaseQuantities[symbol] ?? '1');
+        const tradeIntent = optionTradeIntents[symbol] ?? 'WATCH';
+        const customEntryRaw = optionEntryPrices[symbol] ?? '';
+        const customEntryPrice = customEntryRaw.trim() === '' ? null : parseNumeric(customEntryRaw);
+        const effectiveEntryPrice = tradeIntent === 'BUY' && customEntryPrice !== null ? customEntryPrice : item.entryPrice;
+        if (tradeIntent === 'BUY' && customEntryRaw.trim() !== '' && (customEntryPrice === null || customEntryPrice <= 0)) throw new Error(`قیمت ورود ${symbol} باید عددی معتبر و بزرگ‌تر از صفر باشد.`);
         const contractSize = getPositiveNumeric(item.contract, ['contractSize', 'size_contract', 'sizeContract', 'contract_size']);
         if (!symbol || quantity === null || !Number.isInteger(quantity) || quantity <= 0 || !contractSize) {
           throw new Error(`تعداد قرارداد باید عدد صحیح مثبت باشد و اندازه قرارداد ${symbol || 'نامشخص'} معتبر باشد.`);
@@ -347,7 +353,7 @@ const OptionsMarket: React.FC = () => {
         return {
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
           symbol,
-          entryPrice: item.entryPrice,
+          entryPrice: effectiveEntryPrice,
           targetExitPrice: item.modelExitPrice,
           exitAlertEnabled: false,
           exitAlertTriggered: false,
@@ -356,7 +362,7 @@ const OptionsMarket: React.FC = () => {
           contractSize,
           currentPrice: null,
           priceSource: null,
-          tradeIntent: optionTradeIntents[symbol] ?? 'WATCH',
+          tradeIntent,
         };
       });
       const existingResponse = await get<{ value?: string } | null>('/user-preference/optionsPortfolio');
@@ -370,6 +376,7 @@ const OptionsMarket: React.FC = () => {
       setSelectedOptionSymbols({});
       setOptionPurchaseQuantities({});
       setOptionTradeIntents({});
+      setOptionEntryPrices({});
       setActiveView('portfolio');
     } catch (err) {
       setPortfolioSaveError(err instanceof Error ? err.message : 'ذخیره در سبد آپشن ناموفق بود.');
@@ -515,6 +522,9 @@ const OptionsMarket: React.FC = () => {
                 <label className="mt-2 block text-sm font-semibold">وضعیت در سبد
                   <select value={optionTradeIntents[getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase()] ?? 'WATCH'} onChange={(event) => { const symbol = getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase(); setOptionTradeIntents((current) => ({ ...current, [symbol]: event.target.value as 'BUY' | 'WATCH' })); }} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800"><option value="BUY">خرید</option><option value="WATCH">پایش</option></select>
                 </label>
+                {(optionTradeIntents[getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase()] ?? 'WATCH') === 'BUY' && <label className="mt-2 block text-sm font-semibold">قیمت ورود در سبد (ریال)
+                  <input type="number" min="1" step="any" inputMode="decimal" value={optionEntryPrices[getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase()] ?? ''} onChange={(event) => { const symbol = getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase(); setOptionEntryPrices((current) => ({ ...current, [symbol]: event.target.value })); }} placeholder={`خالی بماند: قیمت پیشنهادی ${formatPrice(item.entryPrice)}`} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800" />
+                </label>}
                 <label className="mt-2 block text-sm font-semibold">تعداد قرارداد
                   <input type="number" min="1" step="1" inputMode="numeric" value={optionPurchaseQuantities[getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase()] ?? '1'} onChange={(event) => { const symbol = getValue(item.contract, ['l18', 'L18', 'symbol', 'Symbol', 'contractSymbol', 'ContractSymbol']).trim().toUpperCase(); setOptionPurchaseQuantities((current) => ({ ...current, [symbol]: event.target.value })); }} className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800" />
                 </label>
