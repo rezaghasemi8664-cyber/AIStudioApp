@@ -15,12 +15,15 @@ export async function loadGuidePages(): Promise<GuidePage[]> {
  const result = await globalSettingsService.getByCategory(CATEGORY);
  if (!result.success || !result.data || typeof result.data !== 'object') return GUIDE_PAGES;
  const stored = result.data as Record<string, unknown>;
- const defaults = GUIDE_PAGES.map(fallback => {
+ const deleted = new Set(Object.entries(stored).filter(([,value]) =>
+  !!value && typeof value === 'object' && (value as { deleted?: unknown }).deleted === true
+ ).map(([id]) => id));
+ const defaults = GUIDE_PAGES.filter(page => !deleted.has(page.id)).map(fallback => {
   const value = stored[fallback.id];
   return isGuidePage(value) ? value : fallback;
  });
  const defaultIds = new Set(GUIDE_PAGES.map(page => page.id));
- const custom = Object.entries(stored).filter(([id,value]) => !defaultIds.has(id) && isGuidePage(value)).map(([,value]) => value as GuidePage);
+ const custom = Object.entries(stored).filter(([id,value]) => !defaultIds.has(id) && !deleted.has(id) && isGuidePage(value)).map(([,value]) => value as GuidePage);
  return [...defaults,...custom];
 }
 export async function saveGuidePage(page: GuidePage): Promise<void> {
@@ -34,8 +37,14 @@ export async function saveGuidePages(pages: GuidePage[], deletedIds: string[] = 
   ids.add(page.id);
  }
  for (const page of pages) await saveGuidePage(page);
+ const defaultIds = new Set(GUIDE_PAGES.map(page => page.id));
  for (const id of deletedIds) {
-  const result = await globalSettingsService.remove(CATEGORY,id);
-  if (!result.success) throw new Error(result.error || result.message || `حذف صفحه ${id} ناموفق بود.`);
+  if (defaultIds.has(id)) {
+   const result = await globalSettingsService.set(CATEGORY,id,{ id, deleted: true });
+   if (!result.success) throw new Error(result.error || result.message || `حذف صفحه ${id} ناموفق بود.`);
+  } else {
+   const result = await globalSettingsService.remove(CATEGORY,id);
+   if (!result.success) throw new Error(result.error || result.message || `حذف صفحه ${id} ناموفق بود.`);
+  }
  }
 }
