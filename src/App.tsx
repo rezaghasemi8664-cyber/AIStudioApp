@@ -113,8 +113,7 @@ type Tab =
   | 'traderPerformance'
   | 'roniaAssistant'
   | 'optionsMarket'
-  | 'comprehensiveGuide'
-  | 'adminPanel';
+  | 'comprehensiveGuide';
 
 const SUBSCRIPTION_RESTRICTED_TABS: Tab[] = ['analysis', 'scalping', 'comparison', 'dailyFilters'];
 const isSubscriptionRestrictedTab = (tab: Tab): boolean => SUBSCRIPTION_RESTRICTED_TABS.includes(tab);
@@ -376,7 +375,7 @@ const BackgroundTabLoader: React.FC<{
       { key: 'dailyFilters', node: <DailyFilters /> },
       { key: 'profile', node: <UserProfile currentUser={currentUser} onProfileUpdate={onProfileUpdate} onPasswordChange={onPasswordChange} /> },
       ...(currentUser.isAdmin ? [
-        { key: 'users' as Tab, node: <UserManagement isOnline={isOnline} onMessageUpdate={() => undefined} onlineCount={0} /> },
+        { key: 'users' as Tab, node: <AdminPanel isOnline={isOnline} onMessageUpdate={() => undefined} onlineCount={0} /> },
         { key: 'notifications' as Tab, node: <NotificationsManagement isOnline={isOnline} /> },
       ] : []),
     ],
@@ -1140,11 +1139,10 @@ const App: React.FC = () => {
       case 'roniaAssistant': return <RoniaAssistant isOnline={isOnline} onNavigate={(tab) => handleTabClick(tab as Tab)} />;
       case 'dailyFilters': return <DailyFilters />;
       case 'comprehensiveGuide': return <ComprehensiveGuide />;
-      case 'adminPanel': return currentUser.isAdmin ? <AdminPanel isOnline={isOnline} onMessageUpdate={() => refreshUnreadCount(currentUser)} onlineCount={onlineUserCount} /> : <div className="py-8 text-center text-gray-500">شما دسترسی ندارید.</div>;
       case 'settings':
         return <Settings currentUser={currentUser} />;
       case 'profile': return <UserProfile currentUser={currentUser} onProfileUpdate={handleProfileUpdate} onPasswordChange={handlePasswordChange} />;
-      case 'users': return currentUser.isAdmin ? <UserManagement isOnline={isOnline} onMessageUpdate={() => refreshUnreadCount(currentUser)} onlineCount={onlineUserCount} /> : <div className="text-center py-8 text-gray-500"><LockClosedIcon className="h-8 w-8 mx-auto mb-2" /><p>شما دسترسی ندارید.</p></div>;
+      case 'users': return currentUser.isAdmin ? <AdminPanel isOnline={isOnline} onMessageUpdate={() => refreshUnreadCount(currentUser)} onlineCount={onlineUserCount} /> : <div className="text-center py-8 text-gray-500"><LockClosedIcon className="h-8 w-8 mx-auto mb-2" /><p>شما دسترسی ندارید.</p></div>;
       case 'notifications': return currentUser.isAdmin ? <NotificationsManagement isOnline={isOnline} /> : <div className="text-center py-8 text-gray-500"><LockClosedIcon className="h-8 w-8 mx-auto mb-2" /><p>شما دسترسی ندارید.</p></div>;
       default: return isExpired ? <AccessDenied /> : <StockAnalysis />;
     }
@@ -1241,9 +1239,8 @@ const App: React.FC = () => {
           <TabButton tab="comparison" label="مقایسه" icon={<ClipboardDocumentIcon />} alertType="none" locked={isExpired && isSubscriptionRestrictedTab('comparison')} activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="strategyLab" label="آزمایشگاه استراتژی" icon={<PresentationChartLineIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
           <TabButton tab="dailyFilters" label="فیلترهای روزانه" icon={<PresentationChartLineIcon />} alertType="none" locked={isExpired && isSubscriptionRestrictedTab('dailyFilters')} activeTab={activeTab} onTabClick={handleTabClick} />
-          {currentUser.isAdmin && <><TabButton tab="users" label="کاربران" icon={<UserGroupIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /><TabButton tab="notifications" label="اطلاعیه‌ها" icon={<MegaphoneIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /></>}
+          {currentUser.isAdmin && <><TabButton tab="users" label="پنل مدیریت" icon={<Cog6ToothIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /><TabButton tab="notifications" label="اطلاعیه‌ها" icon={<MegaphoneIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /></>}
           <TabButton tab="comprehensiveGuide" label="راهنمای جامع نرم‌افزار" icon={<DocumentTextIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
-          {currentUser.isAdmin && <TabButton tab="adminPanel" label="پنل مدیریت" icon={<Cog6ToothIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />}
           <TabButton tab="profile" label="پروفایل" icon={<UserCircleIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /><TabButton tab="settings" label="تنظیمات" icon={<Cog6ToothIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
         </div></nav>
         <RequestActivityIndicator />
