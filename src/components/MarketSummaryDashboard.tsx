@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { getLatestSummary } from '../services/marketSummaryService';
+import { onMarketSummaryUpdated } from '../services/socketService';
 
 export interface MarketSummaryDashboardProps {
   intelligence?: any;
@@ -408,6 +409,16 @@ export default function MarketSummaryDashboard({
       active = false;
     };
   }, [suppliedIntelligence, loading]);
+
+  useEffect(() => {
+    const unsubscribe = onMarketSummaryUpdated((payload: any) => {
+      const latest = payload?.latest || payload?.summaries?.[0] || null;
+      if (!latest) return;
+      setFetchedIntelligence(latest.marketIntelligence ?? null);
+      setFetchedContent(latest.content ?? latest.summary ?? null);
+    });
+    return unsubscribe;
+  }, []);
 
   const intelligence =
     suppliedIntelligence ?? fetchedIntelligence;
