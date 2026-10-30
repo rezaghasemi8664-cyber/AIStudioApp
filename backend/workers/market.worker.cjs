@@ -138,14 +138,25 @@ function scoreSymbol(item) {
     liquidity + activity + momentum + flow + rangePosition + directionalAgreement
   )));
 
-  const bullish =
-    dataQuality &&
+  // BUY can be a momentum continuation OR a confirmed intraday recovery
+  // after a negative daily move. A red daily percentage alone is never enough:
+  // reversal candidates must recover into the upper 40% of the real session
+  // range and show positive real-money flow with meaningful participation.
+  const bullishContinuation =
     pct >= SCALPING_MIN_CHANGE_PCT &&
-    realNetRatio >= SCALPING_MIN_REAL_FLOW_RATIO &&
-    realParticipation >= SCALPING_MIN_REAL_PARTICIPATION &&
     position >= SCALPING_MIN_POSITION &&
     last >= open &&
     last >= close;
+  const bullishPullbackReversal =
+    pct <= -SCALPING_MIN_CHANGE_PCT &&
+    position >= 0.60 &&
+    last > low &&
+    last >= close;
+  const bullish =
+    dataQuality &&
+    realNetRatio >= SCALPING_MIN_REAL_FLOW_RATIO &&
+    realParticipation >= SCALPING_MIN_REAL_PARTICIPATION &&
+    (bullishContinuation || bullishPullbackReversal);
   const bearish =
     dataQuality &&
     pct <= -SCALPING_MIN_CHANGE_PCT &&
@@ -415,8 +426,15 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
   );
   const threshold = moving.filter(({ scored }) => scored.score >= SCALPING_THRESHOLD);
   const directional = threshold.filter(({ scored }) =>
-    (scored.signal === 'BUY' && scored.realNetRatio >= SCALPING_MIN_REAL_FLOW_RATIO && scored.position >= SCALPING_MIN_POSITION) ||
-    (scored.signal === 'SELL' && scored.realNetRatio <= -SCALPING_MIN_REAL_FLOW_RATIO && scored.position <= SCALPING_MAX_POSITION)
+    (scored.signal === 'BUY' &&
+      scored.realNetRatio >= SCALPING_MIN_REAL_FLOW_RATIO &&
+      scored.realParticipation >= SCALPING_MIN_REAL_PARTICIPATION &&
+      (scored.pct > 0
+        ? scored.position >= SCALPING_MIN_POSITION
+        : scored.position >= 0.60)) ||
+    (scored.signal === 'SELL' &&
+      scored.realNetRatio <= -SCALPING_MIN_REAL_FLOW_RATIO &&
+      scored.position <= SCALPING_MAX_POSITION)
   );
 
   const rankedCandidates = directional
@@ -526,18 +544,34 @@ async function updateScalpingOpportunities(symbols, marketIsOpen = true) {
     const entry = levels.entryPrice;
     const strategyName = levels.method === 'support-rebound-atr-v1'
       ? 'technical-support-rebound-atr-v1'
-      : levels.method === 'resistance-rejection-exit-atr-v1'
-        ? 'technical-resistance-rejection-exit-atr-v1'
-        : 'technical-breakout-atr-v1';
+      : levels.method === 'support-pullback-atr-v2'
+        ? 'technical-support-pullback-atr-v2'
+        : levels.method === 'swing-resistance-atr-v2'
+          ? 'technical-breakout-atr-v2'
+          : levels.method === 'at-market-continuation-atr-v2'
+            ? 'technical-market-entry-atr-v2'
+            : levels.method === 'resistance-rejection-exit-atr-v1'
+              ? 'technical-resistance-rejection-exit-atr-v1'
+              : levels.method === 'sell-exit-reference-atr-v2'
+                ? 'technical-sell-exit-reference-atr-v2'
+                : 'technical-breakout-atr-v1';
     const stopLoss = levels.stopLossPrice;
     const takeProfit = levels.targetPrice;
-    const recommendationText = levels.method === 'support-rebound-atr-v1'
-      ? 'بازگشت قیمت از محدوده حمایت با کندل صعودی؛ ورود نزدیک قیمت فعلی و فقط با رعایت حد ضرر.'
-      : levels.method === 'resistance-rejection-exit-atr-v1'
-        ? 'رد قیمت از مقاومت با کندل نزولی؛ مرجع بررسی کاهش ریسک یا خروج از سهم موجود، نه فروش استقراضی.'
-        : scored.signal === 'BUY'
-          ? 'مومنتوم مثبت، موقعیت قیمت و جریان خرید حقیقی هم‌جهت هستند؛ ورود مشروط به شکست مقاومت.'
-          : 'مومنتوم منفی، موقعیت قیمت و جریان فروش حقیقی هم‌جهت هستند؛ سناریوی شکست حمایت برای بررسی خروج.';
+    const recommendationText = levels.entryType === 'PENDING_PULLBACK'
+      ? 'سناریوی خرید در اصلاح تا محدوده حمایت؛ سفارش فقط در قیمت ورود پیشنهادی و پس از حفظ ساختار حمایت بررسی شود، نه در قیمت فعلی.'
+      : levels.entryType === 'BREAKOUT_TRIGGER'
+        ? 'ورود خرید فقط پس از شکست و تثبیت بالای مقاومت و فعال‌شدن قیمت ماشه؛ تعقیب قیمت پیش از شکست توصیه نمی‌شود.'
+        : levels.entryType === 'MARKET_ENTRY'
+          ? 'ورود نزدیک قیمت فعلی بر پایه کندل صعودی و نسبت سود به زیان معتبر؛ رعایت حد ضرر الزامی است.'
+          : levels.method === 'support-rebound-atr-v1'
+            ? 'بازگشت قیمت از محدوده حمایت با کندل صعودی؛ ورود نزدیک قیمت فعلی و فقط با رعایت حد ضرر.'
+            : levels.method === 'resistance-rejection-exit-atr-v1'
+              ? 'رد قیمت از مقاومت با کندل نزولی؛ مرجع بررسی کاهش ریسک یا خروج از سهم موجود، نه فروش استقراضی.'
+              : levels.method === 'sell-exit-reference-atr-v2'
+                ? 'مرجع خروج یا کاهش ریسک برای دارنده سهم؛ این سیگنال فروش استقراضی نیست.'
+                : scored.signal === 'BUY'
+                  ? 'مومنتوم و جریان خرید حقیقی هم‌جهت هستند؛ ورود فقط طبق سطح تکنیکال و نوع ورود مشخص‌شده بررسی شود.'
+                  : 'مومنتوم و جریان فروش حقیقی هم‌جهت هستند؛ سناریوی تکنیکال برای بررسی خروج از سهم موجود است.';
 
     const meta = {
       pct: scored.pct,
