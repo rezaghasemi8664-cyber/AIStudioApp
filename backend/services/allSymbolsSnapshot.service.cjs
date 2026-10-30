@@ -1,17 +1,9 @@
 'use strict';
 
-const prisma = require('../config/prisma.cjs');
-const brsService = require('./brs.service.cjs');
 const marketSnapshotService = require('./marketSnapshot.service.cjs');
-
-let ensureTablePromise = null;
 
 function tehranDateKey(date = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', calendar: 'gregory' }).format(date);
-}
-function sqlDate(dateKey) {
-  const parts = String(dateKey).split('-').map(Number);
-  return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
 }
 function normalizeKey(value) {
   return String(value || '').normalize('NFKC')
@@ -49,78 +41,23 @@ function normalizeSnapshotSymbol(item) {
     instSellCount: numberOrNull(item.instSellCount, item.legalSellCount, item.Sell_CountN)
   };
 }
-async function ensureTable() {
-  if (!ensureTablePromise) {
-    ensureTablePromise = prisma.$executeRawUnsafe(
-      "IF OBJECT_ID(N'dbo.AllSymbolsSnapshot', N'U') IS NULL BEGIN " +
-      "CREATE TABLE [dbo].[AllSymbolsSnapshot] ([id] int NOT NULL CONSTRAINT [PK_AllSymbolsSnapshot] PRIMARY KEY, " +
-      "[snapshotDate] date NOT NULL, [symbolCount] int NOT NULL, [symbolsJson] nvarchar(max) NOT NULL, " +
-      "[source] nvarchar(50) NOT NULL, [updatedAt] datetime2(3) NOT NULL, " +
-      "CONSTRAINT [CK_AllSymbolsSnapshot_SingleRow] CHECK ([id] = 1)); END"
-    ).catch((error) => { ensureTablePromise = null; throw error; });
-  }
-  await ensureTablePromise;
-}
-async function getStoredSnapshot(tx = prisma) {
-  const rows = await tx.$queryRawUnsafe(
-    "SELECT TOP (1) [id], [snapshotDate], [symbolCount], [symbolsJson], [source], [updatedAt] " +
-    "FROM [dbo].[AllSymbolsSnapshot] WHERE [id] = 1"
-  );
-  return rows && rows[0] ? rows[0] : null;
-}
 async function refreshSnapshot() {
-  await ensureTable();
-  const response = await brsService.getAllSymbols({ forceFresh: true });
-  const rows = Array.isArray(response && response.data) ? response.data : Array.isArray(response) ? response : null;
-  if (!rows || rows.length < 1000) throw new Error('BRS AllSymbols snapshot rejected: invalid or incomplete payload (' + (rows ? rows.length : 0) + ' symbols)');
-
-  const symbols = rows.map(normalizeSnapshotSymbol).filter((item) => item.symbol);
-  const keys = new Set(symbols.map((item) => normalizeKey(item.symbol)));
-  if (symbols.length < 1000 || keys.size !== symbols.length) throw new Error('BRS AllSymbols snapshot rejected: empty, incomplete or duplicate symbols');
-
-  const previous = await getStoredSnapshot();
-  if (previous) {
-    let oldSymbols;
-    try { oldSymbols = JSON.parse(previous.symbolsJson); } catch (_) { oldSymbols = null; }
-    if (!Array.isArray(oldSymbols) || oldSymbols.length < 1000) throw new Error('Existing AllSymbols snapshot is invalid; refusing to replace it');
-    const oldKeys = new Set(oldSymbols.map((item) => normalizeKey(item.symbol)).filter(Boolean));
-    const intersection = Array.from(keys).filter((key) => oldKeys.has(key)).length;
-    const ratio = symbols.length / oldSymbols.length;
-    const oldOverlap = oldKeys.size ? intersection / oldKeys.size : 0;
-    const newOverlap = keys.size ? intersection / keys.size : 0;
-    if (ratio < 0.65 || ratio > 1.5 || oldOverlap < 0.6 || newOverlap < 0.6) {
-      throw new Error('BRS AllSymbols snapshot rejected by completeness guard: ' + JSON.stringify({ previousCount: oldSymbols.length, newCount: symbols.length, ratio, oldOverlap, newOverlap }));
-    }
+  // Compatibility entry point for the legacy cron. The versioned MarketSnapshot
+  // worker is the sole owner of BRS AllSymbols fetching and snapshot persistence.
+  // This function deliberately performs a read only; it never calls BRS or writes
+  // to dbo.AllSymbolsSnapshot.
+  const snapshot = await getActiveStoredSnapshot();
+  if (!snapshot) {
+    throw new Error('No active MarketSnapshot is available; legacy BRS refresh is disabled');
   }
 
-  const dateKey = tehranDateKey();
-  const snapshotDate = sqlDate(dateKey);
-  const payload = JSON.stringify(symbols);
-  const updatedAt = new Date();
-
-  await prisma.$transaction(async (tx) => {
-    const changed = await tx.$executeRawUnsafe(
-      "UPDATE [dbo].[AllSymbolsSnapshot] SET [snapshotDate] = @P1, [symbolCount] = @P2, [symbolsJson] = @P3, " +
-      "[source] = @P4, [updatedAt] = @P5 WHERE [id] = 1",
-      snapshotDate, symbols.length, payload, 'brsapi-allsymbols', updatedAt
-    );
-    if (Number(changed) === 0) {
-      await tx.$executeRawUnsafe(
-        "INSERT INTO [dbo].[AllSymbolsSnapshot] ([id], [snapshotDate], [symbolCount], [symbolsJson], [source], [updatedAt]) " +
-        "VALUES (1, @P1, @P2, @P3, @P4, @P5)",
-        snapshotDate, symbols.length, payload, 'brsapi-allsymbols', updatedAt
-      );
-    }
-    const saved = await getStoredSnapshot(tx);
-    let parsed;
-    try { parsed = JSON.parse(saved && saved.symbolsJson || 'null'); } catch (_) { parsed = null; }
-    if (!saved || Number(saved.symbolCount) !== symbols.length || !Array.isArray(parsed) || parsed.length !== symbols.length) {
-      throw new Error('AllSymbols snapshot database verification failed; rolling back');
-    }
-  }, { maxWait: 10000, timeout: 60000 });
-
-  console.log('[ALL-SYMBOLS-SNAPSHOT] Saved verified latest snapshot', JSON.stringify({ snapshotDate: dateKey, symbolCount: symbols.length, updatedAt: updatedAt.toISOString() }));
-  return { snapshotDate: dateKey, symbolCount: symbols.length, updatedAt: updatedAt, source: 'brsapi-allsymbols' };
+  const updatedAt = snapshot.updatedAt || new Date();
+  return {
+    snapshotDate: tehranDateKey(new Date(updatedAt)),
+    symbolCount: snapshot.symbolCount,
+    updatedAt,
+    source: snapshot.source || 'versioned-market-snapshot'
+  };
 }
 async function getActiveStoredSnapshot() {
   const active = await marketSnapshotService.getActiveSnapshot();
@@ -164,4 +101,4 @@ async function getSnapshot() {
     snapshotDate, snapshotUpdatedAt: snapshot.updatedAt, symbolCount: snapshot.symbolCount, source: snapshot.source
   };
 }
-module.exports = { ensureTable, hasSnapshot, refreshSnapshot, searchSymbol, getSnapshot, normalizeSnapshotSymbol, normalizeKey, tehranDateKey };
+module.exports = { hasSnapshot, refreshSnapshot, searchSymbol, getSnapshot, normalizeSnapshotSymbol, normalizeKey, tehranDateKey };
