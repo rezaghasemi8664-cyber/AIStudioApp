@@ -88,31 +88,71 @@ function calculateScalpingPriceLevels(candles, signal, currentPrice, market = {}
       // the symbol before checking whether that setup is valid.
     }
 
+    // Preferred pullback setup: publish a pending entry below the current price
+    // when price is close enough to verified support for a technically plausible
+    // retracement. The target is always above the proposed entry and the stop
+    // remains below it; this is a pending level, not an instruction to buy now.
+    const pullbackEntry = Math.max(allowedMin, Math.min(current - atr * 0.1, support + atr * 0.15));
+    const pullbackStop = Math.max(allowedMin, support - atr * 0.5);
+    const pullbackTarget = Math.min(resistance, allowedMax, pullbackEntry + atr * 1.5);
+    const pullbackRisk = pullbackEntry - pullbackStop;
+    const pullbackReward = pullbackTarget - pullbackEntry;
+    const pullbackDistance = current - support;
+    if (pullbackEntry < current && pullbackDistance >= 0 && pullbackDistance <= atr * 1.5 &&
+        pullbackStop < pullbackEntry && pullbackTarget > pullbackEntry &&
+        pullbackRisk > 0 && pullbackReward / pullbackRisk >= 1.2) {
+      return {
+        entryPrice: round(pullbackEntry),
+        targetPrice: round(pullbackTarget),
+        stopLossPrice: round(pullbackStop),
+        support: round(support),
+        resistance: round(resistance),
+        atr: round(atr),
+        entryType: 'PENDING_PULLBACK',
+        method: 'support-pullback-atr-v2'
+      };
+    }
+
+    // If no pullback entry is valid, evaluate a resistance-breakout entry above
+    // current price. It remains conditional on a confirmed breakout.
     const entryPrice = resistance + atr * 0.1;
     const targetPrice = Math.min(allowedMax, entryPrice + atr * 2);
     const stopLossPrice = Math.max(allowedMin, support);
     const risk = entryPrice - stopLossPrice;
     const reward = targetPrice - entryPrice;
-    // Never publish an actionable breakout when the technical stop is too far
-    // away for the target to compensate. A high directional score is not a
-    // substitute for a viable trade plan.
     if (entryPrice > current && entryPrice <= allowedMax && stopLossPrice < entryPrice &&
         targetPrice > entryPrice && risk > 0 && reward / risk >= 1.2) {
-      return { entryPrice: round(entryPrice), targetPrice: round(targetPrice), stopLossPrice: round(stopLossPrice), support: round(support), resistance: round(resistance), atr: round(atr), method: 'swing-resistance-atr' };
+      return {
+        entryPrice: round(entryPrice),
+        targetPrice: round(targetPrice),
+        stopLossPrice: round(stopLossPrice),
+        support: round(support),
+        resistance: round(resistance),
+        atr: round(atr),
+        entryType: 'BREAKOUT_TRIGGER',
+        method: 'swing-resistance-atr-v2'
+      };
     }
 
-    // If a breakout trigger cannot fit inside today's legal price band, do not
-    // discard every candidate automatically: allow an at-market continuation
-    // only when current price is below resistance and the measured reward/risk
-    // remains acceptable. This is a real-price entry, not a trigger above limit.
-    const pullbackEntry = current;
-    const pullbackStop = Math.max(allowedMin, support - atr * 0.25);
-    const pullbackTarget = Math.min(resistance, allowedMax, pullbackEntry + atr * 1.5);
-    const pullbackRisk = pullbackEntry - pullbackStop;
-    const pullbackReward = pullbackTarget - pullbackEntry;
-    if (bullishCandle && pullbackEntry < resistance && pullbackStop < pullbackEntry &&
-        pullbackTarget > pullbackEntry && pullbackRisk > 0 && pullbackReward / pullbackRisk >= 1.2) {
-      return { entryPrice: round(pullbackEntry), targetPrice: round(pullbackTarget), stopLossPrice: round(pullbackStop), support: round(support), resistance: round(resistance), atr: round(atr), method: 'at-market-continuation-atr-v1' };
+    // At-market continuation is a final fallback only when a real bullish candle
+    // confirms momentum and a valid reward/risk plan exists.
+    const marketEntry = current;
+    const marketStop = Math.max(allowedMin, support - atr * 0.25);
+    const marketTarget = Math.min(resistance, allowedMax, marketEntry + atr * 1.5);
+    const marketRisk = marketEntry - marketStop;
+    const marketReward = marketTarget - marketEntry;
+    if (bullishCandle && marketEntry < resistance && marketStop < marketEntry &&
+        marketTarget > marketEntry && marketRisk > 0 && marketReward / marketRisk >= 1.2) {
+      return {
+        entryPrice: round(marketEntry),
+        targetPrice: round(marketTarget),
+        stopLossPrice: round(marketStop),
+        support: round(support),
+        resistance: round(resistance),
+        atr: round(atr),
+        entryType: 'MARKET_ENTRY',
+        method: 'at-market-continuation-atr-v2'
+      };
     }
     return reject('buy_entry_outside_band_or_invalid', {
       currentPrice: current,
