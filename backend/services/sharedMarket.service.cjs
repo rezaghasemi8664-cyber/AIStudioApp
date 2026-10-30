@@ -2,6 +2,7 @@
 
 const prisma = require('../config/prisma.cjs');
 const marketSnapshotService = require('./marketSnapshot.service.cjs');
+const centralCache = require('./centralMarketCache.service.cjs');
 
 function decimalToNumber(value) {
   if (value == null) return null;
@@ -201,20 +202,25 @@ function normalizeScalping(row) {
 }
 
 async function getMarketCurrent() {
-  const row = await prisma.marketCurrent.findFirst({
-    orderBy: [{ marketDate: 'desc' }, { updatedAt: 'desc' }],
+  return centralCache.getOrLoad('market:current', 5000, async () => {
+    const row = await prisma.marketCurrent.findFirst({
+      orderBy: [{ marketDate: 'desc' }, { updatedAt: 'desc' }],
+    });
+    return normalizeMarketCurrent(row);
   });
-  return normalizeMarketCurrent(row);
 }
 
 async function getSymbols({ symbol, limit = 5000 } = {}) {
   const take = Math.max(1, Math.min(Number(limit) || 5000, 10000));
-  const rows = await prisma.marketSymbolCurrent.findMany({
-    where: symbol ? { symbol } : undefined,
-    orderBy: { symbol: 'asc' },
-    take,
+  const key = 'market:symbols:' + (symbol || '*') + ':' + take;
+  return centralCache.getOrLoad(key, 10000, async () => {
+    const rows = await prisma.marketSymbolCurrent.findMany({
+      where: symbol ? { symbol } : undefined,
+      orderBy: { symbol: 'asc' },
+      take,
+    });
+    return rows.map(normalizeSymbol);
   });
-  return rows.map(normalizeSymbol);
 }
 
 async function searchSymbols(query, limit = 50) {
@@ -295,15 +301,18 @@ async function getIndustries(limit = 100) {
 }
 async function getScalpingOpportunities({ status = 'ACTIVE', marketDate = null, limit = 50 } = {}) {
   const take = Math.max(1, Math.min(Number(limit) || 50, 200));
-  const where = {};
-  if (status) where.status = status;
-  if (marketDate) where.marketDate = marketDate;
-  const rows = await prisma.marketScalpingOpportunity.findMany({
-    where,
-    orderBy: [{ score: 'desc' }, { updatedAt: 'desc' }],
-    take,
+  const key = 'market:scalping:' + (status || '*') + ':' + (marketDate || '*') + ':' + take;
+  return centralCache.getOrLoad(key, 5000, async () => {
+    const where = {};
+    if (status) where.status = status;
+    if (marketDate) where.marketDate = marketDate;
+    const rows = await prisma.marketScalpingOpportunity.findMany({
+      where,
+      orderBy: [{ score: 'desc' }, { updatedAt: 'desc' }],
+      take,
+    });
+    return rows.map(normalizeScalping);
   });
-  return rows.map(normalizeScalping);
 }
 
 module.exports = {
@@ -321,4 +330,5 @@ module.exports = {
   normalizeMover,
   normalizeIndustry,
   normalizeScalping,
+  invalidateSharedMarketCache: centralCache.invalidatePrefix,
 };
