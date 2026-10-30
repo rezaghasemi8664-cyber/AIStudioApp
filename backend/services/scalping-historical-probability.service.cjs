@@ -72,10 +72,15 @@ function estimateHistoricalScalpingProbabilities(history, currentSetup) {
 
     samples += 1;
     const future = candles.slice(signalIndex, signalIndex + LOOKAHEAD_SESSIONS);
-    const hitIndex = future.findIndex(c => Number(c.low) <= historicalEntry);
+    const isBreakout = entryType === 'BREAKOUT_TRIGGER';
+    const hitIndex = future.findIndex(c => isBreakout
+      ? Number(c.high) >= historicalEntry
+      : Number(c.low) <= historicalEntry);
     if (hitIndex < 0) continue;
     entryHits += 1;
-    if (Number(future[hitIndex].close) > historicalEntry) reversals += 1;
+    if (isBreakout
+      ? Number(future[hitIndex].close) > historicalEntry
+      : Number(future[hitIndex].close) > historicalEntry) reversals += 1;
 
     let outcome = null;
     for (let j = hitIndex; j < future.length; j += 1) {
