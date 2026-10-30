@@ -63,7 +63,7 @@ const ValuableSymbolCard: React.FC<{
     {tradeIntent === 'BUY' && <label className="mt-3 block text-sm text-[var(--color-text-secondary)]">قیمت ورود در سبد (ریال)
       <input type="number" min="1" step="any" inputMode="decimal" value={entryPriceInput} onChange={event => setEntryPriceInput(event.target.value)} placeholder={`خالی بماند: قیمت پیشنهادی ${price(item.entryPrice)}`} className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2" />
     </label>}
-    <button type="button" onClick={() => onSave(item, quantity, tradeIntent, entryPriceInput) disabled={saving || !(Number(quantity) > 0 && Number.isInteger(Number(quantity)) && item.stopLoss > 0 && item.entryPrice > item.stopLoss && item.targetPrice > item.entryPrice)}
+    <button type="button" onClick={() => onSave(item, quantity, tradeIntent, entryPriceInput)} disabled={saving || !(Number(quantity) > 0 && Number.isInteger(Number(quantity)) && item.stopLoss > 0 && item.entryPrice > item.stopLoss && item.targetPrice > item.entryPrice)}
       className="mt-4 w-full rounded-lg bg-cyan-600 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50">
       {saving ? 'در حال ذخیره…' : 'ذخیره در سبد ارزنده‌ها'}
     </button>
