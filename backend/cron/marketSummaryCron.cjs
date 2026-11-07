@@ -121,9 +121,14 @@ function startMarketSummaryCron() {
     return { tasks };
   }
 
-  marketSummaryService.refreshMarketSummariesCache()
+  // Enforce the one-record retention policy on startup before hydrating the shared cache.
+  marketSummaryService.retainOnlyLastNSummaries(1)
+    .then(result => {
+      console.log('[Cron][MarketSummary] startup retention enforced', result);
+      return marketSummaryService.refreshMarketSummariesCache();
+    })
     .then(rows => console.log('[Cron][MarketSummary] central cache hydrated', rows.length))
-    .catch(error => console.error('[Cron][MarketSummary] central cache hydration failed:', error?.message || error));
+    .catch(error => console.error('[Cron][MarketSummary] startup retention/cache hydration failed:', error?.message || error));
 
   tasks = SCHEDULES.map(({ expression, attempt, label }) =>
     cron.schedule(
