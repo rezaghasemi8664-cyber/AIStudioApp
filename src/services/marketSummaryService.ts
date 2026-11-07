@@ -667,7 +667,7 @@ export const getLatestSummary = async (): Promise<MarketSummaryData | null> => {
 
 export const getSummaryHistory = async (
   page: number = 1,
-  limit: number = 10
+  limit: number = 1
 ): Promise<MarketSummaryHistoryResponse | null> => {
   const query = new URLSearchParams({
     page: String(page),
