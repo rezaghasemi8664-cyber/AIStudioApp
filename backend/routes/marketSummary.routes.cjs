@@ -54,6 +54,12 @@ function jsonSafe(value) {
 // SQL Server datetime values in this application are Tehran wall-clock values
 // without an offset. Prisma exposes them as UTC-shaped Date objects; attach the
 // Tehran offset instead of serializing them as UTC and shifting them by +03:30.
+function removeLegacyFiveSessionText(value) {
+  return typeof value === 'string'
+    ? value.replace(/؛\\s*میانگین قدرمطلق تغییرات[\\s\\S]*?است\\./g, '')
+    : value;
+}
+
 function toTehranWallClockISO(value) {
   if (!value) return null;
   const date = new Date(value);
@@ -90,6 +96,8 @@ async function getPersistedLatestMarketSummary(req, res, next) {
       success: true,
       data: {
         ...jsonSafe(record),
+        content: removeLegacyFiveSessionText(record.content),
+        summary: removeLegacyFiveSessionText(record.summary),
         createdAt: toTehranWallClockISO(record.createdAt),
         updatedAt: toTehranWallClockISO(record.updatedAt)
       },
