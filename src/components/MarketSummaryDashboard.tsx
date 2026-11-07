@@ -838,7 +838,7 @@ export default function MarketSummaryDashboard({
         title="نقدشوندگی و معاملات"
         description="بررسی ارزش، حجم و تعداد معاملات و وضعیت نقدشوندگی بازار."
       >
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <KpiCard
             label="ارزش معاملات"
             value={
@@ -1054,18 +1054,6 @@ export default function MarketSummaryDashboard({
         description="بررسی روند حرکتی بازار در بازه‌های کوتاه‌مدت و میان‌مدت."
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard
-            label="تغییر ۵ جلسه اخیر"
-            value={formatSignedPercent(m.fiveDayChangePct)}
-            tone={
-              Number(m.fiveDayChangePct) > 0
-                ? 'positive'
-                : Number(m.fiveDayChangePct) < 0
-                  ? 'negative'
-                  : 'default'
-            }
-          />
-
           <KpiCard
             label="تغییر ۱۰ جلسه اخیر"
             value={
