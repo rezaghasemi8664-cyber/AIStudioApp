@@ -666,16 +666,16 @@ function buildDeterministicSummary(data) {
 
 function removeLegacyFiveSessionText(value) {
   if (typeof value !== 'string' || !value) return value;
-  const legacyPattern = /(?:میانگین\\s+قدر\\s*مطلق\\s+تغییرات|(?:۵|5|پنج)\\s*(?:روز|جلسه)(?:\\s+معاملاتی)?\\s*(?:آخر|اخیر)|(?:آخر|اخیر)\\s*(?:۵|5|پنج)\\s*(?:روز|جلسه)(?:\\s+معاملاتی)?)/i;
+  const legacyPattern = /(?:میانگین\s+قدر\s*مطلق\s+تغییرات|(?:۵|5|پنج)\s*(?:روز|جلسه)(?:\s+معاملاتی)?\s*(?:آخر|اخیر)|(?:آخر|اخیر)\s*(?:۵|5|پنج)\s*(?:روز|جلسه)(?:\s+معاملاتی)?)/i;
   return value
-    .split(/\\n+/)
+    .split(/\n+/)
     .map(paragraph => paragraph
-      .split(/(?<=[.!؟؛;])\\s*/)
+      .split(/(?<=[.!؟؛;])\s*/)
       .filter(sentence => !legacyPattern.test(sentence))
       .join(' ')
     )
     .filter(Boolean)
-    .join('\\n\\n');
+    .join('\n\n');
 }
 
 function normalizeSummaryRecord(record, diagnostics = null, includeRawJson = true) {
@@ -690,8 +690,8 @@ function normalizeSummaryRecord(record, diagnostics = null, includeRawJson = tru
   const equalPct = calculatePercent(equalIndex, equalChange, pickValue(rawData, FIELD_KEYS.equalChangePercent));
   const storedContent = firstString(record.content, record.summary, raw.content, raw.summary);
   const generatedContent = storedContent || buildDeterministicSummary({ ...rawData, overallIndex, overallChange, equalIndex, equalChange, totalTrades: record.totalTrades, totalVolume: record.totalVolume, totalValue: record.totalValue, positiveStocks: record.positiveStocks, negativeStocks: record.negativeStocks, neutralStocks: record.neutralStocks, topGainers: parseJsonSafe(record.topGainers), topLosers: parseJsonSafe(record.topLosers), topVolumes: parseJsonSafe(record.topVolumes) });
-  // Remove the legacy five-session comparison sentence from previously saved summaries.
-  const content = generatedContent.replace(/؛\s*میانگین قدرمطلق تغییرات[\s\S]*?است\./g, '');
+  // Strip any legacy five-day/five-session wording from stored and generated text.
+  const content = removeLegacyFiveSessionText(generatedContent);
   return {
     id: record.id,
     date: toDateOnlyISO(record.summaryDate || record.date || record.createdAt),
@@ -742,10 +742,10 @@ async function retainOnlyLastNSummaries() {
     ? await model.deleteMany({ where: { id: { in: olderIds } } })
     : { count: 0 };
 
-  // Clean the legacy five-session sentence from the retained database record.
+  // Clean all legacy five-day/five-session wording from the retained database record.
   const latest = await model.findUnique({ where: { id: latestRow.id } });
   const previousContent = String(latest?.content || latest?.summary || '');
-  const cleanContent = previousContent.replace(/؛\s*میانگین قدرمطلق تغییرات[\s\S]*?است\./g, '');
+  const cleanContent = removeLegacyFiveSessionText(previousContent);
   if (latest && cleanContent !== previousContent) {
     await model.update({ where: { id: latest.id }, data: { content: cleanContent, summary: cleanContent } });
   }
