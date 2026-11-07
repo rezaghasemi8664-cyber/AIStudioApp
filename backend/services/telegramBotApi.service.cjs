@@ -79,7 +79,9 @@ function getTelegramProxyConfig() {
 }
 
 async function requestTelegram(endpoint, data, options = {}) {
-  const timeoutMs = Number(options.timeoutMs) || 15000;
+  // Keep backend timeout above the Telegram Bridge's 35-second upstream timeout.
+  const configuredTimeoutMs = Number(options.timeoutMs) || 0;
+  const timeoutMs = Math.max(configuredTimeoutMs, 45000);
   const proxy = getTelegramProxyConfig();
   const apiBase = getTelegramApiBase();
   const headers = { ...(options.headers || {}) };
