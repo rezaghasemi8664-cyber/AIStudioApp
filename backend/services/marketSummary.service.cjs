@@ -1,7 +1,6 @@
 'use strict';
 
 const prismaModule = require('../config/prisma.cjs');
-const env = require('../config/env.cjs');
 const sharedMarketService = require('./sharedMarket.service.cjs');
 const centralCache = require('./centralMarketCache.service.cjs');
 const MARKET_SUMMARIES_CACHE_KEY = 'market-summary:latest';
