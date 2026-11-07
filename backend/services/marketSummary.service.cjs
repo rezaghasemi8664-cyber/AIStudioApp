@@ -675,7 +675,9 @@ function normalizeSummaryRecord(record, diagnostics = null, includeRawJson = tru
   const overallPct = calculatePercent(overallIndex, overallChange, pickValue(rawData, FIELD_KEYS.changeIndexPercent));
   const equalPct = calculatePercent(equalIndex, equalChange, pickValue(rawData, FIELD_KEYS.equalChangePercent));
   const storedContent = firstString(record.content, record.summary, raw.content, raw.summary);
-  const content = storedContent || buildDeterministicSummary({ ...rawData, overallIndex, overallChange, equalIndex, equalChange, totalTrades: record.totalTrades, totalVolume: record.totalVolume, totalValue: record.totalValue, positiveStocks: record.positiveStocks, negativeStocks: record.negativeStocks, neutralStocks: record.neutralStocks, topGainers: parseJsonSafe(record.topGainers), topLosers: parseJsonSafe(record.topLosers), topVolumes: parseJsonSafe(record.topVolumes) });
+  const generatedContent = storedContent || buildDeterministicSummary({ ...rawData, overallIndex, overallChange, equalIndex, equalChange, totalTrades: record.totalTrades, totalVolume: record.totalVolume, totalValue: record.totalValue, positiveStocks: record.positiveStocks, negativeStocks: record.negativeStocks, neutralStocks: record.neutralStocks, topGainers: parseJsonSafe(record.topGainers), topLosers: parseJsonSafe(record.topLosers), topVolumes: parseJsonSafe(record.topVolumes) });
+  // Remove the legacy five-session comparison sentence from previously saved summaries.
+  const content = generatedContent.replace(/؛\\s*میانگین قدرمطلق تغییرات[\\s\\S]*?است\\./g, '');
   return {
     id: record.id,
     date: toDateOnlyISO(record.summaryDate || record.date || record.createdAt),
@@ -716,7 +718,16 @@ async function retainOnlyLastNSummaries() {
   const model = getMarketSummaryModel();
   const n = 1;
   const rows = await model.findMany({ select: { id: true, summaryDate: true }, orderBy: [{ summaryDate: 'desc' }, { id: 'desc' }] });
-  if (rows.length <= n) return { deletedCount: 0, kept: rows.length, total: rows.length };
+  if (rows.length <= n) {
+    if (rows.length === 1) {
+      const latest = await model.findUnique({ where: { id: rows[0].id } });
+      const cleanContent = String(latest?.content || latest?.summary || '').replace(/؛\\s*میانگین قدرمطلق تغییرات[\\s\\S]*?است\\./g, '');
+      if (latest && cleanContent !== String(latest.content || latest.summary || '')) {
+        await model.update({ where: { id: latest.id }, data: { content: cleanContent, summary: cleanContent } });
+      }
+    }
+    return { deletedCount: 0, kept: rows.length, total: rows.length };
+  }
   const ids = rows.slice(n).map(r => r.id);
   const deleted = await model.deleteMany({ where: { id: { in: ids } } });
   return { deletedCount: deleted.count || 0, kept: n, total: rows.length };
