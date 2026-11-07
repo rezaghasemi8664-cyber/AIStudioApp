@@ -436,11 +436,11 @@ export default function MarketSummaryDashboard({
         }}
       >
         <div className="text-[16px] font-bold text-slate-200">
-          در حال آماده‌سازی تحلیل جامع بازار…
+          در حال دریافت خلاصه بازار…
         </div>
 
         <div className="mt-2 text-[14px] leading-[1.9] text-slate-400">
-          داده‌های بازار در حال پردازش هستند.
+          آخرین خلاصه بازار ذخیره‌شده در حال بارگذاری است.
         </div>
       </div>
     );
