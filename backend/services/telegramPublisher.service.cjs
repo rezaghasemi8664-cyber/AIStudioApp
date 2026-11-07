@@ -459,7 +459,8 @@ async function publishTodaySummaryIfReady(now = new Date(), suppliedSettings) {
 }
 
 async function sendAndRecord(type, message, now = new Date()) {
-  const messageTitle = String(message || '').split('\n')[0].slice(0, 180);
+  const messageLines = String(message || '').split('\n');
+  const messageTitle = (type === 'summary' ? messageLines.slice(0, 2).join(' | ') : messageLines[0]).slice(0, 180);
   try {
     const result = await sendTelegramMessage(message);
     try { await recordTelegramPublisherMessage(type, 'success', { messageTitle }, now); }
