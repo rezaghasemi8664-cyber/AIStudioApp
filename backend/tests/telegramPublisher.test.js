@@ -125,7 +125,7 @@ describe('Telegram publisher helpers', () => {
       summaryDate: new Date('2026-10-14T00:00:00.000Z'),
       createdAt: new Date('2026-10-14T10:05:00.000Z')
     });
-    expect(message).toContain('آخرین خلاصه ذخیره‌شده بازار بورس');
+    expect(message).toContain('🧾 رونیا | خلاصه بازار');
     expect(message).toContain('تاریخ بازار:');
     expect(message).toContain('زمان ثبت خلاصه در دیتابیس:');
     expect(message).toContain('خلاصه ثبت‌شده در دیتابیس');
@@ -133,7 +133,7 @@ describe('Telegram publisher helpers', () => {
   test('splits market summary only between complete paragraphs and numbers every part', () => {
     const paragraphs = ['بند اول ' + 'الف'.repeat(690), 'بند دوم ' + 'ب'.repeat(690), 'بند سوم ' + 'پ'.repeat(690)];
     const parts = renderSummaryMessages({
-      content: paragraphs.join('\\n\\n'),
+      content: paragraphs.join('\n\n'),
       summaryDate: new Date('2026-10-14T00:00:00.000Z'),
       createdAt: new Date('2026-10-14T10:05:00.000Z')
     });
