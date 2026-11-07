@@ -215,7 +215,7 @@ function renderSummaryMessages(row, maxLength = SUMMARY_TELEGRAM_PART_MAX_LENGTH
   const fullMessage = renderSummaryMessage(row);
   if (!fullMessage) return null;
   const content = String(row?.content || row?.summary || '').trim();
-  const paragraphs = content.split(/\\r?\\n\\s*\\r?\\n/).map(item => item.trim()).filter(Boolean);
+  const paragraphs = content.split(/\r?\n\s*\r?\n/).map(item => item.trim()).filter(Boolean);
   if (!paragraphs.length) return null;
 
   const headerReserve = getSummaryMessageHeader(row, 999, 999);
