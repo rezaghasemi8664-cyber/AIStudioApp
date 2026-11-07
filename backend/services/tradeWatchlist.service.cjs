@@ -3,6 +3,7 @@
 const prismaModule = require('../config/prisma.cjs');
 const prisma = prismaModule.prisma || prismaModule;
 const snapshotService = require('./allSymbolsSnapshot.service.cjs');
+const advanceEntryTouchState = require('../utils/tradeWatchlistEntryTouch.cjs');
 
 const LIST_TYPES = new Set(['scalping', 'valuable']);
 const EMPTY_WATCHLISTS = () => ({ scalping: [], valuable: [] });
@@ -42,7 +43,9 @@ function normalizeItem(item) {
     id: String(item.id), listType: item.listType === 'valuable' ? 'valuable' : 'scalping',
     symbol, name: String(item.name || symbol), entryDate: String(item.entryDate || ''),
     quantity, entryPrice, targetPrice: normalizePrice(item.targetPrice), stopLoss: normalizePrice(item.stopLoss),
-    entryPriceTriggered: item.entryPriceTriggered === true,
+    entryTouchVersion: 2,
+    entryPriceArmed: item.entryTouchVersion === 2 && item.entryPriceArmed === true,
+    entryPriceTriggered: item.entryTouchVersion === 2 && item.entryPriceTriggered === true,
     tradeIntent: item.tradeIntent === 'BUY' ? 'BUY' : 'WATCH',
     targetAlertEnabled: item.targetAlertEnabled !== false, stopLossAlertEnabled: item.stopLossAlertEnabled !== false,
     targetAlertTriggered: item.targetAlertTriggered === true, stopLossAlertTriggered: item.stopLossAlertTriggered === true,
@@ -98,10 +101,7 @@ async function getWatchlist(userId, listType) {
   let entryTouchChanged = false;
   for (const item of state.lists[listType]) {
     const quote = quoteMap.get(normalizeSymbol(item.symbol));
-    if (item.entryPriceTriggered !== true && quote && quote.price >= item.entryPrice) {
-      item.entryPriceTriggered = true;
-      entryTouchChanged = true;
-    }
+    if (quote && advanceEntryTouchState(item, quote.price)) entryTouchChanged = true;
   }
   if (entryTouchChanged) await writeState(userId, state);
   return { items: state.lists[listType].map(item => enrichItem(item, quoteMap, snapshot)), snapshotUpdatedAt: snapshot?.snapshotUpdatedAt || null, snapshotAvailable: snapshot?.status === 'FOUND' };
@@ -124,7 +124,7 @@ async function addWatchlistItem(userId, listType, input) {
   if (!state) throw Object.assign(new Error('کاربر یافت نشد.'), { statusCode: 404 });
   const item = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, listType, symbol, name, entryDate,
-    quantity, entryPrice, targetPrice, stopLoss, entryPriceTriggered: false,
+    quantity, entryPrice, targetPrice, stopLoss, entryTouchVersion: 2, entryPriceArmed: false, entryPriceTriggered: false,
     tradeIntent: input?.tradeIntent === 'BUY' ? 'BUY' : 'WATCH',
     targetAlertEnabled: input?.targetAlertEnabled !== false,
     stopLossAlertEnabled: input?.stopLossAlertEnabled !== false,
@@ -151,6 +151,8 @@ async function updateWatchlistItem(userId, listType, itemId, input) {
   if (input?.stopLoss !== undefined && input.stopLoss !== '' && input.stopLoss != null && !stopLoss) throw Object.assign(new Error('حد ضرر باید عددی بزرگ‌تر از صفر باشد.'), { statusCode: 400 });
   const next = {
     ...item, quantity, entryPrice, targetPrice, stopLoss,
+    entryTouchVersion: 2,
+    entryPriceArmed: entryPrice === item.entryPrice ? item.entryPriceArmed === true : false,
     entryPriceTriggered: entryPrice === item.entryPrice ? item.entryPriceTriggered === true : false,
     tradeIntent: input?.tradeIntent === undefined ? item.tradeIntent : input.tradeIntent === 'BUY' ? 'BUY' : 'WATCH',
     targetAlertEnabled: input?.targetAlertEnabled === undefined ? item.targetAlertEnabled : input.targetAlertEnabled === true,
