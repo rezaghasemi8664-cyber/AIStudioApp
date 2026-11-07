@@ -4,7 +4,7 @@ const prismaModule = require('../config/prisma.cjs');
 const env = require('../config/env.cjs');
 const sharedMarketService = require('./sharedMarket.service.cjs');
 const centralCache = require('./centralMarketCache.service.cjs');
-const MARKET_SUMMARIES_CACHE_KEY = 'market-summary:last-five';
+const MARKET_SUMMARIES_CACHE_KEY = 'market-summary:latest';
 
 function resolvePrismaClient(mod) {
   const candidates = [mod?.prisma, mod?.db, mod?.client, mod?.default, mod];
@@ -29,7 +29,8 @@ function getMarketHistoryModel() { return getModel(prisma, 'MarketHistory', 'mar
 
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
 const TRADING_DAY_NAMES = new Set(['sat', 'sun', 'mon', 'tue', 'wed']);
-const SUMMARY_RETENTION_COUNT = Number(env.MARKET_SUMMARY_RETENTION_COUNT || 5);
+// Only the newest successfully persisted market summary is retained.
+const SUMMARY_RETENTION_COUNT = 1;
 const SAME_DAY_GENERATION_CUTOFF_MINUTES = 12 * 60 + 35;
 
 const FIELD_KEYS = {
@@ -712,9 +713,9 @@ function normalizeSummaryRecord(record, diagnostics = null, includeRawJson = tru
   };
 }
 
-async function retainOnlyLastNSummaries(keep = SUMMARY_RETENTION_COUNT) {
+async function retainOnlyLastNSummaries() {
   const model = getMarketSummaryModel();
-  const n = Number.isInteger(keep) && keep > 0 ? keep : SUMMARY_RETENTION_COUNT;
+  const n = 1;
   const rows = await model.findMany({ select: { id: true, summaryDate: true }, orderBy: [{ summaryDate: 'desc' }, { id: 'desc' }] });
   if (rows.length <= n) return { deletedCount: 0, kept: rows.length, total: rows.length };
   const ids = rows.slice(n).map(r => r.id);
