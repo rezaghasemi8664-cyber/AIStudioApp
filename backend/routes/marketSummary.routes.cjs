@@ -51,6 +51,18 @@ function jsonSafe(value) {
   ));
 }
 
+// SQL Server datetime values in this application are Tehran wall-clock values
+// without an offset. Prisma exposes them as UTC-shaped Date objects; attach the
+// Tehran offset instead of serializing them as UTC and shifting them by +03:30.
+function toTehranWallClockISO(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const pad = number => String(number).padStart(2, '0');
+  const millis = String(date.getUTCMilliseconds()).padStart(3, '0');
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}.${millis}+03:30`;
+}
+
 /**
  * برای مصرف UI، latest باید آخرین رکورد ذخیره‌شده روزانه باشد؛ نه snapshot زنده.
  * این endpoint عمداً به liveMarketSummaryController متصل نیست.
@@ -76,11 +88,15 @@ async function getPersistedLatestMarketSummary(req, res, next) {
 
     return res.json({
       success: true,
-      data: jsonSafe(record),
+      data: {
+        ...jsonSafe(record),
+        createdAt: toTehranWallClockISO(record.createdAt),
+        updatedAt: toTehranWallClockISO(record.updatedAt)
+      },
       cached: true,
       sourceType: 'persisted_daily_summary',
       isStale: false,
-      generatedAt: record.createdAt ? new Date(record.createdAt).toISOString() : null
+      generatedAt: toTehranWallClockISO(record.createdAt)
     });
   } catch (err) {
     return next(err);
