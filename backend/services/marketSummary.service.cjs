@@ -908,12 +908,13 @@ async function ensureRecentTradingDaySummaries(daysBack = 7) {
           });
           if (refreshed?.data) {
             ensured.push({ date: toDateOnlyISO(targetDay), status: 'refreshed', id: refreshed.data.id });
-            continue;
+            break;
           }
         }
       }
       ensured.push({ date: toDateOnlyISO(targetDay), status: 'existing', id: existing.id });
-      continue;
+      // Only the newest existing trading-day summary may remain in storage.
+      break;
     }
 
     // Catch-up can run outside the scheduled cron (including manual/admin calls).
@@ -962,6 +963,8 @@ async function ensureRecentTradingDaySummaries(daysBack = 7) {
     const result = await generateMarketSummary({ marketData, fallbackDate });
     if (result?.data) {
       ensured.push({ date: toDateOnlyISO(targetDay), status: result.generated ? 'created' : 'updated', id: result.data.id });
+      // Do not backfill older days: that would replace the latest summary.
+      break;
     }
   }
 
