@@ -2805,9 +2805,6 @@ const clearCurrentAnalysis = () => {
     ) : (
       <>
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
-          <div className="mb-2 text-[12px] font-bold text-slate-600 dark:text-slate-300">
-            ۵ روز معاملاتی آخر
-          </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
             {marketSummaryHistory.map((item) => {
               const isSelected = item.id === selectedMarketSummaryId;
