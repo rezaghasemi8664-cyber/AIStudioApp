@@ -677,7 +677,7 @@ function normalizeSummaryRecord(record, diagnostics = null, includeRawJson = tru
   const storedContent = firstString(record.content, record.summary, raw.content, raw.summary);
   const generatedContent = storedContent || buildDeterministicSummary({ ...rawData, overallIndex, overallChange, equalIndex, equalChange, totalTrades: record.totalTrades, totalVolume: record.totalVolume, totalValue: record.totalValue, positiveStocks: record.positiveStocks, negativeStocks: record.negativeStocks, neutralStocks: record.neutralStocks, topGainers: parseJsonSafe(record.topGainers), topLosers: parseJsonSafe(record.topLosers), topVolumes: parseJsonSafe(record.topVolumes) });
   // Remove the legacy five-session comparison sentence from previously saved summaries.
-  const content = generatedContent.replace(/؛\\s*میانگین قدرمطلق تغییرات[\\s\\S]*?است\\./g, '');
+  const content = generatedContent.replace(/؛\s*میانگین قدرمطلق تغییرات[\s\S]*?است\./g, '');
   return {
     id: record.id,
     date: toDateOnlyISO(record.summaryDate || record.date || record.createdAt),
