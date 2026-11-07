@@ -7,7 +7,7 @@ type WatchItem = {
   id: string; listType: ListType; symbol: string; name: string; entryDate: string; quantity: number; tradeIntent?: 'BUY' | 'WATCH';
   entryPrice: number; targetPrice: number | null; stopLoss: number | null; currentPrice: number | null;
   pnl: number | null; pnlPercent: number | null; targetAlertEnabled: boolean; stopLossAlertEnabled: boolean;
-  targetAlertTriggered: boolean; stopLossAlertTriggered: boolean; quoteAvailable: boolean;
+  targetAlertTriggered: boolean; stopLossAlertTriggered: boolean; quoteAvailable: boolean; entryPriceTriggered?: boolean;
 };
 const labels: Record<ListType, string> = { scalping: 'سبد نوسان‌گیری', valuable: 'سبد ارزنده‌ها' };
 const money = (value: number | null | undefined) => value == null || !Number.isFinite(value) ? '—' : new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(value);
@@ -30,6 +30,8 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
   const [targetAlertEnabled, setTargetAlertEnabled] = useState(true);
   const [stopLossAlertEnabled, setStopLossAlertEnabled] = useState(true);
   const [tradeIntent, setTradeIntent] = useState<'BUY' | 'WATCH'>('WATCH');
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState({ quantity: '', entryPrice: '', targetPrice: '', stopLoss: '' });
 
   const load = useCallback(async () => {
     if (!isOnline) { setLoading(false); setError('برای دریافت سبد به اتصال سرور نیاز است.'); return; }
@@ -76,6 +78,31 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
       setSymbol(''); setName(''); setQuantity(''); setEntryPrice(''); setTargetPrice(''); setStopLoss('');
       setEntryDate(jalaliToday()); setTargetAlertEnabled(true); setStopLossAlertEnabled(true); setTradeIntent('WATCH');
       setNotice('نماد با موفقیت در سبد ذخیره شد.');
+      await load();
+    } catch (e) { setError(errorMessage(e)); }
+    finally { setSaving(false); }
+  };
+
+  const beginEdit = (item: WatchItem) => {
+    setEditingItemId(item.id);
+    setEditDraft({ quantity: String(item.quantity), entryPrice: String(item.entryPrice), targetPrice: item.targetPrice == null ? '' : String(item.targetPrice), stopLoss: item.stopLoss == null ? '' : String(item.stopLoss) });
+    setError(''); setNotice('');
+  };
+
+  const saveEdit = async (event: React.FormEvent, item: WatchItem) => {
+    event.preventDefault();
+    const quantityValue = Number(editDraft.quantity);
+    const entryValue = Number(editDraft.entryPrice);
+    const targetValue = editDraft.targetPrice.trim() === '' ? null : Number(editDraft.targetPrice);
+    const stopValue = editDraft.stopLoss.trim() === '' ? null : Number(editDraft.stopLoss);
+    if (!Number.isFinite(quantityValue) || quantityValue <= 0 || !Number.isFinite(entryValue) || entryValue <= 0 || (targetValue !== null && (!Number.isFinite(targetValue) || targetValue <= 0)) || (stopValue !== null && (!Number.isFinite(stopValue) || stopValue <= 0))) {
+      setError('تعداد سهم و قیمت ورود باید بزرگ‌تر از صفر باشند؛ هدف و حد ضرر نیز در صورت ثبت باید معتبر باشند.'); return;
+    }
+    setSaving(true); setError(''); setNotice('');
+    try {
+      await api.put(`/trade-watchlists/${listType}/${encodeURIComponent(item.id)}`, { quantity: quantityValue, entryPrice: entryValue, targetPrice: targetValue == null ? '' : targetValue, stopLoss: stopValue == null ? '' : stopValue });
+      setEditingItemId(null);
+      setNotice(`اطلاعات نماد ${item.symbol} با موفقیت به‌روزرسانی شد.`);
       await load();
     } catch (e) { setError(errorMessage(e)); }
     finally { setSaving(false); }
@@ -151,16 +178,16 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
         <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
           <table className="min-w-[1100px] w-full text-sm">
             <thead className="bg-[var(--color-surface)]"><tr>{['نماد','وضعیت','تاریخ ورود','تعداد','قیمت ورود','هدف قیمتی','حد ضرر','قیمت فعلی','سود/زیان مبلغی','سود/زیان درصدی','هشدارها','عملیات'].map(title => <th key={title} className="whitespace-nowrap p-3 text-right">{title}</th>)}</tr></thead>
-            <tbody>{sortedItems.map(item => <tr key={item.id} className={`border-t border-[var(--color-border)] ${item.tradeIntent === 'BUY' ? 'bg-emerald-500/10' : 'bg-amber-500/5'}`}>
+            <tbody>{sortedItems.map(item => <><tr key={item.id} className={`border-t border-[var(--color-border)] ${item.tradeIntent === 'BUY' ? 'bg-emerald-500/10' : 'bg-amber-500/5'}`}>
               <td className="p-3 font-bold">{item.symbol}<div className="text-xs font-normal text-[var(--color-text-secondary)]">{item.name}</div></td>
               <td className="p-3"><span className={`rounded-full px-2 py-1 text-xs font-bold ${item.tradeIntent === 'BUY' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'}`}>{item.tradeIntent === 'BUY' ? 'خرید' : 'پایش'}</span></td>
-              <td className="whitespace-nowrap p-3">{item.entryDate}</td><td className="p-3">{money(item.quantity)}</td><td className="p-3">{money(item.entryPrice)}</td>
+              <td className="whitespace-nowrap p-3">{item.entryDate}</td><td className="p-3">{money(item.quantity)}</td><td className="p-3"><div>{money(item.entryPrice)}</div>{item.entryPriceTriggered && <div className="mt-1 text-xs font-bold text-emerald-600">تاچ شد</div>}</td>
               <td className="p-3">{money(item.targetPrice)}</td><td className="p-3">{money(item.stopLoss)}</td><td className="p-3">{money(item.currentPrice)}</td>
               <td className={`p-3 font-bold ${(item.pnl ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{money(item.pnl)}</td>
               <td className={`p-3 font-bold ${(item.pnlPercent ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{item.pnlPercent == null ? '—' : `${money(item.pnlPercent)}٪`}</td>
               <td className="p-3"><div className="flex flex-col gap-1 text-xs"><span className={item.targetAlertEnabled ? 'text-emerald-600' : 'text-gray-400'}>{item.targetAlertEnabled ? 'هدف فعال' : 'هدف غیرفعال'}{item.targetAlertTriggered ? ' · صادر شد' : ''}</span><span className={item.stopLossAlertEnabled ? 'text-red-600' : 'text-gray-400'}>{item.stopLossAlertEnabled ? 'حد ضرر فعال' : 'حد ضرر غیرفعال'}{item.stopLossAlertTriggered ? ' · صادر شد' : ''}</span></div></td>
-              <td className="p-3"><div className="flex flex-col gap-2"><button type="button" onClick={() => void editAlerts(item)} className="whitespace-nowrap rounded-md border border-cyan-500/30 px-3 py-1 text-cyan-600 hover:bg-cyan-500/10">تنظیم هشدار</button><button type="button" onClick={() => void remove(item)} className="whitespace-nowrap rounded-md border border-red-500/30 px-3 py-1 text-red-600 hover:bg-red-500/10">حذف</button></div></td>
-            </tr>)}</tbody>
+              <td className="p-3"><div className="flex flex-col gap-2"><button type="button" onClick={() => beginEdit(item)} className="whitespace-nowrap rounded-md border border-emerald-500/30 px-3 py-1 text-emerald-600 hover:bg-emerald-500/10">ویرایش</button><button type="button" onClick={() => void editAlerts(item)} className="whitespace-nowrap rounded-md border border-cyan-500/30 px-3 py-1 text-cyan-600 hover:bg-cyan-500/10">تنظیم هشدار</button><button type="button" onClick={() => void remove(item)} className="whitespace-nowrap rounded-md border border-red-500/30 px-3 py-1 text-red-600 hover:bg-red-500/10">حذف</button></div></td>
+            </tr>{editingItemId === item.id && <tr className="border-t border-[var(--color-border)] bg-[var(--color-surface)]"><td colSpan={12} className="p-4"><form onSubmit={event => void saveEdit(event, item)} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5"><label className="text-xs">تعداد سهم<input required type="number" min="0.000001" step="any" value={editDraft.quantity} onChange={e => setEditDraft(current => ({ ...current, quantity: e.target.value }))} className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2 text-sm" /></label><label className="text-xs">قیمت ورود<input required type="number" min="0.01" step="any" value={editDraft.entryPrice} onChange={e => setEditDraft(current => ({ ...current, entryPrice: e.target.value }))} className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2 text-sm" /></label><label className="text-xs">هدف قیمتی<input type="number" min="0.01" step="any" value={editDraft.targetPrice} onChange={e => setEditDraft(current => ({ ...current, targetPrice: e.target.value }))} placeholder="اختیاری" className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2 text-sm" /></label><label className="text-xs">حد ضرر<input type="number" min="0.01" step="any" value={editDraft.stopLoss} onChange={e => setEditDraft(current => ({ ...current, stopLoss: e.target.value }))} placeholder="اختیاری" className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2 text-sm" /></label><div className="flex items-end gap-2"><button type="submit" disabled={saving} className="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">{saving ? 'در حال ذخیره…' : 'ذخیره تغییرات'}</button><button type="button" onClick={() => setEditingItemId(null)} className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm">انصراف</button></div></form></td></tr>}</>)}</tbody>
           </table>
         </div>
       )}

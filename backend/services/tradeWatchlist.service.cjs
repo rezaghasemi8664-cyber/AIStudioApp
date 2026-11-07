@@ -42,6 +42,7 @@ function normalizeItem(item) {
     id: String(item.id), listType: item.listType === 'valuable' ? 'valuable' : 'scalping',
     symbol, name: String(item.name || symbol), entryDate: String(item.entryDate || ''),
     quantity, entryPrice, targetPrice: normalizePrice(item.targetPrice), stopLoss: normalizePrice(item.stopLoss),
+    entryPriceTriggered: item.entryPriceTriggered === true,
     tradeIntent: item.tradeIntent === 'BUY' ? 'BUY' : 'WATCH',
     targetAlertEnabled: item.targetAlertEnabled !== false, stopLossAlertEnabled: item.stopLossAlertEnabled !== false,
     targetAlertTriggered: item.targetAlertTriggered === true, stopLossAlertTriggered: item.stopLossAlertTriggered === true,
@@ -94,6 +95,15 @@ async function getWatchlist(userId, listType) {
   let snapshot = null;
   try { snapshot = await snapshotService.getSnapshot(); } catch (error) { console.error('[TRADE-WATCHLIST] Snapshot read failed:', error.message); }
   const quoteMap = buildQuoteMap(snapshot);
+  let entryTouchChanged = false;
+  for (const item of state.lists[listType]) {
+    const quote = quoteMap.get(normalizeSymbol(item.symbol));
+    if (item.entryPriceTriggered !== true && quote && quote.price >= item.entryPrice) {
+      item.entryPriceTriggered = true;
+      entryTouchChanged = true;
+    }
+  }
+  if (entryTouchChanged) await writeState(userId, state);
   return { items: state.lists[listType].map(item => enrichItem(item, quoteMap, snapshot)), snapshotUpdatedAt: snapshot?.snapshotUpdatedAt || null, snapshotAvailable: snapshot?.status === 'FOUND' };
 }
 async function addWatchlistItem(userId, listType, input) {
@@ -114,7 +124,7 @@ async function addWatchlistItem(userId, listType, input) {
   if (!state) throw Object.assign(new Error('کاربر یافت نشد.'), { statusCode: 404 });
   const item = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, listType, symbol, name, entryDate,
-    quantity, entryPrice, targetPrice, stopLoss,
+    quantity, entryPrice, targetPrice, stopLoss, entryPriceTriggered: false,
     tradeIntent: input?.tradeIntent === 'BUY' ? 'BUY' : 'WATCH',
     targetAlertEnabled: input?.targetAlertEnabled !== false,
     stopLossAlertEnabled: input?.stopLossAlertEnabled !== false,
@@ -131,12 +141,17 @@ async function updateWatchlistItem(userId, listType, itemId, input) {
   const index = state.lists[listType].findIndex(item => item.id === String(itemId));
   if (index < 0) throw Object.assign(new Error('نماد موردنظر در این سبد یافت نشد.'), { statusCode: 404 });
   const item = state.lists[listType][index];
+  const quantity = input?.quantity === undefined ? item.quantity : Number(normalizeDigits(input.quantity));
+  const entryPrice = input?.entryPrice === undefined ? item.entryPrice : normalizePrice(input.entryPrice);
   const targetPrice = input?.targetPrice === undefined ? item.targetPrice : normalizePrice(input.targetPrice);
   const stopLoss = input?.stopLoss === undefined ? item.stopLoss : normalizePrice(input.stopLoss);
+  if (!Number.isFinite(quantity) || quantity <= 0) throw Object.assign(new Error('تعداد سهم باید عددی بزرگ‌تر از صفر باشد.'), { statusCode: 400 });
+  if (!entryPrice) throw Object.assign(new Error('قیمت ورود باید عددی بزرگ‌تر از صفر باشد.'), { statusCode: 400 });
   if (input?.targetPrice !== undefined && input.targetPrice !== '' && input.targetPrice != null && !targetPrice) throw Object.assign(new Error('هدف قیمتی باید عددی بزرگ‌تر از صفر باشد.'), { statusCode: 400 });
   if (input?.stopLoss !== undefined && input.stopLoss !== '' && input.stopLoss != null && !stopLoss) throw Object.assign(new Error('حد ضرر باید عددی بزرگ‌تر از صفر باشد.'), { statusCode: 400 });
   const next = {
-    ...item, targetPrice, stopLoss,
+    ...item, quantity, entryPrice, targetPrice, stopLoss,
+    entryPriceTriggered: entryPrice === item.entryPrice ? item.entryPriceTriggered === true : false,
     tradeIntent: input?.tradeIntent === undefined ? item.tradeIntent : input.tradeIntent === 'BUY' ? 'BUY' : 'WATCH',
     targetAlertEnabled: input?.targetAlertEnabled === undefined ? item.targetAlertEnabled : input.targetAlertEnabled === true,
     stopLossAlertEnabled: input?.stopLossAlertEnabled === undefined ? item.stopLossAlertEnabled : input.stopLossAlertEnabled === true,
