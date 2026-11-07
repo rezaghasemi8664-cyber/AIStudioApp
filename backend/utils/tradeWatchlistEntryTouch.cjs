@@ -5,19 +5,14 @@
 // a quote below entry, then accept an exact touch or an upward crossing.
 function advanceEntryTouchState(item, currentPrice) {
   if (!item || item.entryPriceTriggered === true || !Number.isFinite(currentPrice)) return false;
-  if (currentPrice === Number(item.entryPrice)) {
-    item.entryPriceTriggered = true;
-    item.entryPriceArmed = false;
-    return true;
-  }
-  if (currentPrice < Number(item.entryPrice)) {
-    if (item.entryPriceArmed !== true) {
-      item.entryPriceArmed = true;
-      return true;
-    }
+  // An initial quote on either side of entry is only a baseline, not a touch.
+  // After the baseline, any subsequent quote at or below entry confirms the
+  // first touch, including a decline from above entry.
+  if (item.entryPriceArmed !== true) {
+    item.entryPriceArmed = true;
     return false;
   }
-  if (currentPrice > Number(item.entryPrice) && item.entryPriceArmed === true) {
+  if (currentPrice <= Number(item.entryPrice)) {
     item.entryPriceTriggered = true;
     item.entryPriceArmed = false;
     return true;
