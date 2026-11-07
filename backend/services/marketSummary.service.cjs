@@ -664,6 +664,20 @@ function buildDeterministicSummary(data) {
   ].join('\n\n');
 }
 
+function removeLegacyFiveSessionText(value) {
+  if (typeof value !== 'string' || !value) return value;
+  const legacyPattern = /(?:میانگین\\s+قدر\\s*مطلق\\s+تغییرات|(?:۵|5|پنج)\\s*(?:روز|جلسه)(?:\\s+معاملاتی)?\\s*(?:آخر|اخیر)|(?:آخر|اخیر)\\s*(?:۵|5|پنج)\\s*(?:روز|جلسه)(?:\\s+معاملاتی)?)/i;
+  return value
+    .split(/\\n+/)
+    .map(paragraph => paragraph
+      .split(/(?<=[.!؟؛;])\\s*/)
+      .filter(sentence => !legacyPattern.test(sentence))
+      .join(' ')
+    )
+    .filter(Boolean)
+    .join('\\n\\n');
+}
+
 function normalizeSummaryRecord(record, diagnostics = null, includeRawJson = true) {
   if (!record) return null;
   const raw = parseJsonSafe(record.rawJson) || {};
