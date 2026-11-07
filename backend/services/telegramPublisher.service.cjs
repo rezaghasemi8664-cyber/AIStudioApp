@@ -178,20 +178,80 @@ function renderIndexMessage(row, date = new Date()) {
   ].join('\n');
 }
 
-function renderSummaryMessage(row) {
-  const content = String(row?.content || row?.summary || '').trim();
-  if (!content) return null;
+const SUMMARY_TELEGRAM_PART_MAX_LENGTH = 1700;
+let summaryPublishInFlight = false;
+
+function getSummaryMessageHeader(row, partNumber, totalParts) {
   const sourceDate = row?.summaryDate || row?.date || row?.createdAt;
-  if (!sourceDate || !Number.isFinite(new Date(sourceDate).getTime())) return null;
+  const created = row?.createdAt || row?.date || sourceDate;
   const formatDate = value => new Intl.DateTimeFormat('fa-IR', {
     timeZone: TEHRAN_TIMEZONE, dateStyle: 'short'
   }).format(new Date(value));
   const formatDateTime = value => new Intl.DateTimeFormat('fa-IR', {
     timeZone: TEHRAN_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
   }).format(new Date(value));
+  return '🧾 رونیا | خلاصه بازار\n' +
+    'تاریخ بازار: ' + formatDate(sourceDate) +
+    '\nزمان ثبت خلاصه در دیتابیس: ' + formatDateTime(created) +
+    '\nادامه خلاصه بازار | بخش ' + partNumber + ' از ' + totalParts;
+}
+
+function renderSummaryMessage(row) {
+  const content = String(row?.content || row?.summary || '').trim();
+  const sourceDate = row?.summaryDate || row?.date || row?.createdAt;
+  if (!content || !sourceDate || !Number.isFinite(new Date(sourceDate).getTime())) return null;
   const created = row?.createdAt || row?.date || sourceDate;
-  return ('🧾 رونیا | آخرین خلاصه ذخیره‌شده بازار بورس\nتاریخ بازار: ' + formatDate(sourceDate) +
-    '\nزمان ثبت خلاصه در دیتابیس: ' + formatDateTime(created) + '\n\n' + content).slice(0, 3900);
+  const formatDate = value => new Intl.DateTimeFormat('fa-IR', {
+    timeZone: TEHRAN_TIMEZONE, dateStyle: 'short'
+  }).format(new Date(value));
+  const formatDateTime = value => new Intl.DateTimeFormat('fa-IR', {
+    timeZone: TEHRAN_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
+  }).format(new Date(value));
+  return '🧾 رونیا | خلاصه بازار\nتاریخ بازار: ' + formatDate(sourceDate) +
+    '\nزمان ثبت خلاصه در دیتابیس: ' + formatDateTime(created) + '\n\n' + content;
+}
+
+function renderSummaryMessages(row, maxLength = SUMMARY_TELEGRAM_PART_MAX_LENGTH) {
+  const fullMessage = renderSummaryMessage(row);
+  if (!fullMessage) return null;
+  const content = String(row?.content || row?.summary || '').trim();
+  const paragraphs = content.split(/\\r?\\n\\s*\\r?\\n/).map(item => item.trim()).filter(Boolean);
+  if (!paragraphs.length) return null;
+
+  const headerReserve = getSummaryMessageHeader(row, 999, 999);
+  const contentBudget = maxLength - headerReserve.length - 2;
+  if (contentBudget <= 0) throw new Error('SUMMARY_HEADER_EXCEEDS_PART_LIMIT');
+
+  const groups = [];
+  let current = '';
+  for (const paragraph of paragraphs) {
+    if (paragraph.length > contentBudget) {
+      const error = new Error('SUMMARY_PARAGRAPH_EXCEEDS_PART_LIMIT');
+      error.code = 'SUMMARY_PARAGRAPH_EXCEEDS_PART_LIMIT';
+      error.paragraphLength = paragraph.length;
+      error.maxParagraphLength = contentBudget;
+      throw error;
+    }
+    const candidate = current ? current + '\n\n' + paragraph : paragraph;
+    if (candidate.length > contentBudget && current) {
+      groups.push(current);
+      current = paragraph;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) groups.push(current);
+
+  const total = groups.length;
+  return groups.map((group, index) => {
+    const message = getSummaryMessageHeader(row, index + 1, total) + '\n\n' + group;
+    if (message.length > maxLength) {
+      const error = new Error('SUMMARY_PART_EXCEEDS_TELEGRAM_LIMIT');
+      error.code = 'SUMMARY_PART_EXCEEDS_TELEGRAM_LIMIT';
+      throw error;
+    }
+    return message;
+  });
 }
 
 async function publishIndexIfScheduled(now = new Date(), suppliedSettings) {
@@ -338,21 +398,64 @@ async function publishScalpingOpportunitiesIfAny(now = new Date(), suppliedSetti
 }
 
 async function publishTodaySummaryIfReady(now = new Date(), suppliedSettings) {
-  const settings = suppliedSettings || await getTelegramPublisherSettings();
-  const schedule = settings.summary;
-  if (!schedule.enabled) return { skipped: true, reason: 'DISABLED_BY_ADMIN' };
-  if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
-  if (tehranSlot(now) < schedule.publishTime) return { skipped: true, reason: 'BEFORE_SUMMARY_SLOT' };
-  const state = await loadState();
-  const row = await prisma.marketSummary.findFirst({ orderBy: [{ summaryDate: 'desc' }, { createdAt: 'desc' }] });
-  if (!row) return { skipped: true, reason: 'NO_STORED_MARKET_SUMMARY' };
-  const identity = tehranDateKey(now) + '#' + String(row.id);
-  if (state.lastSummaryIdentity === identity) return { skipped: true, reason: 'ALREADY_PUBLISHED' };
-  const message = renderSummaryMessage(row);
-  if (!message) return { skipped: true, reason: 'SUMMARY_INCOMPLETE' };
-  await sendAndRecord('summary', message, now);
-  await saveState({ ...state, lastSummaryIdentity: identity });
-  return { published: true, identity };
+  if (summaryPublishInFlight) return { skipped: true, reason: 'SUMMARY_PUBLISH_ALREADY_RUNNING' };
+  summaryPublishInFlight = true;
+  try {
+    const settings = suppliedSettings || await getTelegramPublisherSettings();
+    const schedule = settings.summary;
+    if (!schedule.enabled) return { skipped: true, reason: 'DISABLED_BY_ADMIN' };
+    if (!isAllowedWeekday(now, schedule.days)) return { skipped: true, reason: 'WEEKDAY_NOT_ENABLED' };
+    if (tehranSlot(now) < schedule.publishTime) return { skipped: true, reason: 'BEFORE_SUMMARY_SLOT' };
+
+    let state = await loadState();
+    const row = await prisma.marketSummary.findFirst({ orderBy: [{ summaryDate: 'desc' }, { createdAt: 'desc' }] });
+    if (!row) return { skipped: true, reason: 'NO_STORED_MARKET_SUMMARY' };
+    const identity = tehranDateKey(now) + '#' + String(row.id);
+    if (state.lastSummaryIdentity === identity) return { skipped: true, reason: 'ALREADY_PUBLISHED' };
+
+    const messages = renderSummaryMessages(row);
+    if (!messages?.length) return { skipped: true, reason: 'SUMMARY_INCOMPLETE' };
+
+    let progress = state.summaryProgress;
+    if (!progress || progress.identity !== identity || !Array.isArray(progress.sentParts) ||
+        progress.totalParts !== messages.length || !Array.isArray(progress.messages) ||
+        progress.messages.length !== messages.length) {
+      progress = {
+        identity,
+        totalParts: messages.length,
+        messages,
+        sentParts: [],
+        startedAt: now.toISOString(),
+        updatedAt: now.toISOString()
+      };
+      state = { ...state, summaryProgress: progress };
+      await saveState(state);
+    }
+
+    // Always send in order. A later part is never attempted while an earlier part is pending.
+    for (let index = 0; index < progress.totalParts; index += 1) {
+      if (progress.sentParts.includes(index + 1)) continue;
+      const message = progress.messages[index];
+      await sendAndRecord('summary', message, now);
+      progress = {
+        ...progress,
+        sentParts: [...progress.sentParts, index + 1].sort((a, b) => a - b),
+        updatedAt: new Date().toISOString()
+      };
+      state = { ...state, summaryProgress: progress };
+      await saveState(state);
+    }
+
+    await saveState({
+      ...state,
+      lastSummaryIdentity: identity,
+      lastSummaryPublishedAt: now.toISOString(),
+      summaryProgress: { ...progress, completedAt: now.toISOString() }
+    });
+    return { published: true, identity, totalParts: messages.length, sentParts: progress.sentParts };
+  } finally {
+    summaryPublishInFlight = false;
+  }
 }
 
 async function sendAndRecord(type, message, now = new Date()) {
@@ -395,7 +498,7 @@ async function runTelegramPublisherTick(now = new Date()) {
 module.exports = {
   STATE_KEY, isTradingWeekday, isTradingSession, tehranDateKey, tehranSlot,
   isFresh, formatPercent, normalizeValuableResults, getImportantSymbolChanges,
-  renderValuableChanges, renderIndexMessage, renderSummaryMessage, getScalpingOpportunityQuery,
+  renderValuableChanges, renderIndexMessage, renderSummaryMessage, renderSummaryMessages, getScalpingOpportunityQuery,
   publishIndexIfScheduled, publishValuableChangesIfAny, publishScalpingOpportunitiesIfAny, publishTodaySummaryIfReady,
   runTelegramPublisherTick, sendAndRecord
 };
