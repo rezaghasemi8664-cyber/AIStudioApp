@@ -45,6 +45,8 @@ export default {
         // Preserve JSON and multipart bodies byte-for-byte.
         body: await request.arrayBuffer(),
         redirect: "manual",
+        // Return a controlled timeout before the backend's 45-second limit.
+        signal: AbortSignal.timeout(35_000),
       });
 
       const responseHeaders = new Headers({
@@ -59,15 +61,19 @@ export default {
         status: upstream.status,
         headers: responseHeaders,
       });
-    } catch {
+    } catch (error) {
       // Do not expose upstream exceptions or token-bearing URLs.
-      return new Response("Telegram upstream unavailable", {
-        status: 502,
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
-          "Cache-Control": "no-store",
-        },
-      });
+      const timedOut = error?.name === "TimeoutError" || error?.name === "AbortError";
+      return new Response(
+        timedOut ? "Telegram upstream timeout" : "Telegram upstream unavailable",
+        {
+          status: timedOut ? 504 : 502,
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Cache-Control": "no-store",
+          },
+        }
+      );
     }
   },
 };
