@@ -16,18 +16,21 @@ describe('calculateScalpingPriceLevels', () => {
     expect(levels).toBeNull();
   });
 
-  test('calculates BUY breakout only when reward/risk is at least 1.2 and prices fit the daily band', () => {
+  test('prefers a valid BUY support pullback when its reward/risk meets the minimum', () => {
     const candles = Array.from({ length: 30 }, () => ({
       open: 1000, high: 1002, low: 998, close: 1001, volume: 1000
     }));
     const levels = calculateScalpingPriceLevels(candles, 'BUY', 1001, normalMarket);
     expect(levels).not.toBeNull();
-    expect(levels.entryPrice).toBeGreaterThan(levels.resistance);
-    expect(levels.entryPrice).toBeLessThanOrEqual(normalMarket.allowedMax);
-    expect(levels.targetPrice).toBeGreaterThan(levels.entryPrice);
-    expect(levels.stopLossPrice).toBeLessThan(levels.entryPrice);
+    expect(levels.method).toBe('support-pullback-atr-v2');
+    expect(levels.entryType).toBe('PENDING_PULLBACK');
+    expect(levels.entryPrice).toBe(998.6);
+    expect(levels.entryPrice).toBeLessThan(1001);
+    expect(levels.targetPrice).toBe(1002);
+    expect(levels.stopLossPrice).toBe(996);
+    expect(levels.entryPrice).toBeGreaterThanOrEqual(normalMarket.allowedMin);
+    expect(levels.targetPrice).toBeLessThanOrEqual(normalMarket.allowedMax);
     expect((levels.targetPrice - levels.entryPrice) / (levels.entryPrice - levels.stopLossPrice)).toBeGreaterThanOrEqual(1.2);
-    expect(levels.method).toBe('swing-resistance-atr');
   });
 
   test('rejects SELL breakdown when a distant resistance makes reward/risk inadequate', () => {
@@ -139,20 +142,22 @@ describe('calculateScalpingPriceLevels', () => {
     })).toBeNull();
   });
 
-  test('uses a validated at-market continuation when a breakout trigger exceeds the daily ceiling', () => {
+  test('prefers a valid BUY support pullback when the breakout trigger exceeds the daily ceiling', () => {
     const candles = Array.from({ length: 30 }, () => ({
       open: 1000, high: 1004, low: 1000, close: 1000, volume: 1000
     }));
     candles[candles.length - 1] = { open: 1000, high: 1004, low: 1000, close: 1001, volume: 1000 };
-    const levels = calculateScalpingPriceLevels(candles, 'BUY', 1001, {
-      allowedMin: 990, allowedMax: 1004, orderBook: { buy: [], sell: [] }
-    });
+    const market = { allowedMin: 990, allowedMax: 1004, orderBook: { buy: [], sell: [] } };
+    const levels = calculateScalpingPriceLevels(candles, 'BUY', 1001, market);
     expect(levels).not.toBeNull();
-    expect(levels.method).toBe('at-market-continuation-atr-v1');
-    expect(levels.entryPrice).toBe(1001);
-    expect(levels.entryPrice).toBeLessThanOrEqual(1004);
-    expect(levels.targetPrice).toBeGreaterThan(levels.entryPrice);
-    expect(levels.stopLossPrice).toBeLessThan(levels.entryPrice);
+    expect(levels.method).toBe('support-pullback-atr-v2');
+    expect(levels.entryType).toBe('PENDING_PULLBACK');
+    expect(levels.entryPrice).toBe(1000.6);
+    expect(levels.entryPrice).toBeLessThan(1001);
+    expect(levels.targetPrice).toBe(1004);
+    expect(levels.stopLossPrice).toBe(998);
+    expect(levels.entryPrice).toBeGreaterThanOrEqual(market.allowedMin);
+    expect(levels.targetPrice).toBeLessThanOrEqual(market.allowedMax);
     expect((levels.targetPrice - levels.entryPrice) / (levels.entryPrice - levels.stopLossPrice)).toBeGreaterThanOrEqual(1.2);
   });
 
