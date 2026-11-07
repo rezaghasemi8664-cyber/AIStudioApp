@@ -716,21 +716,27 @@ function normalizeSummaryRecord(record, diagnostics = null, includeRawJson = tru
 
 async function retainOnlyLastNSummaries() {
   const model = getMarketSummaryModel();
-  const n = 1;
-  const rows = await model.findMany({ select: { id: true, summaryDate: true }, orderBy: [{ summaryDate: 'desc' }, { id: 'desc' }] });
-  if (rows.length <= n) {
-    if (rows.length === 1) {
-      const latest = await model.findUnique({ where: { id: rows[0].id } });
-      const cleanContent = String(latest?.content || latest?.summary || '').replace(/؛\\s*میانگین قدرمطلق تغییرات[\\s\\S]*?است\\./g, '');
-      if (latest && cleanContent !== String(latest.content || latest.summary || '')) {
-        await model.update({ where: { id: latest.id }, data: { content: cleanContent, summary: cleanContent } });
-      }
-    }
-    return { deletedCount: 0, kept: rows.length, total: rows.length };
+  const rows = await model.findMany({
+    select: { id: true, summaryDate: true },
+    orderBy: [{ summaryDate: 'desc' }, { id: 'desc' }]
+  });
+  if (!rows.length) return { deletedCount: 0, kept: 0, total: 0 };
+
+  const latestRow = rows[0];
+  const olderIds = rows.slice(1).map(row => row.id);
+  const deleted = olderIds.length
+    ? await model.deleteMany({ where: { id: { in: olderIds } } })
+    : { count: 0 };
+
+  // Clean the legacy five-session sentence from the retained database record.
+  const latest = await model.findUnique({ where: { id: latestRow.id } });
+  const previousContent = String(latest?.content || latest?.summary || '');
+  const cleanContent = previousContent.replace(/؛\s*میانگین قدرمطلق تغییرات[\s\S]*?است\./g, '');
+  if (latest && cleanContent !== previousContent) {
+    await model.update({ where: { id: latest.id }, data: { content: cleanContent, summary: cleanContent } });
   }
-  const ids = rows.slice(n).map(r => r.id);
-  const deleted = await model.deleteMany({ where: { id: { in: ids } } });
-  return { deletedCount: deleted.count || 0, kept: n, total: rows.length };
+
+  return { deletedCount: deleted.count || 0, kept: 1, total: rows.length };
 }
 
 async function findLatestUsableMarketHistoryRow() {
