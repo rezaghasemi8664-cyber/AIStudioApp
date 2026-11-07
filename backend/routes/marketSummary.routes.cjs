@@ -56,7 +56,7 @@ function jsonSafe(value) {
 // Tehran offset instead of serializing them as UTC and shifting them by +03:30.
 function removeLegacyFiveSessionText(value) {
   return typeof value === 'string'
-    ? value.replace(/؛\\s*میانگین قدرمطلق تغییرات[\\s\\S]*?است\\./g, '')
+    ? value.replace(/؛\s*میانگین قدرمطلق تغییرات[\s\S]*?است\./g, '')
     : value;
 }
 
