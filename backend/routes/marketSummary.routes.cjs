@@ -55,11 +55,18 @@ function jsonSafe(value) {
 // without an offset. Prisma exposes them as UTC-shaped Date objects; attach the
 // Tehran offset instead of serializing them as UTC and shifting them by +03:30.
 function removeLegacyFiveSessionText(value) {
-  return typeof value === 'string'
-    ? value.replace(/؛\s*میانگین قدرمطلق تغییرات[\s\S]*?است\./g, '')
-    : value;
+  if (typeof value !== 'string' || !value) return value;
+  const legacyPattern = /(?:میانگین\s+قدر\s*مطلق\s+تغییرات|(?:۵|5|پنج)\s*(?:روز|جلسه)(?:\s+معاملاتی)?\s*(?:آخر|اخیر)|(?:آخر|اخیر)\s*(?:۵|5|پنج)\s*(?:روز|جلسه)(?:\s+معاملاتی)?)/i;
+  return value
+    .split(/\n+/)
+    .map(paragraph => paragraph
+      .split(/(?<=[.!؟؛;])\s*/)
+      .filter(sentence => !legacyPattern.test(sentence))
+      .join(' ')
+    )
+    .filter(Boolean)
+    .join('\n\n');
 }
-
 function toTehranWallClockISO(value) {
   if (!value) return null;
   const date = new Date(value);
