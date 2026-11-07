@@ -3,7 +3,7 @@
 const {
   isTradingWeekday, isTradingSession, tehranDateKey, tehranSlot,
   isFresh, formatPercent, normalizeValuableResults, getImportantSymbolChanges,
-  renderSummaryMessage, renderIndexMessage, getScalpingOpportunityQuery
+  renderSummaryMessage, renderSummaryMessages, renderIndexMessage, getScalpingOpportunityQuery
 } = require('../services/telegramPublisher.service.cjs');
 const { DEFAULT_SETTINGS, normalizeSettings, validateSettings, isAllowedWeekday, isIntervalDue, isBeforeEndTime } = require('../services/telegramPublisherSettings.service.cjs');
 
@@ -129,5 +129,27 @@ describe('Telegram publisher helpers', () => {
     expect(message).toContain('تاریخ بازار:');
     expect(message).toContain('زمان ثبت خلاصه در دیتابیس:');
     expect(message).toContain('خلاصه ثبت‌شده در دیتابیس');
+  });
+  test('splits market summary only between complete paragraphs and numbers every part', () => {
+    const paragraphs = ['بند اول ' + 'الف'.repeat(690), 'بند دوم ' + 'ب'.repeat(690), 'بند سوم ' + 'پ'.repeat(690)];
+    const parts = renderSummaryMessages({
+      content: paragraphs.join('\\n\\n'),
+      summaryDate: new Date('2026-10-14T00:00:00.000Z'),
+      createdAt: new Date('2026-10-14T10:05:00.000Z')
+    });
+    expect(parts).toHaveLength(2);
+    expect(parts.every(part => part.length <= 1700)).toBe(true);
+    expect(parts[0]).toContain('بخش 1 از 2');
+    expect(parts[1]).toContain('بخش 2 از 2');
+    expect(parts[0]).toContain(paragraphs[0]);
+    expect(parts[0]).toContain(paragraphs[1]);
+    expect(parts[1]).toContain(paragraphs[2]);
+  });
+  test('does not cut a paragraph that is too long for one Telegram summary part', () => {
+    expect(() => renderSummaryMessages({
+      content: 'بند بلند ' + 'الف'.repeat(1700),
+      summaryDate: new Date('2026-10-14T00:00:00.000Z'),
+      createdAt: new Date('2026-10-14T10:05:00.000Z')
+    })).toThrow('SUMMARY_PARAGRAPH_EXCEEDS_PART_LIMIT');
   });
 });
