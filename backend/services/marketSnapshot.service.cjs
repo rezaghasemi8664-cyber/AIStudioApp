@@ -518,6 +518,17 @@ async function publishMarketSnapshotInternal(symbols) {
 
     const publishedAt = new Date();
     const activeValue = { snapshotId:id, symbolCount:verifiedSymbols.length, ...derivedCheck, source:'brs-central-worker', updatedAt:publishedAt };
+    // Publish the exact verified AllSymbols payload to process memory only after
+    // the SQL transaction has activated it. Portfolio quote readers then reuse
+    // this version until the next verified snapshot replaces it.
+    centralCache.set('market:all-symbols:snapshot', {
+      id,
+      snapshotDate: publishedAt,
+      symbolCount: verifiedSymbols.length,
+      symbols: verifiedSymbols,
+      updatedAt: publishedAt,
+      source: 'brs-central-worker'
+    });
     centralCache.set('market:active-derived', activeValue);
     centralCache.invalidatePrefix('market:symbols:');
     centralCache.invalidatePrefix('market:breadth:');
