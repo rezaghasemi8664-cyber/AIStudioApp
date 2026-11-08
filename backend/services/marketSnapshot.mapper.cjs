@@ -18,6 +18,8 @@ function mapBRSAllSymbol(item = {}) {
   const closePrice = numberOrNull(item.closingPrice, item.closePrice, item.pc);
   const yesterday = numberOrNull(item.yesterday, item.previousPrice, item.yesterdayPrice, item.py);
   const lastPrice = numberOrNull(item.lastPrice, item.last, item.pl);
+  const lastChange = numberOrNull(item.lastChange, item.change, item.plc);
+  const lastChangePercent = numberOrNull(item.lastChangePercent, item.changePercent, item.plp);
   const closeChange = numberOrNull(item.closingChange, item.closeChange, item.pcc);
   const closeChangePercent = numberOrNull(
     item.closingChangePercent, item.closeChangePercent, item.pcp,
@@ -49,9 +51,12 @@ function mapBRSAllSymbol(item = {}) {
     high: numberOrNull(item.high, item.highPrice, item.pmax),
     low: numberOrNull(item.low, item.lowPrice, item.pmin),
     lastPrice,
+    lastChange,
+    lastChangePercent,
     closePrice,
-    change: numberOrNull(item.lastChange, item.change, item.plc),
-    changePercent: numberOrNull(item.lastChangePercent, item.changePercent, item.plp),
+    closingPrice: closePrice,
+    change: lastChange,
+    changePercent: lastChangePercent,
     closingChange: closeChange,
     closeChange,
     closingChangePercent: closeChangePercent,
