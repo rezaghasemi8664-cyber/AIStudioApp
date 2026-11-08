@@ -41,8 +41,7 @@ function activeQuantityAtDate(lot: HistoricalLot, date: string, sales: Historica
   return Math.max(0, lot.quantity - sold);
 }
 
-export async function getPortfolioHistory(): Promise<PortfolioHistoryPoint[]> {
-  const analytics = await getPortfolioAnalytics();
+export function buildPortfolioHistory(analytics: Awaited<ReturnType<typeof getPortfolioAnalytics>>): PortfolioHistoryPoint[] {
   const portfolio = analytics.portfolio;
   const currentItems = Array.isArray(portfolio?.items) ? portfolio.items : [];
   const trades = Array.isArray(portfolio?.soldTrades) ? portfolio.soldTrades : [];
@@ -142,8 +141,7 @@ export interface PortfolioRealizedPerformance {
   realizedPnlPercent: number;
 }
 
-export async function getPortfolioRealizedPerformance(): Promise<PortfolioRealizedPerformance> {
-  const analytics = await getPortfolioAnalytics();
+export function buildPortfolioRealizedPerformance(analytics: Awaited<ReturnType<typeof getPortfolioAnalytics>>): PortfolioRealizedPerformance {
   const trades = Array.isArray(analytics.portfolio?.soldTrades) ? analytics.portfolio.soldTrades : [];
   const proceeds = trades.reduce((sum, trade) => sum + (num(trade.proceeds) ?? 0), 0);
   const costBasis = trades.reduce((sum, trade) => sum + (num(trade.costBasis) ?? 0), 0);
@@ -155,4 +153,12 @@ export async function getPortfolioRealizedPerformance(): Promise<PortfolioRealiz
     realizedPnl,
     realizedPnlPercent: costBasis > 0 ? (realizedPnl / costBasis) * 100 : 0,
   };
+}
+
+export async function getPortfolioHistory(): Promise<PortfolioHistoryPoint[]> {
+  return buildPortfolioHistory(await getPortfolioAnalytics());
+}
+
+export async function getPortfolioRealizedPerformance(): Promise<PortfolioRealizedPerformance> {
+  return buildPortfolioRealizedPerformance(await getPortfolioAnalytics());
 }
