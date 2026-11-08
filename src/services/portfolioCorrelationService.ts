@@ -29,7 +29,7 @@ function correlation(a: number[], b: number[]) {
 export async function getPortfolioCorrelation(): Promise<PortfolioCorrelationResult> {
   const analytics = await getPortfolioAnalytics();
   const portfolio = Array.isArray(analytics.portfolio?.items) ? analytics.portfolio.items : [];
-  const grouped = new Map<string, { symbol: string; firstEntryDate: string }>();
+  const grouped = new Map<string, { symbol: string; firstEntryDate: string | null }>();
   portfolio.forEach(item => {
     const symbol = String(item.symbol || '').trim().toUpperCase();
     if (!symbol) return;
