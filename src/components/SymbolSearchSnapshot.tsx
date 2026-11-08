@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import api from '../api/apiClient';
 
 type SnapshotSymbol = {
-  symbol: string; name?: string | null; industryName?: string | null;
+  symbol: string; name?: string | null;
+  industryName?: string | null; sectorName?: string | null; industry?: string | null; sector?: string | null;
   lastPrice?: number | null; lastChange?: number | null; lastChangePercent?: number | null;
   closingPrice?: number | null; closingChange?: number | null; closingChangePercent?: number | null;
   allowedMax?: number | null; allowedMin?: number | null; pe?: number | null; eps?: number | null;
@@ -65,10 +66,12 @@ export default function SymbolSearchSnapshot() {
     } finally { setLoading(false); }
   }
   const item = result?.data;
+  // Snapshot/API versions may expose the industry label under different aliases.
+  const industryLabel = item?.industryName || item?.sectorName || item?.industry || item?.sector || '—';
   const groups = [
     { title: 'اطلاعات پایه و قیمت', metrics: [
       { label: 'نام نماد', value: item?.name || '—' },
-      { label: 'گروه صنعت', value: item?.industryName || '—' },
+      { label: 'گروه صنعت', value: industryLabel },
       { label: 'آخرین قیمت', value: formatNumber(item?.lastPrice), note: 'تغییر: ' + formatSignedNumber(item?.lastChange) + ' (' + formatSignedNumber(item?.lastChangePercent, 2) + '٪)', noteColor: changeColor(item?.lastChange ?? item?.lastChangePercent) },
       { label: 'قیمت پایانی', value: formatNumber(item?.closingPrice), note: 'تغییر: ' + formatSignedNumber(item?.closingChange) + ' (' + formatSignedNumber(item?.closingChangePercent, 2) + '٪)', noteColor: changeColor(item?.closingChange ?? item?.closingChangePercent) },
       { label: 'آستانه مجاز بالا', value: formatNumber(item?.allowedMax) },
