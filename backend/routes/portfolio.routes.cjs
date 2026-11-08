@@ -27,17 +27,19 @@ function normalizeItem(item) {
   return { id, symbol, name, quantity, buyPrice, entryDate: entryDate || new Date().toISOString() };
 }
 
-async function enrichWithRealQuotes(items, snapshotOverride = null) {
+async function enrichWithRealQuotes(items, snapshotOverride = undefined) {
   if (!items.length) return [];
 
   // Portfolio quotes must come exclusively from the centrally stored AllSymbols
   // snapshot. A portfolio view must never trigger an individual BRS request.
-  let snapshot = snapshotOverride;
-  try {
-    if (!snapshot) snapshot = await allSymbolsSnapshotService.getSnapshot();
-  } catch (error) {
-    console.error('[PORTFOLIO] AllSymbols snapshot read failed:', error.message);
-    snapshot = null;
+  let snapshot = snapshotOverride === undefined ? null : snapshotOverride;
+  if (snapshotOverride === undefined) {
+    try {
+      snapshot = await allSymbolsSnapshotService.getSnapshot();
+    } catch (error) {
+      console.error('[PORTFOLIO] AllSymbols snapshot read failed:', error.message);
+      snapshot = null;
+    }
   }
 
   const quoteMap = new Map();
