@@ -31,7 +31,7 @@ export async function getPortfolioRiskContribution(): Promise<PortfolioRiskContr
   const analytics = await getPortfolioAnalytics();
   const portfolio = Array.isArray(analytics.portfolio?.items) ? analytics.portfolio.items : [];
   const historyBySymbol = analytics.historyBySymbol || {};
-  const grouped = new Map<string, { symbol: string; name?: string; quantity: number; firstEntryDate: string }>();
+  const grouped = new Map<string, { symbol: string; name?: string; quantity: number; firstEntryDate: string | null }>();
 
   portfolio.forEach(item => {
     const symbol = String(item.symbol || '').trim().toUpperCase();
