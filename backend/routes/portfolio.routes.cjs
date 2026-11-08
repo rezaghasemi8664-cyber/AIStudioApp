@@ -6,6 +6,7 @@ const authMiddleware = require('../middlewares/auth.middleware.cjs');
 const prismaModule = require('../config/prisma.cjs');
 const prisma = prismaModule.prisma || prismaModule;
 const allSymbolsSnapshotService = require('../services/allSymbolsSnapshot.service.cjs');
+const centralCache = require('../services/centralMarketCache.service.cjs');
 
 function getUserId(req) {
   const raw = req.user && (req.user.id ?? req.user.userId);
@@ -25,14 +26,14 @@ function normalizeItem(item) {
   return { id, symbol, name, quantity, buyPrice, entryDate: entryDate || new Date().toISOString() };
 }
 
-async function enrichWithRealQuotes(items) {
+async function enrichWithRealQuotes(items, snapshotOverride = null) {
   if (!items.length) return [];
 
   // Portfolio quotes must come exclusively from the centrally stored AllSymbols
   // snapshot. A portfolio view must never trigger an individual BRS request.
-  let snapshot;
+  let snapshot = snapshotOverride;
   try {
-    snapshot = await allSymbolsSnapshotService.getSnapshot();
+    if (!snapshot) snapshot = await allSymbolsSnapshotService.getSnapshot();
   } catch (error) {
     console.error('[PORTFOLIO] AllSymbols snapshot read failed:', error.message);
     snapshot = null;
@@ -95,7 +96,7 @@ function normalizeSoldTrade(trade) {
   return { id, symbol, name, soldQuantity, sellPrice, sellDate, allocationMethod: String(trade.allocationMethod || 'MANUAL'), allocations, proceeds, costBasis, realizedPnl, realizedPnlPercent, createdAt: String(trade.createdAt || new Date().toISOString()) };
 }
 
-async function readPortfolio(userId) {
+async function readPortfolioFromDatabase(userId) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { marketSummary: true } });
   let root = {};
   if (user && user.marketSummary) {
@@ -112,10 +113,53 @@ async function readPortfolio(userId) {
   };
 }
 
+const PORTFOLIO_STATE_CACHE_TTL_MS = 60_000;
+
+async function readPortfolio(userId) {
+  return centralCache.getOrLoad(
+    `portfolio:user:${userId}:state`,
+    PORTFOLIO_STATE_CACHE_TTL_MS,
+    () => readPortfolioFromDatabase(userId)
+  );
+}
+
+async function getPortfolioQuotes(userId, items) {
+  let snapshot = null;
+  try {
+    snapshot = await allSymbolsSnapshotService.getSnapshot();
+  } catch (error) {
+    console.error('[PORTFOLIO] AllSymbols snapshot read failed:', error.message);
+  }
+
+  const cacheKey = `portfolio:user:${userId}:quotes`;
+  const cached = centralCache.get(cacheKey);
+  if (snapshot?.status === 'FOUND' && cached?.snapshotId === snapshot.snapshotId && cached.data) {
+    return cached.data;
+  }
+
+  const quotedItems = await enrichWithRealQuotes(items, snapshot);
+  const quoted = quotedItems.filter(item => Number.isFinite(item.currentPrice) && item.currentPrice > 0);
+  const currentValue = quoted.reduce((sum, item) => sum + item.currentPrice * item.quantity, 0);
+  const costBasis = quoted.reduce((sum, item) => sum + item.buyPrice * item.quantity, 0);
+  const data = {
+    items: quotedItems,
+    currentValue,
+    costBasis,
+    unrealizedPnl: currentValue - costBasis,
+    dataStatus: quotedItems.some(item => item.dataStatus === 'LIVE') ? 'LIVE' : (quotedItems.some(item => item.dataStatus === 'CACHED') ? 'CACHED' : 'UNAVAILABLE'),
+    snapshotId: snapshot?.snapshotId ?? null,
+    snapshotUpdatedAt: snapshot?.snapshotUpdatedAt ?? null
+  };
+  if (snapshot?.status === 'FOUND') centralCache.set(cacheKey, { snapshotId: snapshot.snapshotId, data });
+  return data;
+}
+
 async function writePortfolio(userId, state) {
   const root = state.root && typeof state.root === 'object' && !Array.isArray(state.root) ? state.root : {};
   root.portfolio = state.portfolio;
   await prisma.user.update({ where: { id: userId }, data: { marketSummary: JSON.stringify(root) } });
+  centralCache.set(`portfolio:user:${userId}:state`, { root, portfolio: state.portfolio });
+  centralCache.invalidate(`portfolio:user:${userId}:quotes`);
 }
 
 router.get('/quotes', authMiddleware, async (req, res) => {
@@ -123,20 +167,8 @@ router.get('/quotes', authMiddleware, async (req, res) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
     const state = await readPortfolio(userId);
-    const items = await enrichWithRealQuotes(state.portfolio.items);
-    const quoted = items.filter(item => Number.isFinite(item.currentPrice) && item.currentPrice > 0);
-    const currentValue = quoted.reduce((sum, item) => sum + item.currentPrice * item.quantity, 0);
-    const costBasis = quoted.reduce((sum, item) => sum + item.buyPrice * item.quantity, 0);
-    return res.json({
-      success: true,
-      data: {
-        items,
-        currentValue,
-        costBasis,
-        unrealizedPnl: currentValue - costBasis,
-        dataStatus: items.some(item => item.dataStatus === 'LIVE') ? 'LIVE' : (items.some(item => item.dataStatus === 'CACHED') ? 'CACHED' : 'UNAVAILABLE')
-      }
-    });
+    const data = await getPortfolioQuotes(userId, state.portfolio.items);
+    return res.json({ success: true, data });
   } catch (error) {
     console.error('[PORTFOLIO] QUOTES failed:', error);
     return res.status(500).json({ success: false, message: 'به‌روزرسانی قیمت‌های سبد ناموفق بود.', error: error.message });
