@@ -64,25 +64,11 @@ export interface PortfolioAnalyticsPayload {
   historyUpdatedAt: string;
 }
 
-let inFlight: Promise<PortfolioAnalyticsPayload> | null = null;
-
-// All portfolio analytics surfaces share one request. The server owns the
-// durable-in-process per-user cache and coalesces concurrent card refreshes.
 export async function getPortfolioAnalytics(): Promise<PortfolioAnalyticsPayload> {
-  if (inFlight) return inFlight;
-
-  const request = api.get('/portfolio/analytics').then(response => {
-    const payload = response?.data?.data ?? response?.data ?? response;
-    if (!payload || typeof payload !== 'object') {
-      throw new Error('پاسخ داده تحلیلی سبد معتبر نیست.');
-    }
-    return payload as PortfolioAnalyticsPayload;
-  });
-  inFlight = request;
-
-  try {
-    return await request;
-  } finally {
-    if (inFlight === request) inFlight = null;
+  const response = await api.get('/portfolio/analytics');
+  const payload = response?.data?.data ?? response?.data ?? response;
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('پاسخ داده تحلیلی سبد معتبر نیست.');
   }
+  return payload as PortfolioAnalyticsPayload;
 }
