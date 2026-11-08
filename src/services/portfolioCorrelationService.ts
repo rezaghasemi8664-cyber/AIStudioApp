@@ -1,48 +1,89 @@
-import api from '../api/apiClient';
-import * as portfolioService from './portfolioService';
+import { getPortfolioAnalytics } from './portfolioAnalyticsService';
 import { normalizePortfolioDate } from '../utils/portfolioDate';
 
 export interface CorrelationPair { left: string; right: string; correlation: number; observations: number; }
 export interface PortfolioCorrelationResult { symbols: string[]; pairs: CorrelationPair[]; averageAbsoluteCorrelation: number | null; highCorrelationPairs: CorrelationPair[]; }
 
-const num = (value: unknown): number | null => { const n = Number(value); return Number.isFinite(n) ? n : null; };
+const num = (value: unknown): number | null => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
 const date = normalizePortfolioDate;
-
-async function quotes(symbol: string) {
-  const response = await api.get(`/brs/symbol/${encodeURIComponent(symbol)}/history`, { params: { limit: 365 } });
-  const raw = response?.data?.data ?? response?.data ?? [];
-  if (!Array.isArray(raw)) return [];
-  return raw.map(row => ({ date: date(row.date ?? row.tradeDate ?? row.jalaliDate ?? row.timestamp), close: num(row.close ?? row.closePrice ?? row.closingPrice ?? row.lastPrice) })).filter((x): x is { date: string; close: number } => Boolean(x.date) && x.close != null && x.close > 0).sort((a, b) => a.date.localeCompare(b.date));
-}
 
 function correlation(a: number[], b: number[]) {
   if (a.length < 3 || a.length !== b.length) return null;
-  const ma = a.reduce((s, x) => s + x, 0) / a.length; const mb = b.reduce((s, x) => s + x, 0) / b.length;
+  const ma = a.reduce((s, x) => s + x, 0) / a.length;
+  const mb = b.reduce((s, x) => s + x, 0) / b.length;
   let xy = 0; let aa = 0; let bb = 0;
-  for (let i = 0; i < a.length; i += 1) { const da = a[i] - ma; const db = b[i] - mb; xy += da * db; aa += da * da; bb += db * db; }
+  for (let i = 0; i < a.length; i += 1) {
+    const da = a[i] - ma;
+    const db = b[i] - mb;
+    xy += da * db;
+    aa += da * da;
+    bb += db * db;
+  }
   if (aa <= 0 || bb <= 0) return null;
   return xy / Math.sqrt(aa * bb);
 }
 
 export async function getPortfolioCorrelation(): Promise<PortfolioCorrelationResult> {
-  const portfolio = await portfolioService.getPortfolio();
-  const groupedPortfolio = portfolioService.aggregatePortfolioItems(portfolio);
-  if (groupedPortfolio.length < 2) return { symbols: groupedPortfolio.map(x => x.symbol), pairs: [], averageAbsoluteCorrelation: null, highCorrelationPairs: [] };
-  const rows = await Promise.all(groupedPortfolio.map(async item => ({ item, quotes: await quotes(item.symbol).catch(() => []) })));
+  const analytics = await getPortfolioAnalytics();
+  const portfolio = Array.isArray(analytics.portfolio?.items) ? analytics.portfolio.items : [];
+  const grouped = new Map<string, { symbol: string; firstEntryDate: string }>();
+  portfolio.forEach(item => {
+    const symbol = String(item.symbol || '').trim().toUpperCase();
+    if (!symbol) return;
+    const entryDate = date(item.entryDate);
+    const existing = grouped.get(symbol);
+    if (!existing) grouped.set(symbol, { symbol, firstEntryDate: entryDate });
+    else if (entryDate && (!existing.firstEntryDate || entryDate < existing.firstEntryDate)) existing.firstEntryDate = entryDate;
+  });
+  const holdings = Array.from(grouped.values());
+  if (holdings.length < 2) {
+    return { symbols: holdings.map(item => item.symbol), pairs: [], averageAbsoluteCorrelation: null, highCorrelationPairs: [] };
+  }
+
+  const historyBySymbol = analytics.historyBySymbol || {};
   const returns = new Map<string, Map<string, number>>();
-  rows.forEach(({ item, quotes: qs }) => {
-    const entry = date(item.entryDate); const active = qs.filter(q => !entry || q.date >= entry); const map = new Map<string, number>();
-    for (let i = 1; i < active.length; i += 1) { const prev = active[i - 1].close; if (prev > 0) map.set(active[i].date, (active[i].close / prev) - 1); }
+  holdings.forEach(item => {
+    const quotes = (historyBySymbol[item.symbol] || [])
+      .map(row => ({ date: date(row.date), close: num(row.close) }))
+      .filter((row): row is { date: string; close: number } => Boolean(row.date) && row.close != null && row.close > 0)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const active = quotes.filter(q => !item.firstEntryDate || q.date >= item.firstEntryDate);
+    const map = new Map<string, number>();
+    for (let i = 1; i < active.length; i += 1) {
+      const previous = active[i - 1].close;
+      if (previous > 0) map.set(active[i].date, (active[i].close / previous) - 1);
+    }
     returns.set(item.symbol, map);
   });
+
   const pairs: CorrelationPair[] = [];
-  for (let i = 0; i < groupedPortfolio.length; i += 1) for (let j = i + 1; j < groupedPortfolio.length; j += 1) {
-    const left = groupedPortfolio[i].symbol; const right = groupedPortfolio[j].symbol; const a = returns.get(left) ?? new Map(); const b = returns.get(right) ?? new Map();
-    const xs: number[] = []; const ys: number[] = [];
-    a.forEach((value, key) => { const other = b.get(key); if (other != null) { xs.push(value); ys.push(other); } });
-    const value = correlation(xs, ys); if (value != null) pairs.push({ left, right, correlation: value, observations: xs.length });
+  for (let i = 0; i < holdings.length; i += 1) {
+    for (let j = i + 1; j < holdings.length; j += 1) {
+      const left = holdings[i].symbol;
+      const right = holdings[j].symbol;
+      const a = returns.get(left) ?? new Map<string, number>();
+      const b = returns.get(right) ?? new Map<string, number>();
+      const xs: number[] = [];
+      const ys: number[] = [];
+      a.forEach((value, key) => {
+        const other = b.get(key);
+        if (other != null) { xs.push(value); ys.push(other); }
+      });
+      const value = correlation(xs, ys);
+      if (value != null) pairs.push({ left, right, correlation: value, observations: xs.length });
+    }
   }
   pairs.sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation));
-  const averageAbsoluteCorrelation = pairs.length ? pairs.reduce((s, p) => s + Math.abs(p.correlation), 0) / pairs.length : null;
-  return { symbols: groupedPortfolio.map(x => x.symbol), pairs, averageAbsoluteCorrelation, highCorrelationPairs: pairs.filter(p => Math.abs(p.correlation) >= 0.7) };
+  const averageAbsoluteCorrelation = pairs.length
+    ? pairs.reduce((sum, pair) => sum + Math.abs(pair.correlation), 0) / pairs.length
+    : null;
+  return {
+    symbols: holdings.map(item => item.symbol),
+    pairs,
+    averageAbsoluteCorrelation,
+    highCorrelationPairs: pairs.filter(pair => Math.abs(pair.correlation) >= 0.7),
+  };
 }
