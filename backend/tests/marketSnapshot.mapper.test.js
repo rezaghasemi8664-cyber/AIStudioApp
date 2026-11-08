@@ -20,7 +20,8 @@ describe('BRS market snapshot mapper', () => {
     });
 
     for (const [field, expected] of Object.entries({
-      lastPrice:108, closePrice:105, change:8, changePercent:8,
+      lastPrice:108, lastChange:8, lastChangePercent:8,
+      closePrice:105, closingPrice:105, change:8, changePercent:8,
       closingChange:5, closingChangePercent:5, yesterday:100,
       volume:1000, value:105000, tradeCount:50, averagePrice:105,
       shares:500000, freeFloatPercent:25, baseVolume:100, marketCap:50000000,
@@ -43,6 +44,9 @@ describe('BRS market snapshot mapper', () => {
     expect(mapped.realBuyCount).toBeNull();
     expect(mapped.legalBuyCount).toBeNull();
     expect(mapped.closingChange).toBeNull();
+    expect(mapped.closingPrice).toBeNull();
+    expect(mapped.lastChange).toBeNull();
+    expect(mapped.lastChangePercent).toBeNull();
   });
 
   test('derives closing change percent only from real closing and yesterday prices', () => {
