@@ -20,15 +20,31 @@ function numberOrNull() {
   return null;
 }
 function normalizeSnapshotSymbol(item) {
+  item = item || {};
   const sector = item.industryName || item.sectorName || item.industry || item.sector || null;
+
+  // Support canonical snapshot properties and raw BRS/TSETMC aliases.
+  // Older ACTIVE snapshots may contain pl/pc/plc/plp/pcc/pcp.
+  const lastPrice = numberOrNull(item.lastPrice, item.lastTradedPrice, item.last, item.pl);
+  const closingPrice = numberOrNull(item.closingPrice, item.closePrice, item.pc);
+  const yesterday = numberOrNull(item.yesterday, item.previousPrice, item.yesterdayPrice, item.py);
+  const lastChange = numberOrNull(item.lastChange, item.change, item.plc,
+    lastPrice !== null && yesterday > 0 ? lastPrice - yesterday : null);
+  const closingChange = numberOrNull(item.closingChange, item.closeChange, item.pcc,
+    closingPrice !== null && yesterday > 0 ? closingPrice - yesterday : null);
+  const lastChangePercent = numberOrNull(item.lastChangePercent, item.changePercent, item.plp,
+    lastPrice !== null && yesterday > 0 ? ((lastPrice - yesterday) / yesterday) * 100 : null);
+  const closingChangePercent = numberOrNull(item.closingChangePercent, item.closeChangePercent, item.pcp,
+    closingPrice !== null && yesterday > 0 ? ((closingPrice - yesterday) / yesterday) * 100 : null);
+
   return {
-    ...item, symbol: String(item.symbol || '').trim(), name: item.name || null, industryName: sector,
-    lastPrice: numberOrNull(item.lastPrice, item.lastTradedPrice),
-    lastChange: numberOrNull(item.lastChange, item.change),
-    lastChangePercent: numberOrNull(item.lastChangePercent, item.changePercent),
-    closingPrice: numberOrNull(item.closingPrice, item.closePrice),
-    closingChange: numberOrNull(item.closingChange, item.closeChange),
-    closingChangePercent: numberOrNull(item.closingChangePercent, item.closeChangePercent),
+    ...item, symbol: String(item.symbol || item.l18 || '').trim(), name: item.name || item.l30 || null, industryName: sector,
+    lastPrice,
+    lastChange,
+    lastChangePercent,
+    closingPrice,
+    closingChange,
+    closingChangePercent,
     allowedMin: numberOrNull(item.allowedMin, item.minPrice), allowedMax: numberOrNull(item.allowedMax, item.maxPrice),
     pe: numberOrNull(item.pe, item.pE), eps: numberOrNull(item.eps, item.EPS),
     tradeCount: numberOrNull(item.tradeCount, item.count), tradeVolume: numberOrNull(item.tradeVolume, item.volume),
