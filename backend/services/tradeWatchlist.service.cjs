@@ -8,6 +8,25 @@ const advanceEntryTouchState = require('../utils/tradeWatchlistEntryTouch.cjs');
 const LIST_TYPES = new Set(['scalping', 'valuable']);
 const EMPTY_WATCHLISTS = () => ({ scalping: [], valuable: [] });
 
+// Serialize basket writes and alert evaluation per user. Without this guard,
+// an alert cycle holding an old marketSummary snapshot can recreate alerts
+// immediately after the user removes a basket item.
+const userOperationTails = new Map();
+async function withUserLock(userId, operation) {
+  const key = String(userId);
+  const previous = userOperationTails.get(key) || Promise.resolve();
+  let release;
+  const current = new Promise(resolve => { release = resolve; });
+  userOperationTails.set(key, current);
+  await previous.catch(() => {});
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (userOperationTails.get(key) === current) userOperationTails.delete(key);
+  }
+}
+
 function getUserId(req) {
   const raw = req.user && (req.user.id ?? req.user.userId);
   const id = Number(raw);
@@ -93,20 +112,25 @@ function enrichItem(item, quoteMap, snapshot) {
 }
 async function getWatchlist(userId, listType) {
   if (!LIST_TYPES.has(listType)) throw Object.assign(new Error('نوع سبد نامعتبر است.'), { statusCode: 400 });
-  const state = await readState(userId);
-  if (!state) throw Object.assign(new Error('کاربر یافت نشد.'), { statusCode: 404 });
   let snapshot = null;
   try { snapshot = await snapshotService.getSnapshot(); } catch (error) { console.error('[TRADE-WATCHLIST] Snapshot read failed:', error.message); }
   const quoteMap = buildQuoteMap(snapshot);
-  let entryTouchChanged = false;
-  for (const item of state.lists[listType]) {
-    const quote = quoteMap.get(normalizeSymbol(item.symbol));
-    if (quote && advanceEntryTouchState(item, quote.price)) entryTouchChanged = true;
-  }
-  if (entryTouchChanged) await writeState(userId, state);
-  return { items: state.lists[listType].map(item => enrichItem(item, quoteMap, snapshot)), snapshotUpdatedAt: snapshot?.snapshotUpdatedAt || null, snapshotAvailable: snapshot?.status === 'FOUND' };
+  return withUserLock(userId, async () => {
+    // Read after acquiring the lock so a delayed quote request cannot write
+    // back a stale list and resurrect a symbol deleted in the meantime.
+    const state = await readState(userId);
+    if (!state) throw Object.assign(new Error('کاربر یافت نشد.'), { statusCode: 404 });
+    let entryTouchChanged = false;
+    for (const item of state.lists[listType]) {
+      const quote = quoteMap.get(normalizeSymbol(item.symbol));
+      if (quote && advanceEntryTouchState(item, quote.price)) entryTouchChanged = true;
+    }
+    if (entryTouchChanged) await writeState(userId, state);
+    return { items: state.lists[listType].map(item => enrichItem(item, quoteMap, snapshot)), snapshotUpdatedAt: snapshot?.snapshotUpdatedAt || null, snapshotAvailable: snapshot?.status === 'FOUND' };
+  });
 }
 async function addWatchlistItem(userId, listType, input) {
+  return withUserLock(userId, async () => {
   if (!LIST_TYPES.has(listType)) throw Object.assign(new Error('نوع سبد نامعتبر است.'), { statusCode: 400 });
   const symbol = String(input?.symbol || '').trim().toUpperCase();
   const name = String(input?.name || symbol).trim() || symbol;
@@ -133,8 +157,10 @@ async function addWatchlistItem(userId, listType, input) {
   state.lists[listType].push(item);
   await writeState(userId, state);
   return item;
+  });
 }
 async function updateWatchlistItem(userId, listType, itemId, input) {
+  return withUserLock(userId, async () => {
   if (!LIST_TYPES.has(listType)) throw Object.assign(new Error('نوع سبد نامعتبر است.'), { statusCode: 400 });
   const state = await readState(userId);
   if (!state) throw Object.assign(new Error('کاربر یافت نشد.'), { statusCode: 404 });
@@ -163,8 +189,10 @@ async function updateWatchlistItem(userId, listType, itemId, input) {
   state.lists[listType][index] = next;
   await writeState(userId, state);
   return next;
+  });
 }
 async function deleteWatchlistItem(userId, listType, itemId) {
+  return withUserLock(userId, async () => {
   if (!LIST_TYPES.has(listType)) throw Object.assign(new Error('نوع سبد نامعتبر است.'), { statusCode: 400 });
   const state = await readState(userId);
   if (!state) throw Object.assign(new Error('کاربر یافت نشد.'), { statusCode: 404 });
@@ -172,44 +200,60 @@ async function deleteWatchlistItem(userId, listType, itemId) {
   state.lists[listType] = state.lists[listType].filter(item => item.id !== String(itemId));
   if (state.lists[listType].length === before) throw Object.assign(new Error('نماد موردنظر در این سبد یافت نشد.'), { statusCode: 404 });
   await writeState(userId, state);
+  });
 }
 async function checkAlerts() {
   const snapshot = await snapshotService.getSnapshot();
   if (snapshot?.status !== 'FOUND') return { usersChecked: 0, alertsCreated: 0 };
   const quoteMap = buildQuoteMap(snapshot);
-  const users = await prisma.user.findMany({ where: { marketSummary: { not: null } }, select: { id: true, marketSummary: true } });
+  const users = await prisma.user.findMany({ where: { marketSummary: { not: null } }, select: { id: true } });
   let alertsCreated = 0;
+  let usersChecked = 0;
+
   for (const user of users) {
-    const root = parseRoot(user.marketSummary);
-    const raw = root.tradeWatchlists;
-    if (!raw || typeof raw !== 'object') continue;
-    let changed = false;
-    for (const listType of LIST_TYPES) {
-      if (!Array.isArray(raw[listType])) continue;
-      for (const item of raw[listType]) {
-        const symbol = String(item?.symbol || '').trim();
-        const quote = quoteMap.get(normalizeSymbol(symbol));
-        if (!quote) continue;
-        const target = normalizePrice(item.targetPrice);
-        const stop = normalizePrice(item.stopLoss);
-        if (item.targetAlertEnabled !== false && target && quote.price >= target && item.targetAlertTriggered !== true) {
-          await prisma.notification.create({ data: { userId: user.id, title: `هشدار هدف قیمتی: ${symbol}`, message: `قیمت فعلی نماد ${symbol} به ${quote.price.toLocaleString('fa-IR')} رسیده و به هدف قیمتی ${target.toLocaleString('fa-IR')} رسیده یا از آن عبور کرده است.`, type: 'price-alert' } });
-          item.targetAlertTriggered = true;
-          alertsCreated += 1;
-          changed = true;
-        }
-        if (item.stopLossAlertEnabled !== false && stop && quote.price <= stop && item.stopLossAlertTriggered !== true) {
-          await prisma.notification.create({ data: { userId: user.id, title: `هشدار حد ضرر: ${symbol}`, message: `قیمت فعلی نماد ${symbol} به ${quote.price.toLocaleString('fa-IR')} رسیده و به حد ضرر ${stop.toLocaleString('fa-IR')} رسیده یا پایین‌تر آمده است.`, type: 'price-alert' } });
-          item.stopLossAlertTriggered = true;
-          alertsCreated += 1;
-          changed = true;
+    await withUserLock(user.id, async () => {
+      // Never evaluate the marketSummary captured by findMany: it may already
+      // be obsolete because a basket deletion/update completed after that read.
+      const currentUser = await readUser(user.id);
+      if (!currentUser?.marketSummary) return;
+      const root = parseRoot(currentUser.marketSummary);
+      const raw = root.tradeWatchlists;
+      if (!raw || typeof raw !== 'object') return;
+      usersChecked += 1;
+      let changed = false;
+
+      for (const listType of LIST_TYPES) {
+        if (!Array.isArray(raw[listType])) continue;
+        for (const item of raw[listType]) {
+          // A valid basket row must still have its own ID and belong to the
+          // exact list currently being evaluated.
+          if (!item || !item.id || (item.listType && item.listType !== listType)) continue;
+          const symbol = String(item.symbol || '').trim();
+          const quote = quoteMap.get(normalizeSymbol(symbol));
+          if (!symbol || !quote) continue;
+          const target = normalizePrice(item.targetPrice);
+          const stop = normalizePrice(item.stopLoss);
+
+          if (item.targetAlertEnabled !== false && target && item.targetAlertTriggered !== true && quote.price >= target) {
+            await prisma.notification.create({ data: { userId: user.id, title: `هشدار هدف قیمتی: ${symbol}`, message: `قیمت فعلی نماد ${symbol} به ${quote.price.toLocaleString('fa-IR')} رسیده و به هدف قیمتی ${target.toLocaleString('fa-IR')} رسیده یا از آن عبور کرده است.`, type: 'price-alert' } });
+            item.targetAlertTriggered = true;
+            alertsCreated += 1;
+            changed = true;
+          }
+          if (item.stopLossAlertEnabled !== false && stop && item.stopLossTriggered !== true && item.stopLossAlertTriggered !== true && quote.price <= stop) {
+            await prisma.notification.create({ data: { userId: user.id, title: `هشدار حد ضرر: ${symbol}`, message: `قیمت فعلی نماد ${symbol} به ${quote.price.toLocaleString('fa-IR')} رسیده و به حد ضرر ${stop.toLocaleString('fa-IR')} رسیده یا پایین‌تر آمده است.`, type: 'price-alert' } });
+            item.stopLossAlertTriggered = true;
+            alertsCreated += 1;
+            changed = true;
+          }
         }
       }
-    }
-    if (changed) {
-      await prisma.user.update({ where: { id: user.id }, data: { marketSummary: JSON.stringify(root) } });
-    }
+
+      if (changed) {
+        await prisma.user.update({ where: { id: user.id }, data: { marketSummary: JSON.stringify(root) } });
+      }
+    });
   }
-  return { usersChecked: users.length, alertsCreated };
+  return { usersChecked, alertsCreated };
 }
 module.exports = { getUserId, getWatchlist, addWatchlistItem, updateWatchlistItem, deleteWatchlistItem, checkAlerts };
