@@ -521,11 +521,14 @@ async function addHistoricalVolumeBaselines(symbols) {
 }
 
 async function publishMarketSnapshotInternal(symbols) {
-  const health = await validateSnapshotHealth(symbols);
   let id = null;
 
   try {
+    // Enrich the candidate with historical volume baselines before checking
+    // field coverage. Otherwise valid snapshots are rejected because the
+    // BRS AllSymbols response does not itself provide volumeAvg1m.
     await addHistoricalVolumeBaselines(symbols);
+    const health = await validateSnapshotHealth(symbols);
     id = await createPreparedSnapshot(symbols);
     const verifiedSymbols = await verifyPreparedSnapshot(id, symbols.length);
     const derived = buildDerived(verifiedSymbols, new Date());
