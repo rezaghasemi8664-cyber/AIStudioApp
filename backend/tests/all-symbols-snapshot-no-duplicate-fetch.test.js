@@ -16,10 +16,12 @@ const prisma = require('../config/prisma.cjs');
 const brsService = require('../services/brs.service.cjs');
 const marketSnapshotService = require('../services/marketSnapshot.service.cjs');
 const allSymbolsSnapshotService = require('../services/allSymbolsSnapshot.service.cjs');
+const centralCache = require('../services/centralMarketCache.service.cjs');
 
 describe('legacy all-symbols snapshot service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    centralCache.invalidate('market:all-symbols:snapshot');
   });
 
   test('reuses the active MarketSnapshot without fetching BRS or writing the legacy table', async () => {

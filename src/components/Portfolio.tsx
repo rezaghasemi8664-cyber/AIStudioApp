@@ -3,6 +3,7 @@ import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recha
 import type { PortfolioItem, AnalysisResult, PortfolioAlertType, StoredUser, PortfolioOptimizationResult } from '../types';
 import * as analysisUsageService from '../services/analysisUsageService';
 import * as portfolioService from '../services/portfolioService';
+import { getSocket } from '../services/socketService';
 import { useNotification } from './NotificationSystem';
 import { PlusIcon, TrashIcon, SparklesIcon, ChevronDownIcon, CheckCircleIcon, XCircleIcon, XMarkIcon } from './Icons';
 import SoldPortfolioSection from './SoldPortfolioSection';
@@ -38,7 +39,31 @@ const Portfolio: React.FC<PortfolioProps> = ({ onAlertChange, currentUser, isOnl
       }finally{setQuoteRefreshLoading(false);}
     }
   }catch(error:any){console.error('[Portfolio] load failed:',error);addNotification(error?.response?.data?.message||'دریافت سبد سهام از سرور ناموفق بود.','error');setLoading(false);}},[addNotification,isOnline]);
- useEffect(()=>{loadPortfolio();},[loadPortfolio]); useEffect(()=>{const hasSell=portfolio.some(item=>item.analysis?.recommendation==='SELL');const hasBuy=portfolio.some(item=>item.analysis?.recommendation==='BUY');onAlertChange(hasSell?'sell':hasBuy?'buy':'none');},[portfolio,onAlertChange]);
+ const refreshPortfolioFromSnapshot = useCallback(async () => {
+   if (!isOnline || !portfolioRef.current.length) return;
+   setQuoteRefreshLoading(true);
+   try {
+     const updatedItems = await portfolioService.refreshPortfolioQuotes();
+     setPortfolio(updatedItems as AnalyzedPortfolioItem[]);
+   } catch (error) {
+     console.warn('[Portfolio] automatic snapshot quote refresh failed:', error);
+   } finally {
+     setQuoteRefreshLoading(false);
+   }
+ }, [isOnline]);
+ useEffect(()=>{loadPortfolio();},[loadPortfolio]);
+ useEffect(() => {
+   const socket = getSocket();
+   if (!socket) return;
+   const refresh = () => { void refreshPortfolioFromSnapshot(); };
+   socket.on('market-snapshot:updated', refresh);
+   socket.on('connect', refresh);
+   return () => {
+     socket.off('market-snapshot:updated', refresh);
+     socket.off('connect', refresh);
+   };
+ }, [refreshPortfolioFromSnapshot]);
+ useEffect(()=>{const hasSell=portfolio.some(item=>item.analysis?.recommendation==='SELL');const hasBuy=portfolio.some(item=>item.analysis?.recommendation==='BUY');onAlertChange(hasSell?'sell':hasBuy?'buy':'none');},[portfolio,onAlertChange]);
  const resetAddForm=()=>{setNewSymbol('');setNewName('');setNewPrice('');setNewQuantity('');const today=todayJalali();setNewDate(today);setNewDatePicker(jalaliDateValue(today));};
  const handleAddItem=async(e:React.FormEvent)=>{e.preventDefault();if(!isOnline)return addNotification('برای افزودن سهم باید آنلاین باشید.','error');const symbol=newSymbol.trim().toUpperCase();const name=newName.trim()||symbol;const price=Number(newPrice);const quantity=Number(newQuantity);const entryDate=normalizeJalaliDate(newDate);if(!symbol||!name||!Number.isFinite(price)||price<=0||!Number.isFinite(quantity)||quantity<=0||!/\d{4}\/\d{1,2}\/\d{1,2}/.test(entryDate))return addNotification('نماد، نام، قیمت، تعداد و تاریخ خرید معتبر الزامی است.','error');try{const created=await portfolioService.addPortfolioItem({symbol,name,entryPrice:price,quantity,entryDate});setPortfolio(prev=>[...prev,created as AnalyzedPortfolioItem]);resetAddForm();addNotification(`سهم ${symbol} در دیتابیس ذخیره شد.`,'info');}catch(error:any){addNotification(error?.response?.data?.message||'ذخیره سهم ناموفق بود.','error');}};
  const handleRemoveItem=async(id:string)=>{if(!isOnline)return addNotification('برای حذف سهم باید آنلاین باشید.','error');if(!window.confirm('آیا از حذف این سهم از سبد اطمینان دارید؟'))return;try{await portfolioService.deletePortfolioItem(id);setPortfolio(prev=>prev.filter(item=>item.id!==id));addNotification('سهم از سبد و دیتابیس حذف شد.','info');}catch(error:any){addNotification(error?.response?.data?.message||'حذف سهم ناموفق بود.','error');}};

@@ -1,6 +1,7 @@
 'use strict';
 
 const marketSnapshotService = require('./marketSnapshot.service.cjs');
+const centralCache = require('./centralMarketCache.service.cjs');
 
 function tehranDateKey(date = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', calendar: 'gregory' }).format(date);
@@ -60,6 +61,9 @@ async function refreshSnapshot() {
   };
 }
 async function getActiveStoredSnapshot() {
+  const cached = centralCache.get('market:all-symbols:snapshot');
+  if (cached) return cached;
+
   const active = await marketSnapshotService.getActiveSnapshot();
   if (!active) return null;
   let rawSymbols;
@@ -69,7 +73,7 @@ async function getActiveStoredSnapshot() {
   }
   const symbols = rawSymbols.map(normalizeSnapshotSymbol).filter((item) => item.symbol);
   if (symbols.length !== rawSymbols.length) throw new Error('Active MarketSnapshot contains invalid symbol keys');
-  return {
+  const snapshot = {
     id: Number(active.id),
     snapshotDate: active.activatedAt || active.verifiedAt || active.createdAt,
     symbolCount: Number(active.symbolCount),
@@ -77,6 +81,8 @@ async function getActiveStoredSnapshot() {
     updatedAt: active.activatedAt || active.verifiedAt || active.createdAt,
     source: active.source || 'versioned-market-snapshot'
   };
+  centralCache.set('market:all-symbols:snapshot', snapshot);
+  return snapshot;
 }
 async function hasSnapshot() {
   const snapshot = await getActiveStoredSnapshot();
