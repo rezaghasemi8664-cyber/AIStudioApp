@@ -741,4 +741,4 @@ async function getActiveSymbols() {
   try { return JSON.parse(row.symbolsJson); } catch { return []; }
 }
 
-module.exports = { normalizeSymbol, publishMarketSnapshot, getActiveSnapshot, getActiveDerived, getActiveSymbols };
+module.exports = { normalizeSymbol, validateSnapshotHealth, publishMarketSnapshot, getActiveSnapshot, getActiveDerived, getActiveSymbols };
