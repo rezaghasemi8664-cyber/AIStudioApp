@@ -7,6 +7,7 @@ const prismaModule = require('../config/prisma.cjs');
 const prisma = prismaModule.prisma || prismaModule;
 const allSymbolsSnapshotService = require('../services/allSymbolsSnapshot.service.cjs');
 const portfolioCache = require('../services/portfolioCache.service.cjs');
+const sharedBrsService = require('../services/brs.service.cjs');
 
 function getUserId(req) {
   const raw = req.user && (req.user.id ?? req.user.userId);
@@ -117,12 +118,14 @@ async function readPortfolio(userId) {
   return portfolioCache.getState(userId, () => readPortfolioFromDatabase(userId));
 }
 
-async function getPortfolioQuotes(userId, items) {
-  let snapshot = null;
-  try {
-    snapshot = await allSymbolsSnapshotService.getSnapshot();
-  } catch (error) {
-    console.error('[PORTFOLIO] AllSymbols snapshot read failed:', error.message);
+async function getPortfolioQuotes(userId, items, snapshotOverride = undefined) {
+  let snapshot = snapshotOverride === undefined ? null : snapshotOverride;
+  if (snapshotOverride === undefined) {
+    try {
+      snapshot = await allSymbolsSnapshotService.getSnapshot();
+    } catch (error) {
+      console.error('[PORTFOLIO] AllSymbols snapshot read failed:', error.message);
+    }
   }
 
   const cached = snapshot?.status === 'FOUND'
@@ -153,6 +156,92 @@ async function writePortfolio(userId, state) {
   await prisma.user.update({ where: { id: userId }, data: { marketSummary: JSON.stringify(root) } });
   portfolioCache.setState(userId, { root, portfolio: state.portfolio });
 }
+
+
+async function loadPortfolioAnalytics(userId, snapshot) {
+  const state = await readPortfolio(userId);
+  const portfolio = state.portfolio || { items: [], soldTrades: [] };
+  const symbolSet = new Set();
+
+  (Array.isArray(portfolio.items) ? portfolio.items : []).forEach(item => {
+    const symbol = String(item.symbol || '').trim().toUpperCase();
+    if (symbol) symbolSet.add(symbol);
+  });
+  (Array.isArray(portfolio.soldTrades) ? portfolio.soldTrades : []).forEach(trade => {
+    const symbol = String(trade.symbol || '').trim().toUpperCase();
+    if (symbol) symbolSet.add(symbol);
+  });
+
+  const historyBySymbol = {};
+  await Promise.all(Array.from(symbolSet).map(async symbol => {
+    const [historyResult, candleResult] = await Promise.all([
+      sharedBrsService.getSymbolHistory(symbol, 5000).catch(error => {
+        console.warn('[PORTFOLIO ANALYTICS] History unavailable for ' + symbol + ':', error.message);
+        return null;
+      }),
+      sharedBrsService.getAdjustedDailyCandlestick(symbol, 5000).catch(error => {
+        console.warn('[PORTFOLIO ANALYTICS] Candles unavailable for ' + symbol + ':', error.message);
+        return null;
+      })
+    ]);
+
+    const historyRows = Array.isArray(historyResult?.data) ? historyResult.data : [];
+    const candleRows = Array.isArray(candleResult?.data) ? candleResult.data : [];
+    const merged = new Map();
+    const normalizePoint = row => {
+      const date = String(row?.date ?? row?.d ?? row?.tradeDate ?? row?.jalaliDate ?? row?.timestamp ?? '').trim();
+      const close = Number(row?.close ?? row?.lastClosePrice ?? row?.closePrice ?? row?.closingPrice ?? row?.lastPrice ?? row?.last);
+      return date && Number.isFinite(close) && close > 0 ? { date, close } : null;
+    };
+
+    // Preserve the history endpoint's value when both sources contain a date.
+    historyRows.forEach(row => {
+      const point = normalizePoint(row);
+      if (point) merged.set(point.date, point);
+    });
+    candleRows.forEach(row => {
+      const point = normalizePoint(row);
+      if (point && !merged.has(point.date)) merged.set(point.date, point);
+    });
+
+    historyBySymbol[symbol] = Array.from(merged.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }));
+
+  const quoteData = await getPortfolioQuotes(userId, portfolio.items || [], snapshot);
+  return {
+    portfolio,
+    quoteData,
+    historyBySymbol,
+    snapshotId: snapshot?.snapshotId ?? null,
+    snapshotUpdatedAt: snapshot?.snapshotUpdatedAt ?? null,
+    historyUpdatedAt: new Date().toISOString()
+  };
+}
+
+router.get('/analytics', authMiddleware, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'کاربر احراز هویت نشده است.' });
+
+    let snapshot = null;
+    try {
+      snapshot = await allSymbolsSnapshotService.getSnapshot();
+    } catch (error) {
+      console.error('[PORTFOLIO ANALYTICS] AllSymbols snapshot read failed:', error.message);
+    }
+    const cacheKey = snapshot?.snapshotId == null ? 'no-active-snapshot' : String(snapshot.snapshotId);
+    const loader = () => loadPortfolioAnalytics(userId, snapshot);
+    let data = await portfolioCache.getAnalytics(userId, cacheKey, loader);
+    // A concurrent portfolio write may invalidate an in-flight analytics load.
+    if (data == null) data = await portfolioCache.getAnalytics(userId, cacheKey, loader);
+    if (data == null) return res.status(503).json({ success: false, message: 'داده تحلیلی سبد در حال به‌روزرسانی است؛ دوباره تلاش کنید.' });
+
+    return res.json({ success: true, data, cached: true, cacheKey });
+  } catch (error) {
+    console.error('[PORTFOLIO] ANALYTICS failed:', error);
+    return res.status(500).json({ success: false, message: 'دریافت داده مشترک تحلیل سبد ناموفق بود.', error: error.message });
+  }
+});
 
 router.get('/quotes', authMiddleware, async (req, res) => {
   try {
