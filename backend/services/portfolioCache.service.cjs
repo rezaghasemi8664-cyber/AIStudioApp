@@ -1,12 +1,12 @@
 'use strict';
 
 // Bounded process-local cache for authenticated users' private portfolios.
-// Portfolio records are isolated by user id; SQL Server remains authoritative.
-// State has no time-based expiry: it stays cached until that user's portfolio
-// changes, is explicitly invalidated, or the bounded LRU cache needs room.
+// SQL Server remains authoritative; cached state is refreshed by portfolio writes.
 const entries = new Map();
 const inFlightStateLoads = new Map();
+const inFlightAnalyticsLoads = new Map();
 const MAX_CACHED_USERS = 2_000;
+const ANALYTICS_TTL_MS = 5 * 60 * 1000;
 
 function userKey(userId) {
   const key = String(userId ?? '').trim();
@@ -24,6 +24,8 @@ function trimCache() {
     const oldestKey = entries.keys().next().value;
     if (oldestKey === undefined) break;
     entries.delete(oldestKey);
+    inFlightStateLoads.delete(oldestKey);
+    inFlightAnalyticsLoads.delete(oldestKey);
   }
 }
 
@@ -43,8 +45,6 @@ async function getState(userId, loader) {
   if (pending) return pending;
 
   const load = Promise.resolve().then(loader).then((state) => {
-    // setState/invalidateUser may have superseded this DB read while it was
-    // in flight. Never let an older read overwrite a newer portfolio state.
     if (inFlightStateLoads.get(key) !== load) {
       const latest = entries.get(key);
       return hasState(latest) ? latest.state : null;
@@ -73,10 +73,16 @@ async function getState(userId, loader) {
   return load;
 }
 
+function clearAnalytics(key) {
+  inFlightAnalyticsLoads.delete(key);
+  const entry = entries.get(key);
+  if (entry) entry.analytics = null;
+}
+
 function setState(userId, state) {
   const key = userKey(userId);
-  // A pending DB read is now stale relative to this successful portfolio write.
   inFlightStateLoads.delete(key);
+  clearAnalytics(key);
   const entry = entries.get(key) || {};
   entry.state = state;
   entry.stateUpdatedAt = Date.now();
@@ -84,6 +90,52 @@ function setState(userId, state) {
   touch(key, entry);
   trimCache();
   return true;
+}
+
+// Shared analytics payload for all portfolio cards. It is scoped to the user,
+// the active market snapshot, and a short freshness window. Portfolio writes
+// invalidate it immediately; simultaneous card requests share one loader.
+async function getAnalytics(userId, cacheKey, loader) {
+  const key = userKey(userId);
+  const normalizedCacheKey = String(cacheKey ?? 'default');
+  const entry = entries.get(key);
+  const cached = entry && entry.analytics;
+  if (
+    cached &&
+    cached.cacheKey === normalizedCacheKey &&
+    Date.now() - cached.updatedAt < ANALYTICS_TTL_MS
+  ) {
+    touch(key, entry);
+    return cached.data;
+  }
+
+  const pending = inFlightAnalyticsLoads.get(key);
+  if (pending && pending.cacheKey === normalizedCacheKey) return pending.promise;
+
+  const load = Promise.resolve().then(loader).then((data) => {
+    const currentPending = inFlightAnalyticsLoads.get(key);
+    if (!currentPending || currentPending.promise !== load) {
+      const latest = entries.get(key)?.analytics;
+      return latest && latest.cacheKey === normalizedCacheKey ? latest.data : null;
+    }
+    if (data !== null && data !== undefined) {
+      const current = entries.get(key) || {};
+      current.analytics = { cacheKey: normalizedCacheKey, data, updatedAt: Date.now() };
+      touch(key, current);
+      trimCache();
+      return data;
+    }
+    return null;
+  }).catch((error) => {
+    const latest = entries.get(key)?.analytics;
+    if (latest && latest.cacheKey === normalizedCacheKey) return latest.data;
+    throw error;
+  }).finally(() => {
+    if (inFlightAnalyticsLoads.get(key)?.promise === load) inFlightAnalyticsLoads.delete(key);
+  });
+
+  inFlightAnalyticsLoads.set(key, { cacheKey: normalizedCacheKey, promise: load });
+  return load;
 }
 
 function getQuotes(userId, snapshotId) {
@@ -105,13 +157,26 @@ function setQuotes(userId, snapshotId, data) {
 
 function invalidateUser(userId) {
   const key = userKey(userId);
-  // Prevent an older in-flight load from repopulating an explicitly invalidated entry.
   inFlightStateLoads.delete(key);
+  inFlightAnalyticsLoads.delete(key);
   return entries.delete(key);
 }
 
 function getStats() {
-  return { users: entries.size, inFlightStateLoads: inFlightStateLoads.size };
+  return {
+    users: entries.size,
+    inFlightStateLoads: inFlightStateLoads.size,
+    inFlightAnalyticsLoads: inFlightAnalyticsLoads.size,
+    analyticsEntries: Array.from(entries.values()).filter(entry => Boolean(entry.analytics)).length
+  };
 }
 
-module.exports = { getState, setState, getQuotes, setQuotes, invalidateUser, getStats };
+module.exports = {
+  getState,
+  setState,
+  getAnalytics,
+  getQuotes,
+  setQuotes,
+  invalidateUser,
+  getStats
+};
