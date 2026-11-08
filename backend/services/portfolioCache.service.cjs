@@ -10,7 +10,7 @@ const MAX_CACHED_USERS = 2_000;
 
 function userKey(userId) {
   const key = String(userId ?? '').trim();
-  if (!/^\\d+$/.test(key) || Number(key) <= 0) throw new Error('Invalid portfolio cache user id');
+  if (!/^\d+$/.test(key) || Number(key) <= 0) throw new Error('Invalid portfolio cache user id');
   return key;
 }
 
