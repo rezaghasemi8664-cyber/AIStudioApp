@@ -4,6 +4,7 @@ const prisma = require('../config/prisma.cjs');
 const centralCache = require('./centralMarketCache.service.cjs');
 
 function toNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
@@ -22,48 +23,78 @@ function normalizeSymbol(item) {
   const change = toNumber(item.lastChange ?? item.change ?? item.plc);
   const changePercent = toNumber(item.lastChangePercent ?? item.changePercent ?? item.plp);
   const closingChange = toNumber(item.closingChange ?? item.closeChange ?? item.pcc);
+  const volume = toNumber(item.tradeVolume ?? item.volume ?? item.tvol);
+  const value = toNumber(item.tradeValue ?? item.value ?? item.tval);
+  const tradeCount = toNumber(item.tradeCount ?? item.trades ?? item.tno);
+  const realBuyVolume = toNumber(item.realBuyVolume ?? item.buy_I_Volume ?? item.Buy_I_Volume);
+  const realSellVolume = toNumber(item.realSellVolume ?? item.sell_I_Volume ?? item.Sell_I_Volume);
+  const legalBuyVolume = toNumber(item.legalBuyVolume ?? item.instBuyVolume ?? item.buy_N_Volume ?? item.Buy_N_Volume);
+  const legalSellVolume = toNumber(item.legalSellVolume ?? item.instSellVolume ?? item.sell_N_Volume ?? item.Sell_N_Volume);
+  const realBuyValue = toNumber(item.realBuyValue ?? item.buy_I_Value ?? item.Buy_I_Value);
+  const realSellValue = toNumber(item.realSellValue ?? item.sell_I_Value ?? item.Sell_I_Value);
+  const legalBuyValue = toNumber(item.legalBuyValue ?? item.instBuyValue ?? item.buy_N_Value ?? item.Buy_N_Value);
+  const legalSellValue = toNumber(item.legalSellValue ?? item.instSellValue ?? item.sell_N_Value ?? item.Sell_N_Value);
+  const sector = item.sector ?? item.industryName ?? item.cs_name ?? item.industry ?? null;
   return {
+    ...item,
     symbol: String(item.symbol || item.l18 || '').trim(),
     name: item.name || item.l30 || null,
-    insCode: String(item.isin || item.id || '').trim() || null,
+    insCode: String(item.insCode || item.isin || item.id || '').trim() || null,
+    sector,
+    industryName: sector,
+    sectorId: item.sectorId ?? item.cs_id ?? null,
     open: toNumber(item.open ?? item.openPrice ?? item.pf),
     high: toNumber(item.high ?? item.highPrice ?? item.pmax),
     low: toNumber(item.low ?? item.lowPrice ?? item.pmin),
     lastPrice,
-    closePrice,
-    change,
     lastChange: change,
-    changePercent,
+    change,
     lastChangePercent: changePercent,
+    changePercent,
+    closePrice,
+    closingPrice: closePrice,
     closingChange,
     closeChange: closingChange,
     closingChangePercent: closeChangePercent,
-    closeChangePercent,
+    closeChangePercent: closeChangePercent,
     eps: toNumber(item.eps ?? item.EPS),
     pe: toNumber(item.pe ?? item.PE ?? item.PER),
-    volume: item.tradeVolume == null && item.volume == null && item.tvol == null ? null : Math.trunc(Number(item.tradeVolume ?? item.volume ?? item.tvol)),
-    value: toNumber(item.tradeValue ?? item.value ?? item.tval),
-    tradeCount: item.tradeCount == null && item.trades == null && item.tno == null ? null : Math.trunc(Number(item.tradeCount ?? item.trades ?? item.tno)),
+    volume,
+    tradeVolume: volume,
+    value,
+    tradeValue: value,
+    tradeCount,
     yesterday,
-    sector: item.sector ?? item.industryName ?? item.cs_name ?? null,
-    realBuyVolume: item.realBuyVolume == null ? 0 : Math.max(0, Math.trunc(Number(item.realBuyVolume))),
-    realSellVolume: item.realSellVolume == null ? 0 : Math.max(0, Math.trunc(Number(item.realSellVolume))),
-    realBuyValue: item.realBuyValue == null || item.realBuyValue === '' ? null : toNumber(item.realBuyValue),
-    realSellValue: item.realSellValue == null || item.realSellValue === '' ? null : toNumber(item.realSellValue),
-    realBuyCount: realBuyCount == null ? 0 : Math.max(0, Math.trunc(Number(realBuyCount))),
-    realSellCount: realSellCount == null ? 0 : Math.max(0, Math.trunc(Number(realSellCount))),
-    legalBuyCount: legalBuyCount == null ? 0 : Math.max(0, Math.trunc(Number(legalBuyCount))),
-    legalSellCount: legalSellCount == null ? 0 : Math.max(0, Math.trunc(Number(legalSellCount))),
-    instBuyCount: legalBuyCount == null ? 0 : Math.max(0, Math.trunc(Number(legalBuyCount))),
-    instSellCount: legalSellCount == null ? 0 : Math.max(0, Math.trunc(Number(legalSellCount))),
-    volumeAvg1m: item.volumeAvg1m == null || Number(item.volumeAvg1m) <= 0 ? null : Math.max(0, Math.trunc(Number(item.volumeAvg1m))),
+    averagePrice: toNumber(item.averagePrice ?? item.avgPrice ?? (value !== null && volume > 0 ? value / volume : null)),
+    shares: toNumber(item.shares ?? item.z),
+    freeFloatPercent: toNumber(item.freeFloatPercent ?? item.ff),
+    baseVolume: toNumber(item.baseVolume ?? item.bvol),
+    marketCap: toNumber(item.marketCap ?? item.mv),
+    realBuyVolume,
+    realSellVolume,
+    realBuyValue,
+    realSellValue,
+    realBuyCount: realBuyCount == null ? null : Math.max(0, Math.trunc(Number(realBuyCount))),
+    realSellCount: realSellCount == null ? null : Math.max(0, Math.trunc(Number(realSellCount))),
+    legalBuyCount: legalBuyCount == null ? null : Math.max(0, Math.trunc(Number(legalBuyCount))),
+    legalSellCount: legalSellCount == null ? null : Math.max(0, Math.trunc(Number(legalSellCount))),
+    instBuyCount: legalBuyCount == null ? null : Math.max(0, Math.trunc(Number(legalBuyCount))),
+    instSellCount: legalSellCount == null ? null : Math.max(0, Math.trunc(Number(legalSellCount))),
+    volumeAvg1m: toNumber(item.volumeAvg1m ?? item.tvol_avg_1m),
     orderBook: item.orderBook && typeof item.orderBook === 'object' ? item.orderBook : null,
-    allowedMin: toNumber(item.allowedMin),
-    allowedMax: toNumber(item.allowedMax),
-    legalBuyVolume: item.legalBuyVolume == null && item.instBuyVolume == null ? 0 : Math.max(0, Math.trunc(Number(item.legalBuyVolume ?? item.instBuyVolume))),
-    legalSellVolume: item.legalSellVolume == null && item.instSellVolume == null ? 0 : Math.max(0, Math.trunc(Number(item.legalSellVolume ?? item.instSellVolume))),
-    legalBuyValue: item.legalBuyValue == null || item.legalBuyValue === '' ? (item.instBuyValue == null || item.instBuyValue === '' ? null : toNumber(item.instBuyValue)) : toNumber(item.legalBuyValue),
-    legalSellValue: item.legalSellValue == null || item.legalSellValue === '' ? (item.instSellValue == null || item.instSellValue === '' ? null : toNumber(item.instSellValue)) : toNumber(item.legalSellValue)
+    allowedMin: toNumber(item.allowedMin ?? item.minPrice ?? item.tmin),
+    allowedMax: toNumber(item.allowedMax ?? item.maxPrice ?? item.tmax),
+    legalBuyVolume,
+    legalSellVolume,
+    legalBuyValue,
+    legalSellValue,
+    instBuyVolume: legalBuyVolume,
+    instSellVolume: legalSellVolume,
+    instBuyValue: legalBuyValue,
+    instSellValue: legalSellValue,
+    realMoneyFlow: realBuyVolume !== null && realSellVolume !== null ? realBuyVolume - realSellVolume : null,
+    legalMoneyFlow: legalBuyVolume !== null && legalSellVolume !== null ? legalBuyVolume - legalSellVolume : null,
+    instMoneyFlow: legalBuyVolume !== null && legalSellVolume !== null ? legalBuyVolume - legalSellVolume : null
   };
 }
 
@@ -104,15 +135,21 @@ function buildDerived(symbols, generatedAt) {
   const toPublic = (row, pct = row.changePercent) => ({
     symbol: row.symbol, name: row.name, insCode: row.insCode,
     lastPrice: row.lastPrice, closePrice: row.closePrice, change: row.change,
-    changePercent: pct, lastChangePercent: pct, closeChangePercent: row.closeChangePercent,
-    volume: row.volume, value: row.value, tradeCount: row.tradeCount, sector: row.sector,
-    realBuyVolume: row.realBuyVolume, realSellVolume: row.realSellVolume,
+    changePercent: pct, lastChangePercent: pct, closingChange: row.closingChange,
+    closingChangePercent: row.closingChangePercent, closeChangePercent: row.closeChangePercent,
+    eps: row.eps, pe: row.pe, volume: row.volume, value: row.value, tradeCount: row.tradeCount,
+    sector: row.sector, sectorId: row.sectorId, averagePrice: row.averagePrice,
+    shares: row.shares, freeFloatPercent: row.freeFloatPercent, baseVolume: row.baseVolume,
+    marketCap: row.marketCap, realBuyVolume: row.realBuyVolume, realSellVolume: row.realSellVolume,
     realBuyValue: row.realBuyValue, realSellValue: row.realSellValue,
     realBuyCount: row.realBuyCount, realSellCount: row.realSellCount,
     volumeAvg1m: row.volumeAvg1m, orderBook: row.orderBook,
     allowedMin: row.allowedMin, allowedMax: row.allowedMax,
     legalBuyVolume: row.legalBuyVolume, legalSellVolume: row.legalSellVolume,
-    legalBuyValue: row.legalBuyValue, legalSellValue: row.legalSellValue
+    legalBuyValue: row.legalBuyValue, legalSellValue: row.legalSellValue,
+    legalBuyCount: row.legalBuyCount, legalSellCount: row.legalSellCount,
+    instBuyCount: row.instBuyCount, instSellCount: row.instSellCount,
+    realMoneyFlow: row.realMoneyFlow, legalMoneyFlow: row.legalMoneyFlow
   });
 
   const gainers = valid.filter(r => r.radarChangePercent > 0)
@@ -271,6 +308,12 @@ async function verifyPreparedSnapshot(id, expectedCount) {
   return parsed;
 }
 
+function fieldCoverage(rows, field) {
+  if (!Array.isArray(rows) || !rows.length) return 0;
+  const present = rows.filter(row => row?.[field] !== null && row?.[field] !== undefined && row?.[field] !== '').length;
+  return present / rows.length;
+}
+
 function getHealthThreshold(name, fallback) {
   const value = Number(process.env[name]);
   return Number.isFinite(value) && value > 0 ? value : fallback;
@@ -296,6 +339,39 @@ async function validateSnapshotHealth(symbols) {
   catch { throw new Error('BRS snapshot health check failed: active snapshot payload is invalid'); }
   if (!Array.isArray(previousSymbols) || !previousSymbols.length) {
     throw new Error('BRS snapshot health check failed: active snapshot has no symbols');
+  }
+
+  const coreFields = ['lastPrice', 'closePrice', 'change', 'changePercent', 'volume', 'value'];
+  const coreCoverage = Object.fromEntries(coreFields.map(field => [field, fieldCoverage(symbols, field)]));
+  const missingCore = Object.entries(coreCoverage).filter(([, coverage]) => coverage < 0.90);
+  if (missingCore.length) {
+    throw new Error('BRS snapshot health check failed: critical field coverage below 90%: ' +
+      JSON.stringify(Object.fromEntries(missingCore)));
+  }
+
+  // If a field was reliably populated in the previous ACTIVE snapshot, a
+  // sudden broad loss of that field must not replace the healthy snapshot.
+  // Sparse/optional metrics (for example PE on some instrument types) are not
+  // promoted to mandatory fields when their historical coverage is low.
+  const trackedFields = [
+    'closingChange', 'closingChangePercent', 'eps', 'pe',
+    'realBuyVolume', 'realSellVolume', 'realBuyValue', 'realSellValue',
+    'realBuyCount', 'realSellCount', 'legalBuyVolume', 'legalSellVolume',
+    'legalBuyValue', 'legalSellValue', 'legalBuyCount', 'legalSellCount',
+    'volumeAvg1m', 'marketCap', 'shares', 'freeFloatPercent'
+  ];
+  const fieldCoverageChecks = {};
+  for (const field of trackedFields) {
+    const previousCoverage = fieldCoverage(previousSymbols, field);
+    const currentCoverage = fieldCoverage(symbols, field);
+    if (previousCoverage >= 0.70) {
+      const minimumCoverage = Math.max(0.50, previousCoverage * 0.75);
+      fieldCoverageChecks[field] = { previousCoverage, currentCoverage, minimumCoverage };
+      if (currentCoverage < minimumCoverage) {
+        throw new Error('BRS snapshot health check failed: field coverage regressed for ' + field +
+          ': ' + JSON.stringify(fieldCoverageChecks[field]));
+      }
+    }
   }
 
   const previousSet = new Set(previousSymbols.map(s => String(s?.symbol || '').trim()).filter(Boolean));
@@ -665,4 +741,4 @@ async function getActiveSymbols() {
   try { return JSON.parse(row.symbolsJson); } catch { return []; }
 }
 
-module.exports = { normalizeSymbol, publishMarketSnapshot, getActiveSnapshot, getActiveDerived, getActiveSymbols };
+module.exports = { normalizeSymbol, validateSnapshotHealth, publishMarketSnapshot, getActiveSnapshot, getActiveDerived, getActiveSymbols };

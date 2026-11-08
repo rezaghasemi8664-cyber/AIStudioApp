@@ -4,6 +4,7 @@ const cron = require('node-cron');
 const prisma = require('../config/prisma.cjs');
 const brsService = require('../services/brs.service.cjs');
 const marketSnapshotService = require('../services/marketSnapshot.service.cjs');
+const { mapBRSAllSymbol } = require('../services/marketSnapshot.mapper.cjs');
 const { calculateScalpingPriceLevels, selectCandidatesWithValidLevels } = require('../services/scalping-price-levels.service.cjs');
 const { ensureMarketDailyHistory } = require('../services/market-daily-history.service.cjs');
 const { getHistoricalScalpingProbabilities } = require('../services/scalping-historical-probability.service.cjs');
@@ -210,50 +211,8 @@ async function updateSymbolsAndMovers(io = null, allowClosedBootstrap = false, a
   const rows = unwrap(response);
   if (!Array.isArray(rows) || !rows.length) throw new Error('BRS AllSymbols returned no symbols');
 
-  const symbols = rows.map(item => {
-    const closePrice = num(item.closingPrice);
-    const yesterday = num(item.yesterday ?? item.previousPrice ?? item.yesterdayPrice);
-    // BRS normally supplies pcp/closingChangePercent. For older or partial
-    // snapshots, derive the same closing-vs-yesterday percentage from the
-    // same BRS snapshot so the shared DB never leaves this field blank.
-    const closeChangePercent = num(
-      item.closingChangePercent,
-      closePrice !== null && yesterday > 0 ? ((closePrice - yesterday) / yesterday) * 100 : null
-    );
+  const symbols = rows.map(mapBRSAllSymbol).filter(item => item.symbol);
 
-    return {
-      symbol: String(item.symbol || '').trim(),
-      name: item.name || null,
-      insCode: String(item.isin || item.id || '').trim() || null,
-      open: num(item.open ?? item.openPrice),
-      high: num(item.high ?? item.highPrice),
-      low: num(item.low ?? item.lowPrice),
-      lastPrice: num(item.lastPrice),
-      closePrice,
-      change: num(item.lastChange),
-      changePercent: num(item.lastChangePercent),
-      closeChangePercent,
-      volume: int(item.tradeVolume),
-      value: num(item.tradeValue),
-      tradeCount: int(item.tradeCount),
-      yesterday,
-      allowedMin: num(item.allowedMin ?? item.price?.allowedMin ?? item.minPrice ?? item.priceMin ?? item.pmin),
-      allowedMax: num(item.allowedMax ?? item.price?.allowedMax ?? item.maxPrice ?? item.priceMax ?? item.pmax),
-      orderBook: item.orderBook ?? item.orderbook ?? item.bestLimits ?? item.orderBookData ?? null,
-      sector: item.sector ?? item.industryName ?? item.industry ?? null,
-      realBuyVolume: int(item.realBuyVolume ?? item.buyRealVolume ?? item.buy_I_Volume ?? item.real?.buyVolume ?? item.moneyFlow?.real?.buyVolume, 0),
-      realSellVolume: int(item.realSellVolume ?? item.sellRealVolume ?? item.sell_I_Volume ?? item.real?.sellVolume ?? item.moneyFlow?.real?.sellVolume, 0),
-      realBuyValue: num(item.realBuyValue ?? item.buyRealValue ?? item.buy_I_Value ?? item.real?.buyValue ?? item.moneyFlow?.real?.buyValue),
-      realSellValue: num(item.realSellValue ?? item.sellRealValue ?? item.sell_I_Value ?? item.real?.sellValue ?? item.moneyFlow?.real?.sellValue),
-      realBuyCount: int(item.realBuyCount ?? item.buyRealCount ?? item.buy_I_Count ?? item.real?.buyCount ?? item.moneyFlow?.real?.buyCount, 0),
-      realSellCount: int(item.realSellCount ?? item.sellRealCount ?? item.sell_I_Count ?? item.real?.sellCount ?? item.moneyFlow?.real?.sellCount, 0),
-      volumeAvg1m: int(item.volumeAvg1m ?? item.trading?.volumeAvg1m ?? item.monthAverageVolume ?? item.averageMonthlyVolume ?? item.volumeAverageMonth ?? item.qTotTran5JAvg),
-      legalBuyVolume: int(item.instBuyVolume ?? item.legalBuyVolume ?? item.buy_N_Volume ?? item.legal?.buyVolume, 0),
-      legalSellVolume: int(item.instSellVolume ?? item.legalSellVolume ?? item.sell_N_Volume ?? item.legal?.sellVolume, 0),
-      legalBuyValue: num(item.instBuyValue ?? item.legalBuyValue ?? item.buy_N_Value ?? item.legal?.buyValue),
-      legalSellValue: num(item.instSellValue ?? item.legalSellValue ?? item.sell_N_Value ?? item.legal?.sellValue)
-    };
-  }).filter(x => x.symbol);
 
   // A fetch that began before the 12:30 Tehran close must not publish after
   // the session ends. Empty-database bootstrap remains allowed as a recovery path.
