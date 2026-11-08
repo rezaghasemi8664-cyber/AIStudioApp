@@ -1,6 +1,7 @@
 'use strict';
 
 const prismaModule = require('../config/prisma.cjs');
+const centralCache = require('./centralMarketCache.service.cjs');
 
 function resolvePrismaClient(mod) {
   const candidates = [mod?.prisma, mod?.db, mod?.client, mod?.default, mod];
@@ -36,13 +37,7 @@ function dateKey(value) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
 }
 
-async function getHistory(inputRange) {
-  const range = normalizeRange(inputRange);
-  if (!range) {
-    const error = new Error('INVALID_RANGE');
-    error.statusCode = 400;
-    throw error;
-  }
+async function loadHistory(range) {
 
   const summaryModel = prisma?.MarketSummary || prisma?.marketSummary;
   const technicalModel = prisma?.MarketTechnicalDaily || prisma?.marketTechnicalDaily;
@@ -191,6 +186,16 @@ async function getHistory(inputRange) {
     points,
     generatedAt: new Date().toISOString()
   };
+}
+
+async function getHistory(inputRange) {
+  const range = normalizeRange(inputRange);
+  if (!range) {
+    const error = new Error('INVALID_RANGE');
+    error.statusCode = 400;
+    throw error;
+  }
+  return centralCache.getOrLoad('market:radar:history:' + range, 60 * 1000, () => loadHistory(range));
 }
 
 module.exports = { getHistory, normalizeRange };
