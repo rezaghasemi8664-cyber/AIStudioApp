@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import api from '../api/apiClient';
 import * as portfolioService from '../services/portfolioService';
+import { getPortfolioAnalytics } from '../services/portfolioAnalyticsService';
 import { getMarketRadarHistory } from '../services/marketRadarService';
 import { getPortfolioHistory, getPortfolioRealizedPerformance } from '../services/portfolioHistoryService';
 import { formatPortfolioDateTime, formatPortfolioNumber, formatPortfolioPercent } from '../utils/portfolioDate';
@@ -10,16 +10,9 @@ interface HistoryPoint { date: string; value: number; cost: number; pnl: number;
 interface BenchmarkPoint { timestamp: string; index: number; }
 interface Holding { id: string; symbol: string; name?: string; quantity: number; entryPrice: number; currentPrice: number | null; changePercent: number | null; value: number | null; cost: number; pnl: number | null; pnlPercent: number | null; }
 
-const num = (value: unknown): number | null => { const n = Number(value); return Number.isFinite(n) ? n : null; };
 const money = (value: number | null) => formatPortfolioNumber(value, 0);
 const pct = (value: number | null) => formatPortfolioPercent(value, 2);
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-
-async function quote(symbol: string): Promise<{ price: number | null; change: number | null }> {
-  const response = await api.get(`/brs/symbol/${encodeURIComponent(symbol)}`);
-  const raw = response?.data?.data ?? response?.data ?? {};
-  return { price: num(raw.lastPrice ?? raw.last_price ?? raw.currentPrice ?? raw.closePrice ?? raw.closingPrice), change: num(raw.lastChangePercent ?? raw.last_change_percent ?? raw.changePercent ?? raw.percentChange) };
-}
 
 const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
   const [items, setItems] = useState<Holding[]>([]);
@@ -39,7 +32,11 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
     if (!isOnline) { setError('برای دریافت ارزش لحظه‌ای سبد باید آنلاین باشید.'); setLoading(false); return; }
     setLoading(true); setError(null);
     try {
-      const portfolio = await portfolioService.refreshPortfolioQuotes();
+      const analytics = await getPortfolioAnalytics();
+      const portfolio = (analytics.quoteData?.items || []).map(item => ({
+        ...item,
+        entryPrice: Number(item.buyPrice),
+      }));
       const groupedPortfolio = portfolioService.aggregatePortfolioItems(portfolio);
       const next = groupedPortfolio.map(item => {
         const cost = item.totalCost;
@@ -60,7 +57,7 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
           pnlPercent,
         };
       });
-      setItems(next); setUpdatedAt(new Date().toISOString());
+      setItems(next); setUpdatedAt(analytics.quoteData?.snapshotUpdatedAt || analytics.historyUpdatedAt || new Date().toISOString());
     } catch (e: any) { setError(e?.response?.data?.message || e?.message || 'دریافت اطلاعات سبد ناموفق بود.'); }
     finally { setLoading(false); }
   }, [isOnline]);
