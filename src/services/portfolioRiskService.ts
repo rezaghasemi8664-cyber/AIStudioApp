@@ -102,7 +102,7 @@ export async function getPortfolioRisk(): Promise<PortfolioRiskResult> {
     ? totalReturn / risk.volatilityPercent
     : null;
 
-  const grouped = new Map<string, { symbol: string; name?: string; firstEntryDate: string }>();
+  const grouped = new Map<string, { symbol: string; name?: string; firstEntryDate: string | null }>();
   portfolio.forEach(item => {
     const symbol = String(item.symbol || '').trim().toUpperCase();
     if (!symbol) return;
