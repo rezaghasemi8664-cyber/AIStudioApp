@@ -8,6 +8,7 @@ const prisma = prismaModule.prisma || prismaModule;
 const allSymbolsSnapshotService = require('../services/allSymbolsSnapshot.service.cjs');
 const portfolioCache = require('../services/portfolioCache.service.cjs');
 const sharedBrsService = require('../services/brs.service.cjs');
+const portfolioHistoryLoads = new Map();
 
 function getUserId(req) {
   const raw = req.user && (req.user.id ?? req.user.userId);
@@ -160,33 +161,22 @@ async function writePortfolio(userId, state) {
 }
 
 
-async function loadPortfolioAnalytics(userId, snapshot) {
-  const state = await readPortfolio(userId);
-  const portfolio = state.portfolio || { items: [], soldTrades: [] };
-  const symbolSet = new Set();
+async function loadSharedPortfolioHistory(symbol) {
+  const key = String(symbol || '').trim().toUpperCase();
+  if (!key) return [];
+  const pending = portfolioHistoryLoads.get(key);
+  if (pending) return pending;
 
-  (Array.isArray(portfolio.items) ? portfolio.items : []).forEach(item => {
-    const symbol = String(item.symbol || '').trim().toUpperCase();
-    if (symbol) symbolSet.add(symbol);
-  });
-  (Array.isArray(portfolio.soldTrades) ? portfolio.soldTrades : []).forEach(trade => {
-    const symbol = String(trade.symbol || '').trim().toUpperCase();
-    if (symbol) symbolSet.add(symbol);
-  });
-
-  const historyBySymbol = {};
-  await Promise.all(Array.from(symbolSet).map(async symbol => {
-    const [historyResult, candleResult] = await Promise.all([
-      sharedBrsService.getSymbolHistory(symbol, 5000).catch(error => {
-        console.warn('[PORTFOLIO ANALYTICS] History unavailable for ' + symbol + ':', error.message);
-        return null;
-      }),
-      sharedBrsService.getAdjustedDailyCandlestick(symbol, 5000).catch(error => {
-        console.warn('[PORTFOLIO ANALYTICS] Candles unavailable for ' + symbol + ':', error.message);
-        return null;
-      })
-    ]);
-
+  const load = Promise.all([
+    sharedBrsService.getSymbolHistory(key, 5000).catch(error => {
+      console.warn('[PORTFOLIO ANALYTICS] History unavailable for ' + key + ':', error.message);
+      return null;
+    }),
+    sharedBrsService.getAdjustedDailyCandlestick(key, 5000).catch(error => {
+      console.warn('[PORTFOLIO ANALYTICS] Candles unavailable for ' + key + ':', error.message);
+      return null;
+    })
+  ]).then(([historyResult, candleResult]) => {
     const historyRows = Array.isArray(historyResult?.data) ? historyResult.data : [];
     const candleRows = Array.isArray(candleResult?.data) ? candleResult.data : [];
     const merged = new Map();
@@ -205,18 +195,34 @@ async function loadPortfolioAnalytics(userId, snapshot) {
       const point = normalizePoint(row);
       if (point && !merged.has(point.date)) merged.set(point.date, point);
     });
+    return Array.from(merged.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }).finally(() => {
+    if (portfolioHistoryLoads.get(key) === load) portfolioHistoryLoads.delete(key);
+  });
 
-    historyBySymbol[symbol] = Array.from(merged.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }));
+  portfolioHistoryLoads.set(key, load);
+  return load;
+}
+
+async function loadPortfolioAnalytics(userId, snapshot) {
+  const state = await readPortfolio(userId);
+  const portfolio = state.portfolio || { items: [], soldTrades: [] };
+  const symbolSet = new Set();
+
+  (Array.isArray(portfolio.items) ? portfolio.items : []).forEach(item => {
+    const symbol = String(item.symbol || '').trim().toUpperCase();
+    if (symbol) symbolSet.add(symbol);
+  });
+  (Array.isArray(portfolio.soldTrades) ? portfolio.soldTrades : []).forEach(trade => {
+    const symbol = String(trade.symbol || '').trim().toUpperCase();
+    if (symbol) symbolSet.add(symbol);
+  });
 
   const quoteData = await getPortfolioQuotes(userId, portfolio.items || [], snapshot);
   return {
     portfolio,
     quoteData,
-    historyBySymbol,
-    snapshotId: snapshot?.snapshotId ?? null,
-    snapshotUpdatedAt: snapshot?.snapshotUpdatedAt ?? null,
-    historyUpdatedAt: new Date().toISOString()
+    symbols: Array.from(symbolSet)
   };
 }
 
@@ -238,7 +244,19 @@ router.get('/analytics', authMiddleware, async (req, res) => {
     if (data == null) data = await portfolioCache.getAnalytics(userId, cacheKey, loader);
     if (data == null) return res.status(503).json({ success: false, message: 'داده تحلیلی سبد در حال به‌روزرسانی است؛ دوباره تلاش کنید.' });
 
-    return res.json({ success: true, data, cached: true, cacheKey });
+    // Historical market series are shared by symbol in the BRS service cache,
+    // not duplicated inside every user's private portfolio cache entry.
+    const historyEntries = await Promise.all((data.symbols || []).map(async symbol => [
+      symbol,
+      await loadSharedPortfolioHistory(symbol)
+    ]));
+    const { symbols, ...userAnalytics } = data;
+    const responseData = {
+      ...userAnalytics,
+      historyBySymbol: Object.fromEntries(historyEntries),
+      historyUpdatedAt: new Date().toISOString()
+    };
+    return res.json({ success: true, data: responseData, cached: true, cacheKey });
   } catch (error) {
     console.error('[PORTFOLIO] ANALYTICS failed:', error);
     return res.status(500).json({ success: false, message: 'دریافت داده مشترک تحلیل سبد ناموفق بود.', error: error.message });
