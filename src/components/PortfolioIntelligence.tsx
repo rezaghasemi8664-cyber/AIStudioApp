@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as portfolioService from '../services/portfolioService';
 import { getPortfolioAnalytics } from '../services/portfolioAnalyticsService';
 import { getMarketRadarHistory } from '../services/marketRadarService';
-import { getPortfolioHistory, getPortfolioRealizedPerformance } from '../services/portfolioHistoryService';
+import { buildPortfolioHistory, buildPortfolioRealizedPerformance } from '../services/portfolioHistoryService';
 import { formatPortfolioDateTime, formatPortfolioNumber, formatPortfolioPercent } from '../utils/portfolioDate';
 
 interface Props { isOnline: boolean; }
@@ -29,9 +29,20 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!isOnline) { setError('برای دریافت ارزش لحظه‌ای سبد باید آنلاین باشید.'); setLoading(false); return; }
-    setLoading(true); setError(null);
+    if (!isOnline) {
+      setError('برای دریافت ارزش لحظه‌ای سبد باید آنلاین باشید.');
+      setHistoryError('برای دریافت سابقه سبد باید آنلاین باشید.');
+      setLoading(false);
+      setHistoryLoading(false);
+      return;
+    }
+    setLoading(true);
+    setHistoryLoading(true);
+    setError(null);
+    setHistoryError(null);
     try {
+      // One response supplies current positions, realized trades and all
+      // historical prices to the intelligence, history and return cards.
       const analytics = await getPortfolioAnalytics();
       const portfolio = (analytics.quoteData?.items || []).map(item => ({
         ...item,
@@ -57,16 +68,7 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
           pnlPercent,
         };
       });
-      setItems(next); setUpdatedAt(analytics.quoteData?.snapshotUpdatedAt || analytics.historyUpdatedAt || new Date().toISOString());
-    } catch (e: any) { setError(e?.response?.data?.message || e?.message || 'دریافت اطلاعات سبد ناموفق بود.'); }
-    finally { setLoading(false); }
-  }, [isOnline]);
-
-  const loadHistory = useCallback(async () => {
-    if (!isOnline) { setHistoryError('برای دریافت سابقه سبد باید آنلاین باشید.'); return; }
-    setHistoryLoading(true); setHistoryError(null);
-    try {
-      const accurateHistory = await getPortfolioHistory();
+      const accurateHistory = buildPortfolioHistory(analytics);
       let peak = 0;
       const points: HistoryPoint[] = accurateHistory.map(point => {
         peak = Math.max(peak, point.value);
@@ -81,9 +83,19 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
           peakValue: peak,
         };
       });
+      setItems(next);
       setHistoryPoints(points.slice(-range));
-    } catch (e: any) { setHistoryError(e?.response?.data?.message || e?.message || 'دریافت سابقه عملکرد سبد ناموفق بود.'); }
-    finally { setHistoryLoading(false); }
+      setRealized(buildPortfolioRealizedPerformance(analytics));
+      setUpdatedAt(analytics.quoteData?.snapshotUpdatedAt || analytics.historyUpdatedAt || new Date().toISOString());
+    } catch (e: any) {
+      const message = e?.response?.data?.message || e?.message || 'دریافت اطلاعات سبد ناموفق بود.';
+      setError(message);
+      setHistoryError(message);
+      setRealized({ tradeCount: 0, proceeds: 0, costBasis: 0, realizedPnl: 0, realizedPnlPercent: 0 });
+    } finally {
+      setLoading(false);
+      setHistoryLoading(false);
+    }
   }, [isOnline, range]);
 
   const loadBenchmark = useCallback(async () => {
@@ -99,14 +111,8 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
     finally { setBenchmarkLoading(false); }
   }, [isOnline, range]);
 
-  const loadRealized = useCallback(async () => {
-    if (!isOnline) return;
-    try { setRealized(await getPortfolioRealizedPerformance()); } catch (_) { setRealized({ tradeCount: 0, proceeds: 0, costBasis: 0, realizedPnl: 0, realizedPnlPercent: 0 }); }
-  }, [isOnline]);
-
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { loadRealized(); }, [loadRealized]);
-  useEffect(() => { loadHistory(); loadBenchmark(); }, [loadHistory, loadBenchmark]);
+  useEffect(() => { loadBenchmark(); }, [loadBenchmark]);
 
   const stats = useMemo(() => {
     const valued = items.filter(x => x.value != null) as Array<Holding & { value: number }>;
@@ -141,7 +147,7 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
   }, [historyPoints]);
 
   return <div dir="rtl" className="page-shell portfolio-intelligence-page space-y-5">
-    <div className="flex items-center justify-between gap-3 flex-wrap"><div><h2 className="text-2xl font-black">هوشمندی سبد سهام</h2><p className="text-sm text-gray-500 dark:text-gray-400 mt-1">ارزش‌گذاری، عملکرد، توزیع سرمایه، ریسک افت و مقایسه با شاخص بازار بر اساس داده واقعی</p></div><button type="button" onClick={() => { load(); loadHistory(); loadBenchmark(); loadRealized(); }} disabled={loading || historyLoading || benchmarkLoading || !isOnline} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading || historyLoading || benchmarkLoading ? 'در حال بروزرسانی...' : 'بروزرسانی'}</button></div>
+    <div className="flex items-center justify-between gap-3 flex-wrap"><div><h2 className="text-2xl font-black">هوشمندی سبد سهام</h2><p className="text-sm text-gray-500 dark:text-gray-400 mt-1">ارزش‌گذاری، عملکرد، توزیع سرمایه، ریسک افت و مقایسه با شاخص بازار بر اساس داده واقعی</p></div><button type="button" onClick={() => { load(); loadBenchmark(); }} disabled={loading || historyLoading || benchmarkLoading || !isOnline} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading || historyLoading || benchmarkLoading ? 'در حال بروزرسانی...' : 'بروزرسانی'}</button></div>
     {error && <div className="rounded-xl border border-red-300 bg-red-50 dark:bg-red-950/20 p-4 text-red-700 dark:text-red-300">{error}</div>}
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[['ارزش فعلی سبد', money(stats.totalValue)], ['بهای تمام‌شده', money(stats.totalCost)], ['سود/زیان کل', money(stats.pnl)], ['بازدهی کل', pct(stats.pnlPercent)]].map(([label, value]) => <div key={label} className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4"><p className="text-xs text-gray-500">{label}</p><p className="mt-2 text-xl font-black font-mono">{value}</p></div>)}</div>
     {realized.tradeCount > 0 && <div className="rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/20 p-4 space-y-3"><div><h3 className="font-black text-lg">عملکرد تحقق‌یافته معاملات بسته‌شده</h3><p className="text-xs text-gray-500 mt-1">این ارقام متعلق به فروش‌های ثبت‌شده هستند و در ارزش فعلی دارایی‌های سبد دوباره محاسبه نمی‌شوند.</p></div><div className="grid grid-cols-2 md:grid-cols-4 gap-3"><div><p className="text-xs text-gray-500">تعداد معاملات فروش</p><p className="mt-1 text-lg font-black font-mono">{formatPortfolioNumber(realized.tradeCount, 0)}</p></div><div><p className="text-xs text-gray-500">بهای تمام‌شده فروش‌ها</p><p className="mt-1 text-lg font-black font-mono">{money(realized.costBasis)}</p></div><div><p className="text-xs text-gray-500">دریافتی فروش</p><p className="mt-1 text-lg font-black font-mono">{money(realized.proceeds)}</p></div><div><p className="text-xs text-gray-500">سود/زیان تحقق‌یافته</p><p className={`mt-1 text-lg font-black font-mono ${realized.realizedPnl > 0 ? 'text-[var(--color-positive)]' : realized.realizedPnl < 0 ? 'text-[var(--color-negative)]' : ''}`}>{money(realized.realizedPnl)}</p><p className="text-xs text-gray-500 mt-1">بازده: {pct(realized.realizedPnlPercent)}</p></div></div><div className="grid grid-cols-2 md:grid-cols-3 gap-3 border-t border-amber-200/70 dark:border-amber-900/40 pt-3"><div className="rounded-xl border border-[var(--color-border)] p-3"><p className="text-xs text-gray-500">سود/زیان تجمیعی</p><p className="mt-1 text-lg font-black font-mono">{money(stats.combinedPnl)}</p></div><div className="rounded-xl border border-[var(--color-border)] p-3"><p className="text-xs text-gray-500">بهای تمام‌شده تجمیعی</p><p className="mt-1 text-lg font-black font-mono">{money(stats.combinedCost)}</p></div><div className="rounded-xl border border-[var(--color-border)] p-3"><p className="text-xs text-gray-500">بازده تجمیعی</p><p className="mt-1 text-lg font-black font-mono">{pct(stats.combinedReturn)}</p></div></div></div>}
