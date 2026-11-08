@@ -9,33 +9,53 @@ function toNumber(value) {
 }
 
 function normalizeSymbol(item) {
-  const closePrice = toNumber(item.closingPrice);
-  const yesterday = toNumber(item.yesterday ?? item.previousPrice ?? item.yesterdayPrice);
+  item = item || {};
+  const closePrice = toNumber(item.closingPrice ?? item.closePrice ?? item.pc);
+  const yesterday = toNumber(item.yesterday ?? item.previousPrice ?? item.yesterdayPrice ?? item.py);
   const fallbackPct = closePrice !== null && yesterday > 0 ? ((closePrice - yesterday) / yesterday) * 100 : null;
-  const closeChangePercent = toNumber(item.closingChangePercent ?? fallbackPct);
+  const closeChangePercent = toNumber(item.closingChangePercent ?? item.closeChangePercent ?? item.pcp ?? fallbackPct);
+  const realBuyCount = item.realBuyCount ?? item.realBuyerCount ?? item.Buy_CountI;
+  const realSellCount = item.realSellCount ?? item.realSellerCount ?? item.Sell_CountI;
+  const legalBuyCount = item.legalBuyCount ?? item.instBuyCount ?? item.Buy_CountN;
+  const legalSellCount = item.legalSellCount ?? item.instSellCount ?? item.Sell_CountN;
+  const lastPrice = toNumber(item.lastPrice ?? item.last ?? item.pl);
+  const change = toNumber(item.lastChange ?? item.change ?? item.plc);
+  const changePercent = toNumber(item.lastChangePercent ?? item.changePercent ?? item.plp);
+  const closingChange = toNumber(item.closingChange ?? item.closeChange ?? item.pcc);
   return {
-    symbol: String(item.symbol || '').trim(),
-    name: item.name || null,
+    symbol: String(item.symbol || item.l18 || '').trim(),
+    name: item.name || item.l30 || null,
     insCode: String(item.isin || item.id || '').trim() || null,
-    open: toNumber(item.open ?? item.openPrice),
-    high: toNumber(item.high ?? item.highPrice),
-    low: toNumber(item.low ?? item.lowPrice),
-    lastPrice: toNumber(item.lastPrice),
+    open: toNumber(item.open ?? item.openPrice ?? item.pf),
+    high: toNumber(item.high ?? item.highPrice ?? item.pmax),
+    low: toNumber(item.low ?? item.lowPrice ?? item.pmin),
+    lastPrice,
     closePrice,
-    change: toNumber(item.lastChange),
-    changePercent: toNumber(item.lastChangePercent),
+    change,
+    lastChange: change,
+    changePercent,
+    lastChangePercent: changePercent,
+    closingChange,
+    closeChange: closingChange,
+    closingChangePercent: closeChangePercent,
     closeChangePercent,
-    volume: item.tradeVolume == null && item.volume == null ? null : Math.trunc(Number(item.tradeVolume ?? item.volume)),
-    value: toNumber(item.tradeValue ?? item.value),
-    tradeCount: item.tradeCount == null && item.trades == null ? null : Math.trunc(Number(item.tradeCount ?? item.trades)),
+    eps: toNumber(item.eps ?? item.EPS),
+    pe: toNumber(item.pe ?? item.PE ?? item.PER),
+    volume: item.tradeVolume == null && item.volume == null && item.tvol == null ? null : Math.trunc(Number(item.tradeVolume ?? item.volume ?? item.tvol)),
+    value: toNumber(item.tradeValue ?? item.value ?? item.tval),
+    tradeCount: item.tradeCount == null && item.trades == null && item.tno == null ? null : Math.trunc(Number(item.tradeCount ?? item.trades ?? item.tno)),
     yesterday,
-    sector: item.sector ?? item.industryName ?? null,
+    sector: item.sector ?? item.industryName ?? item.cs_name ?? null,
     realBuyVolume: item.realBuyVolume == null ? 0 : Math.max(0, Math.trunc(Number(item.realBuyVolume))),
     realSellVolume: item.realSellVolume == null ? 0 : Math.max(0, Math.trunc(Number(item.realSellVolume))),
     realBuyValue: item.realBuyValue == null || item.realBuyValue === '' ? null : toNumber(item.realBuyValue),
     realSellValue: item.realSellValue == null || item.realSellValue === '' ? null : toNumber(item.realSellValue),
-    realBuyCount: item.realBuyCount == null ? 0 : Math.max(0, Math.trunc(Number(item.realBuyCount))),
-    realSellCount: item.realSellCount == null ? 0 : Math.max(0, Math.trunc(Number(item.realSellCount))),
+    realBuyCount: realBuyCount == null ? 0 : Math.max(0, Math.trunc(Number(realBuyCount))),
+    realSellCount: realSellCount == null ? 0 : Math.max(0, Math.trunc(Number(realSellCount))),
+    legalBuyCount: legalBuyCount == null ? 0 : Math.max(0, Math.trunc(Number(legalBuyCount))),
+    legalSellCount: legalSellCount == null ? 0 : Math.max(0, Math.trunc(Number(legalSellCount))),
+    instBuyCount: legalBuyCount == null ? 0 : Math.max(0, Math.trunc(Number(legalBuyCount))),
+    instSellCount: legalSellCount == null ? 0 : Math.max(0, Math.trunc(Number(legalSellCount))),
     volumeAvg1m: item.volumeAvg1m == null || Number(item.volumeAvg1m) <= 0 ? null : Math.max(0, Math.trunc(Number(item.volumeAvg1m))),
     orderBook: item.orderBook && typeof item.orderBook === 'object' ? item.orderBook : null,
     allowedMin: toNumber(item.allowedMin),
