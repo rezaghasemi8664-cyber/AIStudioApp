@@ -1,5 +1,4 @@
-import api from '../api/apiClient';
-import * as portfolioService from './portfolioService';
+import { getPortfolioAnalytics } from './portfolioAnalyticsService';
 import { normalizePortfolioDate } from '../utils/portfolioDate';
 
 export interface PortfolioHistoryPoint {
@@ -11,81 +10,6 @@ export interface PortfolioHistoryPoint {
   capitalChange: number;
   marketPnl: number;
   dailyReturnPercent: number | null;
-}
-
-interface QuotePoint { date: string; close: number; }
-
-const num = (value: unknown): number | null => {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-};
-
-const normalizeDate = normalizePortfolioDate;
-
-async function fetchHistoryPath(symbol: string, path: string): Promise<QuotePoint[]> {
-  try {
-    const response = await api.get(path, { params: { limit: 5000 } });
-    const payload = response?.data;
-    const raw = payload?.data?.candles ?? payload?.data?.items ?? payload?.data ?? payload?.candles ?? payload?.items ?? payload ?? [];
-    if (!Array.isArray(raw)) {
-      console.warn('[PortfolioHistory][fetchHistoryPath] unexpected payload', { symbol, path, payload });
-      return [];
-    }
-
-    const rows = raw.map(row => ({
-      date: normalizeDate(row.date ?? row.d ?? row.tradeDate ?? row.jalaliDate ?? row.timestamp),
-      close: num(row.close ?? row.lastClosePrice ?? row.closePrice ?? row.closingPrice ?? row.lastPrice ?? row.last),
-    })).filter((row): row is { date: string; close: number } => Boolean(row.date) && row.close != null && row.close > 0);
-
-    console.log('[PortfolioHistory][fetchHistoryPath]', {
-      symbol,
-      path,
-      rawCount: raw.length,
-      count: rows.length,
-      first: rows[0]?.date ?? null,
-      last: rows[rows.length - 1]?.date ?? null,
-    });
-
-    return rows;
-  } catch (error) {
-    console.warn('[PortfolioHistory][fetchHistoryPath] failed', { symbol, path, error });
-    return [];
-  }
-}
-
-async function getHistory(symbol: string): Promise<QuotePoint[]> {
-  const encodedSymbol = encodeURIComponent(symbol);
-  const [candles, history] = await Promise.all([
-    fetchHistoryPath(symbol, `/brs/symbol/${encodedSymbol}/candles`),
-    fetchHistoryPath(symbol, `/brs/symbol/${encodedSymbol}/history`),
-  ]);
-
-  // Both endpoints can contain complementary portions of the symbol history.
-  // Merge them instead of returning the first endpoint that happens to have two rows.
-  const merged = new Map<string, QuotePoint>();
-  [...history, ...candles].forEach(point => {
-    // Prefer the history endpoint when both endpoints contain the same date.
-    if (!merged.has(point.date) || history.some(item => item.date === point.date && item.close === point.close)) {
-      merged.set(point.date, point);
-    }
-  });
-
-  const rows = Array.from(merged.values()).sort((a, b) => a.date.localeCompare(b.date));
-
-  console.log('[PortfolioHistory][getHistory] merged', {
-    symbol,
-    candlesCount: candles.length,
-    historyCount: history.length,
-    mergedCount: rows.length,
-    first: rows[0]?.date ?? null,
-    last: rows[rows.length - 1]?.date ?? null,
-    has1405_04_18: rows.some(row => row.date === '2026-07-09'),
-    has1405_05_28: rows.some(row => row.date === '2026-08-19'),
-    has1405_06_09: rows.some(row => row.date === '2026-08-31'),
-    has1405_07_06: rows.some(row => row.date === '2026-09-28'),
-  });
-
-  return rows;
 }
 
 interface HistoricalLot {
@@ -101,23 +25,30 @@ interface HistoricalSale {
   allocations: Array<{ lotId: string; quantity: number }>;
 }
 
+const normalizeDate = normalizePortfolioDate;
+const num = (value: unknown): number | null => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
+
 function activeQuantityAtDate(lot: HistoricalLot, date: string, sales: HistoricalSale[]): number {
   if (!lot.entryDate || date < lot.entryDate) return 0;
-  const sold = sales.filter(sale => sale.sellDate && sale.sellDate <= date).reduce(
-    (sum, sale) => sum + sale.allocations
+  const sold = sales
+    .filter(sale => sale.sellDate && sale.sellDate <= date)
+    .reduce((sum, sale) => sum + sale.allocations
       .filter(allocation => allocation.lotId === lot.id)
-      .reduce((lotSum, allocation) => lotSum + Math.max(0, Number(allocation.quantity) || 0), 0),
-    0,
-  );
+      .reduce((lotSum, allocation) => lotSum + Math.max(0, Number(allocation.quantity) || 0), 0), 0);
   return Math.max(0, lot.quantity - sold);
 }
 
 export async function getPortfolioHistory(): Promise<PortfolioHistoryPoint[]> {
-  const portfolio = await portfolioService.getPortfolio();
-  if (!portfolio.length) return [];
+  const analytics = await getPortfolioAnalytics();
+  const portfolio = analytics.portfolio;
+  const currentItems = Array.isArray(portfolio?.items) ? portfolio.items : [];
+  const trades = Array.isArray(portfolio?.soldTrades) ? portfolio.soldTrades : [];
+  if (!currentItems.length && !trades.length) return [];
 
-  const soldResult = await portfolioService.getSoldTrades().catch(() => ({ trades: [], realizedPnl: 0, proceeds: 0, costBasis: 0 }));
-  const sales: HistoricalSale[] = (Array.isArray(soldResult.trades) ? soldResult.trades : []).map(trade => ({
+  const sales: HistoricalSale[] = trades.map(trade => ({
     sellDate: normalizeDate(trade.sellDate),
     allocations: Array.isArray(trade.allocations) ? trade.allocations.map(allocation => ({
       lotId: String(allocation.lotId),
@@ -126,70 +57,58 @@ export async function getPortfolioHistory(): Promise<PortfolioHistoryPoint[]> {
   }));
 
   const lotMap = new Map<string, HistoricalLot>();
-  portfolio.forEach(item => {
-    lotMap.set(String(item.id), {
-      id: String(item.id),
-      symbol: item.symbol,
+  currentItems.forEach(item => {
+    const id = String(item.id);
+    lotMap.set(id, {
+      id,
+      symbol: String(item.symbol || '').trim().toUpperCase(),
       quantity: Number(item.quantity) || 0,
-      buyPrice: Number(item.entryPrice) || 0,
+      buyPrice: Number(item.buyPrice) || 0,
       entryDate: normalizeDate(item.entryDate),
     });
   });
-  sales.forEach(sale => sale.allocations.forEach(allocation => {
-    if (lotMap.has(allocation.lotId)) {
-      lotMap.get(allocation.lotId)!.quantity += Math.max(0, Number(allocation.quantity) || 0);
+
+  trades.forEach(trade => (Array.isArray(trade.allocations) ? trade.allocations : []).forEach(allocation => {
+    const lotId = String(allocation.lotId);
+    const quantity = Math.max(0, Number(allocation.quantity) || 0);
+    if (lotMap.has(lotId)) {
+      lotMap.get(lotId)!.quantity += quantity;
       return;
     }
-    const trade = soldResult.trades.find(item => item.allocations?.some(a => String(a.lotId) === allocation.lotId));
-    const source = trade?.allocations?.find(a => String(a.lotId) === allocation.lotId);
-    if (trade && source) {
-      lotMap.set(allocation.lotId, {
-        id: allocation.lotId,
-        symbol: trade.symbol,
-        quantity: Math.max(0, Number(allocation.quantity) || 0),
-        buyPrice: Number(source.buyPrice) || 0,
-        entryDate: normalizeDate(source.buyDate),
-      });
-    }
+    lotMap.set(lotId, {
+      id: lotId,
+      symbol: String(trade.symbol || '').trim().toUpperCase(),
+      quantity,
+      buyPrice: Number(allocation.buyPrice) || 0,
+      entryDate: normalizeDate(allocation.buyDate),
+    });
   }));
 
-  const rows = await Promise.all(Array.from(lotMap.values()).map(async item => ({
+  const historyBySymbol = analytics.historyBySymbol || {};
+  const rows = Array.from(lotMap.values()).map(item => ({
     item,
-    quotes: await getHistory(item.symbol).catch(() => []),
-  })));
-
-  console.log('[PortfolioHistory] rows', rows.map(({ item, quotes }) => ({
-    symbol: item.symbol,
-    entryDate: item.entryDate,
-    quantity: item.quantity,
-    quoteCount: quotes.length,
-    first: quotes[0]?.date ?? null,
-    last: quotes[quotes.length - 1]?.date ?? null,
-  })));
+    quotes: (historyBySymbol[item.symbol] || [])
+      .map(point => ({
+        date: normalizeDate(point.date),
+        close: num(point.close),
+      }))
+      .filter((point): point is { date: string; close: number } =>
+        Boolean(point.date) && point.close != null && point.close > 0)
+      .sort((a, b) => a.date.localeCompare(b.date)),
+  }));
 
   const byDate = new Map<string, { value: number; cost: number }>();
-
-  rows.forEach(({ item, quotes }) => {
-    quotes.forEach(point => {
-      const activeQuantity = activeQuantityAtDate(item, point.date, sales);
-      if (activeQuantity <= 0) return;
-      const current = byDate.get(point.date) ?? { value: 0, cost: 0 };
-      byDate.set(point.date, {
-        value: current.value + point.close * activeQuantity,
-        cost: current.cost + item.buyPrice * activeQuantity,
-      });
+  rows.forEach(({ item, quotes }) => quotes.forEach(point => {
+    const activeQuantity = activeQuantityAtDate(item, point.date, sales);
+    if (activeQuantity <= 0) return;
+    const current = byDate.get(point.date) ?? { value: 0, cost: 0 };
+    byDate.set(point.date, {
+      value: current.value + point.close * activeQuantity,
+      cost: current.cost + item.buyPrice * activeQuantity,
     });
-  });
+  }));
 
   const sorted = Array.from(byDate.entries()).sort(([a], [b]) => a.localeCompare(b));
-  console.log('[PortfolioHistory] byDate', {
-    count: sorted.length,
-    first: sorted[0]?.[0] ?? null,
-    last: sorted[sorted.length - 1]?.[0] ?? null,
-    has1405_06_09: sorted.some(([date]) => date === '2026-08-31'),
-    has1405_07_06: sorted.some(([date]) => date === '2026-09-28'),
-  });
-
   let previousValue: number | null = null;
   let previousCost: number | null = null;
 
@@ -224,10 +143,16 @@ export interface PortfolioRealizedPerformance {
 }
 
 export async function getPortfolioRealizedPerformance(): Promise<PortfolioRealizedPerformance> {
-  const result = await portfolioService.getSoldTrades();
-  const tradeCount = Array.isArray(result.trades) ? result.trades.length : 0;
-  const proceeds = num(result.proceeds) ?? 0;
-  const costBasis = num(result.costBasis) ?? 0;
-  const realizedPnl = num(result.realizedPnl) ?? 0;
-  return { tradeCount, proceeds, costBasis, realizedPnl, realizedPnlPercent: costBasis > 0 ? (realizedPnl / costBasis) * 100 : 0 };
+  const analytics = await getPortfolioAnalytics();
+  const trades = Array.isArray(analytics.portfolio?.soldTrades) ? analytics.portfolio.soldTrades : [];
+  const proceeds = trades.reduce((sum, trade) => sum + (num(trade.proceeds) ?? 0), 0);
+  const costBasis = trades.reduce((sum, trade) => sum + (num(trade.costBasis) ?? 0), 0);
+  const realizedPnl = trades.reduce((sum, trade) => sum + (num(trade.realizedPnl) ?? 0), 0);
+  return {
+    tradeCount: trades.length,
+    proceeds,
+    costBasis,
+    realizedPnl,
+    realizedPnlPercent: costBasis > 0 ? (realizedPnl / costBasis) * 100 : 0,
+  };
 }
