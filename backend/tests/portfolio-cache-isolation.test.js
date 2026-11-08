@@ -88,4 +88,49 @@ describe('per-user portfolio cache isolation', () => {
     expect(portfolioCache.getQuotes(101, 8)).toBeNull();
     expect(portfolioCache.getQuotes(101, 7)).toEqual({ currentValue: 100 });
   });
+
+  test('shares one analytics load between cards and caches it for the active snapshot', async () => {
+    let analyticsReads = 0;
+    const loader = async () => {
+      analyticsReads += 1;
+      return { historyBySymbol: { فولاد: [{ date: '2026-11-06', close: 100 }] } };
+    };
+
+    const first = await portfolioCache.getAnalytics(101, 'snapshot-7', loader);
+    const second = await portfolioCache.getAnalytics(101, 'snapshot-7', loader);
+
+    expect(second).toEqual(first);
+    expect(analyticsReads).toBe(1);
+  });
+
+  test('refreshes analytics when the market snapshot key changes', async () => {
+    let analyticsReads = 0;
+    const loader = async () => ({ version: ++analyticsReads });
+
+    await portfolioCache.getAnalytics(101, 'snapshot-7', loader);
+    const refreshed = await portfolioCache.getAnalytics(101, 'snapshot-8', loader);
+
+    expect(refreshed).toEqual({ version: 2 });
+    expect(analyticsReads).toBe(2);
+  });
+
+  test('invalidates cached analytics immediately after a portfolio write', async () => {
+    let analyticsReads = 0;
+    const loader = async () => ({ version: ++analyticsReads });
+
+    await portfolioCache.getAnalytics(101, 'snapshot-7', loader);
+    portfolioCache.setState(101, { version: 2 });
+    const refreshed = await portfolioCache.getAnalytics(101, 'snapshot-7', loader);
+
+    expect(refreshed).toEqual({ version: 2 });
+    expect(analyticsReads).toBe(2);
+  });
+
+  test('keeps analytics payloads isolated by user id', async () => {
+    await portfolioCache.getAnalytics(101, 'snapshot-7', async () => ({ marker: 'first' }));
+    await portfolioCache.getAnalytics(202, 'snapshot-7', async () => ({ marker: 'second' }));
+
+    expect(await portfolioCache.getAnalytics(101, 'snapshot-7', async () => null)).toEqual({ marker: 'first' });
+    expect(await portfolioCache.getAnalytics(202, 'snapshot-7', async () => null)).toEqual({ marker: 'second' });
+  });
 });
