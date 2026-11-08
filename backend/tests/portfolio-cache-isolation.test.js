@@ -89,17 +89,23 @@ describe('per-user portfolio cache isolation', () => {
     expect(portfolioCache.getQuotes(101, 7)).toEqual({ currentValue: 100 });
   });
 
-  test('shares one analytics load between cards and caches it for the active snapshot', async () => {
+  test('coalesces simultaneous card requests and caches analytics for the active snapshot', async () => {
     let analyticsReads = 0;
-    const loader = async () => {
+    let resolveLoad;
+    const payload = { symbols: ['فولاد'], snapshotId: 7 };
+    const loader = () => {
       analyticsReads += 1;
-      return { historyBySymbol: { فولاد: [{ date: '2026-11-06', close: 100 }] } };
+      return new Promise(resolve => { resolveLoad = resolve; });
     };
 
-    const first = await portfolioCache.getAnalytics(101, 'snapshot-7', loader);
-    const second = await portfolioCache.getAnalytics(101, 'snapshot-7', loader);
+    const first = portfolioCache.getAnalytics(101, 'snapshot-7', loader);
+    const second = portfolioCache.getAnalytics(101, 'snapshot-7', loader);
+    await Promise.resolve();
 
-    expect(second).toEqual(first);
+    expect(analyticsReads).toBe(1);
+    resolveLoad(payload);
+    await expect(Promise.all([first, second])).resolves.toEqual([payload, payload]);
+    await expect(portfolioCache.getAnalytics(101, 'snapshot-7', loader)).resolves.toEqual(payload);
     expect(analyticsReads).toBe(1);
   });
 
