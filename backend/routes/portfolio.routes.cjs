@@ -6,7 +6,7 @@ const authMiddleware = require('../middlewares/auth.middleware.cjs');
 const prismaModule = require('../config/prisma.cjs');
 const prisma = prismaModule.prisma || prismaModule;
 const allSymbolsSnapshotService = require('../services/allSymbolsSnapshot.service.cjs');
-const centralCache = require('../services/centralMarketCache.service.cjs');
+const portfolioCache = require('../services/portfolioCache.service.cjs');
 
 function getUserId(req) {
   const raw = req.user && (req.user.id ?? req.user.userId);
@@ -113,14 +113,8 @@ async function readPortfolioFromDatabase(userId) {
   };
 }
 
-const PORTFOLIO_STATE_CACHE_TTL_MS = 60_000;
-
 async function readPortfolio(userId) {
-  return centralCache.getOrLoad(
-    `portfolio:user:${userId}:state`,
-    PORTFOLIO_STATE_CACHE_TTL_MS,
-    () => readPortfolioFromDatabase(userId)
-  );
+  return portfolioCache.getState(userId, () => readPortfolioFromDatabase(userId));
 }
 
 async function getPortfolioQuotes(userId, items) {
@@ -131,11 +125,10 @@ async function getPortfolioQuotes(userId, items) {
     console.error('[PORTFOLIO] AllSymbols snapshot read failed:', error.message);
   }
 
-  const cacheKey = `portfolio:user:${userId}:quotes`;
-  const cached = centralCache.get(cacheKey);
-  if (snapshot?.status === 'FOUND' && cached?.snapshotId === snapshot.snapshotId && cached.data) {
-    return cached.data;
-  }
+  const cached = snapshot?.status === 'FOUND'
+    ? portfolioCache.getQuotes(userId, snapshot.snapshotId)
+    : null;
+  if (cached) return cached;
 
   const quotedItems = await enrichWithRealQuotes(items, snapshot);
   const quoted = quotedItems.filter(item => Number.isFinite(item.currentPrice) && item.currentPrice > 0);
@@ -150,7 +143,7 @@ async function getPortfolioQuotes(userId, items) {
     snapshotId: snapshot?.snapshotId ?? null,
     snapshotUpdatedAt: snapshot?.snapshotUpdatedAt ?? null
   };
-  if (snapshot?.status === 'FOUND') centralCache.set(cacheKey, { snapshotId: snapshot.snapshotId, data });
+  if (snapshot?.status === 'FOUND') portfolioCache.setQuotes(userId, snapshot.snapshotId, data);
   return data;
 }
 
@@ -158,8 +151,7 @@ async function writePortfolio(userId, state) {
   const root = state.root && typeof state.root === 'object' && !Array.isArray(state.root) ? state.root : {};
   root.portfolio = state.portfolio;
   await prisma.user.update({ where: { id: userId }, data: { marketSummary: JSON.stringify(root) } });
-  centralCache.set(`portfolio:user:${userId}:state`, { root, portfolio: state.portfolio });
-  centralCache.invalidate(`portfolio:user:${userId}:quotes`);
+  portfolioCache.setState(userId, { root, portfolio: state.portfolio });
 }
 
 router.get('/quotes', authMiddleware, async (req, res) => {
