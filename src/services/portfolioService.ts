@@ -11,6 +11,17 @@ type ApiPortfolioItem = { id: string | number; symbol?: string; stockSymbol?: st
 function resolveSymbol(item: { symbol?: string; stockSymbol?: string; ticker?: string }): string { return String(item.symbol ?? item.stockSymbol ?? item.ticker ?? '').trim().toUpperCase(); }
 function normalize(item: ApiPortfolioItem): PortfolioApiItem { const symbol = resolveSymbol(item); return { id: String(item.id), symbol, name: item.name || symbol, quantity: Number(item.quantity), entryPrice: Number(item.buyPrice), entryDate: item.entryDate, currentPrice: item.currentPrice == null ? null : Number(item.currentPrice), changePercent: item.changePercent == null ? null : Number(item.changePercent), dataStatus: item.dataStatus, source: item.source, fetchedAt: item.fetchedAt, stale: item.stale === true }; }
 function unwrap<T>(response: any): T { return (response?.data?.data ?? response?.data ?? response) as T; }
+function notifyPortfolioCacheUpdated(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('roniya:portfolio-cache-updated'));
+}
+
+export interface PortfolioQuoteSummary {
+  items: PortfolioApiItem[];
+  currentValue: number | null;
+  costBasis: number | null;
+  unrealizedPnl: number | null;
+  dataStatus?: 'LIVE' | 'CACHED' | 'UNAVAILABLE';
+}
 
 export interface AggregatedPortfolioItem extends PortfolioApiItem {
   totalCost: number;
@@ -59,6 +70,18 @@ export function aggregatePortfolioItems(items: PortfolioApiItem[]): AggregatedPo
   return Array.from(grouped.values());
 }
 
+export async function getPortfolioQuoteSummary(): Promise<PortfolioQuoteSummary> {
+  const response = await api.get('/portfolio/quotes', { timeout: 12000 });
+  const data = unwrap<{ items?: ApiPortfolioItem[]; currentValue?: number; costBasis?: number; unrealizedPnl?: number; dataStatus?: 'LIVE' | 'CACHED' | 'UNAVAILABLE' }>(response);
+  return {
+    items: Array.isArray(data?.items) ? data.items.map(normalize).filter(item => Boolean(item.symbol)) : [],
+    currentValue: Number.isFinite(Number(data?.currentValue)) ? Number(data.currentValue) : null,
+    costBasis: Number.isFinite(Number(data?.costBasis)) ? Number(data.costBasis) : null,
+    unrealizedPnl: Number.isFinite(Number(data?.unrealizedPnl)) ? Number(data.unrealizedPnl) : null,
+    dataStatus: data?.dataStatus
+  };
+}
+
 export async function getPortfolio(): Promise<PortfolioApiItem[]> {
   const response = await api.get('/portfolio');
   const data = unwrap<{ items?: ApiPortfolioItem[] }>(response);
@@ -66,25 +89,29 @@ export async function getPortfolio(): Promise<PortfolioApiItem[]> {
 }
 
 export async function refreshPortfolioQuotes(): Promise<PortfolioApiItem[]> {
-  const response = await api.get('/portfolio/quotes', { timeout: 12000 });
-  const data = unwrap<{ items?: ApiPortfolioItem[] }>(response);
-  return Array.isArray(data?.items) ? data.items.map(normalize).filter(item => Boolean(item.symbol)) : [];
+  const summary = await getPortfolioQuoteSummary();
+  notifyPortfolioCacheUpdated();
+  return summary.items;
 }
 
 export async function addPortfolioItem(item: Omit<PortfolioApiItem, 'id'>): Promise<PortfolioApiItem> {
   const symbol = resolveSymbol(item);
   if (!symbol) throw new Error('نماد سهم برای ذخیره مشخص نشده است.');
   const response = await api.post('/portfolio', { symbol, name: item.name || symbol, quantity: item.quantity, buyPrice: item.entryPrice, entryDate: item.entryDate });
-  return normalize(unwrap<ApiPortfolioItem>(response));
+  const created = normalize(unwrap<ApiPortfolioItem>(response));
+  notifyPortfolioCacheUpdated();
+  return created;
 }
 
 export async function updatePortfolioItem(id: string, item: Partial<Omit<PortfolioApiItem, 'id'>>): Promise<PortfolioApiItem> {
   const symbol = item.symbol !== undefined ? resolveSymbol(item) : undefined;
   const response = await api.put(`/portfolio/${encodeURIComponent(id)}`, { ...(symbol !== undefined ? { symbol } : {}), ...(item.name !== undefined ? { name: item.name } : {}), ...(item.quantity !== undefined ? { quantity: item.quantity } : {}), ...(item.entryPrice !== undefined ? { buyPrice: item.entryPrice } : {}), ...(item.entryDate !== undefined ? { entryDate: item.entryDate } : {}) });
-  return normalize(unwrap<ApiPortfolioItem>(response));
+  const updated = normalize(unwrap<ApiPortfolioItem>(response));
+  notifyPortfolioCacheUpdated();
+  return updated;
 }
 
-export async function deletePortfolioItem(id: string): Promise<void> { await api.delete(`/portfolio/${encodeURIComponent(id)}`); }
+export async function deletePortfolioItem(id: string): Promise<void> { await api.delete(`/portfolio/${encodeURIComponent(id)}`); notifyPortfolioCacheUpdated(); }
 
 export async function getSoldTrades(): Promise<SoldTradesResult> {
   const response = await api.get('/portfolio/trades');
@@ -100,7 +127,9 @@ export async function recordSale(input: {
   allocations: Array<{ lotId: string; quantity: number }>;
 }): Promise<SoldTrade> {
   const response = await api.post('/portfolio/sales', { ...input, allocationMethod: 'MANUAL' });
-  return unwrap<SoldTrade>(response);
+  const trade = unwrap<SoldTrade>(response);
+  notifyPortfolioCacheUpdated();
+  return trade;
 }
 
-export async function deleteSoldTrade(id: string): Promise<void> { await api.delete(`/portfolio/sales/${encodeURIComponent(id)}`); }
+export async function deleteSoldTrade(id: string): Promise<void> { await api.delete(`/portfolio/sales/${encodeURIComponent(id)}`); notifyPortfolioCacheUpdated(); }

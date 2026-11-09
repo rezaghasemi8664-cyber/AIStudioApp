@@ -87,12 +87,41 @@ export async function getDashboardCodalEvents(): Promise<DashboardCodalEvent[]> 
 }
 
 export async function getDashboardPersonalSummary(unreadAlertCount: number, subscriptionDaysRemaining: number | null, subscriptionExpired: boolean): Promise<DashboardData['personal']> {
-  const [watchlistsResult, portfolioResult] = await Promise.allSettled([watchlistService.getWatchlists(), portfolioService.getPortfolio()]);
+  const [watchlistsResult, portfolioResult] = await Promise.allSettled([watchlistService.getWatchlists(), portfolioService.getPortfolioQuoteSummary()]);
   const watchlists = watchlistsResult.status === 'fulfilled' ? watchlistsResult.value : [];
-  const portfolio = portfolioResult.status === 'fulfilled' ? portfolioResult.value : [];
+  const analytics = portfolioResult.status === 'fulfilled' ? portfolioResult.value : null;
+  const portfolioItems = Array.isArray(analytics?.items) ? analytics.items : [];
+  const quoteItems = portfolioItems;
   const watchlistSymbolCount = watchlists.reduce((sum, item) => sum + item.symbols.length, 0);
-  const portfolioInvestedValue = portfolio.reduce((sum, item) => sum + (Number(item.entryPrice) || 0) * (Number(item.quantity) || 0), 0);
-  return { watchlistCount: watchlists.length, watchlistSymbolCount, portfolioCount: portfolio.length, portfolioInvestedValue, unreadAlertCount: Math.max(0, Number(unreadAlertCount) || 0), subscriptionDaysRemaining, subscriptionExpired };
+  const portfolioSymbols = new Set(portfolioItems.map(item => String(item.symbol || '').trim().toUpperCase()).filter(Boolean));
+  const portfolioCount = portfolioSymbols.size;
+  const portfolioInvestedValue = portfolioItems.reduce((sum, item) => {
+    const quantity = Number(item.quantity);
+    const entryPrice = Number(item.entryPrice);
+    return Number.isFinite(quantity) && quantity > 0 && Number.isFinite(entryPrice) && entryPrice > 0 ? sum + quantity * entryPrice : sum;
+  }, 0);
+  const quotedItems = quoteItems.filter(item => Number.isFinite(Number(item.currentPrice)) && Number(item.currentPrice) > 0);
+  const quotedSymbols = new Set(quotedItems.map(item => String(item.symbol || '').trim().toUpperCase()).filter(Boolean));
+  const cachedCurrentValue = Number(analytics?.currentValue);
+  const portfolioCurrentValue = Number.isFinite(cachedCurrentValue)
+    ? cachedCurrentValue
+    : quotedItems.reduce((sum, item) => sum + Number(item.currentPrice) * Number(item.quantity || 0), 0);
+  const hasCompleteQuotes = portfolioCount > 0 && quotedSymbols.size >= portfolioCount;
+  const portfolioPnl = hasCompleteQuotes ? portfolioCurrentValue - portfolioInvestedValue : null;
+  const portfolioPnlPercent = portfolioPnl !== null && portfolioInvestedValue > 0 ? (portfolioPnl / portfolioInvestedValue) * 100 : null;
+  return {
+    watchlistCount: watchlists.length,
+    watchlistSymbolCount,
+    portfolioCount,
+    portfolioInvestedValue,
+    portfolioCurrentValue: quotedSymbols.size > 0 ? portfolioCurrentValue : null,
+    portfolioPnl,
+    portfolioPnlPercent,
+    portfolioQuotedSymbolCount: quotedSymbols.size,
+    unreadAlertCount: Math.max(0, Number(unreadAlertCount) || 0),
+    subscriptionDaysRemaining,
+    subscriptionExpired
+  };
 }
 
 const DASHBOARD_REQUEST_TIMEOUT_MS = 2500;
@@ -121,6 +150,7 @@ export async function getDashboardData(unreadAlertCount = 0, subscriptionDaysRem
     withDashboardTimeout(getDashboardCodalEvents(), [], DASHBOARD_CODAL_TIMEOUT_MS),
     withDashboardTimeout(getDashboardPersonalSummary(unreadAlertCount, subscriptionDaysRemaining, subscriptionExpired), {
       watchlistCount: 0, watchlistSymbolCount: 0, portfolioCount: 0, portfolioInvestedValue: 0,
+      portfolioCurrentValue: null, portfolioPnl: null, portfolioPnlPercent: null, portfolioQuotedSymbolCount: 0,
       unreadAlertCount: Math.max(0, Number(unreadAlertCount) || 0), subscriptionDaysRemaining, subscriptionExpired,
     }),
   ]);
@@ -128,6 +158,7 @@ export async function getDashboardData(unreadAlertCount = 0, subscriptionDaysRem
   const movers = moversResult.status === 'fulfilled' ? moversResult.value : { gainers: [], losers: [], highVolume: [] };
   const personal = personalResult.status === 'fulfilled' ? personalResult.value : {
     watchlistCount: 0, watchlistSymbolCount: 0, portfolioCount: 0, portfolioInvestedValue: 0,
+    portfolioCurrentValue: null, portfolioPnl: null, portfolioPnlPercent: null, portfolioQuotedSymbolCount: 0,
     unreadAlertCount: Math.max(0, Number(unreadAlertCount) || 0), subscriptionDaysRemaining, subscriptionExpired,
   };
   return {

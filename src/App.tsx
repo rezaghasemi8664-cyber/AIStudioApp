@@ -427,6 +427,7 @@ const App: React.FC = () => {
   const [initError, setInitError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<StoredUser | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const [profileInitialTab, setProfileInitialTab] = useState<'info' | 'subscription'>('info');
   const [scalpingAlert, setScalpingAlert] = useState(false);
   const [portfolioAlert, setPortfolioAlert] = useState<PortfolioAlertType>('none');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -1034,7 +1035,8 @@ const App: React.FC = () => {
     void refreshUnreadCount(safeUser);
   }, [buildSafeUser, persistUser, refreshUnreadCount]);
 
-  const handleTabClick = useCallback((tab: Tab) => {
+  const handleTabClick = useCallback((tab: Tab, requestedProfileTab: 'info' | 'subscription' = 'info') => {
+    if (tab === 'profile') setProfileInitialTab(requestedProfileTab);
     if (isExpired && !currentUser?.isAdmin && isSubscriptionRestrictedTab(tab)) {
       addNotification('کاربر گرامی مدت اشتراک شما به پایان رسیده است لطفا جهت استفاده از تمامی امکانات نرم افزار نسبت به تهیه اشتراک اقدام فرمایید', 'info');
       return;
@@ -1070,6 +1072,10 @@ const App: React.FC = () => {
   }, [buildSafeUser, currentUser, persistUser]);
 
   const handleToggleNotifications = useCallback(() => setIsNotificationsOpen(prev => !prev), []);
+  const handleOpenNotifications = useCallback(() => {
+    setIsNotificationsOpen(true);
+    if (currentUser) void refreshUnreadCount(currentUser);
+  }, [currentUser, refreshUnreadCount]);
 
   const handleViewNotification = useCallback((notification: AppNotification) => {
     const watchlistAlertMatch = notification.type?.match(/^wa:(.+)$/);
@@ -1119,7 +1125,8 @@ const App: React.FC = () => {
             unreadAlertCount={unreadCount}
             subscriptionDaysRemaining={validityInfo?.daysRemaining ?? null}
             subscriptionExpired={validityInfo?.isExpired ?? isExpired}
-            onNavigate={(target) => handleTabClick(target as Tab)}
+            onNavigate={(target) => target === 'profileSubscription' ? handleTabClick('profile', 'subscription') : handleTabClick(target as Tab)}
+            onOpenNotifications={handleOpenNotifications}
           />
         );
       case 'analysis': return <StockAnalysis />;
@@ -1141,12 +1148,12 @@ const App: React.FC = () => {
       case 'comprehensiveGuide': return <ComprehensiveGuide />;
       case 'settings':
         return <Settings currentUser={currentUser} />;
-      case 'profile': return <UserProfile currentUser={currentUser} onProfileUpdate={handleProfileUpdate} onPasswordChange={handlePasswordChange} />;
+      case 'profile': return <UserProfile currentUser={currentUser} onProfileUpdate={handleProfileUpdate} onPasswordChange={handlePasswordChange} initialTab={profileInitialTab} />;
       case 'users': return currentUser.isAdmin ? <AdminPanel isOnline={isOnline} onMessageUpdate={() => refreshUnreadCount(currentUser)} onlineCount={onlineUserCount} /> : <div className="text-center py-8 text-gray-500"><LockClosedIcon className="h-8 w-8 mx-auto mb-2" /><p>شما دسترسی ندارید.</p></div>;
       case 'notifications': return currentUser.isAdmin ? <NotificationsManagement isOnline={isOnline} /> : <div className="text-center py-8 text-gray-500"><LockClosedIcon className="h-8 w-8 mx-auto mb-2" /><p>شما دسترسی ندارید.</p></div>;
       default: return isExpired ? <AccessDenied /> : <StockAnalysis />;
     }
-  }, [activeTab, currentUser, handlePasswordChange, handleProfileUpdate, handleTabClick, isExpired, isOnline, onlineUserCount, refreshUnreadCount, unreadCount, validityInfo]);
+  }, [activeTab, currentUser, handlePasswordChange, handleProfileUpdate, handleTabClick, isExpired, isOnline, onlineUserCount, profileInitialTab, refreshUnreadCount, unreadCount, validityInfo]);
 
   useEffect(() => {
     let active = true;

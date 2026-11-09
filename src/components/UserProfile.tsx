@@ -26,6 +26,7 @@ interface UserProfileProps {
   currentUser: StoredUser;
   onProfileUpdate: (updatedUser: StoredUser) => void;
   onPasswordChange: (currentPass: string, newPass: string) => Promise<void>;
+  initialTab?: 'info' | 'subscription';
 }
 
 // =============================================================================
@@ -126,6 +127,7 @@ const SubscriptionCard: React.FC<{
 
   return (
     <div
+      id="profile-subscription-status"
       data-style-id="user-profile-subscription-card"
       data-style-name="کارت وضعیت اشتراک"
       className="user-profile-card p-6 rounded-lg shadow-md"
@@ -248,13 +250,14 @@ const UserProfile: React.FC<UserProfileProps> = ({
   currentUser,
   onProfileUpdate,
   onPasswordChange,
+  initialTab = 'info',
 }) => {
   // =====================
   // Tab type
   // =====================
   type ProfileTab = 'info' | 'subscription' | 'history' | 'message';
 
-  const [activeTab, setActiveTab] = useState<ProfileTab>('info');
+  const [activeTab, setActiveTab] = useState<ProfileTab>(initialTab);
   const { addNotification } = useNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -329,6 +332,10 @@ const UserProfile: React.FC<UserProfileProps> = ({
     fetchSubscription();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser.isAdmin]);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   useEffect(() => {
     if (activeTab !== 'history' || paymentHistoryLoaded || currentUser.isAdmin) return;
