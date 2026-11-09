@@ -73,9 +73,9 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
     }, { invested: 0, current: 0, quoted: 0 });
     // Compare the current value of all available quotes against the full
     // purchase value of the basket, including symbols without a current quote.
-    result.pnl = result.quoted > 0 ? result.current - result.invested : null;
-    result.pnlPercent = result.pnl !== null && result.invested > 0 ? (result.pnl / result.invested) * 100 : null;
-    return result;
+    const pnl = result.quoted > 0 ? result.current - result.invested : null;
+    const pnlPercent = pnl !== null && result.invested > 0 ? (pnl / result.invested) * 100 : null;
+    return { ...result, pnl, pnlPercent };
   }, [items]);
 
   const save = async (event: React.FormEvent) => {
