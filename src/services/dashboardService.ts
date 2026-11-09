@@ -97,7 +97,7 @@ export async function getDashboardPersonalSummary(unreadAlertCount: number, subs
   const portfolioCount = portfolioSymbols.size;
   const portfolioInvestedValue = portfolioItems.reduce((sum, item) => {
     const quantity = Number(item.quantity);
-    const entryPrice = Number(item.entryPrice ?? item.buyPrice);
+    const entryPrice = Number(item.entryPrice);
     return Number.isFinite(quantity) && quantity > 0 && Number.isFinite(entryPrice) && entryPrice > 0 ? sum + quantity * entryPrice : sum;
   }, 0);
   const quotedItems = quoteItems.filter(item => Number.isFinite(Number(item.currentPrice)) && Number(item.currentPrice) > 0);
