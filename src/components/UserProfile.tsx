@@ -257,7 +257,7 @@ const UserProfile: React.FC<UserProfileProps> = ({
   // =====================
   type ProfileTab = 'info' | 'subscription' | 'history' | 'message';
 
-  const [activeTab, setActiveTab] = useState<ProfileTab>('info');
+  const [activeTab, setActiveTab] = useState<ProfileTab>(initialTab);
   const { addNotification } = useNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -336,14 +336,6 @@ const UserProfile: React.FC<UserProfileProps> = ({
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
-
-  useEffect(() => {
-    if (activeTab !== 'subscription' || subscriptionLoading) return;
-    const timer = window.setTimeout(() => {
-      document.getElementById('profile-subscription-status')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [activeTab, subscriptionLoading]);
 
   useEffect(() => {
     if (activeTab !== 'history' || paymentHistoryLoaded || currentUser.isAdmin) return;
