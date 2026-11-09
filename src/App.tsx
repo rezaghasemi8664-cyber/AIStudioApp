@@ -435,6 +435,7 @@ const App: React.FC = () => {
   const [onlineUserCount, setOnlineUserCount] = useState(0);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [pendingWatchlistAlertId, setPendingWatchlistAlertId] = useState<string | null>(null);
+  const [profileSubscriptionFocusRequest, setProfileSubscriptionFocusRequest] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [viewingNotification, setViewingNotification] = useState<AppNotification | null>(null);
@@ -1071,6 +1072,20 @@ const App: React.FC = () => {
 
   const handleToggleNotifications = useCallback(() => setIsNotificationsOpen(prev => !prev), []);
 
+  const handleDashboardNavigate = useCallback((target: string) => {
+    if (target === 'bell') {
+      setIsNotificationsOpen(true);
+      if (currentUser) void refreshUnreadCount(currentUser);
+      return;
+    }
+    if (target === 'profileSubscription') {
+      setProfileSubscriptionFocusRequest(value => value + 1);
+      handleTabClick('profile');
+      return;
+    }
+    handleTabClick(target as Tab);
+  }, [currentUser, handleTabClick, refreshUnreadCount]);
+
   const handleViewNotification = useCallback((notification: AppNotification) => {
     const watchlistAlertMatch = notification.type?.match(/^wa:(.+)$/);
     if (watchlistAlertMatch) {
@@ -1119,7 +1134,7 @@ const App: React.FC = () => {
             unreadAlertCount={unreadCount}
             subscriptionDaysRemaining={validityInfo?.daysRemaining ?? null}
             subscriptionExpired={validityInfo?.isExpired ?? isExpired}
-            onNavigate={(target) => handleTabClick(target as Tab)}
+            onNavigate={handleDashboardNavigate}
           />
         );
       case 'analysis': return <StockAnalysis />;
@@ -1141,12 +1156,12 @@ const App: React.FC = () => {
       case 'comprehensiveGuide': return <ComprehensiveGuide />;
       case 'settings':
         return <Settings currentUser={currentUser} />;
-      case 'profile': return <UserProfile currentUser={currentUser} onProfileUpdate={handleProfileUpdate} onPasswordChange={handlePasswordChange} />;
+      case 'profile': return <UserProfile currentUser={currentUser} onProfileUpdate={handleProfileUpdate} onPasswordChange={handlePasswordChange} focusSubscriptionRequest={profileSubscriptionFocusRequest} />;
       case 'users': return currentUser.isAdmin ? <AdminPanel isOnline={isOnline} onMessageUpdate={() => refreshUnreadCount(currentUser)} onlineCount={onlineUserCount} /> : <div className="text-center py-8 text-gray-500"><LockClosedIcon className="h-8 w-8 mx-auto mb-2" /><p>شما دسترسی ندارید.</p></div>;
       case 'notifications': return currentUser.isAdmin ? <NotificationsManagement isOnline={isOnline} /> : <div className="text-center py-8 text-gray-500"><LockClosedIcon className="h-8 w-8 mx-auto mb-2" /><p>شما دسترسی ندارید.</p></div>;
       default: return isExpired ? <AccessDenied /> : <StockAnalysis />;
     }
-  }, [activeTab, currentUser, handlePasswordChange, handleProfileUpdate, handleTabClick, isExpired, isOnline, onlineUserCount, refreshUnreadCount, unreadCount, validityInfo]);
+  }, [activeTab, currentUser, handlePasswordChange, handleProfileUpdate, handleTabClick, handleDashboardNavigate, isExpired, isOnline, onlineUserCount, refreshUnreadCount, unreadCount, validityInfo, profileSubscriptionFocusRequest]);
 
   useEffect(() => {
     let active = true;

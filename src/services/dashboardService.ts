@@ -87,12 +87,17 @@ export async function getDashboardCodalEvents(): Promise<DashboardCodalEvent[]> 
 }
 
 export async function getDashboardPersonalSummary(unreadAlertCount: number, subscriptionDaysRemaining: number | null, subscriptionExpired: boolean): Promise<DashboardData['personal']> {
-  const [watchlistsResult, portfolioResult] = await Promise.allSettled([watchlistService.getWatchlists(), portfolioService.getPortfolio()]);
+  const [watchlistsResult, portfolioResult] = await Promise.allSettled([watchlistService.getWatchlists(), portfolioService.refreshPortfolioQuotes()]);
   const watchlists = watchlistsResult.status === 'fulfilled' ? watchlistsResult.value : [];
   const portfolio = portfolioResult.status === 'fulfilled' ? portfolioResult.value : [];
   const watchlistSymbolCount = watchlists.reduce((sum, item) => sum + item.symbols.length, 0);
+  const portfolioSymbols = new Set(portfolio.map(item => String(item.symbol || '').trim().toUpperCase()).filter(Boolean));
   const portfolioInvestedValue = portfolio.reduce((sum, item) => sum + (Number(item.entryPrice) || 0) * (Number(item.quantity) || 0), 0);
-  return { watchlistCount: watchlists.length, watchlistSymbolCount, portfolioCount: portfolio.length, portfolioInvestedValue, unreadAlertCount: Math.max(0, Number(unreadAlertCount) || 0), subscriptionDaysRemaining, subscriptionExpired };
+  const quotedItems = portfolio.filter(item => Number.isFinite(Number(item.currentPrice)) && Number(item.currentPrice) > 0 && Number(item.quantity) > 0);
+  const portfolioCurrentValue = quotedItems.reduce((sum, item) => sum + Number(item.currentPrice) * Number(item.quantity), 0);
+  const portfolioPnl = quotedItems.length > 0 ? portfolioCurrentValue - portfolioInvestedValue : null;
+  const portfolioPnlPercent = portfolioPnl !== null && portfolioInvestedValue > 0 ? (portfolioPnl / portfolioInvestedValue) * 100 : null;
+  return { watchlistCount: watchlists.length, watchlistSymbolCount, portfolioCount: portfolioSymbols.size, portfolioInvestedValue, portfolioCurrentValue: quotedItems.length > 0 ? portfolioCurrentValue : null, portfolioPnl, portfolioPnlPercent, unreadAlertCount: Math.max(0, Number(unreadAlertCount) || 0), subscriptionDaysRemaining, subscriptionExpired };
 }
 
 const DASHBOARD_REQUEST_TIMEOUT_MS = 2500;
@@ -121,6 +126,7 @@ export async function getDashboardData(unreadAlertCount = 0, subscriptionDaysRem
     withDashboardTimeout(getDashboardCodalEvents(), [], DASHBOARD_CODAL_TIMEOUT_MS),
     withDashboardTimeout(getDashboardPersonalSummary(unreadAlertCount, subscriptionDaysRemaining, subscriptionExpired), {
       watchlistCount: 0, watchlistSymbolCount: 0, portfolioCount: 0, portfolioInvestedValue: 0,
+      portfolioCurrentValue: null, portfolioPnl: null, portfolioPnlPercent: null,
       unreadAlertCount: Math.max(0, Number(unreadAlertCount) || 0), subscriptionDaysRemaining, subscriptionExpired,
     }),
   ]);
@@ -128,6 +134,7 @@ export async function getDashboardData(unreadAlertCount = 0, subscriptionDaysRem
   const movers = moversResult.status === 'fulfilled' ? moversResult.value : { gainers: [], losers: [], highVolume: [] };
   const personal = personalResult.status === 'fulfilled' ? personalResult.value : {
     watchlistCount: 0, watchlistSymbolCount: 0, portfolioCount: 0, portfolioInvestedValue: 0,
+    portfolioCurrentValue: null, portfolioPnl: null, portfolioPnlPercent: null,
     unreadAlertCount: Math.max(0, Number(unreadAlertCount) || 0), subscriptionDaysRemaining, subscriptionExpired,
   };
   return {

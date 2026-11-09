@@ -158,6 +158,11 @@ async function writePortfolio(userId, state) {
   root.portfolio = state.portfolio;
   await prisma.user.update({ where: { id: userId }, data: { marketSummary: JSON.stringify(root) } });
   portfolioCache.setState(userId, { root, portfolio: state.portfolio });
+  // Notify only this user's authenticated sockets after the shared portfolio cache is updated.
+  const io = global.io;
+  if (io && typeof io.to === 'function') {
+    io.to(`user:${userId}`).emit('portfolio-cache:updated', { updatedAt: new Date().toISOString() });
+  }
 }
 
 
