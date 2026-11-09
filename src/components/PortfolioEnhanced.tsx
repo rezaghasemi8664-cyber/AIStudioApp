@@ -22,12 +22,14 @@ interface PortfolioEnhancedProps {
   isOnline: boolean;
   focusWatchlistAlertId?: string | null;
   onWatchlistAlertFocused?: () => void;
+  focusWatchlistRequest?: number;
 }
 
-const PortfolioEnhanced: React.FC<PortfolioEnhancedProps> = ({ onAlertChange, currentUser, isOnline, focusWatchlistAlertId, onWatchlistAlertFocused }) => {
+const PortfolioEnhanced: React.FC<PortfolioEnhancedProps> = ({ onAlertChange, currentUser, isOnline, focusWatchlistAlertId, onWatchlistAlertFocused, focusWatchlistRequest = 0 }) => {
   const [activeSection, setActiveSection] = useState<'portfolio' | 'portfolioIntelligence' | 'portfolioHistory' | 'portfolioReturn' | 'portfolioRisk' | 'portfolioCorrelation' | 'portfolioRiskContribution' | 'watchlist' | 'alerts' | 'profile' | 'smartScore' | 'codal' | 'codalSensitive' | 'codalAnalysis'>('portfolio');
   const [smartScoreSymbol, setSmartScoreSymbol] = useState('');
   React.useEffect(() => { if (focusWatchlistAlertId) setActiveSection('alerts'); }, [focusWatchlistAlertId]);
+  React.useEffect(() => { if (focusWatchlistRequest > 0) setActiveSection('watchlist'); }, [focusWatchlistRequest]);
   const tabClass = (key: string) => `shrink-0 px-5 py-3 rounded-t-xl font-bold transition ${activeSection === key ? 'bg-cyan-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`;
 
   return (
