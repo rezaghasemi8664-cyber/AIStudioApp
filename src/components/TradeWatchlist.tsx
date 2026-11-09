@@ -57,15 +57,26 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
 
   const sortedItems = useMemo(() => [...items].sort((a, b) => Number((b.tradeIntent || 'WATCH') === 'BUY') - Number((a.tradeIntent || 'WATCH') === 'BUY')), [items]);
 
-  const totals = useMemo(() => items.reduce((acc, item) => {
-    acc.invested += item.entryPrice * item.quantity;
-    if (item.currentPrice !== null) {
-      acc.current += item.currentPrice * item.quantity;
-      acc.pnl += (item.currentPrice - item.entryPrice) * item.quantity;
-      acc.quoted += 1;
-    }
-    return acc;
-  }, { invested: 0, current: 0, pnl: 0, quoted: 0 }), [items]);
+  const totals = useMemo(() => {
+    const result = items.reduce((acc, item) => {
+      const quantityValue = Number(item.quantity);
+      const entryPriceValue = Number(item.entryPrice);
+      const currentPriceValue = Number(item.currentPrice);
+      if (Number.isFinite(quantityValue) && quantityValue > 0 && Number.isFinite(entryPriceValue) && entryPriceValue > 0) {
+        acc.invested += entryPriceValue * quantityValue;
+      }
+      if (Number.isFinite(quantityValue) && quantityValue > 0 && Number.isFinite(currentPriceValue) && currentPriceValue > 0) {
+        acc.current += currentPriceValue * quantityValue;
+        acc.quoted += 1;
+      }
+      return acc;
+    }, { invested: 0, current: 0, quoted: 0 });
+    // Compare the current value of all available quotes against the full
+    // purchase value of the basket, including symbols without a current quote.
+    result.pnl = result.quoted > 0 ? result.current - result.invested : null;
+    result.pnlPercent = result.pnl !== null && result.invested > 0 ? (result.pnl / result.invested) * 100 : null;
+    return result;
+  }, [items]);
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -172,7 +183,7 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3"><div className="text-xs text-[var(--color-text-secondary)]">تعداد نمادها</div><strong>{money(items.length)}</strong></div>
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3"><div className="text-xs text-[var(--color-text-secondary)]">ارزش خرید</div><strong>{money(totals.invested)}</strong></div>
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3"><div className="text-xs text-[var(--color-text-secondary)]">ارزش فعلی قیمت‌های موجود</div><strong>{money(totals.current)}</strong></div>
-        <div className={`rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 ${totals.pnl >= 0 ? 'text-emerald-600' : 'text-red-600'}`}><div className="text-xs">سود/زیان کل برآوردی</div><strong>{money(totals.pnl)}</strong></div>
+        <div className={`rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 ${totals.pnl == null ? 'text-[var(--color-text-primary)]' : totals.pnl > 0 ? 'text-emerald-600' : totals.pnl < 0 ? 'text-red-600' : 'text-[var(--color-text-primary)]'}`}><div className="text-xs">سود/زیان کل برآوردی</div><strong className="block mt-1">{totals.pnl == null ? '—' : `${totals.pnl > 0 ? '+' : totals.pnl < 0 ? '−' : ''}${money(Math.abs(totals.pnl))}`}</strong><div className="mt-1 text-xs font-bold">{totals.pnlPercent == null ? 'درصد: —' : `${totals.pnlPercent > 0 ? '+' : totals.pnlPercent < 0 ? '−' : ''}${money(Math.abs(totals.pnlPercent))}٪`}</div><div className="mt-1 text-[10px] opacity-70">{totals.quoted.toLocaleString('fa-IR')} نماد دارای قیمت</div></div>
       </div>
       {loading ? <p className="py-8 text-center text-sm text-[var(--color-text-secondary)]">در حال دریافت سبد…</p> : items.length === 0 ? <div className="rounded-xl border border-dashed border-[var(--color-border)] p-8 text-center text-sm text-[var(--color-text-secondary)]">هنوز نمادی در این سبد ثبت نشده است.</div> : (
         <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
