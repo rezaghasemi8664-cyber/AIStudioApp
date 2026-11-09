@@ -373,13 +373,13 @@ const BackgroundTabLoader: React.FC<{
       { key: 'roniaAssistant', node: <RoniaAssistant isOnline={isOnline} onNavigate={(tab) => onNavigate(tab as Tab)} /> },
       { key: 'optionsMarket', node: <OptionsMarket /> },
       { key: 'dailyFilters', node: <DailyFilters /> },
-      { key: 'profile', node: <UserProfile currentUser={currentUser} onProfileUpdate={onProfileUpdate} onPasswordChange={onPasswordChange} initialTab={profileInitialTab} /> },
+      { key: 'profile', node: <UserProfile currentUser={currentUser} onProfileUpdate={onProfileUpdate} onPasswordChange={onPasswordChange} /> },
       ...(currentUser.isAdmin ? [
         { key: 'users' as Tab, node: <AdminPanel isOnline={isOnline} onMessageUpdate={() => undefined} onlineCount={0} /> },
         { key: 'notifications' as Tab, node: <NotificationsManagement isOnline={isOnline} /> },
       ] : []),
     ],
-    [currentUser, isOnline, onAlertChange, onNavigate, onPasswordChange, onProfileUpdate, profileInitialTab],
+    [currentUser, isOnline, onAlertChange, onNavigate, onPasswordChange, onProfileUpdate],
   );
 
   useEffect(() => {
