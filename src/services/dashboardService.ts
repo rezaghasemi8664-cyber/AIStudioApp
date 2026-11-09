@@ -87,22 +87,25 @@ export async function getDashboardCodalEvents(): Promise<DashboardCodalEvent[]> 
 }
 
 export async function getDashboardPersonalSummary(unreadAlertCount: number, subscriptionDaysRemaining: number | null, subscriptionExpired: boolean): Promise<DashboardData['personal']> {
-  const [watchlistsResult, portfolioResult] = await Promise.allSettled([watchlistService.getWatchlists(), portfolioService.getPortfolioAnalytics()]);
+  const [watchlistsResult, portfolioResult] = await Promise.allSettled([watchlistService.getWatchlists(), portfolioService.getPortfolioQuoteSummary()]);
   const watchlists = watchlistsResult.status === 'fulfilled' ? watchlistsResult.value : [];
   const analytics = portfolioResult.status === 'fulfilled' ? portfolioResult.value : null;
-  const portfolioItems = Array.isArray(analytics?.portfolio?.items) ? analytics.portfolio.items : [];
-  const quoteItems = Array.isArray(analytics?.quoteData?.items) ? analytics.quoteData.items : [];
+  const portfolioItems = Array.isArray(analytics?.items) ? analytics.items : [];
+  const quoteItems = portfolioItems;
   const watchlistSymbolCount = watchlists.reduce((sum, item) => sum + item.symbols.length, 0);
   const portfolioSymbols = new Set(portfolioItems.map(item => String(item.symbol || '').trim().toUpperCase()).filter(Boolean));
   const portfolioCount = portfolioSymbols.size;
   const portfolioInvestedValue = portfolioItems.reduce((sum, item) => {
     const quantity = Number(item.quantity);
-    const entryPrice = Number(item.buyPrice ?? item.entryPrice);
+    const entryPrice = Number(item.entryPrice ?? item.buyPrice);
     return Number.isFinite(quantity) && quantity > 0 && Number.isFinite(entryPrice) && entryPrice > 0 ? sum + quantity * entryPrice : sum;
   }, 0);
   const quotedItems = quoteItems.filter(item => Number.isFinite(Number(item.currentPrice)) && Number(item.currentPrice) > 0);
   const quotedSymbols = new Set(quotedItems.map(item => String(item.symbol || '').trim().toUpperCase()).filter(Boolean));
-  const portfolioCurrentValue = quotedItems.reduce((sum, item) => sum + Number(item.currentPrice) * Number(item.quantity || 0), 0);
+  const cachedCurrentValue = Number(analytics?.currentValue);
+  const portfolioCurrentValue = Number.isFinite(cachedCurrentValue)
+    ? cachedCurrentValue
+    : quotedItems.reduce((sum, item) => sum + Number(item.currentPrice) * Number(item.quantity || 0), 0);
   const hasCompleteQuotes = portfolioCount > 0 && quotedSymbols.size >= portfolioCount;
   const portfolioPnl = hasCompleteQuotes ? portfolioCurrentValue - portfolioInvestedValue : null;
   const portfolioPnlPercent = portfolioPnl !== null && portfolioInvestedValue > 0 ? (portfolioPnl / portfolioInvestedValue) * 100 : null;
