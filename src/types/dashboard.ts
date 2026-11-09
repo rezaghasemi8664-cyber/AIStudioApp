@@ -49,6 +49,9 @@ export interface DashboardPersonalSummary {
   watchlistSymbolCount: number;
   portfolioCount: number;
   portfolioInvestedValue: number;
+  portfolioCurrentValue: number | null;
+  portfolioPnl: number | null;
+  portfolioPnlPercent: number | null;
   unreadAlertCount: number;
   subscriptionDaysRemaining: number | null;
   subscriptionExpired: boolean;
