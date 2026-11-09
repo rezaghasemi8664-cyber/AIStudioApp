@@ -436,6 +436,7 @@ const App: React.FC = () => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [pendingWatchlistAlertId, setPendingWatchlistAlertId] = useState<string | null>(null);
   const [profileSubscriptionFocusRequest, setProfileSubscriptionFocusRequest] = useState(0);
+  const [portfolioWatchlistFocusRequest, setPortfolioWatchlistFocusRequest] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [viewingNotification, setViewingNotification] = useState<AppNotification | null>(null);
@@ -1083,6 +1084,11 @@ const App: React.FC = () => {
       handleTabClick('profile');
       return;
     }
+    if (target === 'portfolioWatchlist') {
+      setPortfolioWatchlistFocusRequest(value => value + 1);
+      handleTabClick('portfolio');
+      return;
+    }
     handleTabClick(target as Tab);
   }, [currentUser, handleTabClick, refreshUnreadCount]);
 
@@ -1139,7 +1145,7 @@ const App: React.FC = () => {
         );
       case 'analysis': return <StockAnalysis />;
       case 'scalping': return <Scalping isOnline={isOnline} />;
-      case 'portfolio': return <Portfolio onAlertChange={setPortfolioAlert} currentUser={currentUser} isOnline={isOnline} focusWatchlistAlertId={pendingWatchlistAlertId} onWatchlistAlertFocused={() => setPendingWatchlistAlertId(null)} />;
+      case 'portfolio': return <Portfolio onAlertChange={setPortfolioAlert} currentUser={currentUser} isOnline={isOnline} focusWatchlistAlertId={pendingWatchlistAlertId} onWatchlistAlertFocused={() => setPendingWatchlistAlertId(null)} focusWatchlistRequest={portfolioWatchlistFocusRequest} />;
       case 'traderJournal': return <TraderJournal />;
       case 'codalIntelligence': return <CodalIntelligence isOnline={isOnline} />;
       case 'comparison': return <StockComparison currentUser={currentUser} isOnline={isOnline} />;
