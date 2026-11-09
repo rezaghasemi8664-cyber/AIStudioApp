@@ -26,6 +26,7 @@ interface UserProfileProps {
   currentUser: StoredUser;
   onProfileUpdate: (updatedUser: StoredUser) => void;
   onPasswordChange: (currentPass: string, newPass: string) => Promise<void>;
+  focusSubscriptionRequest?: number;
 }
 
 // =============================================================================
@@ -248,6 +249,7 @@ const UserProfile: React.FC<UserProfileProps> = ({
   currentUser,
   onProfileUpdate,
   onPasswordChange,
+  focusSubscriptionRequest = 0,
 }) => {
   // =====================
   // Tab type
@@ -255,6 +257,7 @@ const UserProfile: React.FC<UserProfileProps> = ({
   type ProfileTab = 'info' | 'subscription' | 'history' | 'message';
 
   const [activeTab, setActiveTab] = useState<ProfileTab>('info');
+  useEffect(() => { if (focusSubscriptionRequest > 0) setActiveTab('subscription'); }, [focusSubscriptionRequest]);
   const { addNotification } = useNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
