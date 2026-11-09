@@ -15,9 +15,12 @@ function notifyPortfolioCacheUpdated(): void {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('roniya:portfolio-cache-updated'));
 }
 
-export interface PortfolioAnalyticsPayload {
-  portfolio?: { items?: Array<{ id: string; symbol: string; quantity: number; buyPrice?: number; entryPrice?: number }> };
-  quoteData?: { items?: Array<{ symbol: string; quantity: number; currentPrice?: number | null }>; currentValue?: number | null; costBasis?: number | null };
+export interface PortfolioQuoteSummary {
+  items: PortfolioApiItem[];
+  currentValue: number | null;
+  costBasis: number | null;
+  unrealizedPnl: number | null;
+  dataStatus?: 'LIVE' | 'CACHED' | 'UNAVAILABLE';
 }
 
 export interface AggregatedPortfolioItem extends PortfolioApiItem {
@@ -67,9 +70,16 @@ export function aggregatePortfolioItems(items: PortfolioApiItem[]): AggregatedPo
   return Array.from(grouped.values());
 }
 
-export async function getPortfolioAnalytics(): Promise<PortfolioAnalyticsPayload> {
-  const response = await api.get('/portfolio/analytics', { timeout: 12000 });
-  return unwrap<PortfolioAnalyticsPayload>(response);
+export async function getPortfolioQuoteSummary(): Promise<PortfolioQuoteSummary> {
+  const response = await api.get('/portfolio/quotes', { timeout: 12000 });
+  const data = unwrap<{ items?: ApiPortfolioItem[]; currentValue?: number; costBasis?: number; unrealizedPnl?: number; dataStatus?: 'LIVE' | 'CACHED' | 'UNAVAILABLE' }>(response);
+  return {
+    items: Array.isArray(data?.items) ? data.items.map(normalize).filter(item => Boolean(item.symbol)) : [],
+    currentValue: Number.isFinite(Number(data?.currentValue)) ? Number(data.currentValue) : null,
+    costBasis: Number.isFinite(Number(data?.costBasis)) ? Number(data.costBasis) : null,
+    unrealizedPnl: Number.isFinite(Number(data?.unrealizedPnl)) ? Number(data.unrealizedPnl) : null,
+    dataStatus: data?.dataStatus
+  };
 }
 
 export async function getPortfolio(): Promise<PortfolioApiItem[]> {
@@ -79,11 +89,9 @@ export async function getPortfolio(): Promise<PortfolioApiItem[]> {
 }
 
 export async function refreshPortfolioQuotes(): Promise<PortfolioApiItem[]> {
-  const response = await api.get('/portfolio/quotes', { timeout: 12000 });
-  const data = unwrap<{ items?: ApiPortfolioItem[] }>(response);
-  const items = Array.isArray(data?.items) ? data.items.map(normalize).filter(item => Boolean(item.symbol)) : [];
+  const summary = await getPortfolioQuoteSummary();
   notifyPortfolioCacheUpdated();
-  return items;
+  return summary.items;
 }
 
 export async function addPortfolioItem(item: Omit<PortfolioApiItem, 'id'>): Promise<PortfolioApiItem> {
