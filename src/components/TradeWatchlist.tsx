@@ -62,20 +62,28 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
       const quantityValue = Number(item.quantity);
       const entryPriceValue = Number(item.entryPrice);
       const currentPriceValue = Number(item.currentPrice);
-      if (Number.isFinite(quantityValue) && quantityValue > 0 && Number.isFinite(entryPriceValue) && entryPriceValue > 0) {
+      const validQuantity = Number.isFinite(quantityValue) && quantityValue > 0;
+      const validEntryPrice = Number.isFinite(entryPriceValue) && entryPriceValue > 0;
+      const validCurrentPrice = Number.isFinite(currentPriceValue) && currentPriceValue > 0;
+
+      if (validQuantity && validEntryPrice) {
         acc.invested += entryPriceValue * quantityValue;
       }
-      if (Number.isFinite(quantityValue) && quantityValue > 0 && Number.isFinite(currentPriceValue) && currentPriceValue > 0) {
+      if (validQuantity && validEntryPrice && validCurrentPrice) {
         acc.current += currentPriceValue * quantityValue;
+        acc.quotedInvested += entryPriceValue * quantityValue;
+        acc.pnl += (currentPriceValue - entryPriceValue) * quantityValue;
         acc.quoted += 1;
       }
       return acc;
-    }, { invested: 0, current: 0, quoted: 0 });
-    // Compare the current value of all available quotes against the full
-    // purchase value of the basket, including symbols without a current quote.
-    const pnl = result.quoted > 0 ? result.current - result.invested : null;
-    const pnlPercent = pnl !== null && result.invested > 0 ? (pnl / result.invested) * 100 : null;
-    return { ...result, pnl, pnlPercent };
+    }, { invested: 0, current: 0, quotedInvested: 0, pnl: 0, quoted: 0 });
+
+    // P&L uses only symbols with both a valid entry price and current quote.
+    const pnl = result.quoted > 0 ? result.pnl : null;
+    const pnlPercent = pnl !== null && result.quotedInvested > 0
+      ? (pnl / result.quotedInvested) * 100
+      : null;
+    return { ...result, pnl, pnlPercent, missingQuotes: Math.max(0, items.length - result.quoted) };
   }, [items]);
 
   const save = async (event: React.FormEvent) => {
@@ -183,7 +191,7 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3"><div className="text-xs text-[var(--color-text-secondary)]">تعداد نمادها</div><strong>{money(items.length)}</strong></div>
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3"><div className="text-xs text-[var(--color-text-secondary)]">ارزش خرید</div><strong>{money(totals.invested)}</strong></div>
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3"><div className="text-xs text-[var(--color-text-secondary)]">ارزش فعلی قیمت‌های موجود</div><strong>{money(totals.current)}</strong></div>
-        <div className={`rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 ${totals.pnl == null ? 'text-[var(--color-text-primary)]' : totals.pnl > 0 ? 'text-emerald-600' : totals.pnl < 0 ? 'text-red-600' : 'text-[var(--color-text-primary)]'}`}><div className="text-xs">سود/زیان کل برآوردی</div><strong className="block mt-1">{totals.pnl == null ? '—' : `${totals.pnl > 0 ? '+' : totals.pnl < 0 ? '−' : ''}${money(Math.abs(totals.pnl))}`}</strong><div className="mt-1 text-xs font-bold">{totals.pnlPercent == null ? 'درصد: —' : `${totals.pnlPercent > 0 ? '+' : totals.pnlPercent < 0 ? '−' : ''}${money(Math.abs(totals.pnlPercent))}٪`}</div><div className="mt-1 text-[10px] opacity-70">{totals.quoted.toLocaleString('fa-IR')} نماد دارای قیمت</div></div>
+        <div className={`rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 ${totals.pnl == null ? 'text-[var(--color-text-primary)]' : totals.pnl > 0 ? 'text-emerald-600' : totals.pnl < 0 ? 'text-red-600' : 'text-[var(--color-text-primary)]'}`}><div className="text-xs">سود/زیان کل برآوردی</div><strong className="block mt-1">{totals.pnl == null ? '—' : `${totals.pnl > 0 ? '+' : totals.pnl < 0 ? '−' : ''}${money(Math.abs(totals.pnl))}`}</strong><div className="mt-1 text-xs font-bold">{totals.pnlPercent == null ? 'درصد: —' : `${totals.pnlPercent > 0 ? '+' : totals.pnlPercent < 0 ? '−' : ''}${money(Math.abs(totals.pnlPercent))}٪`}</div><div className="mt-1 text-[10px] opacity-70">{totals.quoted.toLocaleString('fa-IR')} نماد دارای قیمت · {totals.missingQuotes.toLocaleString('fa-IR')} نماد بدون قیمت</div></div>
       </div>
       {loading ? <p className="py-8 text-center text-sm text-[var(--color-text-secondary)]">در حال دریافت سبد…</p> : items.length === 0 ? <div className="rounded-xl border border-dashed border-[var(--color-border)] p-8 text-center text-sm text-[var(--color-text-secondary)]">هنوز نمادی در این سبد ثبت نشده است.</div> : (
         <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
