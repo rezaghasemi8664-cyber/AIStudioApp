@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { get } from '../services/apiClient';
+import { get, post } from '../services/apiClient';
 import { useNotification } from './NotificationSystem';
 import { PaperAirplaneIcon, ClipboardDocumentIcon } from './Icons';
 
@@ -10,6 +10,16 @@ interface TelegramReferralData {
   confirmedMembers?: number | null;
   giftedDays?: number | null;
   trackingEnabled?: boolean;
+  reconciliationRequired?: boolean;
+  missingRewardMilestones?: number[];
+}
+
+interface TelegramRewardReconciliationResult {
+  reconciliationRequired?: boolean;
+  reason?: string;
+  confirmedMembers?: number;
+  newlyGrantedMilestones?: number[];
+  missingRewardMilestones?: number[];
 }
 
 const formatNumber = (value: number) => value.toLocaleString('fa-IR');
@@ -19,6 +29,8 @@ const TelegramReferralCard: React.FC = () => {
   const [data, setData] = useState<TelegramReferralData | null>(null);
   const [loading, setLoading] = useState(true);
   const [copying, setCopying] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
+  const [reconciliationMessage, setReconciliationMessage] = useState('');
   const [loadError, setLoadError] = useState('');
 
   const loadInviteLink = useCallback(async () => {
@@ -51,6 +63,48 @@ const TelegramReferralCard: React.FC = () => {
     : null;
   const progress = useMemo(() => confirmedMembers === null ? null : confirmedMembers % 20, [confirmedMembers]);
   const remaining = progress === null ? null : 20 - progress;
+
+  const handleReconcileRewards = async () => {
+    if (reconciling) return;
+    setReconciling(true);
+    setReconciliationMessage('');
+    try {
+      const response = await post<TelegramRewardReconciliationResult>('/telegram-referrals/me/reconcile-rewards');
+      if (!response?.success) {
+        throw new Error(response?.message || 'بررسی پاداش‌های دعوت ناموفق بود');
+      }
+
+      const result = response.data || {};
+      const granted = Array.isArray(result.newlyGrantedMilestones) ? result.newlyGrantedMilestones : [];
+      const missing = Array.isArray(result.missingRewardMilestones) ? result.missingRewardMilestones : [];
+
+      if (result.reconciliationRequired) {
+        const message = 'به‌دلیل تغییر در سوابق زمانی عضویت، بررسی دستی لازم است؛ هیچ پاداشی صادر نشد.';
+        setReconciliationMessage(message);
+        addNotification(message, 'info');
+      } else if (granted.length > 0) {
+        const message = `${formatNumber(granted.length)} پاداش جامانده با موفقیت صادر شد.`;
+        setReconciliationMessage(message);
+        addNotification(message, 'success');
+      } else if (missing.length > 0) {
+        const message = 'پاداش‌های باقی‌مانده فعلاً قابل صدور نیستند؛ وضعیت فعال بودن حساب را بررسی کنید.';
+        setReconciliationMessage(message);
+        addNotification(message, 'info');
+      } else {
+        const message = 'بررسی انجام شد؛ پاداش جامانده‌ای وجود ندارد.';
+        setReconciliationMessage(message);
+        addNotification(message, 'success');
+      }
+
+      await loadInviteLink();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'بررسی پاداش‌های دعوت ناموفق بود';
+      setReconciliationMessage(message);
+      addNotification(message, 'error');
+    } finally {
+      setReconciling(false);
+    }
+  };
 
   const handleCopy = async () => {
     if (!data?.inviteLink || copying) return;
@@ -154,6 +208,27 @@ const TelegramReferralCard: React.FC = () => {
           />
         </div>
       </div>
+
+      {(data?.trackingEnabled || data?.reconciliationRequired) && (data?.reconciliationRequired || (data?.missingRewardMilestones?.length || 0) > 0) && (
+        <div className="mt-5 rounded-xl border border-amber-300/60 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
+          <p className="text-sm leading-6 text-amber-800 dark:text-amber-200">
+            ممکن است برای بعضی مراحل دعوت، پاداش صادر نشده باشد. با بررسی مجدد، پاداش‌های واجد شرایط فقط یک‌بار صادر می‌شوند.
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleReconcileRewards()}
+            disabled={reconciling}
+            className="mt-3 inline-flex items-center justify-center rounded-lg bg-amber-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {reconciling ? 'در حال بررسی و بازیابی…' : 'بررسی و بازیابی پاداش‌های جامانده'}
+          </button>
+          {reconciliationMessage && (
+            <p role="status" aria-live="polite" className="mt-3 text-sm text-amber-800 dark:text-amber-200">
+              {reconciliationMessage}
+            </p>
+          )}
+        </div>
+      )}
 
       <p className="mt-4 text-xs leading-6 text-gray-500 dark:text-gray-400">
         فقط عضویت واقعی و یکتای کاربران در کانال محاسبه می‌شود؛ ارسال لینک به‌تنهایی امتیاز ندارد.

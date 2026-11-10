@@ -25,6 +25,51 @@ function addDays(date, days) {
   return new Date(new Date(date).getTime() + days * 86400000);
 }
 
+function getRewardSubscriptionWindow({ issuedAt, activeSubscription, legacyStart, legacyEnd }) {
+  const issued = new Date(issuedAt);
+  if (Number.isNaN(issued.getTime())) throw new Error('REWARD_ISSUED_AT_INVALID');
+
+  if (activeSubscription) {
+    const activeStart = new Date(activeSubscription.startsAt);
+    const activeEnd = new Date(activeSubscription.expiresAt);
+    if (
+      !Number.isNaN(activeStart.getTime()) &&
+      !Number.isNaN(activeEnd.getTime()) &&
+      activeStart <= issued &&
+      activeEnd > issued
+    ) {
+      return {
+        startsAt: activeStart,
+        expiresAt: addDays(activeEnd, REWARD_DAYS),
+        extendsExisting: true,
+      };
+    }
+  }
+
+  const legacyStartDate = legacyStart ? new Date(legacyStart) : null;
+  const legacyEndDate = legacyEnd ? new Date(legacyEnd) : null;
+  if (
+    legacyStartDate &&
+    legacyEndDate &&
+    !Number.isNaN(legacyStartDate.getTime()) &&
+    !Number.isNaN(legacyEndDate.getTime()) &&
+    legacyStartDate <= issued &&
+    legacyEndDate > issued
+  ) {
+    return {
+      startsAt: legacyStartDate,
+      expiresAt: addDays(legacyEndDate, REWARD_DAYS),
+      extendsExisting: true,
+    };
+  }
+
+  return {
+    startsAt: issued,
+    expiresAt: addDays(issued, REWARD_DAYS),
+    extendsExisting: false,
+  };
+}
+
 function getMilestoneBoundaries(members, step = MEMBERS_PER_REWARD) {
   const ordered = [...(Array.isArray(members) ? members : [])].sort((a, b) => {
     const timeDifference = new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime();
@@ -44,6 +89,15 @@ function hasMilestoneBoundaryDrift(rewards, boundaries) {
     if (!boundary) return true;
     return new Date(reward.completedAt).getTime() !== new Date(boundary.completedAt).getTime();
   });
+}
+
+function getMissingMilestoneRewards(rewards, boundaries) {
+  const recordedMilestones = new Set(
+    (Array.isArray(rewards) ? rewards : []).map((reward) => Number(reward.milestone))
+  );
+  return (Array.isArray(boundaries) ? boundaries : [])
+    .filter((boundary) => !recordedMilestones.has(Number(boundary.milestone)))
+    .map((boundary) => Number(boundary.milestone));
 }
 
 function getTrackingConfiguration() {
@@ -87,13 +141,15 @@ async function grantMilestone(tx, inviterId, milestone, memberCount, completedAt
   });
   if (!user || !user.isActive || user.isDeleted) return null;
 
-  // Select the subscription that was valid at the milestone's actual Telegram event time.
+  // Reward time starts when it is actually issued, never at the historical
+  // Telegram join that completed this milestone.
+  const grantedAt = new Date();
   const active = await tx.subscription.findFirst({
     where: {
       userId: inviterId,
       status: 'ACTIVE',
-      startsAt: { lte: completedAt },
-      expiresAt: { gt: completedAt },
+      startsAt: { lte: grantedAt },
+      expiresAt: { gt: grantedAt },
     },
     orderBy: [{ expiresAt: 'desc' }, { createdAt: 'desc' }],
   });
@@ -103,37 +159,22 @@ async function grantMilestone(tx, inviterId, milestone, memberCount, completedAt
     orderBy: [{ createdAt: 'desc' }, { expiresAt: 'desc' }],
   });
 
-  const legacyStart = user.subscriptionStart ? new Date(user.subscriptionStart) : null;
-  const legacyEnd = user.subscriptionEnd ? new Date(user.subscriptionEnd) : null;
-  const legacyActive = Boolean(
-    legacyEnd &&
-    !Number.isNaN(legacyEnd.getTime()) &&
-    legacyEnd > completedAt &&
-    (!legacyStart || (!Number.isNaN(legacyStart.getTime()) && legacyStart <= completedAt))
-  );
-
-  // Legacy-only subscriptions are still authoritative when no Subscription
-  // row covers the milestone timestamp. Convert that validity into a row so
-  // future renewals and reward extensions use the current subscription model.
-  const startsAt = active
-    ? new Date(active.startsAt)
-    : legacyActive && legacyStart
-      ? legacyStart
-      : new Date(completedAt);
-  const baseEnd = active
-    ? new Date(active.expiresAt)
-    : legacyActive
-      ? legacyEnd
-      : new Date(completedAt);
-  const expiresAt = addDays(baseEnd, REWARD_DAYS);
-  const subscriptionType = String(active?.type || (legacyActive ? user.subscriptionType : null) || latest?.type || user.subscriptionType || 'PAID').slice(0, 30);
-  const planId = active?.planId ?? (legacyActive ? null : latest?.planId) ?? null;
+  const window = getRewardSubscriptionWindow({
+    issuedAt: grantedAt,
+    activeSubscription: active,
+    legacyStart: user.subscriptionStart,
+    legacyEnd: user.subscriptionEnd,
+  });
+  const subscriptionType = String(
+    active?.type || latest?.type || user.subscriptionType || 'PAID'
+  ).slice(0, 30);
+  const planId = active?.planId ?? latest?.planId ?? null;
 
   let subscription;
   if (active) {
     subscription = await tx.subscription.update({
       where: { id: active.id },
-      data: { expiresAt },
+      data: { expiresAt: window.expiresAt },
     });
   } else {
     subscription = await tx.subscription.create({
@@ -142,8 +183,8 @@ async function grantMilestone(tx, inviterId, milestone, memberCount, completedAt
         planId,
         type: subscriptionType,
         status: 'ACTIVE',
-        startsAt,
-        expiresAt,
+        startsAt: window.startsAt,
+        expiresAt: window.expiresAt,
       },
     });
   }
@@ -151,8 +192,8 @@ async function grantMilestone(tx, inviterId, milestone, memberCount, completedAt
   await tx.user.update({
     where: { id: inviterId },
     data: {
-      subscriptionStart: startsAt,
-      subscriptionEnd: expiresAt,
+      subscriptionStart: window.startsAt,
+      subscriptionEnd: window.expiresAt,
       subscriptionMonths: user.subscriptionMonths ?? 0,
       subscriptionType,
     },
@@ -165,8 +206,9 @@ async function grantMilestone(tx, inviterId, milestone, memberCount, completedAt
       memberCount,
       days: REWARD_DAYS,
       completedAt,
-      startsAt,
-      expiresAt,
+      grantedAt,
+      startsAt: window.startsAt,
+      expiresAt: window.expiresAt,
       subscriptionId: subscription.id,
     },
   });
@@ -265,10 +307,13 @@ async function processTelegramUpdate(update) {
       select: { milestone: true, completedAt: true },
     });
     const reconciliationRequired = hasMilestoneBoundaryDrift(existingRewards, boundaries);
+    const missingMilestones = new Set(getMissingMilestoneRewards(existingRewards, boundaries));
 
     // Never silently issue later rewards when a delayed Telegram update changes
     // the historical member that completed an already-rewarded milestone.
+    // Only genuinely missing milestones are candidates for issuance.
     if (!reconciliationRequired) for (const boundary of boundaries) {
+      if (!missingMilestones.has(Number(boundary.milestone))) continue;
       const reward = await grantMilestone(
         tx,
         referralLink.inviterId,
@@ -299,6 +344,63 @@ async function processTelegramUpdate(update) {
   }, { isolationLevel: 'Serializable', maxWait: 10000, timeout: 20000 });
 }
 
+
+async function reconcileReferralRewards(inviterId) {
+  const normalizedInviterId = Number(inviterId);
+  if (!Number.isSafeInteger(normalizedInviterId) || normalizedInviterId <= 0) {
+    const error = new Error('TELEGRAM_REFERRAL_INVITER_ID_INVALID');
+    error.code = 'TELEGRAM_REFERRAL_INVITER_ID_INVALID';
+    throw error;
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const members = await tx.telegramReferralMember.findMany({
+      where: { inviterId: normalizedInviterId },
+      orderBy: [{ joinedAt: 'asc' }, { id: 'asc' }],
+      select: { id: true, joinedAt: true },
+    });
+    const rewards = await tx.telegramReferralReward.findMany({
+      where: { inviterId: normalizedInviterId },
+      select: { milestone: true, completedAt: true },
+    });
+    const boundaries = getMilestoneBoundaries(members);
+    if (hasMilestoneBoundaryDrift(rewards, boundaries)) {
+      return {
+        reconciliationRequired: true,
+        reason: 'MILESTONE_BOUNDARY_CHANGED',
+        confirmedMembers: members.length,
+        newlyGrantedMilestones: [],
+        missingRewardMilestones: getMissingMilestoneRewards(rewards, boundaries),
+      };
+    }
+
+    const missingMilestones = new Set(getMissingMilestoneRewards(rewards, boundaries));
+    const newlyGrantedMilestones = [];
+    for (const boundary of boundaries) {
+      if (!missingMilestones.has(Number(boundary.milestone))) continue;
+      const reward = await grantMilestone(
+        tx,
+        normalizedInviterId,
+        boundary.milestone,
+        boundary.memberCount,
+        boundary.completedAt
+      );
+      if (reward) newlyGrantedMilestones.push(boundary.milestone);
+    }
+
+    const remainingRewards = await tx.telegramReferralReward.findMany({
+      where: { inviterId: normalizedInviterId },
+      select: { milestone: true, completedAt: true },
+    });
+    return {
+      reconciliationRequired: false,
+      confirmedMembers: members.length,
+      newlyGrantedMilestones,
+      missingRewardMilestones: getMissingMilestoneRewards(remainingRewards, boundaries),
+    };
+  }, { isolationLevel: 'Serializable', maxWait: 10000, timeout: 20000 });
+}
+
 async function getReferralStats(inviterId) {
   const [members, rewards] = await Promise.all([
     prisma.telegramReferralMember.findMany({
@@ -312,7 +414,9 @@ async function getReferralStats(inviterId) {
     }),
   ]);
   const tracking = getTrackingConfiguration();
-  const reconciliationRequired = hasMilestoneBoundaryDrift(rewards, getMilestoneBoundaries(members));
+  const boundaries = getMilestoneBoundaries(members);
+  const reconciliationRequired = hasMilestoneBoundaryDrift(rewards, boundaries);
+  const missingRewardMilestones = getMissingMilestoneRewards(rewards, boundaries);
   return {
     confirmedMembers: members.length,
     giftedDays: rewards.reduce((total, reward) => total + Number(reward.days || 0), 0),
@@ -322,6 +426,7 @@ async function getReferralStats(inviterId) {
       : tracking.enabled ? 'ACTIVE' : 'NOT_CONFIGURED',
     trackingMissing: tracking.missing,
     reconciliationRequired,
+    missingRewardMilestones,
   };
 }
 
@@ -331,7 +436,10 @@ module.exports = {
   channelMatches,
   getMilestoneBoundaries,
   hasMilestoneBoundaryDrift,
+  getMissingMilestoneRewards,
+  getRewardSubscriptionWindow,
   getTrackingConfiguration,
   processTelegramUpdate,
+  reconcileReferralRewards,
   getReferralStats,
 };

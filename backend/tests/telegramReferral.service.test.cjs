@@ -8,8 +8,66 @@ const {
   channelMatches,
   getMilestoneBoundaries,
   hasMilestoneBoundaryDrift,
+  getRewardSubscriptionWindow,
   getTrackingConfiguration,
 } = require('../services/telegramReferral.service.cjs');
+
+describe('Telegram referral reward subscription timing', () => {
+  const issuedAt = new Date('2026-11-10T12:00:00.000Z');
+
+  test('starts a new five-day reward at actual issuance time when no subscription is active', () => {
+    const window = getRewardSubscriptionWindow({
+      issuedAt,
+      activeSubscription: null,
+      legacyStart: new Date('2026-10-01T00:00:00.000Z'),
+      legacyEnd: new Date('2026-10-31T00:00:00.000Z'),
+    });
+
+    expect(window.startsAt.toISOString()).toBe(issuedAt.toISOString());
+    expect(window.expiresAt.toISOString()).toBe('2026-11-15T12:00:00.000Z');
+    expect(window.extendsExisting).toBe(false);
+  });
+
+  test('extends a currently active subscription by five days without resetting its start', () => {
+    const window = getRewardSubscriptionWindow({
+      issuedAt,
+      activeSubscription: {
+        startsAt: new Date('2026-09-01T00:00:00.000Z'),
+        expiresAt: new Date('2026-11-20T12:00:00.000Z'),
+      },
+    });
+
+    expect(window.startsAt.toISOString()).toBe('2026-09-01T00:00:00.000Z');
+    expect(window.expiresAt.toISOString()).toBe('2026-11-25T12:00:00.000Z');
+    expect(window.extendsExisting).toBe(true);
+  });
+
+  test('extends a valid legacy subscription when no Subscription row is active', () => {
+    const window = getRewardSubscriptionWindow({
+      issuedAt,
+      activeSubscription: null,
+      legacyStart: new Date('2026-10-01T00:00:00.000Z'),
+      legacyEnd: new Date('2026-11-20T12:00:00.000Z'),
+    });
+
+    expect(window.startsAt.toISOString()).toBe('2026-10-01T00:00:00.000Z');
+    expect(window.expiresAt.toISOString()).toBe('2026-11-25T12:00:00.000Z');
+    expect(window.extendsExisting).toBe(true);
+  });
+
+  test('does not use an expired legacy subscription as the reward start date', () => {
+    const window = getRewardSubscriptionWindow({
+      issuedAt,
+      activeSubscription: null,
+      legacyStart: new Date('2026-10-01T00:00:00.000Z'),
+      legacyEnd: new Date('2026-10-31T00:00:00.000Z'),
+    });
+
+    expect(window.startsAt.toISOString()).toBe(issuedAt.toISOString());
+    expect(window.expiresAt.toISOString()).toBe('2026-11-15T12:00:00.000Z');
+    expect(window.extendsExisting).toBe(false);
+  });
+});
 
 describe('Telegram referral validation helpers', () => {
   test('compares webhook secrets and rejects missing or different values', () => {
