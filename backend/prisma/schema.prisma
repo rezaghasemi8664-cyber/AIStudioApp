@@ -65,6 +65,7 @@ model User {
   userPermissions       UserPermission[]
   referralInvitesSent   ReferralInvite[]         @relation("ReferralInviter")
   referralRedemption    ReferralInvite?          @relation("ReferralRedeemer")
+  telegramReferralLinks TelegramReferralLink[]
 
   @@index([isActive])
   @@index([isDeleted])
@@ -638,6 +639,22 @@ model ReferralInvite {
   @@unique([inviterId, inviteeMobile])
   @@index([referralCode, inviteeMobile, status])
   @@map("ReferralInvite")
+  @@schema("dbo")
+}
+
+model TelegramReferralLink {
+  id         Int      @id @default(autoincrement())
+  inviterId  Int
+  channelId  String   @db.NVarChar(100)
+  inviteLink String   @unique(map: "UQ_TelegramReferralLink_inviteLink") @db.NVarChar(512)
+  inviteName String?  @db.NVarChar(32)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  revokedAt  DateTime?
+  inviter    User     @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([inviterId, channelId, isActive])
+  @@map("TelegramReferralLink")
   @@schema("dbo")
 }
 
