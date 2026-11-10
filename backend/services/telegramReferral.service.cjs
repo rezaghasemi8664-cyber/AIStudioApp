@@ -307,10 +307,13 @@ async function processTelegramUpdate(update) {
       select: { milestone: true, completedAt: true },
     });
     const reconciliationRequired = hasMilestoneBoundaryDrift(existingRewards, boundaries);
+    const missingMilestones = new Set(getMissingMilestoneRewards(existingRewards, boundaries));
 
     // Never silently issue later rewards when a delayed Telegram update changes
     // the historical member that completed an already-rewarded milestone.
+    // Only genuinely missing milestones are candidates for issuance.
     if (!reconciliationRequired) for (const boundary of boundaries) {
+      if (!missingMilestones.has(Number(boundary.milestone))) continue;
       const reward = await grantMilestone(
         tx,
         referralLink.inviterId,
@@ -337,6 +340,63 @@ async function processTelegramUpdate(update) {
       confirmedMembers: members.length,
       newlyGrantedMilestones: newlyGranted,
       reconciliationRequired,
+    };
+  }, { isolationLevel: 'Serializable', maxWait: 10000, timeout: 20000 });
+}
+
+
+async function reconcileReferralRewards(inviterId) {
+  const normalizedInviterId = Number(inviterId);
+  if (!Number.isSafeInteger(normalizedInviterId) || normalizedInviterId <= 0) {
+    const error = new Error('TELEGRAM_REFERRAL_INVITER_ID_INVALID');
+    error.code = 'TELEGRAM_REFERRAL_INVITER_ID_INVALID';
+    throw error;
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const members = await tx.telegramReferralMember.findMany({
+      where: { inviterId: normalizedInviterId },
+      orderBy: [{ joinedAt: 'asc' }, { id: 'asc' }],
+      select: { id: true, joinedAt: true },
+    });
+    const rewards = await tx.telegramReferralReward.findMany({
+      where: { inviterId: normalizedInviterId },
+      select: { milestone: true, completedAt: true },
+    });
+    const boundaries = getMilestoneBoundaries(members);
+    if (hasMilestoneBoundaryDrift(rewards, boundaries)) {
+      return {
+        reconciliationRequired: true,
+        reason: 'MILESTONE_BOUNDARY_CHANGED',
+        confirmedMembers: members.length,
+        newlyGrantedMilestones: [],
+        missingRewardMilestones: getMissingMilestoneRewards(rewards, boundaries),
+      };
+    }
+
+    const missingMilestones = new Set(getMissingMilestoneRewards(rewards, boundaries));
+    const newlyGrantedMilestones = [];
+    for (const boundary of boundaries) {
+      if (!missingMilestones.has(Number(boundary.milestone))) continue;
+      const reward = await grantMilestone(
+        tx,
+        normalizedInviterId,
+        boundary.milestone,
+        boundary.memberCount,
+        boundary.completedAt
+      );
+      if (reward) newlyGrantedMilestones.push(boundary.milestone);
+    }
+
+    const remainingRewards = await tx.telegramReferralReward.findMany({
+      where: { inviterId: normalizedInviterId },
+      select: { milestone: true, completedAt: true },
+    });
+    return {
+      reconciliationRequired: false,
+      confirmedMembers: members.length,
+      newlyGrantedMilestones,
+      missingRewardMilestones: getMissingMilestoneRewards(remainingRewards, boundaries),
     };
   }, { isolationLevel: 'Serializable', maxWait: 10000, timeout: 20000 });
 }
@@ -380,5 +440,6 @@ module.exports = {
   getRewardSubscriptionWindow,
   getTrackingConfiguration,
   processTelegramUpdate,
+  reconcileReferralRewards,
   getReferralStats,
 };
