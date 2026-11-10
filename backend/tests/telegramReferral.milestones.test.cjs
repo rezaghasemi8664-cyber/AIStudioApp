@@ -5,6 +5,7 @@ jest.mock('../config/prisma.cjs', () => ({ prisma: {} }));
 const {
   getMilestoneBoundaries,
   hasMilestoneBoundaryDrift,
+  getMissingMilestoneRewards,
 } = require('../services/telegramReferral.service.cjs');
 
 function makeMembers(count) {
@@ -53,5 +54,21 @@ describe('Telegram referral reward milestones', () => {
     expect(hasMilestoneBoundaryDrift(rewards, getMilestoneBoundaries(makeMembers(20)))).toBe(true);
   });
 
-  test.todo('flags a missing reward row when a 20/40/60-member boundary exists');
+  test('identifies each completed milestone boundary without a reward row', () => {
+    const boundaries = getMilestoneBoundaries(makeMembers(60));
+    const rewards = [{ milestone: 20 }, { milestone: 60 }];
+
+    expect(getMissingMilestoneRewards(rewards, boundaries)).toEqual([40]);
+  });
+
+  test('returns no missing milestones when every completed boundary has a reward row', () => {
+    const boundaries = getMilestoneBoundaries(makeMembers(60));
+    const rewards = [{ milestone: 20 }, { milestone: 40 }, { milestone: 60 }];
+
+    expect(getMissingMilestoneRewards(rewards, boundaries)).toEqual([]);
+  });
+
+  test('does not report incomplete milestones as missing rewards', () => {
+    expect(getMissingMilestoneRewards([], getMilestoneBoundaries(makeMembers(39)))).toEqual([]);
+  });
 });
