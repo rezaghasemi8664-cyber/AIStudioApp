@@ -40,7 +40,10 @@ router.post('/webhook', async (req, res) => {
   // Optional second trust boundary: when configured, only the Cloudflare
   // Worker may relay Telegram updates to this endpoint.
   const expectedRelaySecret = String(process.env.TELEGRAM_WEBHOOK_RELAY_SECRET || '');
-  if (expectedRelaySecret && !telegramReferralService.safeSecretEquals(
+  if (!expectedRelaySecret) {
+    return res.status(503).json({ success: false, code: 'TELEGRAM_WEBHOOK_RELAY_SECRET_MISSING' });
+  }
+  if (!telegramReferralService.safeSecretEquals(
     req.get('X-Roniya-Webhook-Relay-Key') || '',
     expectedRelaySecret
   )) {
