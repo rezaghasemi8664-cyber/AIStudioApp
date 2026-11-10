@@ -670,8 +670,8 @@ model TelegramReferralMember {
   inviteLinkId     Int
   joinedAt         DateTime            @db.DateTime2
   createdAt        DateTime            @default(now())
-  inviter          User                @relation(fields: [inviterId], references: [id], onDelete: Cascade)
-  inviteLink       TelegramReferralLink @relation(fields: [inviteLinkId], references: [id], onDelete: NoAction)
+  inviter          User                @relation(fields: [inviterId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  inviteLink       TelegramReferralLink @relation(fields: [inviteLinkId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([channelId, telegramUserId], map: "UQ_TelegramReferralMember_Channel_TelegramUser")
   @@index([inviterId, joinedAt])
