@@ -7,6 +7,8 @@ const {
   isMember,
   channelMatches,
   getMilestoneBoundaries,
+  hasMilestoneBoundaryDrift,
+  getTrackingConfiguration,
 } = require('../services/telegramReferral.service.cjs');
 
 describe('Telegram referral validation helpers', () => {
@@ -61,4 +63,50 @@ describe('Telegram referral validation helpers', () => {
     expect(boundary.completedAt.toISOString()).toBe(new Date(Date.UTC(2026, 0, 1, 0, 19)).toISOString());
   });
 
+});
+
+
+describe('Telegram referral tracking readiness', () => {
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    for (const key of [
+      'TELEGRAM_REFERRAL_TRACKING_ENABLED',
+      'TELEGRAM_WEBHOOK_SECRET',
+      'TELEGRAM_WEBHOOK_RELAY_SECRET',
+      'TELEGRAM_BOT_TOKEN',
+      'TELEGRAM_CHANNEL_ID',
+      'TELEGRAM_CHANNEL_USERNAME',
+    ]) {
+      if (originalEnv[key] === undefined) delete process.env[key];
+      else process.env[key] = originalEnv[key];
+    }
+  });
+
+  test('does not report tracking active until the explicit switch and all secrets/config are present', () => {
+    process.env.TELEGRAM_REFERRAL_TRACKING_ENABLED = 'true';
+    process.env.TELEGRAM_WEBHOOK_SECRET = 'telegram-secret';
+    process.env.TELEGRAM_WEBHOOK_RELAY_SECRET = 'relay-secret';
+    process.env.TELEGRAM_BOT_TOKEN = '123:token';
+    process.env.TELEGRAM_CHANNEL_ID = '@RoniyaAnalyzer';
+
+    expect(getTrackingConfiguration()).toEqual({ enabled: true, missing: [] });
+
+    delete process.env.TELEGRAM_WEBHOOK_RELAY_SECRET;
+    expect(getTrackingConfiguration().enabled).toBe(false);
+    expect(getTrackingConfiguration().missing).toContain('TELEGRAM_WEBHOOK_RELAY_SECRET');
+  });
+
+  test('detects when a delayed join changes an already rewarded milestone boundary', () => {
+    const originalBoundary = new Date('2026-01-01T00:20:00.000Z');
+    const shiftedBoundary = new Date('2026-01-01T00:19:00.000Z');
+    expect(hasMilestoneBoundaryDrift(
+      [{ milestone: 20, completedAt: originalBoundary }],
+      [{ milestone: 20, completedAt: shiftedBoundary }]
+    )).toBe(true);
+    expect(hasMilestoneBoundaryDrift(
+      [{ milestone: 20, completedAt: originalBoundary }],
+      [{ milestone: 20, completedAt: originalBoundary }]
+    )).toBe(false);
+  });
 });
