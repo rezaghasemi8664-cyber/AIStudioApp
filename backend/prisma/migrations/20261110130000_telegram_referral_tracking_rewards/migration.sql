@@ -7,7 +7,7 @@ CREATE TABLE [dbo].[TelegramReferralMember] (
   [joinedAt] DATETIME2 NOT NULL,
   [createdAt] DATETIME2 NOT NULL CONSTRAINT [DF_TelegramReferralMember_createdAt] DEFAULT SYSUTCDATETIME(),
   CONSTRAINT [PK_TelegramReferralMember] PRIMARY KEY CLUSTERED ([id]),
-  CONSTRAINT [FK_TelegramReferralMember_User] FOREIGN KEY ([inviterId]) REFERENCES [dbo].[User]([id]) ON DELETE CASCADE,
+  CONSTRAINT [FK_TelegramReferralMember_User] FOREIGN KEY ([inviterId]) REFERENCES [dbo].[User]([id]) ON DELETE NO ACTION ON UPDATE NO ACTION,
   CONSTRAINT [FK_TelegramReferralMember_InviteLink] FOREIGN KEY ([inviteLinkId]) REFERENCES [dbo].[TelegramReferralLink]([id]) ON DELETE NO ACTION
 );
 CREATE UNIQUE INDEX [UQ_TelegramReferralMember_Channel_TelegramUser] ON [dbo].[TelegramReferralMember]([channelId], [telegramUserId]);
