@@ -1,4 +1,5 @@
 // src/services/notificationService.ts
+import { parseSqlServerTehranDate } from '../utils/sqlServerTehranDate';
 import type { ApiResult, AppNotification } from '../types';
 import { get, post, patch, del } from './apiClient';
 
@@ -39,7 +40,7 @@ export function getNotificationsForUser(_userId: string): AppNotification[] {
   void getNotifications().then(res => {
     if (res.success && Array.isArray(res.data)) {
       userNotificationsCache = res.data.map(item => ({
-        id: String(item.id), message: item.message, timestamp: Date.parse(item.createdAt) || Date.now(),
+        id: String(item.id), message: item.message, timestamp: parseSqlServerTehranDate(item.createdAt)?.getTime() || Date.now(),
         recipientUserId: _userId, read: item.read,
         attachment: item.attachment ? { name: item.attachment.name, type: item.attachment.type || 'file', data: item.attachment.url } : undefined,
       }));
