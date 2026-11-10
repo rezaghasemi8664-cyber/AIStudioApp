@@ -100,6 +100,28 @@ export async function getDashboardPersonalSummary(unreadAlertCount: number, subs
   return { watchlistCount: watchlists.length, watchlistSymbolCount, portfolioCount: portfolioSymbols.size, portfolioInvestedValue, portfolioCurrentValue: quotedItems.length > 0 ? portfolioCurrentValue : null, portfolioPnl, portfolioPnlPercent, unreadAlertCount: Math.max(0, Number(unreadAlertCount) || 0), subscriptionDaysRemaining, subscriptionExpired };
 }
 
+
+// Refresh only the portfolio card after a new AllSymbols snapshot is published.
+// The backend portfolio state is already cached by the initial dashboard load;
+// /portfolio/quotes joins that state with the in-memory central snapshot and does
+// not need a SQL read or a full dashboard reload.
+export async function refreshDashboardPortfolioSummary(): Promise<Pick<DashboardData['personal'], 'portfolioCount' | 'portfolioInvestedValue' | 'portfolioCurrentValue' | 'portfolioPnl' | 'portfolioPnlPercent'>> {
+  const portfolio = await portfolioService.refreshPortfolioQuotes();
+  const portfolioSymbols = new Set(portfolio.map(item => String(item.symbol || '').trim().toUpperCase()).filter(Boolean));
+  const portfolioInvestedValue = portfolio.reduce((sum, item) => sum + (Number(item.entryPrice) || 0) * (Number(item.quantity) || 0), 0);
+  const quotedItems = portfolio.filter(item => Number.isFinite(Number(item.currentPrice)) && Number(item.currentPrice) > 0 && Number(item.quantity) > 0);
+  const portfolioCurrentValue = quotedItems.reduce((sum, item) => sum + Number(item.currentPrice) * Number(item.quantity), 0);
+  const portfolioPnl = quotedItems.length > 0 ? portfolioCurrentValue - portfolioInvestedValue : null;
+  const portfolioPnlPercent = portfolioPnl !== null && portfolioInvestedValue > 0 ? (portfolioPnl / portfolioInvestedValue) * 100 : null;
+  return {
+    portfolioCount: portfolioSymbols.size,
+    portfolioInvestedValue,
+    portfolioCurrentValue: quotedItems.length > 0 ? portfolioCurrentValue : null,
+    portfolioPnl,
+    portfolioPnlPercent,
+  };
+}
+
 const DASHBOARD_REQUEST_TIMEOUT_MS = 2500;
 const DASHBOARD_MOVERS_TIMEOUT_MS = 2500;
 const DASHBOARD_INDUSTRIES_TIMEOUT_MS = 2500;
