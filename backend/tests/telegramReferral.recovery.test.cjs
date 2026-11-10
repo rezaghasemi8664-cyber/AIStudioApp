@@ -12,7 +12,7 @@ function makeTx({ activeUser = true } = {}) {
   const completedAt = new Date('2026-10-01T09:00:00.000Z');
   const members = Array.from({ length: 20 }, (_, index) => ({
     id: index + 1,
-    joinedAt: new Date(completedAt.getTime() + index * 60000),
+    joinedAt: new Date(completedAt.getTime() - (19 - index) * 60000),
   }));
   const rewardRows = [];
 
