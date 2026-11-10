@@ -37,6 +37,28 @@ function getMilestoneBoundaries(members, step = MEMBERS_PER_REWARD) {
   return boundaries;
 }
 
+function hasMilestoneBoundaryDrift(rewards, boundaries) {
+  const byMilestone = new Map((Array.isArray(boundaries) ? boundaries : []).map((item) => [Number(item.milestone), item]));
+  return (Array.isArray(rewards) ? rewards : []).some((reward) => {
+    const boundary = byMilestone.get(Number(reward.milestone));
+    if (!boundary) return true;
+    return new Date(reward.completedAt).getTime() !== new Date(boundary.completedAt).getTime();
+  });
+}
+
+function getTrackingConfiguration() {
+  const config = require('./telegramBotApi.service.cjs').getTelegramConfig();
+  const missing = [];
+  if (String(process.env.TELEGRAM_REFERRAL_TRACKING_ENABLED || '').trim().toLowerCase() !== 'true') {
+    missing.push('TRACKING_SWITCH');
+  }
+  if (!String(process.env.TELEGRAM_WEBHOOK_SECRET || '').trim()) missing.push('TELEGRAM_WEBHOOK_SECRET');
+  if (!String(process.env.TELEGRAM_WEBHOOK_RELAY_SECRET || '').trim()) missing.push('TELEGRAM_WEBHOOK_RELAY_SECRET');
+  if (!config.token) missing.push('TELEGRAM_BOT_TOKEN');
+  if (!config.chatId) missing.push('TELEGRAM_CHANNEL_ID');
+  return { enabled: missing.length === 0, missing };
+}
+
 function channelMatches(chat, configuredChannelId) {
   const expected = String(configuredChannelId || '').trim();
   if (!expected || !chat) return false;
@@ -238,8 +260,15 @@ async function processTelegramUpdate(update) {
     });
     const newlyGranted = [];
     const boundaries = getMilestoneBoundaries(members);
+    const existingRewards = await tx.telegramReferralReward.findMany({
+      where: { inviterId: referralLink.inviterId },
+      select: { milestone: true, completedAt: true },
+    });
+    const reconciliationRequired = hasMilestoneBoundaryDrift(existingRewards, boundaries);
 
-    for (const boundary of boundaries) {
+    // Never silently issue later rewards when a delayed Telegram update changes
+    // the historical member that completed an already-rewarded milestone.
+    if (!reconciliationRequired) for (const boundary of boundaries) {
       const reward = await grantMilestone(
         tx,
         referralLink.inviterId,
@@ -252,7 +281,11 @@ async function processTelegramUpdate(update) {
 
     await tx.telegramWebhookUpdate.update({
       where: { updateId: BigInt(updateIdRaw) },
-      data: { status: 'PROCESSED', processedAt: new Date() },
+      data: {
+        status: reconciliationRequired ? 'RECONCILE' : 'PROCESSED',
+        processedAt: new Date(),
+        errorCode: reconciliationRequired ? 'MILESTONE_BOUNDARY_CHANGED' : null,
+      },
     });
 
     return {
@@ -261,22 +294,34 @@ async function processTelegramUpdate(update) {
       inviterId: referralLink.inviterId,
       confirmedMembers: members.length,
       newlyGrantedMilestones: newlyGranted,
+      reconciliationRequired,
     };
   }, { isolationLevel: 'Serializable', maxWait: 10000, timeout: 20000 });
 }
 
 async function getReferralStats(inviterId) {
-  const [confirmedMembers, rewards] = await Promise.all([
-    prisma.telegramReferralMember.count({ where: { inviterId: Number(inviterId) } }),
+  const [members, rewards] = await Promise.all([
+    prisma.telegramReferralMember.findMany({
+      where: { inviterId: Number(inviterId) },
+      orderBy: [{ joinedAt: 'asc' }, { id: 'asc' }],
+      select: { id: true, joinedAt: true },
+    }),
     prisma.telegramReferralReward.findMany({
       where: { inviterId: Number(inviterId) },
-      select: { days: true },
+      select: { days: true, milestone: true, completedAt: true },
     }),
   ]);
+  const tracking = getTrackingConfiguration();
+  const reconciliationRequired = hasMilestoneBoundaryDrift(rewards, getMilestoneBoundaries(members));
   return {
-    confirmedMembers,
+    confirmedMembers: members.length,
     giftedDays: rewards.reduce((total, reward) => total + Number(reward.days || 0), 0),
-    trackingEnabled: Boolean(String(process.env.TELEGRAM_WEBHOOK_SECRET || '').trim()),
+    trackingEnabled: tracking.enabled && !reconciliationRequired,
+    trackingStatus: reconciliationRequired
+      ? 'RECONCILIATION_REQUIRED'
+      : tracking.enabled ? 'ACTIVE' : 'NOT_CONFIGURED',
+    trackingMissing: tracking.missing,
+    reconciliationRequired,
   };
 }
 
@@ -285,6 +330,8 @@ module.exports = {
   isMember,
   channelMatches,
   getMilestoneBoundaries,
+  hasMilestoneBoundaryDrift,
+  getTrackingConfiguration,
   processTelegramUpdate,
   getReferralStats,
 };
