@@ -11,6 +11,7 @@ const smsService = require('../services/sms/sms.service.cjs');
 const { encryptPassword, decryptPassword } = require('../services/passwordVault.service.cjs');
 const subscriptionService = require('../services/subscription.service.cjs');
 const marketingAttribution = require('../services/marketingAttribution.service.cjs');
+const telegramReferralLinksService = require('../services/telegramReferralLinks.service.cjs');
 
 let env = {};
 try { env = require('../config/env.cjs'); } catch (_) {}
@@ -127,6 +128,7 @@ async function grantReferralReward(inviteId, newUserId) {
 
 async function register(req,res){
   let createdId = null;
+  let telegramReferralLinkCreated = false;
   try {
     const maintenanceRow = await prisma.globalSetting.findUnique({ where: { key: 'maintenance.policy' } }).catch(() => null);
     if (maintenanceRow && maintenanceRow.category === 'maintenance') {
@@ -202,6 +204,18 @@ async function register(req,res){
       return res.status(502).json({ success: false, message: 'ارسال رمز اولیه از طریق پیامک انجام نشد. لطفاً تنظیمات سرویس پیامک را بررسی کرده و دوباره تلاش کنید' });
     }
 
+    // Provision the Telegram invite immediately for every successful registration.
+    // Telegram outages must not roll back an account after its initial password SMS was sent.
+    try {
+      await telegramReferralLinksService.ensureTelegramReferralLink(createdId);
+      telegramReferralLinkCreated = true;
+    } catch (telegramLinkError) {
+      console.error('[TELEGRAM_REFERRAL] registration link provisioning failed', {
+        userId: createdId,
+        code: String(telegramLinkError?.code || 'UNKNOWN').slice(0, 80),
+      });
+    }
+
     if (referralInvite) {
       try {
         await grantReferralReward(referralInvite.id, createdId);
@@ -218,7 +232,7 @@ async function register(req,res){
     return res.status(201).json({
       success: true,
       message: referralInvite ? 'ثبت‌نام با موفقیت انجام شد و هدیه کد معرف ثبت گردید. رمز اولیه پیامک شد' : 'ثبت‌نام با موفقیت انجام شد. رمز اولیه از طریق پیامک ارسال گردید',
-      data: { user: formatUser(trialUser), smsSent: true, referralRewardDays: referralInvite ? 5 : 0 },
+      data: { user: formatUser(trialUser), smsSent: true, referralRewardDays: referralInvite ? 5 : 0, telegramReferralLinkCreated },
     });
   } catch (e) {
     console.error('[AUTH] register', e);
