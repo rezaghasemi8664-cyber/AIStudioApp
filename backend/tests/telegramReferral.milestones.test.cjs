@@ -30,11 +30,11 @@ describe('Telegram referral reward milestones', () => {
     expect(boundaries.every((item) => item.memberCount === item.milestone)).toBe(true);
   });
 
-  test('uses id as a deterministic tie-breaker when join timestamps are equal', () => {
-    const timestamp = new Date('2026-01-01T00:00:00.000Z');
+  test('handles equal join timestamps at the 20-member milestone boundary', () => {
+    const timestamp = new Date('2026-01-01T00:18:00.000Z');
     const members = [
+      ...makeMembers(18),
       { id: 22, joinedAt: timestamp },
-      ...makeMembers(19),
       { id: 21, joinedAt: timestamp },
     ];
 
