@@ -10,7 +10,7 @@ const DAYS: { value: TehranWeekday; label: string }[] = [
   { value: 'Wed', label: 'چهارشنبه' }, { value: 'Thu', label: 'پنجشنبه' },
   { value: 'Fri', label: 'جمعه' }
 ];
-const TYPE_LABELS: Record<string, string> = { valuable: 'نمادهای ارزنده', scalping: 'فرصت‌های نوسان‌گیری', index: 'شاخص‌های بورس', summary: 'خلاصه بازار' };
+const TYPE_LABELS: Record<string, string> = { valuable: 'نمادهای ارزنده', scalping: 'فرصت‌های نوسان‌گیری', index: 'شاخص‌های بورس', summary: 'خلاصه بازار', 'custom-ad': 'پیام تبلیغات در کانال تلگرام رونیا', 'membership-message': 'پیام عضویت در کانال تلگرام رونیا', 'channel-message': 'ارسال پیام در کانال تلگرام رونیا' };
 const DEFAULT_SETTINGS: TelegramPublisherSettings = {
   timezone: 'Asia/Tehran',
   valuable: { enabled: true, intervalMinutes: 15, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'], maxSymbolsPerMessage: 10 },
