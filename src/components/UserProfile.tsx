@@ -7,6 +7,7 @@ import { useNotification } from './NotificationSystem';
 import PasswordChangeForm from './PasswordChangeForm';
 import SubscriptionPlans from './SubscriptionPlans';
 import ReferralInvitePanel from './ReferralInvitePanel';
+import TelegramReferralCard from './TelegramReferralCard';
 import {
   PencilIcon,
   CheckIcon,
@@ -654,6 +655,7 @@ const UserProfile: React.FC<UserProfileProps> = ({
           {/* فرم تغییر رمز عبور */}
           <PasswordChangeForm onPasswordChange={onPasswordChange} />
           {!currentUser.isAdmin && <ReferralInvitePanel />}
+          {!currentUser.isAdmin && <TelegramReferralCard />}
         </div>
       )}
 
