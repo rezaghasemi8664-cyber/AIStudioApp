@@ -245,6 +245,8 @@ async function getReferralStats(inviterId) {
 
 module.exports = {
   safeSecretEquals,
+  isMember,
+  channelMatches,
   processTelegramUpdate,
   getReferralStats,
 };
