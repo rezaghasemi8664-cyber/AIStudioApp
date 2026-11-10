@@ -27,6 +27,12 @@ const Dashboard: React.FC<DashboardProps> = ({ isOnline = true, onNavigate, unre
     if (!isOnline) return;
     try {
       const portfolioSummary = await refreshDashboardPortfolioSummary();
+      if (cachedDashboardData) {
+        cachedDashboardData = {
+          ...cachedDashboardData,
+          personal: { ...cachedDashboardData.personal, ...portfolioSummary },
+        };
+      }
       setData(current => current ? {
         ...current,
         personal: { ...current.personal, ...portfolioSummary },
