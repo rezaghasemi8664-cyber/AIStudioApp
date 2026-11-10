@@ -661,6 +661,9 @@ mountRoute('/api/v1/site-analytics', './routes/siteAnalytics.routes.cjs', 'Site 
 mountRoute('/api/v1/marketing-attribution', './routes/marketingAttribution.routes.cjs', 'Marketing attribution v1 alias');
 mountRoute('/api/v1/telegram-publisher-admin', './routes/telegramPublisherAdmin.routes.cjs', 'Telegram Publisher Admin v1 alias (priority)');
 
+// Telegram referral links are mounted before the broad v1 aggregator.
+mountRoute('/api/v1/telegram-referrals', './routes/telegramReferral.routes.cjs', 'Telegram Referral Links v1 alias (priority)');
+
 // Keep this explicit alias before the broad /api/v1 aggregator; its fallback can intercept referral requests.
 mountRoute('/api/v1/referrals', './routes/referral.routes.cjs', 'Referral Invites v1 alias (priority)');
 mountRoute('/api/v1', './routes/v1/index.cjs', 'API v1 Root');
@@ -675,6 +678,7 @@ mountRoute('/api/v1/auth',     './routes/auth.routes.cjs',             'Auth v1 
 mountRoute('/api/profile',     './routes/profile.routes.cjs',          'User Profile');
 mountRoute('/api/v1/profile',  './routes/profile.routes.cjs',          'User Profile v1 alias');
 mountRoute('/api/referrals',     './routes/referral.routes.cjs', 'Referral Invites');
+mountRoute('/api/telegram-referrals', './routes/telegramReferral.routes.cjs', 'Telegram Referral Links');
 
 mountRoute('/api/users',       './routes/user.routes.cjs',             'User Management');
 mountRoute('/api/v1/users',    './routes/user.routes.cjs',             'User Management v1 alias');
