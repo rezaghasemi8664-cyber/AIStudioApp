@@ -36,6 +36,16 @@ router.post('/webhook', async (req, res) => {
   if (!telegramReferralService.safeSecretEquals(receivedSecret, expectedSecret)) {
     return res.status(401).json({ success: false, code: 'TELEGRAM_WEBHOOK_UNAUTHORIZED' });
   }
+
+  // Optional second trust boundary: when configured, only the Cloudflare
+  // Worker may relay Telegram updates to this endpoint.
+  const expectedRelaySecret = String(process.env.TELEGRAM_WEBHOOK_RELAY_SECRET || '');
+  if (expectedRelaySecret && !telegramReferralService.safeSecretEquals(
+    req.get('X-Roniya-Webhook-Relay-Key') || '',
+    expectedRelaySecret
+  )) {
+    return res.status(401).json({ success: false, code: 'TELEGRAM_WEBHOOK_RELAY_UNAUTHORIZED' });
+  }
   if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
     return res.status(400).json({ success: false, code: 'TELEGRAM_UPDATE_INVALID' });
   }
