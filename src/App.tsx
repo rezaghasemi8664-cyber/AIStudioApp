@@ -23,6 +23,7 @@ import ComprehensiveGuide from './components/ComprehensiveGuide';
 import * as authServiceModule from './services/authService';
 import type { StoredUser } from './services/authService';
 import * as notificationServiceModule from './services/notificationService';
+import { parseSqlServerTehranDate } from './utils/sqlServerTehranDate';
 import * as messageServiceModule from './services/messageService';
 import * as themeServiceModule from './services/themeService';
 import * as apiConfigServiceModule from './services/apiConfigService';
@@ -484,7 +485,7 @@ const App: React.FC = () => {
           message: item.message,
           title: item.title,
           type: item.type,
-          timestamp: Date.parse(item.createdAt) || Date.now(),
+          timestamp: parseSqlServerTehranDate(item.createdAt)?.getTime() || Date.now(),
           recipientUserId: user.id,
           read: item.read,
           attachment: item.attachment
