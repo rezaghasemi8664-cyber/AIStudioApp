@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import * as telegramAdmin from '../services/telegramPublisherAdminService';
-import type { TelegramPublisherHistory, TelegramPublisherSettings, TelegramSchedule, TehranWeekday, TelegramAdMessageSettings } from '../services/telegramPublisherAdminService';
-import { DEFAULT_TELEGRAM_AD_MESSAGE } from '../services/telegramPublisherAdminService';
+import type { TelegramPublisherHistory, TelegramPublisherSettings, TelegramSchedule, TehranWeekday } from '../services/telegramPublisherAdminService';
 import AdminTelegramCustomMessages from './AdminTelegramCustomMessages';
 
 const DAYS: { value: TehranWeekday; label: string }[] = [
@@ -88,12 +87,6 @@ const TelegramScheduleCard: React.FC<{
 const AdminTelegramPublisherPanel: React.FC = () => {
   const [settings, setSettings] = useState<TelegramPublisherSettings>(DEFAULT_SETTINGS);
   const [history, setHistory] = useState<TelegramPublisherHistory | null>(null);
-  const [adMessage, setAdMessage] = useState<TelegramAdMessageSettings>(DEFAULT_TELEGRAM_AD_MESSAGE);
-  const [adSaving, setAdSaving] = useState(false);
-  const [adPublishing, setAdPublishing] = useState(false);
-  const [adError, setAdError] = useState<string | null>(null);
-  const [adNotice, setAdNotice] = useState<string | null>(null);
-  const [newAdTime, setNewAdTime] = useState('12:00');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,10 +95,10 @@ const AdminTelegramPublisherPanel: React.FC = () => {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const [nextSettings, nextHistory, nextAdMessage] = await Promise.all([
-        telegramAdmin.getTelegramPublisherSettings(), telegramAdmin.getTelegramPublisherHistory(), telegramAdmin.getTelegramAdMessageSettings()
+      const [nextSettings, nextHistory] = await Promise.all([
+        telegramAdmin.getTelegramPublisherSettings(), telegramAdmin.getTelegramPublisherHistory()
       ]);
-      setSettings(nextSettings); setHistory(nextHistory); setAdMessage(nextAdMessage);
+      setSettings(nextSettings); setHistory(nextHistory);
     } catch (e) { setError(e instanceof Error ? e.message : 'دریافت اطلاعات انتشار تلگرام ناموفق بود.'); }
     finally { setLoading(false); }
   }, []);
