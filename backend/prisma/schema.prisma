@@ -653,6 +653,7 @@ model TelegramReferralLink {
   revokedAt  DateTime?
   inviter    User     @relation(fields: [inviterId], references: [id], onDelete: Cascade)
 
+  @@unique([inviterId, channelId], map: "UQ_TelegramReferralLink_Inviter_Channel")
   @@index([inviterId, channelId, isActive])
   @@map("TelegramReferralLink")
   @@schema("dbo")
