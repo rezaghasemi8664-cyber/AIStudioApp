@@ -11,6 +11,7 @@ const smsService = require('../services/sms/sms.service.cjs');
 const { encryptPassword, decryptPassword } = require('../services/passwordVault.service.cjs');
 const subscriptionService = require('../services/subscription.service.cjs');
 const marketingAttribution = require('../services/marketingAttribution.service.cjs');
+const telegramReferralLinksService = require('../services/telegramReferralLinks.service.cjs');
 
 let env = {};
 try { env = require('../config/env.cjs'); } catch (_) {}
@@ -52,7 +53,7 @@ function getMarketingAttributionFromRequest(req) {
   const [source, medium, campaign, content] = raw.split('|');
   return marketingAttribution.normalizeAttribution({ source, medium, campaign, content });
 }
-async function login(req,res){try{const id=normalizeEmail(req.body?.email||req.body?.username),password=String(req.body?.password||'');if(!required(id)||!password)return res.status(400).json({success:false,message:'ایمیل و کلمه عبور الزامی است'});const u=await prisma.user.findFirst({where:{OR:[{email:id},{username:id}],isDeleted:false},select:USER_SELECT});if(!u)return res.status(401).json({success:false,message:'ایمیل یا کلمه عبور اشتباه است'});if(!u.isActive)return res.status(403).json({success:false,message:'حساب کاربری غیرفعال است'});if(!(await bcrypt.compare(password,u.passwordHash)))return res.status(401).json({success:false,message:'ایمیل یا کلمه عبور اشتباه است'});const maintenanceRow=await prisma.globalSetting.findUnique({where:{key:'maintenance.policy'}}).catch(()=>null);if(maintenanceRow&&maintenanceRow.category==='maintenance'){let policy={};try{policy=JSON.parse(maintenanceRow.value)||{};}catch(_){}const roleName=String(u.Role?.name||'').toUpperCase();const isAdmin=roleName==='ADMIN'||roleName==='SUPERADMIN'||u.roleId===2;if(policy.enabled===true&&!(policy.allowAdmins!==false&&isAdmin))return res.status(503).json({success:false,code:'MAINTENANCE_MODE',maintenance:true,message:String(policy.message||'سامانه موقتاً در حال نگهداری است.').slice(0,500)});}const effective=await getEffectiveSubscription(u.id);const effectiveUser=mergeEffectiveSubscription(u,effective);const t=tokens(u);setCookies(req,res,t.accessToken,t.refreshToken);await prisma.user.update({where:{id:u.id},data:{lastLoginAt:new Date(),loginCount:{increment:1}}}).catch(()=>{});try{marketingAttribution.recordAuthenticatedVisit({userId:u.id});}catch(attributionError){console.error('[MARKETING_ATTRIBUTION] authenticated visit tracking failed',attributionError.message);}return res.json({success:true,message:'ورود موفق',data:{user:formatUser({...effectiveUser,lastLoginAt:new Date()}),token:t.accessToken,accessToken:t.accessToken,refreshToken:t.refreshToken}});}catch(e){console.error('[AUTH] login',e);return res.status(500).json({success:false,message:'خطای سرور'});}}
+async function login(req,res){try{const id=normalizeEmail(req.body?.email||req.body?.username),password=String(req.body?.password||'');if(!required(id)||!password)return res.status(400).json({success:false,message:'ایمیل و کلمه عبور الزامی است'});const u=await prisma.user.findFirst({where:{OR:[{email:id},{username:id}],isDeleted:false},select:USER_SELECT});if(!u)return res.status(401).json({success:false,message:'ایمیل یا کلمه عبور اشتباه است'});if(!u.isActive)return res.status(403).json({success:false,message:'حساب کاربری غیرفعال است'});if(!(await bcrypt.compare(password,u.passwordHash)))return res.status(401).json({success:false,message:'ایمیل یا کلمه عبور اشتباه است'});const maintenanceRow=await prisma.globalSetting.findUnique({where:{key:'maintenance.policy'}}).catch(()=>null);if(maintenanceRow&&maintenanceRow.category==='maintenance'){let policy={};try{policy=JSON.parse(maintenanceRow.value)||{};}catch(_){}const roleName=String(u.Role?.name||'').toUpperCase();const isAdmin=roleName==='ADMIN'||roleName==='SUPERADMIN'||u.roleId===2;if(policy.enabled===true&&!(policy.allowAdmins!==false&&isAdmin))return res.status(503).json({success:false,code:'MAINTENANCE_MODE',maintenance:true,message:String(policy.message||'سامانه موقتاً در حال نگهداری است.').slice(0,500)});}try{await telegramReferralLinksService.ensureTelegramReferralLink(u.id);}catch(telegramLinkError){console.error('[TELEGRAM_REFERRAL] login link provisioning retry failed',{userId:u.id,code:String(telegramLinkError?.code||'UNKNOWN').slice(0,80)});}const effective=await getEffectiveSubscription(u.id);const effectiveUser=mergeEffectiveSubscription(u,effective);const t=tokens(u);setCookies(req,res,t.accessToken,t.refreshToken);await prisma.user.update({where:{id:u.id},data:{lastLoginAt:new Date(),loginCount:{increment:1}}}).catch(()=>{});try{marketingAttribution.recordAuthenticatedVisit({userId:u.id});}catch(attributionError){console.error('[MARKETING_ATTRIBUTION] authenticated visit tracking failed',attributionError.message);}return res.json({success:true,message:'ورود موفق',data:{user:formatUser({...effectiveUser,lastLoginAt:new Date()}),token:t.accessToken,accessToken:t.accessToken,refreshToken:t.refreshToken}});}catch(e){console.error('[AUTH] login',e);return res.status(500).json({success:false,message:'خطای سرور'});}}
 function generatePassword(){const letters='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz',digits='23456789';let out='';for(let i=0;i<8;i++)out+=letters[crypto.randomInt(letters.length)];for(let i=0;i<4;i++)out+=digits[crypto.randomInt(digits.length)];return out.split('').sort(()=>crypto.randomInt(3)-1).join('');}
 
 function generateReferralCode() {
@@ -127,6 +128,7 @@ async function grantReferralReward(inviteId, newUserId) {
 
 async function register(req,res){
   let createdId = null;
+  let telegramReferralLinkCreated = false;
   try {
     const maintenanceRow = await prisma.globalSetting.findUnique({ where: { key: 'maintenance.policy' } }).catch(() => null);
     if (maintenanceRow && maintenanceRow.category === 'maintenance') {
@@ -202,6 +204,18 @@ async function register(req,res){
       return res.status(502).json({ success: false, message: 'ارسال رمز اولیه از طریق پیامک انجام نشد. لطفاً تنظیمات سرویس پیامک را بررسی کرده و دوباره تلاش کنید' });
     }
 
+    // Provision the Telegram invite immediately for every successful registration.
+    // Telegram outages must not roll back an account after its initial password SMS was sent.
+    try {
+      await telegramReferralLinksService.ensureTelegramReferralLink(createdId);
+      telegramReferralLinkCreated = true;
+    } catch (telegramLinkError) {
+      console.error('[TELEGRAM_REFERRAL] registration link provisioning failed', {
+        userId: createdId,
+        code: String(telegramLinkError?.code || 'UNKNOWN').slice(0, 80),
+      });
+    }
+
     if (referralInvite) {
       try {
         await grantReferralReward(referralInvite.id, createdId);
@@ -218,7 +232,7 @@ async function register(req,res){
     return res.status(201).json({
       success: true,
       message: referralInvite ? 'ثبت‌نام با موفقیت انجام شد و هدیه کد معرف ثبت گردید. رمز اولیه پیامک شد' : 'ثبت‌نام با موفقیت انجام شد. رمز اولیه از طریق پیامک ارسال گردید',
-      data: { user: formatUser(trialUser), smsSent: true, referralRewardDays: referralInvite ? 5 : 0 },
+      data: { user: formatUser(trialUser), smsSent: true, referralRewardDays: referralInvite ? 5 : 0, telegramReferralLinkCreated },
     });
   } catch (e) {
     console.error('[AUTH] register', e);

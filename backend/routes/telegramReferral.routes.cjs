@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 const prismaModule = require('../config/prisma.cjs');
 const prisma = prismaModule.prisma || prismaModule.default || prismaModule;
-const telegramBotApi = require('../services/telegramBotApi.service.cjs');
+const telegramReferralLinksService = require('../services/telegramReferralLinks.service.cjs');
 const telegramReferralService = require('../services/telegramReferral.service.cjs');
 
 let authMiddleware;
@@ -82,38 +82,7 @@ router.get('/me', authMiddleware, async (req, res) => {
       return res.status(403).json({ success: false, message: 'حساب کاربری فعال نیست' });
     }
 
-    const config = telegramBotApi.getTelegramConfig();
-    if (!config.token || !config.chatId) {
-      return res.status(503).json({ success: false, code: 'TELEGRAM_NOT_CONFIGURED', message: 'تنظیمات ربات تلگرام کامل نیست' });
-    }
-
-    let link = await prisma.telegramReferralLink.findFirst({
-      where: { inviterId: userId, channelId: config.chatId, isActive: true },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    if (!link) {
-      const created = await telegramBotApi.createTelegramInviteLink({ inviterId: userId });
-      try {
-        link = await prisma.telegramReferralLink.create({
-          data: {
-            inviterId: userId,
-            channelId: created.channelId,
-            inviteLink: created.inviteLink,
-            inviteName: created.inviteName,
-            isActive: true,
-            createdAt: created.createdAt
-          }
-        });
-      } catch (createError) {
-        if (createError?.code !== 'P2002') throw createError;
-        link = await prisma.telegramReferralLink.findFirst({
-          where: { inviterId: userId, channelId: config.chatId, isActive: true },
-          orderBy: { createdAt: 'desc' }
-        });
-        if (!link) throw createError;
-      }
-    }
+    const link = await telegramReferralLinksService.ensureTelegramReferralLink(userId);
 
     const stats = await telegramReferralService.getReferralStats(userId);
     return res.json({
