@@ -81,6 +81,36 @@ describe('Telegram referral missing reward recovery', () => {
     expect(rewardRows[0].expiresAt).toEqual(new Date('2026-11-15T12:00:00.000Z'));
   });
 
+  test('does not issue the same milestone twice when recovery is retried', async () => {
+    const { tx, rewardRows } = makeTx();
+    prisma.$transaction.mockImplementation(async (callback) => callback(tx));
+
+    const first = await reconcileReferralRewards(42);
+    const second = await reconcileReferralRewards(42);
+
+    expect(first.newlyGrantedMilestones).toEqual([20]);
+    expect(second.newlyGrantedMilestones).toEqual([]);
+    expect(second.missingRewardMilestones).toEqual([]);
+    expect(tx.telegramReferralReward.create).toHaveBeenCalledTimes(1);
+    expect(rewardRows).toHaveLength(1);
+  });
+
+  test('pauses recovery when an existing reward boundary has shifted', async () => {
+    const { tx, rewardRows } = makeTx();
+    rewardRows.push({
+      milestone: 20,
+      completedAt: new Date('2026-09-30T09:00:00.000Z'),
+    });
+    prisma.$transaction.mockImplementation(async (callback) => callback(tx));
+
+    const result = await reconcileReferralRewards(42);
+
+    expect(result.reconciliationRequired).toBe(true);
+    expect(result.reason).toBe('MILESTONE_BOUNDARY_CHANGED');
+    expect(tx.telegramReferralReward.create).not.toHaveBeenCalled();
+    expect(tx.subscription.create).not.toHaveBeenCalled();
+  });
+
   test('keeps the missing reward pending while the inviter account is inactive', async () => {
     const { tx, rewardRows } = makeTx({ activeUser: false });
     prisma.$transaction.mockImplementation(async (callback) => callback(tx));
