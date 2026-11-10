@@ -40,7 +40,10 @@ separately before Telegram can deliver membership updates through that bridge.
 - A unique key on channel + Telegram user prevents duplicate credit, including
   leave-and-rejoin events and repeated webhook deliveries.
 - Membership events are ordered by Telegram's `chat_member.date` when
-  calculating a milestone boundary.
+  calculating a milestone boundary. A delayed event received before a milestone
+  is issued is included in that ordering. Retroactive rebooking of a reward
+  that was already granted is not yet implemented and must be completed before
+  production activation if out-of-order delivery must be fully reconciled.
 - Every 20 unique confirmed members creates one 5-day reward record.
 - A reward extends a subscription active at the milestone event time; otherwise
   a new subscription interval begins at the milestone event time.
