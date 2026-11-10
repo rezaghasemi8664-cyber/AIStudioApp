@@ -30,7 +30,7 @@ function validate(value, type = 'ad') {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('اطلاعات پیام تبلیغاتی نامعتبر است.');
   const data = normalize(value, type);
   if (!data.title) throw new Error('عنوان بخش را وارد کنید.');
-  if (!data.text) throw new Error('متن پیام را وارد کنید.');
+  if (!data.text && value.enabled === true) throw new Error('برای فعال‌کردن انتشار زمان‌بندی‌شده، متن پیام را وارد کنید.');
   if (data.text.length > (data.imageDataUrl ? 1024 : 4096)) throw new Error(data.imageDataUrl ? 'متن پیام همراه عکس حداکثر باید ۱۰۲۴ نویسه باشد.' : 'متن پیام بدون عکس حداکثر باید ۴۰۹۶ نویسه باشد.');
   if (data.imageDataUrl) {
     const match = data.imageDataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
@@ -89,6 +89,7 @@ function persianError(error) {
 async function publish(value, now = new Date(), source = 'manual', type = 'ad') {
   const resolved = resolveType(type);
   const settings = validate(value, resolved);
+  if (!settings.text) throw new Error('متن پیام را وارد کنید.');
   const title = settings.text.split('\n')[0].slice(0, 180) || settings.title;
   try {
     let result;
@@ -144,4 +145,4 @@ async function publishScheduledIfDue(now = new Date(), type = 'ad') {
   }
 }
 
-module.exports = { SETTINGS_KEYS, STATE_KEYS, DEFAULT_TITLES, MESSAGE_HISTORY_TYPES, TIMEZONE, MAX_IMAGE_BYTES, defaultSettings, normalize, validate, getSettings, saveSettings, persianError, publish, publishScheduledIfDue };
+module.exports = { SETTINGS_KEYS, STATE_KEYS, STATE_KEY: STATE_KEYS.ad, DEFAULT_TITLES, MESSAGE_HISTORY_TYPES, TIMEZONE, MAX_IMAGE_BYTES, defaultSettings, normalize, validate, getSettings, saveSettings, persianError, publish, publishScheduledIfDue };
