@@ -10,7 +10,10 @@ The referral webhook is mounted by the existing Telegram referral router at:
 The endpoint accepts Telegram `Update` JSON and requires the exact
 `X-Telegram-Bot-Api-Secret-Token` header. Configure a high-entropy value in
 the backend environment as `TELEGRAM_WEBHOOK_SECRET`. Do not reuse
-`TELEGRAM_PROXY_SECRET` or the Cloudflare Worker outbound proxy key.
+`TELEGRAM_PROXY_SECRET` or the Cloudflare Worker outbound proxy key. When
+`TELEGRAM_WEBHOOK_RELAY_SECRET` is configured, the endpoint additionally
+requires `X-Roniya-Webhook-Relay-Key`; this secret is shared only by Worker and
+Backend.
 
 The backend JSON parser is already registered before route mounting. The webhook
 does not use user JWT authentication; the Telegram secret header is its
@@ -56,6 +59,7 @@ Required for webhook processing:
 
 ```env
 TELEGRAM_WEBHOOK_SECRET=<high-entropy-secret>
+TELEGRAM_WEBHOOK_RELAY_SECRET=<separate-high-entropy-secret>
 ```
 
 Existing Telegram configuration must also remain set:
@@ -72,8 +76,9 @@ TELEGRAM_CHANNEL_ID=<numeric-channel-id-or-configured-channel-username>
 3. Apply the new Prisma migration during an approved deployment window.
 4. Generate/update the Prisma client and deploy the backend.
 5. Add `TELEGRAM_WEBHOOK_SECRET` to backend environment and restart the backend.
-6. Update the Cloudflare Worker to proxy the webhook path to the backend while
-   preserving the Telegram secret header.
+6. Add the relay route to the Cloudflare Worker and configure
+   `TELEGRAM_WEBHOOK_BACKEND_URL` and `TELEGRAM_WEBHOOK_RELAY_SECRET` there.
+   The relay secret must exactly match the backend environment value.
 7. Set Telegram webhook URL to the Worker public URL with
    `allowed_updates=["chat_member"]` and the same `secret_token`.
 8. Verify a real join and inspect the referral card's confirmed-member count.
