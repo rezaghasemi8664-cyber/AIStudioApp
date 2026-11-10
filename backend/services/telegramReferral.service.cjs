@@ -46,6 +46,15 @@ function hasMilestoneBoundaryDrift(rewards, boundaries) {
   });
 }
 
+function getMissingMilestoneRewards(rewards, boundaries) {
+  const recordedMilestones = new Set(
+    (Array.isArray(rewards) ? rewards : []).map((reward) => Number(reward.milestone))
+  );
+  return (Array.isArray(boundaries) ? boundaries : [])
+    .filter((boundary) => !recordedMilestones.has(Number(boundary.milestone)))
+    .map((boundary) => Number(boundary.milestone));
+}
+
 function getTrackingConfiguration() {
   const config = require('./telegramBotApi.service.cjs').getTelegramConfig();
   const missing = [];
@@ -312,7 +321,9 @@ async function getReferralStats(inviterId) {
     }),
   ]);
   const tracking = getTrackingConfiguration();
-  const reconciliationRequired = hasMilestoneBoundaryDrift(rewards, getMilestoneBoundaries(members));
+  const boundaries = getMilestoneBoundaries(members);
+  const reconciliationRequired = hasMilestoneBoundaryDrift(rewards, boundaries);
+  const missingRewardMilestones = getMissingMilestoneRewards(rewards, boundaries);
   return {
     confirmedMembers: members.length,
     giftedDays: rewards.reduce((total, reward) => total + Number(reward.days || 0), 0),
@@ -322,6 +333,7 @@ async function getReferralStats(inviterId) {
       : tracking.enabled ? 'ACTIVE' : 'NOT_CONFIGURED',
     trackingMissing: tracking.missing,
     reconciliationRequired,
+    missingRewardMilestones,
   };
 }
 
@@ -331,6 +343,7 @@ module.exports = {
   channelMatches,
   getMilestoneBoundaries,
   hasMilestoneBoundaryDrift,
+  getMissingMilestoneRewards,
   getTrackingConfiguration,
   processTelegramUpdate,
   getReferralStats,
