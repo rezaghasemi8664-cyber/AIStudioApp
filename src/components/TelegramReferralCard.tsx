@@ -81,7 +81,7 @@ const TelegramReferralCard: React.FC = () => {
       if (result.reconciliationRequired) {
         const message = 'به‌دلیل تغییر در سوابق زمانی عضویت، بررسی دستی لازم است؛ هیچ پاداشی صادر نشد.';
         setReconciliationMessage(message);
-        addNotification(message, 'warning');
+        addNotification(message, 'info');
       } else if (granted.length > 0) {
         const message = `${formatNumber(granted.length)} پاداش جامانده با موفقیت صادر شد.`;
         setReconciliationMessage(message);
