@@ -15,5 +15,8 @@ CREATE TABLE [dbo].[TelegramReferralLink] (
 CREATE UNIQUE INDEX [UQ_TelegramReferralLink_inviteLink]
     ON [dbo].[TelegramReferralLink]([inviteLink]);
 
+CREATE UNIQUE INDEX [UQ_TelegramReferralLink_Inviter_Channel]
+    ON [dbo].[TelegramReferralLink]([inviterId], [channelId]);
+
 CREATE INDEX [IX_TelegramReferralLink_Inviter_Channel_Active]
     ON [dbo].[TelegramReferralLink]([inviterId], [channelId], [isActive]);
