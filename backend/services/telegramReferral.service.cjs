@@ -25,6 +25,51 @@ function addDays(date, days) {
   return new Date(new Date(date).getTime() + days * 86400000);
 }
 
+function getRewardSubscriptionWindow({ issuedAt, activeSubscription, legacyStart, legacyEnd }) {
+  const issued = new Date(issuedAt);
+  if (Number.isNaN(issued.getTime())) throw new Error('REWARD_ISSUED_AT_INVALID');
+
+  if (activeSubscription) {
+    const activeStart = new Date(activeSubscription.startsAt);
+    const activeEnd = new Date(activeSubscription.expiresAt);
+    if (
+      !Number.isNaN(activeStart.getTime()) &&
+      !Number.isNaN(activeEnd.getTime()) &&
+      activeStart <= issued &&
+      activeEnd > issued
+    ) {
+      return {
+        startsAt: activeStart,
+        expiresAt: addDays(activeEnd, REWARD_DAYS),
+        extendsExisting: true,
+      };
+    }
+  }
+
+  const legacyStartDate = legacyStart ? new Date(legacyStart) : null;
+  const legacyEndDate = legacyEnd ? new Date(legacyEnd) : null;
+  if (
+    legacyStartDate &&
+    legacyEndDate &&
+    !Number.isNaN(legacyStartDate.getTime()) &&
+    !Number.isNaN(legacyEndDate.getTime()) &&
+    legacyStartDate <= issued &&
+    legacyEndDate > issued
+  ) {
+    return {
+      startsAt: legacyStartDate,
+      expiresAt: addDays(legacyEndDate, REWARD_DAYS),
+      extendsExisting: true,
+    };
+  }
+
+  return {
+    startsAt: issued,
+    expiresAt: addDays(issued, REWARD_DAYS),
+    extendsExisting: false,
+  };
+}
+
 function getMilestoneBoundaries(members, step = MEMBERS_PER_REWARD) {
   const ordered = [...(Array.isArray(members) ? members : [])].sort((a, b) => {
     const timeDifference = new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime();
@@ -96,13 +141,15 @@ async function grantMilestone(tx, inviterId, milestone, memberCount, completedAt
   });
   if (!user || !user.isActive || user.isDeleted) return null;
 
-  // Select the subscription that was valid at the milestone's actual Telegram event time.
+  // Reward time starts when it is actually issued, never at the historical
+  // Telegram join that completed this milestone.
+  const grantedAt = new Date();
   const active = await tx.subscription.findFirst({
     where: {
       userId: inviterId,
       status: 'ACTIVE',
-      startsAt: { lte: completedAt },
-      expiresAt: { gt: completedAt },
+      startsAt: { lte: grantedAt },
+      expiresAt: { gt: grantedAt },
     },
     orderBy: [{ expiresAt: 'desc' }, { createdAt: 'desc' }],
   });
@@ -112,37 +159,22 @@ async function grantMilestone(tx, inviterId, milestone, memberCount, completedAt
     orderBy: [{ createdAt: 'desc' }, { expiresAt: 'desc' }],
   });
 
-  const legacyStart = user.subscriptionStart ? new Date(user.subscriptionStart) : null;
-  const legacyEnd = user.subscriptionEnd ? new Date(user.subscriptionEnd) : null;
-  const legacyActive = Boolean(
-    legacyEnd &&
-    !Number.isNaN(legacyEnd.getTime()) &&
-    legacyEnd > completedAt &&
-    (!legacyStart || (!Number.isNaN(legacyStart.getTime()) && legacyStart <= completedAt))
-  );
-
-  // Legacy-only subscriptions are still authoritative when no Subscription
-  // row covers the milestone timestamp. Convert that validity into a row so
-  // future renewals and reward extensions use the current subscription model.
-  const startsAt = active
-    ? new Date(active.startsAt)
-    : legacyActive && legacyStart
-      ? legacyStart
-      : new Date(completedAt);
-  const baseEnd = active
-    ? new Date(active.expiresAt)
-    : legacyActive
-      ? legacyEnd
-      : new Date(completedAt);
-  const expiresAt = addDays(baseEnd, REWARD_DAYS);
-  const subscriptionType = String(active?.type || (legacyActive ? user.subscriptionType : null) || latest?.type || user.subscriptionType || 'PAID').slice(0, 30);
-  const planId = active?.planId ?? (legacyActive ? null : latest?.planId) ?? null;
+  const window = getRewardSubscriptionWindow({
+    issuedAt: grantedAt,
+    activeSubscription: active,
+    legacyStart: user.subscriptionStart,
+    legacyEnd: user.subscriptionEnd,
+  });
+  const subscriptionType = String(
+    active?.type || latest?.type || user.subscriptionType || 'PAID'
+  ).slice(0, 30);
+  const planId = active?.planId ?? latest?.planId ?? null;
 
   let subscription;
   if (active) {
     subscription = await tx.subscription.update({
       where: { id: active.id },
-      data: { expiresAt },
+      data: { expiresAt: window.expiresAt },
     });
   } else {
     subscription = await tx.subscription.create({
@@ -151,8 +183,8 @@ async function grantMilestone(tx, inviterId, milestone, memberCount, completedAt
         planId,
         type: subscriptionType,
         status: 'ACTIVE',
-        startsAt,
-        expiresAt,
+        startsAt: window.startsAt,
+        expiresAt: window.expiresAt,
       },
     });
   }
@@ -160,8 +192,8 @@ async function grantMilestone(tx, inviterId, milestone, memberCount, completedAt
   await tx.user.update({
     where: { id: inviterId },
     data: {
-      subscriptionStart: startsAt,
-      subscriptionEnd: expiresAt,
+      subscriptionStart: window.startsAt,
+      subscriptionEnd: window.expiresAt,
       subscriptionMonths: user.subscriptionMonths ?? 0,
       subscriptionType,
     },
@@ -174,8 +206,9 @@ async function grantMilestone(tx, inviterId, milestone, memberCount, completedAt
       memberCount,
       days: REWARD_DAYS,
       completedAt,
-      startsAt,
-      expiresAt,
+      grantedAt,
+      startsAt: window.startsAt,
+      expiresAt: window.expiresAt,
       subscriptionId: subscription.id,
     },
   });
@@ -344,6 +377,7 @@ module.exports = {
   getMilestoneBoundaries,
   hasMilestoneBoundaryDrift,
   getMissingMilestoneRewards,
+  getRewardSubscriptionWindow,
   getTrackingConfiguration,
   processTelegramUpdate,
   getReferralStats,
