@@ -141,6 +141,46 @@ async function requestTelegram(endpoint, data, options = {}) {
   return payload.result;
 }
 
+async function createTelegramInviteLink(options = {}) {
+  const { token, chatId } = getTelegramConfig();
+  if (!token || !chatId) {
+    const error = new Error('TELEGRAM_NOT_CONFIGURED');
+    error.code = 'TELEGRAM_NOT_CONFIGURED';
+    throw error;
+  }
+
+  const inviterId = Number(options.inviterId);
+  if (!Number.isSafeInteger(inviterId) || inviterId <= 0) {
+    const error = new Error('TELEGRAM_INVITER_ID_INVALID');
+    error.code = 'TELEGRAM_INVITER_ID_INVALID';
+    throw error;
+  }
+
+  const inviteName = ('Roniya-' + inviterId + '-' + Date.now().toString(36)).slice(0, 32);
+  const endpoint = [TELEGRAM_API_BASE, '/bot', token, '/createChatInviteLink'].join('');
+  const result = await requestTelegram(endpoint, {
+    chat_id: chatId,
+    name: inviteName,
+    creates_join_request: false
+  }, {
+    timeoutMs: Number(process.env.TELEGRAM_TIMEOUT_MS) || 15000,
+    headers: { 'content-type': 'application/json' }
+  });
+
+  if (!result || typeof result.invite_link !== 'string' || !result.invite_link.startsWith('https://t.me/')) {
+    const error = new Error('TELEGRAM_INVITE_LINK_INVALID_RESPONSE');
+    error.code = 'TELEGRAM_INVITE_LINK_INVALID_RESPONSE';
+    throw error;
+  }
+
+  return {
+    channelId: chatId,
+    inviteLink: result.invite_link,
+    inviteName,
+    createdAt: result.created_at ? new Date(result.created_at * 1000) : new Date()
+  };
+}
+
 async function sendTelegramMessage(text, options = {}) {
   const { token, chatId } = getTelegramConfig();
   if (!token || !chatId) {
@@ -186,4 +226,4 @@ async function sendTelegramPhoto(buffer, mimeType, caption, options = {}) {
   });
 }
 
-module.exports = { getTelegramConfig, sendTelegramMessage, sendTelegramPhoto };
+module.exports = { getTelegramConfig, createTelegramInviteLink, sendTelegramMessage, sendTelegramPhoto };
