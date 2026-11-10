@@ -139,4 +139,33 @@ router.get('/me', authMiddleware, async (req, res) => {
   }
 });
 
+
+router.post('/me/reconcile-rewards', authMiddleware, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: 'شناسه کاربر نامعتبر است' });
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, isActive: true, isDeleted: true }
+    });
+    if (!user || !user.isActive || user.isDeleted) {
+      return res.status(403).json({ success: false, message: 'حساب کاربری فعال نیست' });
+    }
+
+    const result = await telegramReferralService.reconcileReferralRewards(userId);
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('[TELEGRAM_REFERRAL] POST /me/reconcile-rewards failed:', {
+      code: String(error?.code || 'UNKNOWN').slice(0, 80),
+      message: String(error?.message || 'Unknown error').slice(0, 180)
+    });
+    return res.status(500).json({
+      success: false,
+      code: error?.code || 'TELEGRAM_REFERRAL_RECONCILIATION_FAILED',
+      message: 'بازیابی پاداش‌های دعوت ناموفق بود'
+    });
+  }
+});
+
 module.exports = router;
