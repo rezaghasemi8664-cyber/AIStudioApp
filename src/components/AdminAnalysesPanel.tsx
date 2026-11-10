@@ -1,8 +1,9 @@
+import { formatSqlServerTehranDate } from '../utils/sqlServerTehranDate';
 import React,{useCallback,useEffect,useState}from'react';
 import*as service from'../services/adminAnalysesService';
 const fa=(v:number)=>v.toLocaleString('fa-IR');
 const pct=(v:number)=>`${v.toLocaleString('fa-IR',{maximumFractionDigits:1})}٪`;
-const date=(v?:string|null)=>v?new Date(v).toLocaleString('fa-IR'):'—';
+const date=(v?:string|null)=>formatSqlServerTehranDate(v);
 const typeLabels:Record<string,string>={technical:'تکنیکال',fundamental:'بنیادی',comparison:'مقایسه',scalping:'نوسان‌گیری',summary:'خلاصه بازار',portfolio:'سبد سرمایه‌گذاری',other:'سایر'};
 const types=[['','همه انواع تحلیل'],['technical','تکنیکال'],['fundamental','بنیادی'],['comparison','مقایسه'],['scalping','نوسان‌گیری'],['summary','خلاصه بازار'],['portfolio','سبد سرمایه‌گذاری']];
 export default function AdminAnalysesPanel(){
