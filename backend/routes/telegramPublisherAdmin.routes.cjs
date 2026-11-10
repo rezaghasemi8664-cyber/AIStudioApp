@@ -89,7 +89,7 @@ router.put('/ad-message', async (req, res) => {
     return res.json({ success: true, message: 'پیام تبلیغاتی و زمان‌بندی آن ذخیره شد.', data, timezone: 'Asia/Tehran' });
   } catch (error) {
     const message = String(error?.message || '');
-    const badRequest = /نامعتبر|وارد کنید|باید|مجاز|انتشار|ساعت|روز|پیوست|نویسه|حجم|فرمت/.test(message);
+    const badRequest = /نامعتبر|وارد کنید|باید|مجاز|انتشار|ساعت|روز|پیوست|نویسه|حجم|فرمت|عنوان/.test(message);
     await audit(req, 'save-ad-message', badRequest ? 400 : 500, { error: message.slice(0, 300) });
     return res.status(badRequest ? 400 : 500).json({ success: false, message: badRequest ? message : 'ذخیره پیام تبلیغاتی ناموفق بود.' });
   }
@@ -106,5 +106,41 @@ router.post('/ad-message/publish-now', async (req, res) => {
     return res.status(502).json({ success: false, message });
   }
 });
+
+
+for (const [routeKey, messageType] of [['membership-message', 'membership'], ['channel-message', 'channel']]) {
+  router.get('/' + routeKey, async (_req, res) => {
+    try { return res.json({ success: true, data: await telegramAdMessageService.getSettings(messageType), timezone: 'Asia/Tehran' }); }
+    catch (error) {
+      console.error('[TelegramPublisherAdmin] Read ' + routeKey + ' failed:', error?.message || error);
+      return res.status(500).json({ success: false, message: 'دریافت تنظیمات پیام تلگرام ناموفق بود.' });
+    }
+  });
+
+  router.put('/' + routeKey, async (req, res) => {
+    try {
+      const data = await telegramAdMessageService.saveSettings(req.body, messageType);
+      await audit(req, 'save-' + routeKey, 200, { updatedBy: userId(req), enabled: data.enabled, days: data.days, times: data.times, hasImage: Boolean(data.imageDataUrl) });
+      return res.json({ success: true, message: 'پیام و زمان‌بندی آن ذخیره شد.', data, timezone: 'Asia/Tehran' });
+    } catch (error) {
+      const message = String(error?.message || '');
+      const badRequest = /نامعتبر|وارد کنید|باید|مجاز|انتشار|ساعت|روز|نویسه|حجم|فرمت|عنوان/.test(message);
+      await audit(req, 'save-' + routeKey, badRequest ? 400 : 500, { error: message.slice(0, 300) });
+      return res.status(badRequest ? 400 : 500).json({ success: false, message: badRequest ? message : 'ذخیره پیام تلگرام ناموفق بود.' });
+    }
+  });
+
+  router.post('/' + routeKey + '/publish-now', async (req, res) => {
+    try {
+      const result = await telegramAdMessageService.publish(req.body, new Date(), 'manual', messageType);
+      await audit(req, 'publish-' + routeKey + '-now', 200, { published: true, updatedBy: userId(req) });
+      return res.json({ success: true, message: result.message, data: result });
+    } catch (error) {
+      const message = String(error?.message || 'انتشار در تلگرام ناموفق بود.');
+      await audit(req, 'publish-' + routeKey + '-now', 502, { error: message.slice(0, 300), updatedBy: userId(req) });
+      return res.status(502).json({ success: false, message });
+    }
+  });
+}
 
 module.exports = router;

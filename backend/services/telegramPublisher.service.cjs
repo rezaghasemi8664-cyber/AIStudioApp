@@ -479,8 +479,10 @@ async function runTelegramPublisherTick(now = new Date()) {
   await getTelegramPublisherHistory(now); // Rolls over the single-day history at Tehran midnight.
   const settings = await getTelegramPublisherSettings();
   const outcomes = [];
-  try { outcomes.push({ name: 'custom-ad', ...(await telegramAdMessageService.publishScheduledIfDue(now)) }); }
-  catch (error) { console.error('[CRON][TelegramPublisher] custom-ad failed:', error?.message || error); outcomes.push({ name: 'custom-ad', error: error?.code || 'PUBLISH_FAILED' }); }
+  for (const [name, messageType] of [['custom-ad', 'ad'], ['membership-message', 'membership'], ['channel-message', 'channel']]) {
+    try { outcomes.push({ name, ...(await telegramAdMessageService.publishScheduledIfDue(now, messageType)) }); }
+    catch (error) { console.error('[CRON][TelegramPublisher] ' + name + ' failed:', error?.message || error); outcomes.push({ name, error: error?.code || 'PUBLISH_FAILED' }); }
+  }
   for (const [name, fn] of [
     ['index', publishIndexIfScheduled],
     ['valuable', publishValuableChangesIfAny],

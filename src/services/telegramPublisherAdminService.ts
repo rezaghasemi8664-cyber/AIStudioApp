@@ -56,6 +56,7 @@ export async function getTelegramPublisherHistory(): Promise<TelegramPublisherHi
 
 
 export interface TelegramAdMessageSettings {
+  title: string;
   enabled: boolean;
   text: string;
   imageDataUrl: string;
@@ -64,9 +65,27 @@ export interface TelegramAdMessageSettings {
   timezone: 'Asia/Tehran';
 }
 export const DEFAULT_TELEGRAM_AD_MESSAGE: TelegramAdMessageSettings = {
-  enabled: false, text: '', imageDataUrl: '',
+  title: 'پیام تبلیغات در کانال تلگرام رونیا', enabled: false, text: '', imageDataUrl: '',
   days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'], times: ['10:00'], timezone: 'Asia/Tehran'
 };
+export type TelegramCustomMessageKey = 'ad-message' | 'membership-message' | 'channel-message';
+export const DEFAULT_TELEGRAM_CUSTOM_MESSAGES: Record<TelegramCustomMessageKey, TelegramAdMessageSettings> = {
+  'ad-message': DEFAULT_TELEGRAM_AD_MESSAGE,
+  'membership-message': { ...DEFAULT_TELEGRAM_AD_MESSAGE, title: 'پیام عضویت در کانال تلگرام رونیا' },
+  'channel-message': { ...DEFAULT_TELEGRAM_AD_MESSAGE, title: 'ارسال پیام در کانال تلگرام رونیا' }
+};
+export async function getTelegramCustomMessageSettings(key: TelegramCustomMessageKey): Promise<TelegramAdMessageSettings> {
+  const response = await apiClient.get<TelegramAdMessageSettings>(`${BASE}/${key}`);
+  return unwrap(response, 'دریافت تنظیمات پیام تلگرام ناموفق بود.');
+}
+export async function saveTelegramCustomMessageSettings(key: TelegramCustomMessageKey, settings: TelegramAdMessageSettings): Promise<TelegramAdMessageSettings> {
+  const response = await apiClient.put<TelegramAdMessageSettings>(`${BASE}/${key}`, settings);
+  return unwrap(response, 'ذخیره تنظیمات پیام تلگرام ناموفق بود.');
+}
+export async function publishTelegramCustomMessageNow(key: TelegramCustomMessageKey, settings: TelegramAdMessageSettings): Promise<{ message: string; messageId?: number | null }> {
+  const response = await apiClient.post<{ message: string; messageId?: number | null }>(`${BASE}/${key}/publish-now`, settings);
+  return unwrap(response, 'انتشار فوری پیام تلگرام ناموفق بود.');
+}
 export async function getTelegramAdMessageSettings(): Promise<TelegramAdMessageSettings> {
   const response = await apiClient.get<TelegramAdMessageSettings>(`${BASE}/ad-message`);
   return unwrap(response, 'دریافت پیام تبلیغاتی ناموفق بود.');
