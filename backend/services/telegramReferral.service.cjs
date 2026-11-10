@@ -25,6 +25,18 @@ function addDays(date, days) {
   return new Date(new Date(date).getTime() + days * 86400000);
 }
 
+function getMilestoneBoundaries(members, step = MEMBERS_PER_REWARD) {
+  const ordered = [...(Array.isArray(members) ? members : [])].sort((a, b) => {
+    const timeDifference = new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime();
+    return timeDifference || Number(a.id || 0) - Number(b.id || 0);
+  });
+  const boundaries = [];
+  for (let milestone = step; milestone <= ordered.length; milestone += step) {
+    boundaries.push({ milestone, memberCount: milestone, completedAt: new Date(ordered[milestone - 1].joinedAt) });
+  }
+  return boundaries;
+}
+
 function channelMatches(chat, configuredChannelId) {
   const expected = String(configuredChannelId || '').trim();
   if (!expected || !chat) return false;
@@ -69,11 +81,31 @@ async function grantMilestone(tx, inviterId, milestone, memberCount, completedAt
     orderBy: [{ createdAt: 'desc' }, { expiresAt: 'desc' }],
   });
 
-  const startsAt = active ? new Date(active.startsAt) : new Date(completedAt);
-  const baseEnd = active ? new Date(active.expiresAt) : new Date(completedAt);
+  const legacyStart = user.subscriptionStart ? new Date(user.subscriptionStart) : null;
+  const legacyEnd = user.subscriptionEnd ? new Date(user.subscriptionEnd) : null;
+  const legacyActive = Boolean(
+    legacyEnd &&
+    !Number.isNaN(legacyEnd.getTime()) &&
+    legacyEnd > completedAt &&
+    (!legacyStart || (!Number.isNaN(legacyStart.getTime()) && legacyStart <= completedAt))
+  );
+
+  // Legacy-only subscriptions are still authoritative when no Subscription
+  // row covers the milestone timestamp. Convert that validity into a row so
+  // future renewals and reward extensions use the current subscription model.
+  const startsAt = active
+    ? new Date(active.startsAt)
+    : legacyActive && legacyStart
+      ? legacyStart
+      : new Date(completedAt);
+  const baseEnd = active
+    ? new Date(active.expiresAt)
+    : legacyActive
+      ? legacyEnd
+      : new Date(completedAt);
   const expiresAt = addDays(baseEnd, REWARD_DAYS);
-  const subscriptionType = String(active?.type || latest?.type || user.subscriptionType || 'PAID').slice(0, 30);
-  const planId = active?.planId ?? latest?.planId ?? null;
+  const subscriptionType = String(active?.type || (legacyActive ? user.subscriptionType : null) || latest?.type || user.subscriptionType || 'PAID').slice(0, 30);
+  const planId = active?.planId ?? (legacyActive ? null : latest?.planId) ?? null;
 
   let subscription;
   if (active) {
@@ -204,13 +236,18 @@ async function processTelegramUpdate(update) {
       orderBy: [{ joinedAt: 'asc' }, { id: 'asc' }],
       select: { id: true, joinedAt: true },
     });
-    const completedMilestone = Math.floor(members.length / MEMBERS_PER_REWARD) * MEMBERS_PER_REWARD;
     const newlyGranted = [];
+    const boundaries = getMilestoneBoundaries(members);
 
-    for (let milestone = MEMBERS_PER_REWARD; milestone <= completedMilestone; milestone += MEMBERS_PER_REWARD) {
-      const boundaryMember = members[milestone - 1];
-      const reward = await grantMilestone(tx, referralLink.inviterId, milestone, milestone, new Date(boundaryMember.joinedAt));
-      if (reward) newlyGranted.push(milestone);
+    for (const boundary of boundaries) {
+      const reward = await grantMilestone(
+        tx,
+        referralLink.inviterId,
+        boundary.milestone,
+        boundary.memberCount,
+        boundary.completedAt
+      );
+      if (reward) newlyGranted.push(boundary.milestone);
     }
 
     await tx.telegramWebhookUpdate.update({
@@ -239,7 +276,7 @@ async function getReferralStats(inviterId) {
   return {
     confirmedMembers,
     giftedDays: rewards.reduce((total, reward) => total + Number(reward.days || 0), 0),
-    trackingEnabled: true,
+    trackingEnabled: Boolean(String(process.env.TELEGRAM_WEBHOOK_SECRET || '').trim()),
   };
 }
 
@@ -247,6 +284,7 @@ module.exports = {
   safeSecretEquals,
   isMember,
   channelMatches,
+  getMilestoneBoundaries,
   processTelegramUpdate,
   getReferralStats,
 };
