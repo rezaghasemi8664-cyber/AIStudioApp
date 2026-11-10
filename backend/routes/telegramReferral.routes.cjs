@@ -21,7 +21,7 @@ if (typeof authMiddleware !== 'function') {
 
 function getUserId(req) {
   const raw = req.user?.id ?? req.user?.userId ?? req.user?.sub;
-  return /^\\d+$/.test(String(raw ?? '')) ? Number(raw) : null;
+  return /^\d+$/.test(String(raw ?? '')) ? Number(raw) : null;
 }
 
 router.get('/me', authMiddleware, async (req, res) => {
