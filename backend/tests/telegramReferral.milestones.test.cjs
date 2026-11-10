@@ -68,7 +68,7 @@ describe('Telegram referral reward milestones', () => {
     expect(getMissingMilestoneRewards(rewards, boundaries)).toEqual([]);
   });
 
-  test('does not report incomplete milestones as missing rewards', () => {
-    expect(getMissingMilestoneRewards([], getMilestoneBoundaries(makeMembers(39)))).toEqual([]);
+  test('does not report a milestone as missing before 20 members join', () => {
+    expect(getMissingMilestoneRewards([], getMilestoneBoundaries(makeMembers(19)))).toEqual([]);
   });
 });
