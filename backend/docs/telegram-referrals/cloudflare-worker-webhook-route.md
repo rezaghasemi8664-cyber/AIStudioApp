@@ -129,6 +129,31 @@ Configure Telegram's webhook URL as:
 with `allowed_updates=["chat_member"]` and the exact backend
 `TELEGRAM_WEBHOOK_SECRET` as Telegram's `secret_token`.
 
+## Backend activation gate
+
+The backend now requires all of the following before the profile API reports
+referral tracking as active:
+
+- `TELEGRAM_REFERRAL_TRACKING_ENABLED=true`
+- `TELEGRAM_WEBHOOK_SECRET`
+- `TELEGRAM_WEBHOOK_RELAY_SECRET`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHANNEL_ID`
+
+The backend webhook rejects requests when the relay secret is missing; the
+Worker must forward both Telegram's secret-token header and the relay-key
+header. Keep the tracking switch false until the Worker relay is deployed and
+Telegram's webhook is registered and verified.
+
+If a delayed Telegram event changes which member historically completed an
+already-rewarded 20-member boundary, the backend records the update as
+`RECONCILE`, pauses further automatic milestone grants for that inviter, and
+exposes `reconciliationRequired=true` in the profile stats. This avoids
+silently granting subsequent rewards against inconsistent historical
+boundaries. It does not automatically reverse or recalculate rewards already
+granted; those cases require an explicit reconciliation procedure before
+tracking is re-enabled.
+
 This file is an implementation guide only. It does not change or deploy the
 Cloudflare Worker. Test the route with a staging backend before setting the
 Telegram webhook in production.
