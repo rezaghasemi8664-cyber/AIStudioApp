@@ -49,16 +49,25 @@ router.get('/me', authMiddleware, async (req, res) => {
 
     if (!link) {
       const created = await telegramBotApi.createTelegramInviteLink({ inviterId: userId });
-      link = await prisma.telegramReferralLink.create({
-        data: {
-          inviterId: userId,
-          channelId: created.channelId,
-          inviteLink: created.inviteLink,
-          inviteName: created.inviteName,
-          isActive: true,
-          createdAt: created.createdAt
-        }
-      });
+      try {
+        link = await prisma.telegramReferralLink.create({
+          data: {
+            inviterId: userId,
+            channelId: created.channelId,
+            inviteLink: created.inviteLink,
+            inviteName: created.inviteName,
+            isActive: true,
+            createdAt: created.createdAt
+          }
+        });
+      } catch (createError) {
+        if (createError?.code !== 'P2002') throw createError;
+        link = await prisma.telegramReferralLink.findFirst({
+          where: { inviterId: userId, channelId: config.chatId, isActive: true },
+          orderBy: { createdAt: 'desc' }
+        });
+        if (!link) throw createError;
+      }
     }
 
     return res.json({
