@@ -66,6 +66,7 @@ model User {
   referralInvitesSent   ReferralInvite[]         @relation("ReferralInviter")
   referralRedemption    ReferralInvite?          @relation("ReferralRedeemer")
   telegramReferralLinks TelegramReferralLink[]
+  telegramReferralMembers TelegramReferralMember[]
 
   @@index([isActive])
   @@index([isDeleted])
@@ -652,10 +653,61 @@ model TelegramReferralLink {
   createdAt  DateTime @default(now())
   revokedAt  DateTime?
   inviter    User     @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+  members    TelegramReferralMember[]
 
   @@unique([inviterId, channelId], map: "UQ_TelegramReferralLink_Inviter_Channel")
   @@index([inviterId, channelId, isActive])
   @@map("TelegramReferralLink")
+  @@schema("dbo")
+}
+
+
+model TelegramReferralMember {
+  id               Int                 @id @default(autoincrement())
+  channelId        String              @db.NVarChar(100)
+  telegramUserId   String              @db.NVarChar(32)
+  inviterId        Int
+  inviteLinkId     Int
+  joinedAt         DateTime            @db.DateTime2
+  createdAt        DateTime            @default(now())
+  inviter          User                @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+  inviteLink       TelegramReferralLink @relation(fields: [inviteLinkId], references: [id], onDelete: NoAction)
+
+  @@unique([channelId, telegramUserId], map: "UQ_TelegramReferralMember_Channel_TelegramUser")
+  @@index([inviterId, joinedAt])
+  @@index([inviteLinkId])
+  @@map("TelegramReferralMember")
+  @@schema("dbo")
+}
+
+model TelegramReferralReward {
+  id               Int      @id @default(autoincrement())
+  inviterId        Int
+  milestone        Int
+  memberCount      Int
+  days             Int      @default(5)
+  completedAt      DateTime @db.DateTime2
+  grantedAt        DateTime @default(now())
+  startsAt         DateTime @db.DateTime2
+  expiresAt        DateTime @db.DateTime2
+  subscriptionId   Int?
+  createdAt        DateTime @default(now())
+
+  @@unique([inviterId, milestone], map: "UQ_TelegramReferralReward_Inviter_Milestone")
+  @@index([inviterId, completedAt])
+  @@map("TelegramReferralReward")
+  @@schema("dbo")
+}
+
+model TelegramWebhookUpdate {
+  updateId    BigInt    @id
+  status      String    @default("RECEIVED") @db.NVarChar(20)
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+  errorCode   String?   @db.NVarChar(100)
+
+  @@index([status, receivedAt])
+  @@map("TelegramWebhookUpdate")
   @@schema("dbo")
 }
 

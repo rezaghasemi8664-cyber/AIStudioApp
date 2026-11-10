@@ -1,0 +1,64 @@
+'use strict';
+
+jest.mock('../config/prisma.cjs', () => ({ prisma: {} }));
+
+const {
+  safeSecretEquals,
+  isMember,
+  channelMatches,
+  getMilestoneBoundaries,
+} = require('../services/telegramReferral.service.cjs');
+
+describe('Telegram referral validation helpers', () => {
+  test('compares webhook secrets and rejects missing or different values', () => {
+    expect(safeSecretEquals('a-long-secret', 'a-long-secret')).toBe(true);
+    expect(safeSecretEquals('a-long-secret', 'another-secret')).toBe(false);
+    expect(safeSecretEquals('', 'a-long-secret')).toBe(false);
+    expect(safeSecretEquals('a-long-secret', '')).toBe(false);
+  });
+
+  test('recognizes Telegram channel member states', () => {
+    expect(isMember({ status: 'member' })).toBe(true);
+    expect(isMember({ status: 'administrator' })).toBe(true);
+    expect(isMember({ status: 'creator' })).toBe(true);
+    expect(isMember({ status: 'restricted', is_member: true })).toBe(true);
+    expect(isMember({ status: 'restricted', is_member: false })).toBe(false);
+    expect(isMember({ status: 'left' })).toBe(false);
+    expect(isMember(null)).toBe(false);
+  });
+
+  test('matches configured channel id or channel username', () => {
+    expect(channelMatches({ id: -100123 }, '-100123')).toBe(true);
+    expect(channelMatches({ id: -100123, username: 'RoniyaAnalyzer' }, '@roniyaAnalyzer')).toBe(true);
+    expect(channelMatches({ id: -100123, username: 'OtherChannel' }, '@roniyaAnalyzer')).toBe(false);
+    expect(channelMatches({ id: -100123 }, '')).toBe(false);
+  });
+  test('calculates 20- and 40-member milestone boundaries by Telegram join time', () => {
+    const members = Array.from({ length: 40 }, (_, index) => ({
+      id: index + 1,
+      joinedAt: new Date(Date.UTC(2026, 0, 1, 0, index)),
+    })).reverse();
+
+    const boundaries = getMilestoneBoundaries(members);
+
+    expect(boundaries).toHaveLength(2);
+    expect(boundaries[0].milestone).toBe(20);
+    expect(boundaries[0].completedAt.toISOString()).toBe(new Date(Date.UTC(2026, 0, 1, 0, 19)).toISOString());
+    expect(boundaries[1].milestone).toBe(40);
+    expect(boundaries[1].completedAt.toISOString()).toBe(new Date(Date.UTC(2026, 0, 1, 0, 39)).toISOString());
+  });
+
+  test('includes a delayed earlier join in chronological milestone ordering', () => {
+    const members = Array.from({ length: 20 }, (_, index) => ({
+      id: index + 1,
+      joinedAt: new Date(Date.UTC(2026, 0, 1, 0, index + 1)),
+    }));
+    members.push({ id: 21, joinedAt: new Date(Date.UTC(2025, 11, 31, 23, 59)) });
+
+    const [boundary] = getMilestoneBoundaries(members);
+
+    expect(boundary.milestone).toBe(20);
+    expect(boundary.completedAt.toISOString()).toBe(new Date(Date.UTC(2026, 0, 1, 0, 19)).toISOString());
+  });
+
+});
