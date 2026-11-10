@@ -89,7 +89,7 @@ router.put('/ad-message', async (req, res) => {
     return res.json({ success: true, message: 'پیام تبلیغاتی و زمان‌بندی آن ذخیره شد.', data, timezone: 'Asia/Tehran' });
   } catch (error) {
     const message = String(error?.message || '');
-    const badRequest = /نامعتبر|وارد کنید|باید|مجاز|انتشار|ساعت|روز|پیوست|نویسه|حجم|فرمت/.test(message);
+    const badRequest = /نامعتبر|وارد کنید|باید|مجاز|انتشار|ساعت|روز|پیوست|نویسه|حجم|فرمت|عنوان/.test(message);
     await audit(req, 'save-ad-message', badRequest ? 400 : 500, { error: message.slice(0, 300) });
     return res.status(badRequest ? 400 : 500).json({ success: false, message: badRequest ? message : 'ذخیره پیام تبلیغاتی ناموفق بود.' });
   }
