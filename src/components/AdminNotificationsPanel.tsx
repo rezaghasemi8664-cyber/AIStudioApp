@@ -1,4 +1,5 @@
 import React,{useCallback,useEffect,useState}from'react';
+import { formatSqlServerTehranDate } from '../utils/sqlServerTehranDate';
 import * as adminActionsService from'../services/adminActionsService';
 import * as apiClient from'../services/apiClient';
 interface Props{onComplete?:()=>Promise<void>|void}
@@ -9,7 +10,7 @@ interface History{items:Row[];pagination:{page:number;limit:number;total:number;
 const card='rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5 shadow-sm';
 const input='w-full rounded-xl border border-[var(--card-border-color)] bg-transparent px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-cyan-500/30';
 const labels:Record<string,string>={INFO:'اطلاع‌رسانی',info:'اطلاع‌رسانی',SUCCESS:'موفقیت',success:'موفقیت',WARNING:'هشدار',warning:'هشدار',ERROR:'خطا',error:'خطا'};
-const fmt=(v:number)=>Number(v||0).toLocaleString('fa-IR');const dateFmt=(v?:string)=>v?new Date(v).toLocaleString('fa-IR'):'—';
+const fmt=(v:number)=>Number(v||0).toLocaleString('fa-IR');const dateFmt=(v?:string)=>formatSqlServerTehranDate(v);
 const AdminNotificationsPanel:React.FC<Props>=({onComplete=()=>undefined})=>{
  const[overview,setOverview]=useState<Overview|null>(null),[history,setHistory]=useState<History|null>(null),[loading,setLoading]=useState(true),[historyLoading,setHistoryLoading]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null),[message,setMessage]=useState(''),[recipients,setRecipients]=useState<number|null>(null);
  const[title,setTitle]=useState('اطلاعیه سامانه'),[body,setBody]=useState(''),[type,setType]=useState<NotificationType>('INFO');
