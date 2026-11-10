@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { get } from '../services/apiClient';
 import { useNotification } from './NotificationSystem';
-import { PaperAirplaneIcon, CheckIcon, ClipboardDocumentIcon } from './Icons';
+import { PaperAirplaneIcon, ClipboardDocumentIcon } from './Icons';
 
 interface TelegramReferralData {
   inviteLink: string;
