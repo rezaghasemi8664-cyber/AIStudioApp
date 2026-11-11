@@ -135,8 +135,11 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
     const gainValue = valued.reduce((s, x) => s + Math.max(x.pnl || 0, 0), 0); const lossValue = valued.reduce((s, x) => s + Math.min(x.pnl || 0, 0), 0); const gainShare = totalValue > 0 ? (gainValue / totalValue) * 100 : null; const lossShare = totalValue > 0 ? (Math.abs(lossValue) / totalValue) * 100 : null;
     const drawdowns = visibleHistoryPoints.map(x => x.drawdownPercent ?? 0); const maxDrawdown = drawdowns.length ? Math.min(...drawdowns) : null; const currentDrawdown = drawdowns.length ? drawdowns[drawdowns.length - 1] : null; const recoveryPeak = historyPoints.length ? historyPoints[historyPoints.length - 1].peakValue ?? null : null;
     const positiveDays = visibleHistoryPoints.filter(x => x.dailyReturnPercent != null && x.dailyReturnPercent > 0).length; const negativeDays = visibleHistoryPoints.filter(x => x.dailyReturnPercent != null && x.dailyReturnPercent < 0).length; const validReturnDays = visibleHistoryPoints.filter(x => x.dailyReturnPercent != null); const winRate = validReturnDays.length ? (positiveDays / validReturnDays.length) * 100 : null;
-    const portfolioReturn = validReturnDays.length > 0 && validReturnDays.every(x => x.dailyReturnPercent != null)
-      ? (validReturnDays.reduce((factor, point) => factor * (1 + (point.dailyReturnPercent as number) / 100), 1) - 1) * 100
+    // The first visible point is the period's opening valuation; only
+    // subsequent daily returns belong to the selected comparison period.
+    const periodReturnDays = visibleHistoryPoints.slice(1);
+    const portfolioReturn = periodReturnDays.length > 0 && periodReturnDays.every(x => x.dailyReturnPercent != null)
+      ? (periodReturnDays.reduce((factor, point) => factor * (1 + (point.dailyReturnPercent as number) / 100), 1) - 1) * 100
       : null;
     const benchmarkReturn = benchmarkPoints.length > 1 && benchmarkPoints[0].index > 0 ? ((benchmarkPoints[benchmarkPoints.length - 1].index / benchmarkPoints[0].index) - 1) * 100 : null;
     const benchmarkAlpha = portfolioReturn != null && benchmarkReturn != null ? portfolioReturn - benchmarkReturn : null;
