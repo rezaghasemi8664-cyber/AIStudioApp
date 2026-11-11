@@ -96,16 +96,50 @@ export function buildPortfolioHistory(analytics: Awaited<ReturnType<typeof getPo
       .sort((a, b) => a.date.localeCompare(b.date)),
   }));
 
+  // Build a shared calendar from every symbol's available history. A symbol
+  // without a quote on a particular day must retain its last known close;
+  // dropping it from that day's total creates an artificially small portfolio
+  // value and can massively inflate the period return.
+  const dates = Array.from(new Set(rows.flatMap(({ quotes }) => quotes.map(point => point.date))))
+    .sort((a, b) => a.localeCompare(b));
+  const quoteIndexes = rows.map(() => -1);
+  const latestQuotes: Array<number | null> = rows.map(() => null);
   const byDate = new Map<string, { value: number; cost: number }>();
-  rows.forEach(({ item, quotes }) => quotes.forEach(point => {
-    const activeQuantity = activeQuantityAtDate(item, point.date, sales);
-    if (activeQuantity <= 0) return;
-    const current = byDate.get(point.date) ?? { value: 0, cost: 0 };
-    byDate.set(point.date, {
-      value: current.value + point.close * activeQuantity,
-      cost: current.cost + item.buyPrice * activeQuantity,
+
+  dates.forEach(date => {
+    let value = 0;
+    let cost = 0;
+    let hasActivePosition = false;
+    let hasCompleteValuation = true;
+
+    rows.forEach(({ item, quotes }, rowIndex) => {
+      const activeQuantity = activeQuantityAtDate(item, date, sales);
+      if (activeQuantity <= 0) return;
+      hasActivePosition = true;
+
+      let quoteIndex = quoteIndexes[rowIndex];
+      while (quoteIndex + 1 < quotes.length && quotes[quoteIndex + 1].date <= date) {
+        quoteIndex += 1;
+        latestQuotes[rowIndex] = quotes[quoteIndex].close;
+      }
+      quoteIndexes[rowIndex] = quoteIndex;
+
+      const close = latestQuotes[rowIndex];
+      // Do not publish a partial portfolio total. Until every active holding
+      // has at least one historical price, the portfolio value is unknown.
+      if (close == null || close <= 0) {
+        hasCompleteValuation = false;
+        return;
+      }
+
+      value += close * activeQuantity;
+      cost += item.buyPrice * activeQuantity;
     });
-  }));
+
+    if (hasActivePosition && hasCompleteValuation) {
+      byDate.set(date, { value, cost });
+    }
+  });
 
   const sorted = Array.from(byDate.entries()).sort(([a], [b]) => a.localeCompare(b));
   let previousValue: number | null = null;
