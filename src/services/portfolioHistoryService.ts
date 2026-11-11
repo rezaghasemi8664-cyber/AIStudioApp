@@ -22,6 +22,7 @@ interface HistoricalLot {
 
 interface HistoricalSale {
   sellDate: string | null;
+  sellPrice: number;
   allocations: Array<{ lotId: string; quantity: number }>;
 }
 
@@ -49,6 +50,7 @@ export function buildPortfolioHistory(analytics: Awaited<ReturnType<typeof getPo
 
   const sales: HistoricalSale[] = trades.map(trade => ({
     sellDate: normalizeDate(trade.sellDate),
+    sellPrice: Math.max(0, Number(trade.sellPrice) || 0),
     allocations: Array.isArray(trade.allocations) ? trade.allocations.map(allocation => ({
       lotId: String(allocation.lotId),
       quantity: Number(allocation.quantity) || 0,
@@ -136,10 +138,19 @@ export function buildPortfolioHistory(analytics: Awaited<ReturnType<typeof getPo
       }
       if (close == null || close <= 0) return;
 
-      // Treat additions and disposals as cash flows at that day's closing
-      // market price, not at historical cost basis. This prevents a purchase
-      // or sale from being mistaken for investment performance.
-      capitalChange += close * quantityChange;
+      // Purchases remain external capital additions at the closing valuation,
+      // while sales use their recorded execution proceeds. This captures the
+      // difference between the actual sale price and that day's closing price
+      // instead of silently valuing every disposal at the close.
+      const addedQuantity = Math.max(0, quantityChange);
+      const removedQuantity = Math.max(0, -quantityChange);
+      const recordedSaleProceeds = sales
+        .filter(sale => sale.sellDate === date)
+        .reduce((sum, sale) => sum + sale.allocations
+          .filter(allocation => allocation.lotId === item.id)
+          .reduce((allocationSum, allocation) => allocationSum + allocation.quantity * sale.sellPrice, 0), 0);
+      const saleProceeds = recordedSaleProceeds > 0 ? recordedSaleProceeds : close * removedQuantity;
+      capitalChange += close * addedQuantity - saleProceeds;
       value += close * activeQuantity;
       cost += item.buyPrice * activeQuantity;
     });
