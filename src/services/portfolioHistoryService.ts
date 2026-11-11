@@ -114,6 +114,7 @@ export function buildPortfolioHistory(analytics: Awaited<ReturnType<typeof getPo
     let capitalChange = 0;
     let hasActivePosition = false;
     let hasCompleteValuation = true;
+    const nextQuantities = previousQuantities.slice();
 
     rows.forEach(({ item, quotes }, rowIndex) => {
       const activeQuantity = activeQuantityAtDate(item, date, sales);
@@ -126,7 +127,7 @@ export function buildPortfolioHistory(analytics: Awaited<ReturnType<typeof getPo
 
       const close = latestQuotes[rowIndex];
       const quantityChange = activeQuantity - previousQuantities[rowIndex];
-      previousQuantities[rowIndex] = activeQuantity;
+      nextQuantities[rowIndex] = activeQuantity;
 
       if (activeQuantity > 0) hasActivePosition = true;
       if ((activeQuantity > 0 || quantityChange !== 0) && (close == null || close <= 0)) {
@@ -143,7 +144,13 @@ export function buildPortfolioHistory(analytics: Awaited<ReturnType<typeof getPo
       cost += item.buyPrice * activeQuantity;
     });
 
-    if (!hasActivePosition || !hasCompleteValuation) return;
+    if (!hasActivePosition) {
+      for (let i = 0; i < previousQuantities.length; i += 1) previousQuantities[i] = 0;
+      previousValue = null;
+      return;
+    }
+    if (!hasCompleteValuation) return;
+    for (let i = 0; i < previousQuantities.length; i += 1) previousQuantities[i] = nextQuantities[i];
     const marketPnl = previousValue == null ? 0 : value - previousValue - capitalChange;
     const dailyReturnPercent = previousValue != null && previousValue > 0
       ? (marketPnl / previousValue) * 100
