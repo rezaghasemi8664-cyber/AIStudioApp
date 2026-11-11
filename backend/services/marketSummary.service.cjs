@@ -626,7 +626,6 @@ async function buildTechnicalMarketAnalysis(currentMarketData, fallbackDate = ne
   const estimatedResistance = resistance === null && hasReliableRange
     ? estimateForwardResistance(currentIndex, closes)
     : null;
-  const displayedResistance = resistance ?? estimatedResistance?.level ?? null;
   const resistanceDescription = resistance !== null
     ? `نزدیک‌ترین مقاومت تاریخی بالاتر از شاخص فعلی ${fa(resistance)} است.`
     : estimatedResistance
