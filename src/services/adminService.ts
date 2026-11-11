@@ -30,7 +30,31 @@ const unwrapOrNull=<T>(r:ApiResponse<T>|null|undefined):T|null=>r?.success&&r.da
 const errorMessage=(e:unknown,f:string)=>e instanceof Error&&e.message.trim()?e.message:f;
 
 export async function getDashboard():Promise<AdminDashboardStats|null>{try{return unwrapOrNull(await apiClient.get<AdminDashboardStats>(`${ADMIN_BASE}/dashboard`));}catch(e){console.warn('[adminService] getDashboard failed:',e);return null;}}
-export async function getUsers(query:AdminUsersQuery={}):Promise<AdminUsersResult>{try{const params=new URLSearchParams();if(query.page)params.set('page',String(Math.max(1,query.page)));if(query.limit)params.set('limit',String(Math.min(100,Math.max(1,query.limit))));if(query.search?.trim())params.set('search',query.search.trim());if(query.isActive!==undefined)params.set('isActive',String(query.isActive));if(query.roleId!==undefined&&query.roleId!==null)params.set('roleId',String(query.roleId));if(query.subscriptionStatus&&query.subscriptionStatus!=='all')params.set('subscriptionStatus',query.subscriptionStatus);const qs=params.toString();const r=await apiClient.get<AdminUserListItem[]|{users?:AdminUserListItem[];items?:AdminUserListItem[];pagination?:AdminUsersResult['pagination']}>(`${USERS_BASE}${qs?`?${qs}`:''}`);if(!r?.success)return {users:[],pagination:{page:query.page||1,limit:query.limit||20,total:0,totalPages:0}};const d=r.data;const users=Array.isArray(d)?d:(Array.isArray(d?.users)?d.users:Array.isArray(d?.items)?d.items:[]);const p=!Array.isArray(d)&&d?.pagination?d.pagination:{page:query.page||1,limit:query.limit||20,total:users.length,totalPages:users.length?1:0};return {users, pagination:{page:Number(p.page)||1,limit:Number(p.limit)||20,total:Number(p.total)||0,totalPages:Number(p.totalPages)||0}};}catch(e){console.warn('[adminService] getUsers failed:',e);throw new Error(errorMessage(e,'دریافت فهرست کاربران ناموفق بود.'));}}
+export async function getUsers(query:AdminUsersQuery={}):Promise<AdminUsersResult>{
+  try {
+    const params=new URLSearchParams();
+    if(query.page)params.set('page',String(Math.max(1,query.page)));
+    if(query.limit)params.set('limit',String(Math.min(100,Math.max(1,query.limit))));
+    if(query.search?.trim())params.set('search',query.search.trim());
+    if(query.isActive!==undefined)params.set('isActive',String(query.isActive));
+    if(query.roleId!==undefined&&query.roleId!==null)params.set('roleId',String(query.roleId));
+    if(query.subscriptionStatus&&query.subscriptionStatus!=='all')params.set('subscriptionStatus',query.subscriptionStatus);
+    const qs=params.toString();
+    type UsersPayload = AdminUserListItem[] | {users?:AdminUserListItem[];items?:AdminUserListItem[];pagination?:AdminUsersResult['pagination']};
+    type UsersResponse = ApiResponse<UsersPayload> & {pagination?:AdminUsersResult['pagination']};
+    const r=await apiClient.get<UsersPayload>(`${USERS_BASE}${qs?`?${qs}`:''}`) as UsersResponse;
+    if(!r?.success)return {users:[],pagination:{page:query.page||1,limit:query.limit||20,total:0,totalPages:0}};
+    const d=r.data;
+    const users=Array.isArray(d)?d:(Array.isArray(d?.users)?d.users:Array.isArray(d?.items)?d.items:[]);
+    // The backend returns pagination beside data (top-level), not inside data.
+    // Keep nested pagination support for older API response variants.
+    const p=r.pagination||(!Array.isArray(d)?d?.pagination:undefined)||{page:query.page||1,limit:query.limit||20,total:users.length,totalPages:users.length?1:0};
+    return {users,pagination:{page:Number(p.page)||1,limit:Number(p.limit)||20,total:Number(p.total)||0,totalPages:Number(p.totalPages)||0}};
+  } catch(e) {
+    console.warn('[adminService] getUsers failed:',e);
+    throw new Error(errorMessage(e,'دریافت فهرست کاربران ناموفق بود.'));
+  }
+}
 export async function getUser(id:UserId):Promise<(AdminUserListItem & {counts?:{analysis?:number;apiKeys?:number;notifications?:number;sessions?:number}})|null>{try{return unwrapOrNull(await apiClient.get<AdminUserListItem & {counts?:{analysis?:number;apiKeys?:number;notifications?:number;sessions?:number}}>(`${USERS_BASE}/${encodeUserId(id)}`));}catch(e){throw new Error(errorMessage(e,'دریافت جزئیات کاربر ناموفق بود.'));}}
 export async function getRoles():Promise<AdminRole[]>{try{const r=await apiClient.get<AdminRole[]>(`${ADMIN_BASE}/roles`);if(!r?.success||!Array.isArray(r.data))return [];return r.data.filter(role=>Number.isInteger(role?.id)&&role.id>0).map(role=>({id:role.id,name:String(role.name||'').trim(),title:role.title??null,userCount:role.userCount,permissionCount:role.permissionCount}));}catch(e){console.warn('[adminService] getRoles failed:',e);return [];}}
 export async function createUser(p:AdminCreateUserPayload):Promise<AdminUserListItem|null>{try{return unwrapOrNull(await apiClient.post<AdminUserListItem>(USERS_BASE,omitUndefined({username:normalizeString(p.username)||'',password:normalizeString(p.password)||'',email:normalizeNullableString(p.email),name:normalizeNullableString(p.name),firstName:normalizeNullableString(p.firstName),lastName:normalizeNullableString(p.lastName),phone:normalizeNullableString(p.phone),mobile:normalizeNullableString(p.mobile),bio:normalizeNullableString(p.bio),avatar:normalizeNullableString(p.avatar),roleId:normalizeNumber(p.roleId),isActive:normalizeBoolean(p.isActive),analysisLimit:normalizeNumber(p.analysisLimit),analysisLimit24h:normalizeNumber(p.analysisLimit24h),subscriptionStart:normalizeNullableString(p.subscriptionStart),subscriptionEnd:normalizeNullableString(p.subscriptionEnd),subscriptionDays:normalizeNumber(p.subscriptionDays),subscriptionMonths:normalizeNumber(p.subscriptionMonths),isSubscriptionActive:normalizeBoolean(p.isSubscriptionActive)})));}catch(e){throw new Error(errorMessage(e,'ایجاد کاربر با خطا مواجه شد.'));}}
