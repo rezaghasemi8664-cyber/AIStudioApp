@@ -43,9 +43,12 @@ const PortfolioHistoryAccuracy: React.FC<Props> = ({ isOnline }) => {
       startCost: first.cost,
       endCost: last.cost,
       valueChangePercent: first.value > 0 ? ((last.value / first.value) - 1) * 100 : null,
-      timeWeightedReturnPercent: visible.length > 1 && visible.slice(1).every(point => point.dailyReturnPercent != null)
-        ? (visible.slice(1).reduce((factor, point) => factor * (1 + (point.dailyReturnPercent as number) / 100), 1) - 1) * 100
-        : null,
+      timeWeightedReturnPercent: (() => {
+        const returns = visible[0].dailyReturnPercent == null ? visible.slice(1) : visible;
+        return returns.length > 0 && returns.every(point => point.dailyReturnPercent != null)
+          ? (returns.reduce((factor, point) => factor * (1 + (point.dailyReturnPercent as number) / 100), 1) - 1) * 100
+          : null;
+      })(),
       maxValue: Math.max(...visible.map(point => point.value)),
     };
   }, [visible]);
