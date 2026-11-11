@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { getPortfolioHistory, type PortfolioHistoryPoint } from '../services/portfolioHistoryService';
+import { buildPortfolioCostBasisPerformance, buildPortfolioHistory, type PortfolioHistoryPoint } from '../services/portfolioHistoryService';
+import { getPortfolioAnalytics, type PortfolioAnalyticsPayload } from '../services/portfolioAnalyticsService';
 import JalaliDatePicker from './JalaliDatePicker';
 import type { JalaliDate } from '../utils/jalaliDate';
 import { jalaliToGregorian } from '../utils/jalaliDate';
@@ -28,6 +29,7 @@ const toJalali = (iso: string | null): JalaliDate | null => {
 
 const PortfolioReturnAnalysis: React.FC<Props> = ({ isOnline }) => {
   const [points, setPoints] = useState<PortfolioHistoryPoint[]>([]);
+  const [analytics, setAnalytics] = useState<PortfolioAnalyticsPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState<JalaliDate | null>(null);
@@ -39,7 +41,9 @@ const PortfolioReturnAnalysis: React.FC<Props> = ({ isOnline }) => {
     if (!isOnline) { setError('برای دریافت بازدهی تاریخی سبد باید آنلاین باشید.'); return; }
     setLoading(true); setError(null);
     try {
-      const history = await getPortfolioHistory();
+      const nextAnalytics = await getPortfolioAnalytics();
+      const history = buildPortfolioHistory(nextAnalytics);
+      setAnalytics(nextAnalytics);
       setPoints(history);
       if (history.length) {
         const first = toJalali(normalizePortfolioDate(history[0].date));
@@ -74,9 +78,10 @@ const PortfolioReturnAnalysis: React.FC<Props> = ({ isOnline }) => {
     const marketPnl = rangePoints.reduce((sum, point) => sum + point.marketPnl, 0);
     const capitalChange = rangePoints.reduce((sum, point) => sum + point.capitalChange, 0);
     const dailyReturns = rangePoints.map(point => point.dailyReturnPercent).filter((value): value is number => value != null);
+    const costBasisPerformance = analytics ? buildPortfolioCostBasisPerformance(analytics, rangePoints) : null;
     return {
-      totalPnl: last.pnl - first.pnl,
-      totalReturn: first.cost > 0 ? ((last.pnl - first.pnl) / first.cost) * 100 : null,
+      totalPnl: costBasisPerformance?.totalPnl ?? (last.pnl - first.pnl),
+      totalReturn: costBasisPerformance?.totalReturn ?? null,
       totalCapitalChange: capitalChange,
       marketPnl,
       avgDailyReturn: dailyReturns.length ? dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length : null,
@@ -85,7 +90,7 @@ const PortfolioReturnAnalysis: React.FC<Props> = ({ isOnline }) => {
       firstDate: first.date,
       lastDate: last.date,
     };
-  }, [rangePoints]);
+  }, [rangePoints, analytics]);
 
   const invalidDraftRange = !!(fromDate && toDate && jalaliToGregorian(fromDate) && jalaliToGregorian(toDate) && jalaliToGregorian(fromDate)!.getTime() > jalaliToGregorian(toDate)!.getTime());
 
