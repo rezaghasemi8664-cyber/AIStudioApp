@@ -519,6 +519,37 @@ function calculateMarketRisk(closes) {
   };
 }
 
+function estimateForwardResistance(currentIndex, historicalCloses) {
+  const current = Number(currentIndex);
+  if (!Number.isFinite(current) || current <= 0 || !Array.isArray(historicalCloses)) return null;
+
+  const prices = historicalCloses
+    .map(value => Number(value))
+    .filter(value => Number.isFinite(value) && value > 0)
+    .slice(-21);
+  if (prices.length < 6) return null;
+
+  const dailyMoves = [];
+  for (let i = 1; i < prices.length; i += 1) {
+    const previous = prices[i - 1];
+    if (previous > 0) dailyMoves.push(Math.abs((prices[i] - previous) / previous) * 100);
+  }
+  if (dailyMoves.length < 5) return null;
+
+  // Use the mean absolute daily move as a transparent one-session volatility
+  // projection. This is an estimate, never a historical/confirmed resistance.
+  const recentMoves = dailyMoves.slice(-Math.min(20, dailyMoves.length));
+  const averageAbsoluteMovePct = recentMoves.reduce((sum, value) => sum + value, 0) / recentMoves.length;
+  if (!Number.isFinite(averageAbsoluteMovePct) || averageAbsoluteMovePct <= 0) return null;
+
+  return {
+    level: Math.round(current * (1 + averageAbsoluteMovePct / 100)),
+    averageAbsoluteMovePct,
+    observations: prices.length,
+    method: 'historical-mean-absolute-daily-move'
+  };
+}
+
 async function buildTechnicalMarketAnalysis(currentMarketData, fallbackDate = new Date()) {
   const historical = await getHistoricalIndexSeries(fallbackDate, 60);
   const history = historical.map(r => ({ index: r.index, equal: null }));
@@ -592,10 +623,18 @@ async function buildTechnicalMarketAnalysis(currentMarketData, fallbackDate = ne
   }
   const resistance = swingHighs.length ? Math.min(...swingHighs) : null;
   const support = swingLows.length ? Math.max(...swingLows) : null;
+  const estimatedResistance = resistance === null && hasReliableRange
+    ? estimateForwardResistance(currentIndex, closes)
+    : null;
+  const resistanceDescription = resistance !== null
+    ? `نزدیک‌ترین مقاومت تاریخی بالاتر از شاخص فعلی ${fa(resistance)} است.`
+    : estimatedResistance
+      ? `در تاریخچه بررسی‌شده سقف نوسانی بالاتر از شاخص فعلی ثبت نشده است؛ بنابراین سطح ${fa(estimatedResistance.level)} به‌عنوان مقاومت تخمینی، بر پایه میانگین تغییر مطلق روزانه ${fa(estimatedResistance.averageAbsoluteMovePct, 2)}٪ در ${fa(estimatedResistance.observations, 0)} مشاهده اخیر برآورد شده است. این سطح سقف تاریخی یا مقاومت تأییدشده نیست و صرفاً یک برآورد مبتنی بر نوسان گذشته است.`
+      : 'مقاومت بالاتر از شاخص فعلی قابل محاسبه نیست؛ داده تاریخی کافی یا نوسان معتبر برای برآورد وجود ندارد.';
   const technicalText = [
     '۱۵) تحلیل تکنیکال و چشم‌انداز کوتاه‌مدت: این بخش با محاسبات قطعی روی سری تاریخی واقعی شاخص کل تولید شده و به مدل هوش مصنوعی وابسته نیست.',
     `SMA5: ${fa(sma5)}؛ SMA10: ${fa(sma10)}؛ EMA5: ${fa(ema5)}؛ EMA10: ${fa(ema10)}؛ RSI14: ${rsi14 === null ? 'قابل محاسبه نیست' : fa(rsi14)}؛ MACD: ${macd === null ? 'قابل محاسبه نیست' : fa(macd)}؛ مومنتوم آخرین جلسه: ${signedPct(momentum)}.`,
-    `سطوح تکنیکال پیشِ رو بر اساس سقف‌ها و کف‌های نوسانی قیمت پایانی در ۲۰ جلسه تکمیل‌شده اخیر: نزدیک‌ترین حمایت پایین‌تر از شاخص فعلی ${fa(support)} و نزدیک‌ترین مقاومت بالاتر از شاخص فعلی ${fa(resistance)} است. ${hasReliableRange ? (resistance === null ? 'در داده‌های موجود سقف نوسانی معتبر بالاتر از شاخص فعلی شناسایی نشد؛ بنابراین مقاومت عددی حدس زده نمی‌شود.' : '') : 'برای محاسبه سطح معتبر، حداقل ۵ جلسه تاریخی و مقدار فعلی شاخص لازم است.'} منبع فعلی سقف و کف روزانه OHLC را ذخیره نمی‌کند؛ بنابراین این سطوح از سقف‌ها و کف‌های نوسانی قیمت پایانی استخراج شده‌اند و پیوت کلاسیک مبتنی بر OHLC نیستند.`,
+    `سطوح تکنیکال پیشِ رو بر اساس سقف‌ها و کف‌های نوسانی قیمت پایانی در ۲۰ جلسه تکمیل‌شده اخیر: نزدیک‌ترین حمایت پایین‌تر از شاخص فعلی ${fa(support)} است. ${resistanceDescription} منبع فعلی سقف و کف روزانه OHLC را ذخیره نمی‌کند؛ بنابراین سطوح تاریخی از سقف‌ها و کف‌های نوسانی قیمت پایانی استخراج شده‌اند و پیوت کلاسیک مبتنی بر OHLC نیستند.`,
     `برآیند ابزارهای تکنیکال، سوگیری فعلی را «${trendDirection}» نشان می‌دهد. سناریوی پایه ۱ تا ۳ جلسه آینده ${trendDirection === 'صعودی' ? 'متمایل به تداوم حرکت صعودی، مشروط به حفظ رابطه فعلی با میانگین‌ها' : trendDirection === 'نزولی' ? 'متمایل به تداوم حرکت نزولی، مشروط به حفظ رابطه فعلی با میانگین‌ها' : 'خنثی/نوسانی است و جهت معتبر تا دریافت داده جدید تأیید نشده است'}.`,
     `سیگنال‌های اصلی: ${signals.length ? signals.join('؛ ') : 'سیگنال قطعی از ابزارهای در دسترس شناسایی نشد'}.`,
     `تعداد جلسات تاریخی واقعی استفاده‌شده: ${fa(closes.length, 0)}. شاخص‌هایی که داده کافی برای آن‌ها وجود ندارد عمداً قطعی تلقی نشده‌اند. این چشم‌انداز پیش‌بینی قطعی بازار یا توصیه خرید/فروش نیست و با ورود داده جلسات بعدی باید دوباره محاسبه شود.`
@@ -603,7 +642,7 @@ async function buildTechnicalMarketAnalysis(currentMarketData, fallbackDate = ne
   return {
     available: true,
     text: technicalText,
-    indicators: { observations: closes.length, sma5, sma10, ema5, ema10, rsi14, ema12, ema26, macd, momentum, support, resistance },
+    indicators: { observations: closes.length, sma5, sma10, ema5, ema10, rsi14, ema12, ema26, macd, momentum, support, resistance, estimatedResistance, resistanceType: resistance !== null ? 'historical' : estimatedResistance ? 'estimated' : 'unavailable' },
     risk
   };
 }
@@ -1087,6 +1126,7 @@ exports.findByDate = async (dateInput) => {
   return summaries.find(item => (item.date || toDateOnlyISO(item.summaryDate)) === targetDate) || null;
 };
 exports.generateMarketSummary = generateMarketSummary;
+exports.estimateForwardResistance = estimateForwardResistance;
 exports.findLatestUsableMarketHistoryRow = findLatestUsableMarketHistoryRow;
 exports.inspectLatestMarketHistoryRows = async ({ take = 30 } = {}) => {
   const model = getMarketHistoryModel();
