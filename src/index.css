@@ -87,7 +87,7 @@
    ============================== */
 :root {
   /* FONT DEFAULTS */
-  --font-sans-fa: 'Estedad';
+  --font-sans-fa: 'Vazirmatn';
   --font-sans-en: 'Arial';
 
   /* GENERIC DEFAULTS */
@@ -528,7 +528,7 @@ body.theme-editor-active .paint-brush-button:hover {
    Page-specific UX layer: analysis / trading / portfolio / admin
    ========================================================== */
 :root {
-  --font-sans-fa: 'Estedad';
+  --font-sans-fa: 'Vazirmatn';
   --font-sans-en: 'Arial';
   --app-bg: #f5f8fb;
   --app-color: #17202b;
