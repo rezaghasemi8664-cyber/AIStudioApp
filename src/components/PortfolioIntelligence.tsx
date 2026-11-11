@@ -6,7 +6,7 @@ import { buildPortfolioHistory, buildPortfolioRealizedPerformance } from '../ser
 import { formatPortfolioDateTime, formatPortfolioNumber, formatPortfolioPercent } from '../utils/portfolioDate';
 
 interface Props { isOnline: boolean; }
-interface HistoryPoint { date: string; value: number; cost: number; pnl: number; returnPercent: number; drawdownPercent?: number; peakValue?: number; }
+interface HistoryPoint { date: string; value: number; cost: number; pnl: number; returnPercent: number; dailyReturnPercent: number | null; drawdownPercent?: number; peakValue?: number; }
 interface BenchmarkPoint { timestamp: string; index: number; }
 interface Holding { id: string; symbol: string; name?: string; quantity: number; entryPrice: number; currentPrice: number | null; changePercent: number | null; value: number | null; cost: number; pnl: number | null; pnlPercent: number | null; }
 
@@ -79,12 +79,13 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
           cost: point.cost,
           pnl: point.pnl,
           returnPercent: point.returnPercent,
+          dailyReturnPercent: point.dailyReturnPercent,
           drawdownPercent,
           peakValue: peak,
         };
       });
       setItems(next);
-      setHistoryPoints(points.slice(-range));
+      setHistoryPoints(points);
       setRealized(buildPortfolioRealizedPerformance(analytics));
       setUpdatedAt(analytics.quoteData?.snapshotUpdatedAt || analytics.historyUpdatedAt || new Date().toISOString());
     } catch (e: any) {
@@ -114,6 +115,16 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadBenchmark(); }, [loadBenchmark]);
 
+  const visibleHistoryPoints = useMemo(() => {
+    if (!historyPoints.length) return [];
+    const lastDate = historyPoints[historyPoints.length - 1].date;
+    const [year, month, day] = lastDate.split('-').map(Number);
+    const start = new Date(Date.UTC(year, month - 1, day));
+    start.setUTCDate(start.getUTCDate() - (range - 1));
+    const startDate = start.toISOString().slice(0, 10);
+    return historyPoints.filter(point => point.date >= startDate && point.date <= lastDate);
+  }, [historyPoints, range]);
+
   const stats = useMemo(() => {
     const valued = items.filter(x => x.value != null) as Array<Holding & { value: number }>;
     const totalValue = valued.reduce((s, x) => s + x.value, 0); const totalCost = items.reduce((s, x) => s + x.cost, 0); const pnl = valued.reduce((s, x) => s + (x.pnl || 0), 0); const pnlPercent = totalCost > 0 ? (pnl / totalCost) * 100 : null;
@@ -122,16 +133,18 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
     const weights = totalValue > 0 ? sorted.map(x => x.value / totalValue) : []; const hhi = weights.reduce((s, weight) => s + weight * weight, 0); const diversification = weights.length ? clamp((1 - hhi) * 100, 0, 100) : null;
     const valuedChanges = valued.filter(x => x.changePercent != null); const weightedDailyChange = totalValue > 0 ? valuedChanges.reduce((s, x) => s + x.value * (x.changePercent as number), 0) / totalValue : null;
     const gainValue = valued.reduce((s, x) => s + Math.max(x.pnl || 0, 0), 0); const lossValue = valued.reduce((s, x) => s + Math.min(x.pnl || 0, 0), 0); const gainShare = totalValue > 0 ? (gainValue / totalValue) * 100 : null; const lossShare = totalValue > 0 ? (Math.abs(lossValue) / totalValue) * 100 : null;
-    const drawdowns = historyPoints.map(x => x.drawdownPercent ?? 0); const maxDrawdown = drawdowns.length ? Math.min(...drawdowns) : null; const currentDrawdown = drawdowns.length ? drawdowns[drawdowns.length - 1] : null; const recoveryPeak = historyPoints.length ? historyPoints[historyPoints.length - 1].peakValue ?? null : null;
-    const positiveDays = historyPoints.filter(x => x.pnl > 0).length; const negativeDays = historyPoints.filter(x => x.pnl < 0).length; const winRate = historyPoints.length ? (positiveDays / historyPoints.length) * 100 : null;
-    const portfolioReturn = historyPoints.length > 1 && historyPoints[0].value > 0 ? ((historyPoints[historyPoints.length - 1].value / historyPoints[0].value) - 1) * 100 : null;
+    const drawdowns = visibleHistoryPoints.map(x => x.drawdownPercent ?? 0); const maxDrawdown = drawdowns.length ? Math.min(...drawdowns) : null; const currentDrawdown = drawdowns.length ? drawdowns[drawdowns.length - 1] : null; const recoveryPeak = historyPoints.length ? historyPoints[historyPoints.length - 1].peakValue ?? null : null;
+    const positiveDays = visibleHistoryPoints.filter(x => x.dailyReturnPercent != null && x.dailyReturnPercent > 0).length; const negativeDays = visibleHistoryPoints.filter(x => x.dailyReturnPercent != null && x.dailyReturnPercent < 0).length; const validReturnDays = visibleHistoryPoints.filter(x => x.dailyReturnPercent != null); const winRate = validReturnDays.length ? (positiveDays / validReturnDays.length) * 100 : null;
+    const portfolioReturn = validReturnDays.length > 0 && validReturnDays.every(x => x.dailyReturnPercent != null)
+      ? (validReturnDays.reduce((factor, point) => factor * (1 + (point.dailyReturnPercent as number) / 100), 1) - 1) * 100
+      : null;
     const benchmarkReturn = benchmarkPoints.length > 1 && benchmarkPoints[0].index > 0 ? ((benchmarkPoints[benchmarkPoints.length - 1].index / benchmarkPoints[0].index) - 1) * 100 : null;
     const benchmarkAlpha = portfolioReturn != null && benchmarkReturn != null ? portfolioReturn - benchmarkReturn : null;
     const combinedPnl = pnl + realized.realizedPnl;
     const combinedCost = totalCost + realized.costBasis;
     const combinedReturn = combinedCost > 0 ? (combinedPnl / combinedCost) * 100 : null;
     return { totalValue, totalCost, pnl, pnlPercent, positive, negative, neutral, concentration, top3Concentration, diversification, weightedDailyChange, gainShare, lossShare, topSymbol: top?.symbol || null, maxDrawdown, currentDrawdown, recoveryPeak, positiveDays, negativeDays, winRate, portfolioReturn, benchmarkReturn, benchmarkAlpha, combinedPnl, combinedCost, combinedReturn };
-  }, [items, historyPoints, benchmarkPoints]);
+  }, [items, visibleHistoryPoints, benchmarkPoints]);
 
   const attribution = useMemo(() => {
     const valued = items.filter(x => x.value != null && x.pnl != null) as Array<Holding & { value: number; pnl: number }>;
@@ -140,11 +153,11 @@ const PortfolioIntelligence: React.FC<Props> = ({ isOnline }) => {
   }, [items]);
 
   const chart = useMemo(() => {
-    if (!historyPoints.length) return null;
-    const values = historyPoints.map(p => p.value); const min = Math.min(...values); const max = Math.max(...values); const span = max - min || 1; const width = 760; const height = 220; const pad = 24;
-    const points = historyPoints.map((p, i) => `${pad + (i * (width - pad * 2)) / Math.max(1, historyPoints.length - 1)},${height - pad - ((p.value - min) / span) * (height - pad * 2)}`).join(' ');
-    return { points, first: historyPoints[0], last: historyPoints[historyPoints.length - 1], min, max };
-  }, [historyPoints]);
+    if (!visibleHistoryPoints.length) return null;
+    const values = visibleHistoryPoints.map(p => p.value); const min = Math.min(...values); const max = Math.max(...values); const span = max - min || 1; const width = 760; const height = 220; const pad = 24;
+    const points = visibleHistoryPoints.map((p, i) => `${pad + (i * (width - pad * 2)) / Math.max(1, visibleHistoryPoints.length - 1)},${height - pad - ((p.value - min) / span) * (height - pad * 2)}`).join(' ');
+    return { points, first: visibleHistoryPoints[0], last: visibleHistoryPoints[visibleHistoryPoints.length - 1], min, max };
+  }, [visibleHistoryPoints]);
 
   return <div dir="rtl" className="page-shell portfolio-intelligence-page space-y-5">
     <div className="flex items-center justify-between gap-3 flex-wrap"><div><h2 className="text-2xl font-black">هوشمندی سبد سهام</h2><p className="text-sm text-gray-500 dark:text-gray-400 mt-1">ارزش‌گذاری، عملکرد، توزیع سرمایه، ریسک افت و مقایسه با شاخص بازار بر اساس داده واقعی</p></div><button type="button" onClick={() => { load(); loadBenchmark(); }} disabled={loading || historyLoading || benchmarkLoading || !isOnline} className="rounded-xl bg-cyan-600 text-white px-4 py-2 font-bold disabled:opacity-50">{loading || historyLoading || benchmarkLoading ? 'در حال بروزرسانی...' : 'بروزرسانی'}</button></div>
