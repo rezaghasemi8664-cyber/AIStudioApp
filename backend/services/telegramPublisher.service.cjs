@@ -181,15 +181,32 @@ function renderIndexMessage(row, date = new Date()) {
 const SUMMARY_TELEGRAM_PART_MAX_LENGTH = 1700;
 let summaryPublishInFlight = false;
 
+function parseSqlServerTehranWallClock(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  if (!Number.isFinite(parsed)) return null;
+  // SQL Server DATETIME2 defaults use SYSDATETIME() (Tehran wall-clock).
+  // Prisma serializes that wall-clock value with a UTC suffix; undo that
+  // interpretation before formatting it in Asia/Tehran.
+  return new Date(parsed - 210 * 60 * 1000);
+}
+
+function formatSqlServerTehranDateTime(value) {
+  const date = parseSqlServerTehranWallClock(value);
+  if (!date) return '—';
+  return new Intl.DateTimeFormat('fa-IR', {
+    timeZone: TEHRAN_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  }).format(date);
+}
+
 function getSummaryMessageHeader(row, partNumber, totalParts) {
   const sourceDate = row?.summaryDate || row?.date || row?.createdAt;
   const created = row?.createdAt || row?.date || sourceDate;
   const formatDate = value => new Intl.DateTimeFormat('fa-IR', {
     timeZone: TEHRAN_TIMEZONE, dateStyle: 'short'
   }).format(new Date(value));
-  const formatDateTime = value => new Intl.DateTimeFormat('fa-IR', {
-    timeZone: TEHRAN_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
-  }).format(new Date(value));
+  const formatDateTime = formatSqlServerTehranDateTime;
   return '🧾 رونیا | خلاصه بازار\n' +
     'تاریخ بازار: ' + formatDate(sourceDate) +
     '\nزمان ثبت خلاصه در دیتابیس: ' + formatDateTime(created) +
@@ -204,9 +221,7 @@ function renderSummaryMessage(row) {
   const formatDate = value => new Intl.DateTimeFormat('fa-IR', {
     timeZone: TEHRAN_TIMEZONE, dateStyle: 'short'
   }).format(new Date(value));
-  const formatDateTime = value => new Intl.DateTimeFormat('fa-IR', {
-    timeZone: TEHRAN_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
-  }).format(new Date(value));
+  const formatDateTime = formatSqlServerTehranDateTime;
   return '🧾 رونیا | خلاصه بازار\nتاریخ بازار: ' + formatDate(sourceDate) +
     '\nزمان ثبت خلاصه در دیتابیس: ' + formatDateTime(created) + '\n\n' + content;
 }
