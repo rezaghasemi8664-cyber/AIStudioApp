@@ -201,3 +201,70 @@ export async function getPortfolioHistory(): Promise<PortfolioHistoryPoint[]> {
 export async function getPortfolioRealizedPerformance(): Promise<PortfolioRealizedPerformance> {
   return buildPortfolioRealizedPerformance(await getPortfolioAnalytics());
 }
+
+export interface PortfolioCostBasisPerformance {
+  totalPnl: number;
+  costBasis: number;
+  totalReturn: number | null;
+  realizedPnl: number;
+  additionalCostBasis: number;
+}
+
+/**
+ * Measures cost-basis return for the selected interval. The opening unrealized
+ * P/L is carried forward, sales after the opening valuation add realized P/L,
+ * and purchases after the opening date add their original lot cost to capital.
+ * Sales reduce open-position cost but do not erase the capital originally
+ * deployed, so their allocated cost is deliberately not subtracted.
+ */
+export function buildPortfolioCostBasisPerformance(
+  analytics: Awaited<ReturnType<typeof getPortfolioAnalytics>>,
+  points: PortfolioHistoryPoint[],
+): PortfolioCostBasisPerformance | null {
+  if (!points.length) return null;
+  const first = points[0];
+  const last = points[points.length - 1];
+  const lots = new Map<string, { quantity: number; buyPrice: number; buyDate: string | null }>();
+
+  (analytics.portfolio?.items || []).forEach(item => {
+    const id = String(item.id);
+    const existing = lots.get(id);
+    lots.set(id, {
+      quantity: (existing?.quantity || 0) + Math.max(0, Number(item.quantity) || 0),
+      buyPrice: Number(item.buyPrice) || existing?.buyPrice || 0,
+      buyDate: normalizeDate(item.entryDate) || existing?.buyDate || null,
+    });
+  });
+
+  const sales = Array.isArray(analytics.portfolio?.soldTrades) ? analytics.portfolio.soldTrades : [];
+  sales.forEach(trade => (Array.isArray(trade.allocations) ? trade.allocations : []).forEach(allocation => {
+    const id = String(allocation.lotId);
+    const existing = lots.get(id);
+    lots.set(id, {
+      quantity: (existing?.quantity || 0) + Math.max(0, Number(allocation.quantity) || 0),
+      buyPrice: Number(allocation.buyPrice) || existing?.buyPrice || 0,
+      buyDate: normalizeDate(allocation.buyDate) || existing?.buyDate || null,
+    });
+  }));
+
+  const additionalCostBasis = Array.from(lots.values()).reduce((sum, lot) => {
+    if (!lot.buyDate || lot.buyDate <= first.date || lot.buyDate > last.date) return sum;
+    return sum + lot.quantity * lot.buyPrice;
+  }, 0);
+  const realizedPnl = sales.reduce((sum, trade) => {
+    const sellDate = normalizeDate(trade.sellDate);
+    if (!sellDate || sellDate <= first.date || sellDate > last.date) return sum;
+    const proceeds = num(trade.proceeds) ?? ((Number(trade.soldQuantity) || 0) * (Number(trade.sellPrice) || 0));
+    const costBasis = num(trade.costBasis) ?? (trade.allocations || []).reduce((total, allocation) => total + (Number(allocation.costBasis) || 0), 0);
+    return sum + (num(trade.realizedPnl) ?? (proceeds - costBasis));
+  }, 0);
+  const totalPnl = (last.pnl - first.pnl) + realizedPnl;
+  const costBasis = Math.max(0, Number(first.cost) || 0) + additionalCostBasis;
+  return {
+    totalPnl,
+    costBasis,
+    totalReturn: costBasis > 0 ? (totalPnl / costBasis) * 100 : null,
+    realizedPnl,
+    additionalCostBasis,
+  };
+}
