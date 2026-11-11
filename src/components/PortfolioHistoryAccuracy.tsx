@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { getPortfolioHistory, type PortfolioHistoryPoint } from '../services/portfolioHistoryService';
-import { formatPortfolioDate, formatPortfolioDateTime, formatPortfolioNumber, formatPortfolioPercent } from '../utils/portfolioDate';
+import { formatPortfolioDate, formatPortfolioNumber, formatPortfolioPercent } from '../utils/portfolioDate';
 
 interface Props { isOnline: boolean; }
 type Range = 30 | 90 | 180 | 365;
@@ -24,9 +24,17 @@ const PortfolioHistoryAccuracy: React.FC<Props> = ({ isOnline }) => {
 
   useEffect(() => { load(); }, [isOnline]);
 
-  const visible = useMemo(() => points.slice(-range), [points, range]);
+  const visible = useMemo(() => {
+    if (!points.length) return [];
+    const lastDate = points[points.length - 1].date;
+    const [year, month, day] = lastDate.split('-').map(Number);
+    const start = new Date(Date.UTC(year, month - 1, day));
+    start.setUTCDate(start.getUTCDate() - (range - 1));
+    const startIso = start.toISOString().slice(0, 10);
+    return points.filter(point => point.date >= startIso && point.date <= lastDate);
+  }, [points, range]);
   const stats = useMemo(() => {
-    if (!visible.length) return { startValue: null, endValue: null, startCost: null, endCost: null, returnPercent: null, maxValue: null };
+    if (!visible.length) return { startValue: null, endValue: null, startCost: null, endCost: null, valueChangePercent: null, timeWeightedReturnPercent: null, maxValue: null };
     const first = visible[0];
     const last = visible[visible.length - 1];
     return {
@@ -34,7 +42,13 @@ const PortfolioHistoryAccuracy: React.FC<Props> = ({ isOnline }) => {
       endValue: last.value,
       startCost: first.cost,
       endCost: last.cost,
-      returnPercent: first.value > 0 ? ((last.value / first.value) - 1) * 100 : null,
+      valueChangePercent: first.value > 0 ? ((last.value / first.value) - 1) * 100 : null,
+      timeWeightedReturnPercent: (() => {
+        const returns = visible[0].dailyReturnPercent == null ? visible.slice(1) : visible;
+        return returns.length > 0 && returns.every(point => point.dailyReturnPercent != null)
+          ? (returns.reduce((factor, point) => factor * (1 + (point.dailyReturnPercent as number) / 100), 1) - 1) * 100
+          : null;
+      })(),
       maxValue: Math.max(...visible.map(point => point.value)),
     };
   }, [visible]);
@@ -63,11 +77,19 @@ const PortfolioHistoryAccuracy: React.FC<Props> = ({ isOnline }) => {
     </div>
     {error && <div className="rounded-xl border border-red-300 bg-red-50 dark:bg-red-950/20 p-4 text-red-700 dark:text-red-300">{error}</div>}
     <div className="flex gap-2 flex-wrap">{([30, 90, 180, 365] as Range[]).map(value => <button key={value} type="button" onClick={() => setRange(value)} className={`rounded-lg px-3 py-2 text-sm font-bold ${range === value ? 'bg-cyan-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>{value === 30 ? '۱ ماه' : value === 90 ? '۳ ماه' : value === 180 ? '۶ ماه' : '۱ سال'}</button>)}</div>
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-      {[['ارزش شروع', money(stats.startValue)], ['ارزش پایان', money(stats.endValue)], ['سرمایه شروع', money(stats.startCost)], ['سرمایه پایان', money(stats.endCost)], ['تغییر ارزش', pct(stats.returnPercent)]].map(([label, value]) => <div key={label} className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4"><p className="text-xs text-gray-500">{label}</p><p className="mt-2 text-lg font-black font-mono">{value}</p></div>)}
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      {[
+        ['ارزش شروع', money(stats.startValue)],
+        ['ارزش پایان', money(stats.endValue)],
+        ['سرمایه شروع', money(stats.startCost)],
+        ['سرمایه پایان', money(stats.endCost)],
+        ['تغییر ارزش کل', pct(stats.valueChangePercent)],
+        ['بازدهی واقعی (TWR)', pct(stats.timeWeightedReturnPercent)],
+      ].map(([label, value]) => <div key={label} className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4"><p className="text-xs text-gray-500">{label}</p><p className="mt-2 text-lg font-black font-mono">{value}</p></div>)}
     </div>
+    <p className="text-xs text-gray-500">تغییر ارزش کل شامل اثر خرید و فروش و تغییر ترکیب سبد است. بازدهی واقعی (TWR) اثر ورود و خروج موقعیت‌ها را با ارزش بازار همان روز تعدیل می‌کند. بازه‌ها بر اساس روز تقویمی و از آخرین تاریخ موجود در داده‌ها محاسبه می‌شوند.</p>
     {chart ? <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 dark:bg-gray-900/60 p-4"><div className="flex justify-between text-xs text-gray-500 mb-2"><span>حداقل: {money(chart.min)}</span><span>حداکثر: {money(chart.max)}</span></div><div className="overflow-x-auto"><svg viewBox="0 0 760 220" className="w-full min-w-[620px] h-56" role="img" aria-label="نمودار ارزش تاریخی سبد"><polyline fill="none" stroke="currentColor" strokeWidth="3" points={chart.polyline} /></svg></div></div> : <div className="rounded-2xl border border-dashed border-[var(--color-border)] p-8 text-center text-gray-500">برای این بازه داده تاریخی معتبر در دسترس نیست.</div>}
-    {visible.length > 0 && <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-800"><tr><th className="p-3 text-right">تاریخ</th><th className="p-3 text-right">ارزش سبد</th><th className="p-3 text-right">بهای تمام‌شده فعال</th><th className="p-3 text-right">سود/زیان</th><th className="p-3 text-right">بازدهی</th></tr></thead><tbody>{[...visible].reverse().slice(0, 30).map(point => <tr key={formatPortfolioDate(point.date)} className="border-t border-[var(--color-border)]"><td className="p-3 font-mono">{formatPortfolioDate(point.date)}</td><td className="p-3 font-mono">{money(point.value)}</td><td className="p-3 font-mono">{money(point.cost)}</td><td className="p-3 font-mono">{money(point.pnl)}</td><td className="p-3 font-mono">{pct(point.returnPercent)}</td></tr>)}</tbody></table></div></div>}
+    {visible.length > 0 && <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-800"><tr><th className="p-3 text-right">تاریخ</th><th className="p-3 text-right">ارزش سبد</th><th className="p-3 text-right">بهای تمام‌شده فعال</th><th className="p-3 text-right">سود/زیان</th><th className="p-3 text-right">بازدهی روزانه (TWR)</th></tr></thead><tbody>{[...visible].reverse().slice(0, 30).map(point => <tr key={formatPortfolioDate(point.date)} className="border-t border-[var(--color-border)]"><td className="p-3 font-mono">{formatPortfolioDate(point.date)}</td><td className="p-3 font-mono">{money(point.value)}</td><td className="p-3 font-mono">{money(point.cost)}</td><td className="p-3 font-mono">{money(point.pnl)}</td><td className="p-3 font-mono">{pct(point.dailyReturnPercent)}</td></tr>)}</tbody></table></div></div>}
   </div>;
 };
 

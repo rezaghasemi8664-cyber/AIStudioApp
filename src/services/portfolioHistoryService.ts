@@ -104,19 +104,20 @@ export function buildPortfolioHistory(analytics: Awaited<ReturnType<typeof getPo
     .sort((a, b) => a.localeCompare(b));
   const quoteIndexes = rows.map(() => -1);
   const latestQuotes: Array<number | null> = rows.map(() => null);
-  const byDate = new Map<string, { value: number; cost: number }>();
+  const byDate = new Map<string, { value: number; cost: number; capitalChange: number; marketPnl: number; dailyReturnPercent: number | null }>();
+  const previousQuantities = rows.map(() => 0);
+  let previousValue: number | null = null;
 
   dates.forEach(date => {
     let value = 0;
     let cost = 0;
+    let capitalChange = 0;
     let hasActivePosition = false;
     let hasCompleteValuation = true;
+    const nextQuantities = previousQuantities.slice();
 
     rows.forEach(({ item, quotes }, rowIndex) => {
       const activeQuantity = activeQuantityAtDate(item, date, sales);
-      if (activeQuantity <= 0) return;
-      hasActivePosition = true;
-
       let quoteIndex = quoteIndexes[rowIndex];
       while (quoteIndex + 1 < quotes.length && quotes[quoteIndex + 1].date <= date) {
         quoteIndex += 1;
@@ -125,46 +126,50 @@ export function buildPortfolioHistory(analytics: Awaited<ReturnType<typeof getPo
       quoteIndexes[rowIndex] = quoteIndex;
 
       const close = latestQuotes[rowIndex];
-      // Do not publish a partial portfolio total. Until every active holding
-      // has at least one historical price, the portfolio value is unknown.
-      if (close == null || close <= 0) {
+      const quantityChange = activeQuantity - previousQuantities[rowIndex];
+      nextQuantities[rowIndex] = activeQuantity;
+
+      if (activeQuantity > 0) hasActivePosition = true;
+      if ((activeQuantity > 0 || quantityChange !== 0) && (close == null || close <= 0)) {
         hasCompleteValuation = false;
         return;
       }
+      if (close == null || close <= 0) return;
 
+      // Treat additions and disposals as cash flows at that day's closing
+      // market price, not at historical cost basis. This prevents a purchase
+      // or sale from being mistaken for investment performance.
+      capitalChange += close * quantityChange;
       value += close * activeQuantity;
       cost += item.buyPrice * activeQuantity;
     });
 
-    if (hasActivePosition && hasCompleteValuation) {
-      byDate.set(date, { value, cost });
+    if (!hasActivePosition) {
+      for (let i = 0; i < previousQuantities.length; i += 1) previousQuantities[i] = 0;
+      previousValue = null;
+      return;
     }
+    if (!hasCompleteValuation) return;
+    for (let i = 0; i < previousQuantities.length; i += 1) previousQuantities[i] = nextQuantities[i];
+    const marketPnl = previousValue == null ? 0 : value - previousValue - capitalChange;
+    const dailyReturnPercent = previousValue != null && previousValue > 0
+      ? (marketPnl / previousValue) * 100
+      : null;
+    byDate.set(date, { value, cost, capitalChange, marketPnl, dailyReturnPercent });
+    previousValue = value;
   });
 
   const sorted = Array.from(byDate.entries()).sort(([a], [b]) => a.localeCompare(b));
-  let previousValue: number | null = null;
-  let previousCost: number | null = null;
-
-  return sorted.map(([date, data]) => {
-    const pnl = data.value - data.cost;
-    const capitalChange = previousCost == null ? data.cost : data.cost - previousCost;
-    const marketPnl = previousValue == null ? pnl : data.value - previousValue - capitalChange;
-    const denominator = previousValue == null ? data.cost : previousValue + Math.max(capitalChange, 0);
-    const dailyReturnPercent = denominator > 0 ? (marketPnl / denominator) * 100 : null;
-    const result: PortfolioHistoryPoint = {
-      date,
-      value: data.value,
-      cost: data.cost,
-      pnl,
-      returnPercent: data.cost > 0 ? (pnl / data.cost) * 100 : 0,
-      capitalChange,
-      marketPnl,
-      dailyReturnPercent,
-    };
-    previousValue = data.value;
-    previousCost = data.cost;
-    return result;
-  });
+  return sorted.map(([date, data]) => ({
+    date,
+    value: data.value,
+    cost: data.cost,
+    pnl: data.value - data.cost,
+    returnPercent: data.cost > 0 ? ((data.value - data.cost) / data.cost) * 100 : 0,
+    capitalChange: data.capitalChange,
+    marketPnl: data.marketPnl,
+    dailyReturnPercent: data.dailyReturnPercent,
+  }));
 }
 
 export interface PortfolioRealizedPerformance {
