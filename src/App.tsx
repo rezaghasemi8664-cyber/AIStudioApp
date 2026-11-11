@@ -281,14 +281,14 @@ const ValidityBadge: React.FC<ValidityBadgeProps> = ({ validityInfo }) => {
   if ((validityInfo.daysRemaining ?? 0) <= 7) {
     return (
       <span className="text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 px-2 py-0.5 rounded-full">
-        {(validityInfo.daysRemaining ?? 0)} روز باقیمانده
+        {(validityInfo.daysRemaining ?? 0).toLocaleString('fa-IR')} روز باقیمانده
       </span>
     );
   }
 
   return (
     <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full">
-      {(validityInfo.daysRemaining ?? 0)} روز اعتبار
+      {(validityInfo.daysRemaining ?? 0).toLocaleString('fa-IR')} روز اعتبار
     </span>
   );
 };
