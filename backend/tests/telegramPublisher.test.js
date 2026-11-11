@@ -128,6 +128,11 @@ describe('Telegram publisher helpers', () => {
     expect(message).toContain('🧾 رونیا | خلاصه بازار');
     expect(message).toContain('تاریخ بازار:');
     expect(message).toContain('زمان ثبت خلاصه در دیتابیس:');
+    const expectedTehranCreationTime = new Intl.DateTimeFormat('fa-IR', {
+      timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    }).format(new Date('2026-10-14T06:35:00.000Z'));
+    expect(message).toContain(expectedTehranCreationTime);
     expect(message).toContain('خلاصه ثبت‌شده در دیتابیس');
   });
   test('splits market summary only between complete paragraphs and numbers every part', () => {
