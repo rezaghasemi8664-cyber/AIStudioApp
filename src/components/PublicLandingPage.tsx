@@ -46,7 +46,10 @@ const PublicLandingPage: React.FC = () => {
   }, []);
 
   const goToLogin = async () => {
-    await trackMarketingEvent('cta_click');
+    await Promise.race([
+      trackMarketingEvent('cta_click'),
+      new Promise<void>((resolve) => window.setTimeout(resolve, 900)),
+    ]);
     window.location.href = '/login';
   };
 
