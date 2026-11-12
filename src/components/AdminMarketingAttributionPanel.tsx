@@ -95,7 +95,6 @@ const AdminMarketingAttributionPanel: React.FC = () => {
       {loading || settingsLoading ? <div className="py-8 text-center text-gray-500">در حال دریافت آمار و تنظیمات…</div> : <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {slots.map((slot, index) => {
           const data = report?.channels[slot.content];
-          const draft = drafts[slot.slotId] || { name: slot.name || EMPTY_SLOT_NAMES[index], link: slot.link || '' };
           return <article key={slot.slotId} className="rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5">
             <div className="flex items-center justify-between gap-2"><h4 className="font-bold">{slot.name || EMPTY_SLOT_NAMES[index]}</h4><span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600 dark:bg-gray-800">جایگاه {fmt(index + 1)}</span></div>
             <MetricGrid data={data} /><div className="mt-5"><ActivityTables data={data} /></div>
