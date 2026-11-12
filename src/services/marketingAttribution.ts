@@ -10,11 +10,14 @@ export interface MarketingAttribution {
 
 const STORAGE_KEY = 'roniyaMarketingAttribution';
 const ALLOWED_CONTENT = new Set(['bursebazaar', 'arzonlineinfo', 'roniya']);
-const isAllowedAttribution = (source: string, medium: string, campaign: string, content: string): boolean =>
-  source === 'telegram' && medium === 'paid' && (
-    (campaign === 'roniya_oct2026' && ALLOWED_CONTENT.has(content)) ||
-    (campaign === 'roniya_ads' && /^[a-f0-9]{24}$/.test(content))
-  );
+const isAllowedAttribution = (source: string, medium: string, campaign: string, content: string): boolean => {
+  const validSource = Boolean(source) && !/[|\u0000-\u001f\u007f]/.test(source);
+  if (!validSource || medium !== 'paid') return false;
+  // Preserve the original Telegram campaign links while allowing the newer
+  // campaign links to identify any external website or platform via utm_source.
+  return (campaign === 'roniya_oct2026' && source === 'telegram' && ALLOWED_CONTENT.has(content)) ||
+    (campaign === 'roniya_ads' && /^[a-f0-9]{16,32}$/i.test(content));
+};
 let visitRequestInFlight: Promise<void> | null = null;
 
 function clean(value: string | null, maxLength = 100): string {

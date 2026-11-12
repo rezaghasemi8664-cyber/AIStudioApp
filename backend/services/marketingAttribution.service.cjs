@@ -17,8 +17,11 @@ function normalizeAttribution(input) {
   const medium = String(input.medium || '').trim().slice(0, 100);
   const campaign = String(input.campaign || '').trim().slice(0, 100);
   const content = String(input.content || '').trim().slice(0, 100);
-  if (source !== 'telegram' || medium !== 'paid') return null;
-  const isLegacyCampaign = campaign === 'roniya_oct2026' && ALLOWED_CONTENT.has(content);
+  const validSource = Boolean(source) && !/[|\u0000-\u001f\u007f]/.test(source);
+  if (!validSource || medium !== 'paid') return null;
+  // Keep legacy Telegram attribution backward-compatible; current ad slots may
+  // come from any website or platform and are still isolated by utm_content.
+  const isLegacyCampaign = campaign === 'roniya_oct2026' && source === 'telegram' && ALLOWED_CONTENT.has(content);
   const isAdCampaign = campaign === AD_CAMPAIGN && isDynamicContent(content);
   if (!isLegacyCampaign && !isAdCampaign) return null;
   return { source, medium, campaign, content };

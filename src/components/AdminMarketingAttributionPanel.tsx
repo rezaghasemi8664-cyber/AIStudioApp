@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   getMarketingAttributionReport, getMarketingAdSlots, saveMarketingAdSlot, deleteMarketingAdArchive,
+  saveMarketingAdCampaign,
   type MarketingAttributionReport, type MarketingAdSlot, type MarketingAdArchive, type MarketingAttributionChannelReport,
 } from '../services/marketingAttributionReportService';
 
@@ -45,6 +46,12 @@ const AdminMarketingAttributionPanel: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, { name: string; link: string }>>({});
+  const [campaignName, setCampaignName] = useState('');
+  const [campaignSource, setCampaignSource] = useState('telegram');
+  const [campaignMessage, setCampaignMessage] = useState('');
+  const [generatedLink, setGeneratedLink] = useState('');
+  const [generatedMessage, setGeneratedMessage] = useState('');
+  const [campaignSaving, setCampaignSaving] = useState(false);
   const loadReport = useCallback(async () => {
     setLoading(true); setError(null);
     try { setReport(await getMarketingAttributionReport()); }
@@ -62,6 +69,29 @@ const AdminMarketingAttributionPanel: React.FC = () => {
   }, []);
   useEffect(() => { void loadReport(); void loadSettings(); }, [loadReport, loadSettings]);
 
+  const createTrackingLink = async () => {
+    if (!campaignName.trim() || !campaignSource.trim() || !campaignMessage.trim()) { setError('نام کمپین، منبع تبلیغ و متن پیام را وارد کنید.'); return; }
+    setCampaignSaving(true); setError(null); setNotice(null); setGeneratedLink(''); setGeneratedMessage('');
+    try {
+      const created = await saveMarketingAdCampaign({ name: campaignName.trim(), message: campaignMessage.trim() });
+      const url = new URL('/', window.location.origin);
+      url.searchParams.set('utm_source', campaignSource.trim());
+      url.searchParams.set('utm_medium', 'paid');
+      url.searchParams.set('utm_campaign', 'roniya_ads');
+      url.searchParams.set('utm_content', created.id);
+      const link = url.toString();
+      const linkPattern = /https?:\/\/\S*utm_campaign=roniya_ads\S*/i;
+      const finalMessage = linkPattern.test(campaignMessage) ? campaignMessage.replace(linkPattern, link) : campaignMessage.trimEnd() + '\n\n' + link;
+      await saveMarketingAdCampaign({ id: created.id, name: campaignName.trim(), message: finalMessage });
+      setGeneratedLink(link); setGeneratedMessage(finalMessage);
+      setNotice('لینک رهگیری اختصاصی ساخته شد. آن را در جایگاه موردنظر ثبت کنید.');
+    } catch (e) { setError(e instanceof Error ? e.message : 'ساخت لینک رهگیری ناموفق بود.'); }
+    finally { setCampaignSaving(false); }
+  };
+  const copyText = async (value: string, label: string) => {
+    try { await navigator.clipboard.writeText(value); setNotice(label + ' کپی شد.'); }
+    catch { setError('کپی خودکار ممکن نشد؛ متن را انتخاب و کپی کنید.'); }
+  };
   const updateDraft = (slotId: string, field: 'name' | 'link', value: string) =>
     setDrafts(previous => ({ ...previous, [slotId]: { ...(previous[slotId] || { name: '', link: '' }), [field]: value } }));
   const saveSlot = async (slot: MarketingAdSlot) => {
@@ -85,11 +115,21 @@ const AdminMarketingAttributionPanel: React.FC = () => {
 
   return <div className="space-y-5">
     <section className="rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">آمار تبلیغات تلگرام</h2><p className="mt-1 text-sm text-gray-500">آمار پنج جایگاه تبلیغاتی به‌صورت مستقل ثبت می‌شود. لینک هر جایگاه باید لینک رهگیری رونیا و دارای پارامترهای UTM معتبر باشد.</p></div><button onClick={() => { void loadReport(); void loadSettings(); }} disabled={loading || settingsLoading} className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50">بروزرسانی آمار</button></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">آمار تبلیغات</h2><p className="mt-1 text-sm text-gray-500">آمار پنج جایگاه تبلیغاتی به‌صورت مستقل ثبت می‌شود. لینک هر جایگاه باید لینک رهگیری رونیا و دارای پارامترهای UTM معتبر باشد.</p></div><button onClick={() => { void loadReport(); void loadSettings(); }} disabled={loading || settingsLoading} className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50">بروزرسانی آمار</button></div>
       {report && <p className="mt-3 text-xs text-gray-500">آخرین دریافت: {dateFmt(report.generatedAt)}</p>}
     </section>
     {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
     {notice && <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">{notice}</div>}
+    <section className="rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5 space-y-4">
+      <div><h3 className="text-lg font-bold">تنظیم پیام تبلیغات و ساخت لینک رهگیری</h3><p className="mt-1 text-sm text-gray-500">منبع تبلیغ را مشخص کنید؛ رونیا یک شناسه یکتای مستقل می‌سازد و لینک آماده انتشار را در متن پیام قرار می‌دهد. پس از ساخت، لینک را کپی کنید و در یکی از پنج جایگاه پایین ثبت کنید.</p></div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <label className="block text-sm font-medium">نام کمپین / کانال / سایت<input value={campaignName} onChange={e => setCampaignName(e.target.value)} maxLength={120} placeholder="مثلاً تبلیغ در سایت نمونه" className="mt-2 w-full rounded-xl border border-[var(--card-border-color)] bg-transparent p-3" /></label>
+        <label className="block text-sm font-medium">منبع تبلیغ (utm_source)<input value={campaignSource} onChange={e => setCampaignSource(e.target.value)} maxLength={100} placeholder="telegram یا نام سایت / پلتفرم" dir="ltr" className="mt-2 w-full rounded-xl border border-[var(--card-border-color)] bg-transparent p-3 text-left" /></label>
+      </div>
+      <label className="block text-sm font-medium">متن پیام تبلیغات<textarea value={campaignMessage} onChange={e => setCampaignMessage(e.target.value)} rows={5} maxLength={5000} placeholder="متن پیام تبلیغاتی را وارد کنید…" className="mt-2 w-full rounded-xl border border-[var(--card-border-color)] bg-transparent p-3" /></label>
+      <div className="flex justify-end"><button type="button" onClick={() => void createTrackingLink()} disabled={campaignSaving} className="rounded-xl bg-cyan-600 px-5 py-2.5 font-semibold text-white disabled:opacity-50">{campaignSaving ? 'در حال ساخت لینک…' : 'ساخت لینک اختصاصی و ذخیره پیام'}</button></div>
+      {generatedLink && <div className="space-y-3 rounded-xl border border-cyan-200 bg-cyan-50/60 p-4 dark:bg-cyan-950/20"><label className="block text-sm font-semibold">لینک رهگیری آماده کپی<textarea readOnly value={generatedLink} rows={2} dir="ltr" className="mt-2 w-full rounded-lg border border-cyan-200 bg-white p-3 text-left text-sm text-gray-800" /></label><div className="flex flex-wrap gap-2"><button type="button" onClick={() => void copyText(generatedLink, 'لینک رهگیری')} className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white">کپی لینک</button><button type="button" onClick={() => void copyText(generatedMessage, 'متن نهایی پیام')} className="rounded-lg border border-cyan-300 px-4 py-2 text-sm font-semibold">کپی متن نهایی پیام</button></div><p className="text-xs text-gray-600 dark:text-gray-300">برای نمایش آمار مستقل، همین لینک را در فیلد لینک جایگاه موردنظر در بخش تنظیم پنج جایگاه تبلیغاتی وارد و ذخیره کنید. برای هر جایگاه از لینک با شناسه متفاوت استفاده کنید.</p></div>}
+    </section>
     <section className="space-y-4">
       <h3 className="text-lg font-bold">آمار جایگاه‌های فعال</h3>
       {loading || settingsLoading ? <div className="py-8 text-center text-gray-500">در حال دریافت آمار و تنظیمات…</div> : <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -110,7 +150,7 @@ const AdminMarketingAttributionPanel: React.FC = () => {
           return <div key={slot.slotId} className="rounded-xl border border-[var(--card-border-color)] p-4 space-y-3">
             <h4 className="font-semibold">جایگاه تبلیغاتی {fmt(index + 1)}</h4>
             <label className="block text-sm font-medium">نام کانال یا سایت<input value={draft.name} onChange={e => updateDraft(slot.slotId, 'name', e.target.value)} maxLength={120} placeholder="نام کانال یا سایت" className="mt-2 w-full rounded-xl border border-[var(--card-border-color)] bg-transparent p-3" /></label>
-            <label className="block text-sm font-medium">لینک اختصاصی موجود در پیام تبلیغ<textarea value={draft.link} onChange={e => updateDraft(slot.slotId, 'link', e.target.value)} rows={3} maxLength={2048} placeholder="https://www.roniya-analyzer.ir/?utm_source=telegram&..." dir="ltr" className="mt-2 w-full rounded-xl border border-[var(--card-border-color)] bg-transparent p-3 text-left text-sm" /></label>
+            <label className="block text-sm font-medium">لینک اختصاصی موجود در پیام تبلیغ<textarea value={draft.link} onChange={e => updateDraft(slot.slotId, 'link', e.target.value)} rows={3} maxLength={2048} placeholder="https://www.roniya-analyzer.ir/?utm_source=نام-سایت-یا-پلتفرم&utm_medium=paid&utm_campaign=roniya_ads&utm_content=..." dir="ltr" className="mt-2 w-full rounded-xl border border-[var(--card-border-color)] bg-transparent p-3 text-left text-sm" /></label>
             <button type="button" onClick={() => void saveSlot(slot)} disabled={savingSlot === slot.slotId} className="rounded-xl bg-cyan-600 px-5 py-2.5 font-semibold text-white disabled:opacity-50">{savingSlot === slot.slotId ? 'در حال ذخیره…' : 'ذخیره جایگاه'}</button>
           </div>;
         })}
