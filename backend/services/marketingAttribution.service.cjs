@@ -35,11 +35,12 @@ function readStore() {
       landingPageViews: Array.isArray(parsed.landingPageViews) ? parsed.landingPageViews : (Array.isArray(parsed.clicks) ? parsed.clicks.map(item => ({ ...item, viewedAt: item.viewedAt || item.clickedAt })) : legacyClicks),
       ctaClicks: Array.isArray(parsed.ctaClicks) ? parsed.ctaClicks : [],
       loginPageViews: Array.isArray(parsed.loginPageViews) ? parsed.loginPageViews : [],
+      signupClicks: Array.isArray(parsed.signupClicks) ? parsed.signupClicks : [],
       registrations: Array.isArray(parsed.registrations) ? parsed.registrations : [],
       purchases: Array.isArray(parsed.purchases) ? parsed.purchases : [],
     };
   } catch {
-    return { visits: [], clicks: [], landingPageViews: [], ctaClicks: [], loginPageViews: [], registrations: [], purchases: [] };
+    return { visits: [], clicks: [], landingPageViews: [], ctaClicks: [], loginPageViews: [], signupClicks: [], registrations: [], purchases: [] };
   }
 }
 
@@ -64,9 +65,9 @@ function recordVisit(input) {
 
 function recordEvent({ input, eventType }) {
   const attribution = normalizeAttribution(input);
-  if (!attribution || !['cta_click', 'login_page_view'].includes(eventType)) return { recorded: false };
+  if (!attribution || !['cta_click', 'login_page_view', 'signup_click'].includes(eventType)) return { recorded: false };
   const store = readStore();
-  const key = eventType === 'cta_click' ? 'ctaClicks' : 'loginPageViews';
+  const key = eventType === 'cta_click' ? 'ctaClicks' : eventType === 'login_page_view' ? 'loginPageViews' : 'signupClicks';
   store[key].push({
     id: crypto.randomBytes(12).toString('hex'),
     ...attribution,
@@ -137,12 +138,14 @@ function getReport() {
     const landingPageViews = store.landingPageViews.filter(item => item.content === content);
     const ctaClicks = store.ctaClicks.filter(item => item.content === content);
     const loginPageViews = store.loginPageViews.filter(item => item.content === content);
+    const signupClicks = store.signupClicks.filter(item => item.content === content);
     const registrations = store.registrations.filter(item => item.content === content);
     const purchases = store.purchases.filter(item => item.content === content);
     const revenueAmount = purchases.reduce((total, item) => total + Number(item.amount || 0), 0);
     channels[content] = {
       visits: visits.length, visitCount: visits.length, clickCount: clicks.length,
       landingPageViewCount: landingPageViews.length, ctaClickCount: ctaClicks.length, loginPageViewCount: loginPageViews.length,
+      signupClickCount: signupClicks.length,
       registrationCount: registrations.length,
       conversionRatePercent: clicks.length ? Math.round((registrations.length / clicks.length) * 10000) / 100 : 0,
       paidPurchaseCount: purchases.length, revenueAmount,
@@ -152,7 +155,8 @@ function getReport() {
       recentClicks: clicks.slice(-100).map(({ id, clickedAt, source, medium, campaign, content: channel }) => ({ id, clickedAt, source, medium, campaign, content: channel })),
       recentLandingPageViews: landingPageViews.slice(-100).map(({ id, viewedAt, source, medium, campaign, content: channel }) => ({ id, occurredAt: viewedAt, source, medium, campaign, content: channel })),
       recentCtaClicks: ctaClicks.slice(-100).map(({ id, occurredAt, source, medium, campaign, content: channel }) => ({ id, occurredAt, source, medium, campaign, content: channel })),
-      recentLoginPageViews: loginPageViews.slice(-100).map(({ id, occurredAt, source, medium, campaign, content: channel }) => ({ id, occurredAt, source, medium, campaign, content: channel }))
+      recentLoginPageViews: loginPageViews.slice(-100).map(({ id, occurredAt, source, medium, campaign, content: channel }) => ({ id, occurredAt, source, medium, campaign, content: channel })),
+      recentSignupClicks: signupClicks.slice(-100).map(({ id, occurredAt, source, medium, campaign, content: channel }) => ({ id, occurredAt, source, medium, campaign, content: channel }))
     };
   }
   return { generatedAt: new Date().toISOString(), channels };
