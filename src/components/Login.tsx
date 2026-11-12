@@ -142,7 +142,7 @@ setForgotStep('mobile'); setForgotMobile(''); setForgotOtp(''); setResetToken(''
             <span className="w-2 h-2 rounded-full" style={{ background: 'var(--login-accent, #218765)' }} />
             سامانه تحلیلگر هوشمند بورس
           </div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold" style={{ color: 'var(--login-title-color, #172638)' }}>به رونیا خوش آمدید</h2>
+          <h2 className="text-2xl sm:text-3xl font-extrabold" style={{ color: 'var(--login-title-color, #172638)' }}>نرم‌افزار تحلیلگر هوشمند بورس رونیا</h2>
           <p className="mt-2 text-sm leading-7 text-slate-500">برای ورود به حساب کاربری خود، اطلاعات زیر را وارد کنید.</p>
         </div>
         <div>
@@ -184,8 +184,8 @@ setForgotStep('mobile'); setForgotMobile(''); setForgotOtp(''); setResetToken(''
           <div className="absolute -top-24 -left-20 w-72 h-72 rounded-full border border-white/10" />
           <div className="absolute top-20 -left-10 w-56 h-56 rounded-full border border-white/10" />
           <div className="absolute -bottom-28 right-8 w-80 h-80 rounded-full bg-emerald-300/10 blur-2xl" />
-          <div className="relative z-10 flex items-center gap-3">
-            <img src="/1.png" alt="رونیا" className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-2xl bg-white/95 p-1.5" />
+          <div className="relative z-10 flex items-center gap-4 sm:gap-5">
+            <img src="/1.png" alt="رونیا" className="w-24 h-24 sm:w-28 sm:h-28 lg:w-32 lg:h-32 object-contain rounded-2xl bg-white/95 p-1.5 shrink-0" />
             <div><div className="text-2xl font-black tracking-tight">رونیا</div><div className="text-xs sm:text-sm text-emerald-100 mt-1">تحلیل هوشمند بازار سرمایه</div></div>
           </div>
           <div className="relative z-10 mt-8 lg:mt-0">
