@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512" viewBox="0 0 512 512">
+  <title>لوگوی رونیا</title>
+  <rect width="512" height="512" rx="96" fill="#ffffff"/>
+  <defs>
+    <clipPath id="mark-crop">
+      <rect x="0" y="64" width="512" height="300"/>
+    </clipPath>
+  </defs>
+  <image x="0" y="64" width="512" height="384" xlink:href="/2.png" preserveAspectRatio="none" clip-path="url(#mark-crop)"/>
+</svg>
