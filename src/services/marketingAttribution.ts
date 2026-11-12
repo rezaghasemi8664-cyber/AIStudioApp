@@ -10,6 +10,11 @@ export interface MarketingAttribution {
 
 const STORAGE_KEY = 'roniyaMarketingAttribution';
 const ALLOWED_CONTENT = new Set(['bursebazaar', 'arzonlineinfo', 'roniya']);
+const isAllowedAttribution = (source: string, medium: string, campaign: string, content: string): boolean =>
+  source === 'telegram' && medium === 'paid' && (
+    (campaign === 'roniya_oct2026' && ALLOWED_CONTENT.has(content)) ||
+    (campaign === 'roniya_ads' && /^[a-f0-9]{24}$/.test(content))
+  );
 let visitRequestInFlight: Promise<void> | null = null;
 
 function clean(value: string | null, maxLength = 100): string {
@@ -25,7 +30,7 @@ export function captureMarketingAttribution(): MarketingAttribution | null {
     const campaign = clean(params.get('utm_campaign'));
     const content = clean(params.get('utm_content'));
     if (!source && !medium && !campaign && !content) return getStoredMarketingAttribution();
-    if (source !== 'telegram' || medium !== 'paid' || campaign !== 'roniya_oct2026' || !ALLOWED_CONTENT.has(content)) {
+    if (!isAllowedAttribution(source, medium, campaign, content)) {
       return getStoredMarketingAttribution();
     }
     const attribution: MarketingAttribution = { source, medium, campaign, content, capturedAt: new Date().toISOString() };
@@ -42,7 +47,7 @@ export function getStoredMarketingAttribution(): MarketingAttribution | null {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const value = JSON.parse(raw) as MarketingAttribution;
-    if (value?.source !== 'telegram' || value?.medium !== 'paid' || value?.campaign !== 'roniya_oct2026' || !ALLOWED_CONTENT.has(value?.content)) return null;
+    if (!isAllowedAttribution(value?.source, value?.medium, value?.campaign, value?.content)) return null;
     return value;
   } catch {
     return null;
