@@ -85,6 +85,31 @@ export async function trackMarketingVisit(): Promise<void> {
   }
 }
 
+export type MarketingFunnelEvent = 'cta_click' | 'login_page_view';
+
+export async function trackMarketingEvent(eventType: MarketingFunnelEvent): Promise<void> {
+  const attribution = captureMarketingAttribution();
+  if (!attribution) return;
+
+  const sessionKey = `roniyaMarketingEventTracked:${attribution.campaign}:${attribution.content}:${eventType}`;
+  try {
+    if (window.sessionStorage.getItem(sessionKey) === '1') return;
+  } catch {
+    // Continue with best-effort tracking when sessionStorage is unavailable.
+  }
+
+  try {
+    const response = await post<{ recorded?: boolean }>('/marketing-attribution/event', { attribution, eventType });
+    if (response.success && response.data?.recorded === true) {
+      try { window.sessionStorage.setItem(sessionKey, '1'); } catch {}
+    } else {
+      console.warn('[MarketingAttribution] funnel event was not recorded:', response.message || response.data);
+    }
+  } catch (error) {
+    console.warn('[MarketingAttribution] funnel event tracking failed:', error);
+  }
+}
+
 export function clearMarketingAttribution(): void {
   if (typeof window !== 'undefined') window.localStorage.removeItem(STORAGE_KEY);
 }
