@@ -47,6 +47,7 @@ const AdminMarketingAttributionPanel: React.FC = () => {
     setSettingsSaving(true); setSettingsError(null); setSettingsNotice(null);
     try {
       const firstSave = await saveMarketingAdCampaign({ ...(editingId ? { id: editingId } : {}), name: campaignName.trim(), message: campaignMessage.trim() });
+      setEditingId(firstSave.id);
       const link = makeCampaignLink(firstSave.id);
       const finalMessage = applyCampaignLink(campaignMessage, link);
       const savedCampaign = await saveMarketingAdCampaign({ id: firstSave.id, name: campaignName.trim(), message: finalMessage });
