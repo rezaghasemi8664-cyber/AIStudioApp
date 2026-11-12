@@ -57,8 +57,9 @@ const AdminMarketingAttributionPanel: React.FC = () => {
       });
       setEditingId(savedCampaign.id);
       setCampaignMessage(savedCampaign.message);
+      await load();
       setSettingsNotice('تنظیمات ذخیره شد و لینک اختصاصی جدید در متن تبلیغ قرار گرفت.');
-    } catch (e) { setSettingsError(e instanceof Error ? e.message : 'ذخیره تنظیمات ناموفق بود.'); }
+    } catch (e) { setSettingsError(e instanceof Error ? e.message : 'ذخیره تنظیمات ناموفق بود.'); void loadCampaigns(); }
     finally { setSettingsSaving(false); }
   };
   const copyText = async (value: string) => {
