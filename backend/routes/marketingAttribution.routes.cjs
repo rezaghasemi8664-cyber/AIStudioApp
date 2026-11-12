@@ -84,7 +84,7 @@ router.put('/slots', auth, auth.requireAdmin, (req, res) => {
         'missing-name': 'نام کانال یا سایت را وارد کنید.',
         'missing-link': 'لینک اختصاصی تبلیغ را وارد کنید.',
         'invalid-link': 'لینک واردشده معتبر نیست.',
-        'invalid-attribution-link': 'لینک باید شامل utm_source=telegram، utm_medium=paid، utm_campaign و utm_content معتبر باشد.',
+        'invalid-attribution-link': 'لینک باید شامل utm_source معتبر (نام سایت یا پلتفرم)، utm_medium=paid، utm_campaign=roniya_ads و utm_content معتبر باشد.',
         'duplicate-link': 'این لینک در جایگاه دیگری استفاده شده است.',
       };
       return res.status(400).json({ success: false, message: messages[result.reason] || 'تنظیمات جایگاه معتبر نیست.' });
