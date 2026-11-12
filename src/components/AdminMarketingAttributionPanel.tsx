@@ -80,8 +80,18 @@ const AdminMarketingAttributionPanel: React.FC = () => {
       url.searchParams.set('utm_campaign', 'roniya_ads');
       url.searchParams.set('utm_content', created.id);
       const link = url.toString();
-      const linkPattern = /https?:\/\/\S*utm_campaign=roniya_ads\S*/i;
-      const finalMessage = linkPattern.test(campaignMessage) ? campaignMessage.replace(linkPattern, link) : campaignMessage.trimEnd() + '\n\n' + link;
+      // Replace the first existing URL regardless of its previous UTM campaign/source.
+      // Keep common punctuation that belongs to the surrounding message.
+      const existingUrl = /https?:\\/\\/[^\\s<>"']+/i;
+      const match = campaignMessage.match(existingUrl);
+      let finalMessage = campaignMessage.trimEnd();
+      if (match && typeof match.index === 'number') {
+        const rawUrl = match[0];
+        const trailing = rawUrl.match(/[),.!?،؛]+$/)?.[0] || '';
+        finalMessage = campaignMessage.slice(0, match.index) + link + trailing + campaignMessage.slice(match.index + rawUrl.length);
+      } else {
+        finalMessage = finalMessage + '\\n\\n' + link;
+      }
       await saveMarketingAdCampaign({ id: created.id, name: campaignName.trim(), message: finalMessage });
       setGeneratedLink(link); setGeneratedMessage(finalMessage);
       setNotice('لینک رهگیری اختصاصی ساخته شد. آن را در جایگاه موردنظر ثبت کنید.');
@@ -89,8 +99,36 @@ const AdminMarketingAttributionPanel: React.FC = () => {
     finally { setCampaignSaving(false); }
   };
   const copyText = async (value: string, label: string) => {
-    try { await navigator.clipboard.writeText(value); setNotice(label + ' کپی شد.'); }
-    catch { setError('کپی خودکار ممکن نشد؛ متن را انتخاب و کپی کنید.'); }
+    try {
+      if (navigator.clipboard?.writeText && window.isSecureContext) {
+        await navigator.clipboard.writeText(value);
+        setError(null);
+        setNotice(label + ' کپی شد.');
+        return;
+      }
+    } catch {
+      // Fall through to the legacy copy path for iOS and embedded browsers.
+    }
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = value;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.top = '0';
+      textarea.style.left = '-9999px';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
+      const copied = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      if (!copied) throw new Error('copy-command-failed');
+      setError(null);
+      setNotice(label + ' کپی شد.');
+    } catch {
+      setError('کپی خودکار در این مرورگر پشتیبانی نشد؛ متن را از کادر انتخاب و کپی کنید.');
+    }
   };
   const updateDraft = (slotId: string, field: 'name' | 'link', value: string) =>
     setDrafts(previous => ({ ...previous, [slotId]: { ...(previous[slotId] || { name: '', link: '' }), [field]: value } }));
