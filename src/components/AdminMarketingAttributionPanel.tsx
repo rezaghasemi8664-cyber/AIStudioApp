@@ -174,7 +174,7 @@ const AdminMarketingAttributionPanel: React.FC = () => {
         {slots.filter(slot => slot.name.trim() && slot.link.trim()).map((slot, index) => {
           const data = report?.channels[slot.content];
           return <article key={slot.slotId} className="rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5">
-            <div className="flex items-center justify-between gap-2"><h4 className="font-bold">{slot.name || EMPTY_SLOT_NAMES[index]}</h4><span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600 dark:bg-gray-800">جایگاه {fmt(index + 1)}</span></div>
+            <div className="flex items-center justify-between gap-2"><h4 className="font-bold">{slot.name || EMPTY_SLOT_NAMES[index]}</h4><span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600 dark:bg-gray-800">جایگاه {fmt(Number(slot.slotId.replace('slot', '')))}</span></div>
             <MetricGrid data={data} /><div className="mt-5"><ActivityTables data={data} /></div>
           </article>;
         })}
