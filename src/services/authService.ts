@@ -27,7 +27,37 @@ export function getRefreshToken(): string | null { return getStoredRefreshToken(
 export async function getMe(): Promise<{ success: boolean; data?: StoredUser; message?: string }> { try { const res = await get<any>('/auth/me'); if (!res.success || !res.data) return { success: false, message: res.message || 'دریافت اطلاعات کاربر ناموفق بود' }; const user = normalizeUser(res.data.user || res.data); setStoredUser(user); return { success: true, data: user }; } catch (error: any) { return { success: false, message: error?.message || 'خطا در دریافت اطلاعات کاربر' }; } }
 export function getCurrentUser(): StoredUser | null { return getStoredCurrentUser(); }
 export async function refreshCurrentUser(): Promise<StoredUser | null> { return (await getMe()).data || null; }
-export async function getUsers(): Promise<StoredUser[]> { const res = await get<any>('/admin/users'); if (!res.success) throw new Error(res.message || 'Failed to fetch users'); const rows = Array.isArray(res.data) ? res.data : res.data?.users || res.data?.data || []; return rows.map((u: any) => normalizeUser(u)); }
+export async function getUsers(): Promise<StoredUser[]> {
+  const allRows: any[] = [];
+  const pageSize = 100;
+  let page = 1;
+
+  // The admin endpoint is paginated (maximum 100 records per request).
+  // Continue until every page is collected so recipient selectors do not
+  // silently omit users beyond the first page.
+  while (true) {
+    const res = await get<any>(`/admin/users?page=${page}&limit=${pageSize}`);
+    if (!res.success) throw new Error(res.message || 'Failed to fetch users');
+
+    const rows = Array.isArray(res.data)
+      ? res.data
+      : res.data?.users || res.data?.data || [];
+    allRows.push(...rows);
+
+    const pagination = res.pagination || res.data?.pagination;
+    const totalPages = Number(pagination?.totalPages);
+    if (Number.isFinite(totalPages) && totalPages > 0) {
+      if (page >= totalPages) break;
+    } else if (rows.length < pageSize) {
+      break;
+    }
+
+    if (rows.length === 0) break;
+    page += 1;
+  }
+
+  return allRows.map((u: any) => normalizeUser(u));
+}
 export async function login(emailOrUsername: string, password: string, _rememberMe = false): Promise<StoredUser> { const res = await post<any>('/auth/login', { email: emailOrUsername, password }); if (!res.success) throw new Error(res.message || 'Login failed'); const token = extractTokenFromResponse(res); const refresh = extractRefreshTokenFromResponse(res); if (token) setStoredToken(token); if (refresh) setStoredRefreshToken(refresh); const direct = extractUserFromResponse(res); if (direct?.id || direct?.email || direct?.username) { const user = normalizeUser(direct, emailOrUsername); setStoredUser(user); return user; } const me = await refreshCurrentUser(); if (!me) throw new Error('Authenticated user could not be resolved after login'); return me; }
 export async function logout(): Promise<void> { try { await post('/auth/logout', {}); } finally { removeStoredToken(); removeStoredRefreshToken(); removeStoredUser(); } }
 export async function updateUser(userOrId: StoredUser | string, updates?: Partial<StoredUser>): Promise<StoredUser> { const userId = typeof userOrId === 'string' ? userOrId : userOrId.id; const payload = typeof userOrId === 'string' ? (updates || {}) : { ...userOrId, ...(updates || {}) }; const res = await put<any>(`/admin/users/${encodeURIComponent(userId)}`, payload); if (!res.success) throw new Error(res.message || 'Failed to update user'); const user = normalizeUser(res.data?.user || res.data?.data || res.data); setStoredUser(user); return user; }
