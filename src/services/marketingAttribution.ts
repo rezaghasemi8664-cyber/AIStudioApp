@@ -11,7 +11,7 @@ export interface MarketingAttribution {
 const STORAGE_KEY = 'roniyaMarketingAttribution';
 const ALLOWED_CONTENT = new Set(['bursebazaar', 'arzonlineinfo', 'roniya']);
 const isAllowedAttribution = (source: string, medium: string, campaign: string, content: string): boolean => {
-  const validSource = /^[a-z0-9][a-z0-9._-]{0,99}$/i.test(source);
+  const validSource = Boolean(source) && !/[|\u0000-\u001f\u007f]/.test(source);
   if (!validSource || medium !== 'paid') return false;
   // Preserve the original Telegram campaign links while allowing the newer
   // campaign links to identify any external website or platform via utm_source.
