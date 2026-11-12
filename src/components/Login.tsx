@@ -135,18 +135,74 @@ setForgotStep('mobile'); setForgotMobile(''); setForgotOtp(''); setResetToken(''
 
     if (viewMode === 'forgot') return renderForgot();
 
-    return <form onSubmit={handleLoginSubmit} className="p-8 space-y-6" dir="rtl"><div className="text-center mb-6"><img src="/1.png" alt="سامانه تحلیلگر هوشمند بورس رونیا" className="mx-auto mb-4 w-70 max-w-[440px] h-70 object-contain" /><h2 className="text-2xl font-extrabold" style={{ color: 'var(--login-title-color)' }}>ورود به سامانه</h2></div><div><label htmlFor="username" className="block text-sm font-medium mb-1" style={{ color: 'var(--login-label-color)' }}>نام کاربری (ایمیل)</label><input id="username" type="text" value={username} onChange={(e) => setUsername(e.target.value)} required className="w-full border rounded-md px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="example@email.com" style={inputStyle} /></div><div><label htmlFor="password" className="block text-sm font-medium mb-1" style={{ color: 'var(--login-label-color)' }}>کلمه عبور</label><div className="relative"><input id="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full border rounded-md px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="••••••••" style={inputStyle} /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" tabIndex={-1}>{showPassword ? <EyeSlashIcon /> : <EyeIcon />}</button></div></div><div className="flex items-center justify-between text-sm"><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="rounded border-gray-300" /><span style={{ color: 'var(--login-label-color)' }}>مرا به خاطر بسپار</span></label><button type="button" onClick={() => handleViewChange('forgot')} className="text-cyan-600 dark:text-cyan-400 hover:underline font-semibold">فراموشی کلمه عبور</button></div>{error && <div className="bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-600 rounded-lg p-3 flex items-start gap-2 text-sm"><XMarkIcon className="text-red-500 mt-0.5 flex-shrink-0 cursor-pointer" onClick={() => setError(null)} /><span className="text-red-600 dark:text-red-400">{error}</span></div>}<button type="submit" disabled={loading} className="w-full font-bold py-2.5 px-6 rounded-md transition-all duration-200 flex items-center justify-center gap-2" style={buttonStyle}>{loading ? <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin" /> : <><LockClosedIcon /><span>ورود</span></>}</button><div className="pt-3 space-y-3">
-      <div className="text-center">
-        <p className="text-sm font-semibold" style={{ color: 'var(--login-label-color)' }}>هنوز حساب کاربری ندارید؟</p>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">همین حالا حساب خود را رایگان ایجاد کنید.</p>
-      </div>
-      <button type="button" onClick={() => { void trackMarketingEvent('signup_click'); handleViewChange('signup'); }} className="w-full min-h-12 rounded-xl px-6 py-3 font-extrabold text-white shadow-lg transition-all duration-200 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-emerald-500/30 active:scale-[0.99]">
-        <UserPlusIcon /> <span>ثبت‌نام رایگان</span>
-      </button>
-    </div></form>;
+    return (
+      <form onSubmit={handleLoginSubmit} className="w-full p-7 sm:p-10 space-y-5" dir="rtl">
+        <div className="text-right mb-7">
+          <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold mb-4" style={{ background: 'var(--login-accent-soft, #e8f4ef)', color: 'var(--login-accent, #218765)' }}>
+            <span className="w-2 h-2 rounded-full" style={{ background: 'var(--login-accent, #218765)' }} />
+            سامانه تحلیلگر هوشمند بورس
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-extrabold" style={{ color: 'var(--login-title-color, #172638)' }}>به رونیا خوش آمدید</h2>
+          <p className="mt-2 text-sm leading-7 text-slate-500">برای ورود به حساب کاربری خود، اطلاعات زیر را وارد کنید.</p>
+        </div>
+        <div>
+          <label htmlFor="username" className="block text-sm font-semibold mb-2" style={{ color: 'var(--login-label-color)' }}>نام کاربری (ایمیل)</label>
+          <input id="username" type="text" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required className="w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition" placeholder="example@email.com" style={inputStyle} />
+        </div>
+        <div>
+          <label htmlFor="password" className="block text-sm font-semibold mb-2" style={{ color: 'var(--login-label-color)' }}>کلمه عبور</label>
+          <div className="relative">
+            <input id="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition" placeholder="••••••••" style={inputStyle} />
+            <button type="button" aria-label={showPassword ? 'مخفی کردن کلمه عبور' : 'نمایش کلمه عبور'} onClick={() => setShowPassword(!showPassword)} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" tabIndex={-1}>{showPassword ? <EyeSlashIcon /> : <EyeIcon />}</button>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="rounded border-gray-300 accent-emerald-600" /><span style={{ color: 'var(--login-label-color)' }}>مرا به خاطر بسپار</span></label>
+          <button type="button" onClick={() => handleViewChange('forgot')} className="font-semibold hover:underline" style={{ color: 'var(--login-accent, #218765)' }}>فراموشی کلمه عبور</button>
+        </div>
+        {error && <div role="alert" className="bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-600 rounded-xl p-3 flex items-start gap-2 text-sm"><XMarkIcon className="text-red-500 mt-0.5 flex-shrink-0 cursor-pointer" onClick={() => setError(null)} /><span className="text-red-600 dark:text-red-400">{error}</span></div>}
+        <button type="submit" disabled={loading} className="w-full min-h-12 rounded-xl px-6 py-3 font-extrabold text-white shadow-md transition-all duration-200 flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-emerald-500/30 disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.99]">
+          {loading ? <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin" /> : <><LockClosedIcon /><span>ورود</span></>}
+        </button>
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-700 space-y-3">
+          <div className="text-center">
+            <p className="text-sm font-semibold" style={{ color: 'var(--login-label-color)' }}>هنوز حساب کاربری ندارید؟</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">همین حالا حساب خود را رایگان ایجاد کنید.</p>
+          </div>
+          <button type="button" onClick={() => { void trackMarketingEvent('signup_click'); handleViewChange('signup'); }} className="w-full min-h-12 rounded-xl px-6 py-3 font-extrabold shadow-sm transition-all duration-200 flex items-center justify-center gap-2 border-2 border-emerald-700 bg-white text-emerald-800 hover:bg-emerald-50 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 active:scale-[0.99]">
+            <UserPlusIcon /> <span>ثبت‌نام رایگان</span>
+          </button>
+        </div>
+      </form>
+    );
   };
 
-  return <div className="login-workstation min-h-screen flex items-center justify-center p-4" style={{ background: 'var(--login-bg, linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%))' }}><div className="w-full max-w-md rounded-xl shadow-2xl overflow-hidden" style={{ backgroundColor: 'var(--login-card-bg, var(--card-bg))', color: 'var(--login-card-color, var(--card-color))', borderColor: 'var(--login-card-border-color, transparent)', fontFamily: 'var(--login-card-font-family)', fontSize: 'var(--login-card-font-size)', borderWidth: 'var(--login-card-border-width)', borderStyle: 'solid' }}>{renderContent()}</div></div>;
+  return (
+    <main className="login-workstation min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-10" style={{ background: 'var(--login-bg, radial-gradient(circle at 12% 12%, #e5f4ed 0%, #f4f7f6 38%, #e9eef2 100%))' }}>
+      <div className="w-full max-w-5xl overflow-hidden rounded-[2rem] bg-white shadow-[0_28px_90px_-35px_rgba(15,45,43,0.35)] grid grid-cols-1 lg:grid-cols-[0.92fr_1.08fr]" style={{ color: 'var(--login-card-color, var(--card-color))', fontFamily: 'var(--login-card-font-family)', fontSize: 'var(--login-card-font-size)' }}>
+        <section className="relative order-2 lg:order-1 overflow-hidden px-7 py-8 sm:px-10 sm:py-12 lg:px-12 lg:py-14 text-white flex flex-col justify-between min-h-[230px] lg:min-h-[650px]" style={{ background: 'linear-gradient(145deg,#102d2b 0%,#164b40 55%,#218765 100%)' }}>
+          <div className="absolute -top-24 -left-20 w-72 h-72 rounded-full border border-white/10" />
+          <div className="absolute top-20 -left-10 w-56 h-56 rounded-full border border-white/10" />
+          <div className="absolute -bottom-28 right-8 w-80 h-80 rounded-full bg-emerald-300/10 blur-2xl" />
+          <div className="relative z-10 flex items-center gap-3">
+            <img src="/1.png" alt="رونیا" className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-2xl bg-white/95 p-1.5" />
+            <div><div className="text-2xl font-black tracking-tight">رونیا</div><div className="text-xs sm:text-sm text-emerald-100 mt-1">تحلیل هوشمند بازار سرمایه</div></div>
+          </div>
+          <div className="relative z-10 mt-8 lg:mt-0">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black leading-[1.7]">هوشمندانه‌تر تحلیل کنید،<br/>آگاهانه‌تر معامله کنید.</h1>
+            <p className="mt-4 max-w-md text-sm sm:text-base leading-8 text-emerald-50/85">ابزارهای تحلیلی و اطلاعات بازار را در یک فضای یکپارچه و حرفه‌ای در اختیار داشته باشید.</p>
+            <div className="mt-8 hidden sm:flex items-end gap-2 h-24 opacity-80" aria-hidden="true">
+              {[28,42,35,58,48,72,62,88,70,96,78,100,84,108].map((height,index)=><span key={index} className="flex-1 rounded-t-md bg-gradient-to-t from-emerald-300/20 to-emerald-100/90" style={{height:height+'%'}} />)}
+            </div>
+          </div>
+          <div className="relative z-10 mt-8 lg:mt-10 flex items-center justify-between text-[11px] sm:text-xs text-emerald-100/75"><span>پلتفرم تحلیلگر هوشمند بورس</span><span>roniya-analyzer.ir</span></div>
+        </section>
+        <section className="order-1 lg:order-2 flex items-center justify-center min-w-0" style={{ backgroundColor: 'var(--login-card-bg, #ffffff)' }}>
+          <div className="w-full max-w-xl" style={{ color: 'var(--login-card-color, var(--card-color))' }}>{renderContent()}</div>
+        </section>
+      </div>
+    </main>
+  );
 };
 
 export default Login;
