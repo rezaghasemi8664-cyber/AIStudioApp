@@ -40,7 +40,12 @@ const AdminMarketingAttributionPanel: React.FC = () => {
   }, []);
   useEffect(() => { void loadCampaigns(); }, [loadCampaigns]);
   const makeCampaignLink = (id: string) => `${window.location.origin}/?utm_source=telegram&utm_medium=paid&utm_campaign=roniya_ads&utm_content=${encodeURIComponent(id)}`;
-  const applyCampaignLink = (message: string, link: string) => {\n    const cleaned = message.trim();\n    return /https?:\\/\\/[^\\s]+/.test(cleaned)\n      ? cleaned.replace(/https?:\\/\\/[^\\s]+/g, link)\n      : `${cleaned}${cleaned ? '\\n\\n' : ''}${link}`;\n  };\n  const resetCampaignForm = () => { setEditingId(null); setCampaignName(''); setCampaignMessage(''); setSettingsError(null); setSettingsNotice(null); };
+  const applyCampaignLink = (message: string, link: string) => {
+    const cleaned = message.trim();
+    return /https?:\/\/[^\s]+/.test(cleaned)
+      ? cleaned.replace(/https?:\/\/[^\s]+/g, link)
+      : `${cleaned}${cleaned ? '\n\n' : ''}${link}`;
+  };\n  const resetCampaignForm = () => { setEditingId(null); setCampaignName(''); setCampaignMessage(''); setSettingsError(null); setSettingsNotice(null); };
   const editCampaign = (campaign: MarketingAdCampaign) => { setEditingId(campaign.id); setCampaignName(campaign.name); setCampaignMessage(campaign.message); setSettingsError(null); setSettingsNotice(null); };
   const saveCampaign = async () => {
     if (!campaignName.trim() || !campaignMessage.trim()) { setSettingsError('نام کانال یا سایت و متن پیام تبلیغاتی را وارد کنید.'); return; }
