@@ -85,7 +85,7 @@ export async function trackMarketingVisit(): Promise<void> {
   }
 }
 
-export type MarketingFunnelEvent = 'cta_click' | 'login_page_view';
+export type MarketingFunnelEvent = 'cta_click' | 'login_page_view' | 'signup_click';
 
 export async function trackMarketingEvent(eventType: MarketingFunnelEvent): Promise<void> {
   const attribution = captureMarketingAttribution();
