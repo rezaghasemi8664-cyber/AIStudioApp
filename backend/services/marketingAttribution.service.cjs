@@ -32,7 +32,7 @@ function readStore() {
     return {
       visits,
       clicks: Array.isArray(parsed.clicks) ? parsed.clicks : legacyClicks,
-      landingPageViews: Array.isArray(parsed.landingPageViews) ? parsed.landingPageViews : legacyClicks,
+      landingPageViews: Array.isArray(parsed.landingPageViews) ? parsed.landingPageViews : (Array.isArray(parsed.clicks) ? parsed.clicks.map(item => ({ ...item, viewedAt: item.viewedAt || item.clickedAt })) : legacyClicks),
       ctaClicks: Array.isArray(parsed.ctaClicks) ? parsed.ctaClicks : [],
       loginPageViews: Array.isArray(parsed.loginPageViews) ? parsed.loginPageViews : [],
       registrations: Array.isArray(parsed.registrations) ? parsed.registrations : [],
