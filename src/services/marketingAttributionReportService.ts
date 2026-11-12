@@ -15,6 +15,7 @@ export interface MarketingAttributionChannelReport {
   landingPageViewCount: number;
   ctaClickCount: number;
   loginPageViewCount: number;
+  signupClickCount: number;
   registrationCount: number;
   conversionRatePercent: number;
   paidPurchaseCount: number;
@@ -25,6 +26,7 @@ export interface MarketingAttributionChannelReport {
   recentLandingPageViews: Array<{ id: string; occurredAt: string; source: string; medium: string; campaign: string; content: string }>;
   recentCtaClicks: Array<{ id: string; occurredAt: string; source: string; medium: string; campaign: string; content: string }>;
   recentLoginPageViews: Array<{ id: string; occurredAt: string; source: string; medium: string; campaign: string; content: string }>;
+  recentSignupClicks: Array<{ id: string; occurredAt: string; source: string; medium: string; campaign: string; content: string }>;
   recentPurchases: Array<{ paymentId: string; userId: number | string; planId: number | null; amount: number; currency: string; refId: string | null; paidAt: string; content: string }>;
 }
 export interface MarketingAttributionReport {
