@@ -3,7 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middlewares/auth.middleware.cjs');
-const { normalizeAttribution, recordVisit, recordEvent, getReport, getAdCampaigns, saveAdCampaign } = require('../services/marketingAttribution.service.cjs');
+const { normalizeAttribution, recordVisit, recordEvent, getReport, getAdCampaigns, saveAdCampaign, getAdCampaignSlots, saveAdCampaignSlot, getAdCampaignArchives, deleteAdCampaignArchive } = require('../services/marketingAttribution.service.cjs');
 
 router.post('/visit', (req, res) => {
   try {
@@ -67,6 +67,38 @@ router.put('/settings', auth, auth.requireAdmin, (req, res) => {
     console.error('[MARKETING_ATTRIBUTION] settings save failed:', error.message);
     return res.status(500).json({ success: false, message: 'ذخیره تنظیمات پیام تبلیغات ناموفق بود.' });
   }
+});
+
+
+router.get('/slots', auth, auth.requireAdmin, (_req, res) => {
+  try { return res.json({ success: true, data: { slots: getAdCampaignSlots(), archives: getAdCampaignArchives() } }); }
+  catch (error) { console.error('[MARKETING_ATTRIBUTION] slots read failed:', error.message); return res.status(500).json({ success: false, message: 'دریافت جایگاه‌های تبلیغاتی ناموفق بود.' }); }
+});
+
+router.put('/slots', auth, auth.requireAdmin, (req, res) => {
+  try {
+    const result = saveAdCampaignSlot(req.body || {});
+    if (!result.saved) {
+      const messages = {
+        'invalid-slot': 'جایگاه تبلیغاتی معتبر نیست.',
+        'missing-name': 'نام کانال یا سایت را وارد کنید.',
+        'missing-link': 'لینک اختصاصی تبلیغ را وارد کنید.',
+        'invalid-link': 'لینک واردشده معتبر نیست.',
+        'invalid-attribution-link': 'لینک باید شامل utm_source=telegram، utm_medium=paid، utm_campaign و utm_content معتبر باشد.',
+        'duplicate-link': 'این لینک در جایگاه دیگری استفاده شده است.',
+      };
+      return res.status(400).json({ success: false, message: messages[result.reason] || 'تنظیمات جایگاه معتبر نیست.' });
+    }
+    return res.json({ success: true, data: result });
+  } catch (error) { console.error('[MARKETING_ATTRIBUTION] slot save failed:', error.message); return res.status(500).json({ success: false, message: 'ذخیره جایگاه تبلیغاتی ناموفق بود.' }); }
+});
+
+router.delete('/archives/:id', auth, auth.requireAdmin, (req, res) => {
+  try {
+    const result = deleteAdCampaignArchive(req.params.id);
+    if (!result.deleted) return res.status(404).json({ success: false, message: 'آرشیو موردنظر پیدا نشد.' });
+    return res.json({ success: true, data: result });
+  } catch (error) { console.error('[MARKETING_ATTRIBUTION] archive delete failed:', error.message); return res.status(500).json({ success: false, message: 'حذف آمار آرشیوشده ناموفق بود.' }); }
 });
 
 router.get('/report', auth, auth.requireAdmin, (_req, res) => {

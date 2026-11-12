@@ -44,9 +44,11 @@ function readStore() {
       registrations: Array.isArray(parsed.registrations) ? parsed.registrations : [],
       purchases: Array.isArray(parsed.purchases) ? parsed.purchases : [],
       adCampaigns: Array.isArray(parsed.adCampaigns) ? parsed.adCampaigns : [],
+      adCampaignSlots: Array.isArray(parsed.adCampaignSlots) ? parsed.adCampaignSlots : [],
+      adCampaignArchives: Array.isArray(parsed.adCampaignArchives) ? parsed.adCampaignArchives : [],
     };
   } catch {
-    return { visits: [], clicks: [], landingPageViews: [], ctaClicks: [], loginPageViews: [], signupClicks: [], registrations: [], purchases: [], adCampaigns: [] };
+    return { visits: [], clicks: [], landingPageViews: [], ctaClicks: [], loginPageViews: [], signupClicks: [], registrations: [], purchases: [], adCampaigns: [], adCampaignSlots: [], adCampaignArchives: [] };
   }
 }
 
@@ -138,7 +140,7 @@ function recordPurchase({ userId, paymentId, amount, currency = 'IRR', paidAt, p
 function getReport() {
   const store = readStore();
   const channels = {};
-  const reportContentKeys = new Set([...ALLOWED_CONTENT, ...store.adCampaigns.map(item => item && item.id).filter(isDynamicContent)]);
+  const reportContentKeys = new Set([...ALLOWED_CONTENT, ...store.adCampaigns.map(item => item && item.id).filter(isDynamicContent), ...store.adCampaignSlots.map(item => item && item.content).filter(value => ALLOWED_CONTENT.has(value) || isDynamicContent(value))]);
   for (const content of reportContentKeys) {
     const visits = store.visits.filter(item => item.content === content && item.userId !== undefined && item.userId !== null);
     const clicks = store.clicks.filter(item => item.content === content);
@@ -200,4 +202,105 @@ function saveAdCampaign(input) {
   return { saved: true, campaign: record };
 }
 
-module.exports = { normalizeAttribution, recordVisit, recordEvent, recordAuthenticatedVisit, recordRegistration, recordPurchase, getReport, getAdCampaigns, saveAdCampaign };
+
+const DEFAULT_AD_SLOTS = [
+  { slotId: 'slot1', name: 'کانال بورس‌بازار', content: 'bursebazaar' },
+  { slotId: 'slot2', name: 'کانال ارزآنلاین', content: 'arzonlineinfo' },
+  { slotId: 'slot3', name: 'کانال رونیا', content: 'roniya' },
+  { slotId: 'slot4', name: 'جایگاه تبلیغاتی ۴', content: null },
+  { slotId: 'slot5', name: 'جایگاه تبلیغاتی ۵', content: null },
+];
+
+function getAdCampaignSlots() {
+  const store = readStore();
+  const slots = DEFAULT_AD_SLOTS.map(defaultSlot => {
+    const saved = store.adCampaignSlots.find(item => item && item.slotId === defaultSlot.slotId);
+    return saved ? { ...defaultSlot, ...saved } : {
+      ...defaultSlot,
+      content: defaultSlot.content || crypto.randomBytes(12).toString('hex'),
+      link: '',
+      message: '',
+      createdAt: null,
+      updatedAt: null,
+    };
+  });
+  return slots.map(({ slotId, name, content, link, message, createdAt, updatedAt }) =>
+    ({ slotId, name, content, link: String(link || ''), message: String(message || ''), createdAt: createdAt || null, updatedAt: updatedAt || null }));
+}
+
+function saveAdCampaignSlot(input) {
+  const slotId = String(input?.slotId || '');
+  const name = String(input?.name || '').trim().slice(0, 120);
+  const link = String(input?.link || '').trim().slice(0, 2048);
+  const message = String(input?.message || '').trim().slice(0, 5000);
+  if (!/^slot[1-5]$/.test(slotId)) return { saved: false, reason: 'invalid-slot' };
+  if (!name) return { saved: false, reason: 'missing-name' };
+  if (!link) return { saved: false, reason: 'missing-link' };
+  let parsed;
+  try { parsed = new URL(link); } catch { return { saved: false, reason: 'invalid-link' }; }
+  if (!['http:', 'https:'].includes(parsed.protocol)) return { saved: false, reason: 'invalid-link' };
+  const attribution = normalizeAttribution({
+    source: parsed.searchParams.get('utm_source'),
+    medium: parsed.searchParams.get('utm_medium'),
+    campaign: parsed.searchParams.get('utm_campaign'),
+    content: parsed.searchParams.get('utm_content'),
+  });
+  if (!attribution) return { saved: false, reason: 'invalid-attribution-link' };
+
+  const store = readStore();
+  const slots = DEFAULT_AD_SLOTS.map(defaultSlot => {
+    const saved = store.adCampaignSlots.find(item => item && item.slotId === defaultSlot.slotId);
+    return saved ? { ...defaultSlot, ...saved } : { ...defaultSlot, content: defaultSlot.content || crypto.randomBytes(12).toString('hex'), link: '', message: '', createdAt: null, updatedAt: null };
+  });
+  const current = slots.find(item => item.slotId === slotId);
+  if (slots.some(item => item.slotId !== slotId && item.content === attribution.content)) return { saved: false, reason: 'duplicate-link' };
+  const now = new Date().toISOString();
+  const changedTracking = current.content !== attribution.content;
+  if (changedTracking) {
+    const previousReport = getReport().channels[current.content] || null;
+    const hasActivity = previousReport && (
+      previousReport.landingPageViewCount || previousReport.ctaClickCount || previousReport.loginPageViewCount ||
+      previousReport.signupClickCount || previousReport.registrationCount || previousReport.paidPurchaseCount || previousReport.visitCount
+    );
+    if (hasActivity || current.link || current.message) {
+      store.adCampaignArchives.push({
+        id: crypto.randomBytes(12).toString('hex'),
+        slotId,
+        slotName: current.name,
+        content: current.content,
+        link: String(current.link || ''),
+        message: String(current.message || ''),
+        report: previousReport,
+        archivedAt: now,
+      });
+    }
+  }
+  const record = {
+    slotId, name, content: attribution.content, link, message,
+    createdAt: current.createdAt || now, updatedAt: now,
+  };
+  const existingIndex = store.adCampaignSlots.findIndex(item => item && item.slotId === slotId);
+  if (existingIndex >= 0) store.adCampaignSlots[existingIndex] = record;
+  else store.adCampaignSlots.push(record);
+  writeStore(store);
+  return { saved: true, slot: record, archived: changedTracking };
+}
+
+function getAdCampaignArchives() {
+  return readStore().adCampaignArchives
+    .slice()
+    .sort((a, b) => String(b.archivedAt).localeCompare(String(a.archivedAt)));
+}
+
+function deleteAdCampaignArchive(archiveId) {
+  const id = String(archiveId || '');
+  if (!id) return { deleted: false };
+  const store = readStore();
+  const before = store.adCampaignArchives.length;
+  store.adCampaignArchives = store.adCampaignArchives.filter(item => item && item.id !== id);
+  if (store.adCampaignArchives.length === before) return { deleted: false };
+  writeStore(store);
+  return { deleted: true };
+}
+
+module.exports = { getAdCampaignSlots, saveAdCampaignSlot, getAdCampaignArchives, deleteAdCampaignArchive, normalizeAttribution, recordVisit, recordEvent, recordAuthenticatedVisit, recordRegistration, recordPurchase, getReport, getAdCampaigns, saveAdCampaign };
