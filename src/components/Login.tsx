@@ -3,6 +3,7 @@ import type { StoredUser } from '../types';
 import * as authService from '../services/authService';
 import { LockClosedIcon, EyeIcon, EyeSlashIcon, XMarkIcon, UserPlusIcon, CheckCircleIcon, ArrowUturnLeftIcon } from './Icons';
 import { useNotification } from './NotificationSystem';
+import { trackMarketingEvent } from '../services/marketingAttribution';
 
 interface LoginProps { onLogin: (user: StoredUser) => void; }
 
@@ -26,6 +27,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [otpCountdown, setOtpCountdown] = useState(0);
   const [signupForm, setSignupForm] = useState({ firstName: '', lastName: '', mobile: '', email: '', referralCode: '' });
   const [signupSuccess, setSignupSuccess] = useState(false);
+
+  useEffect(() => {
+    void trackMarketingEvent('login_page_view');
+  }, []);
 
   useEffect(() => {
     if (otpCountdown <= 0) return;
