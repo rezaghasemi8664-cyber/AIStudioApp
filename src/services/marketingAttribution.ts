@@ -93,7 +93,9 @@ export async function trackMarketingEvent(eventType: MarketingFunnelEvent): Prom
 
   const sessionKey = `roniyaMarketingEventTracked:${attribution.campaign}:${attribution.content}:${eventType}`;
   try {
-    if (window.sessionStorage.getItem(sessionKey) === '1') return;
+    if (window.sessionStorage.getItem(sessionKey) === '1' || window.sessionStorage.getItem(sessionKey) === 'pending') return;
+    // Mark synchronously so React StrictMode cannot submit the same event twice.
+    window.sessionStorage.setItem(sessionKey, 'pending');
   } catch {
     // Continue with best-effort tracking when sessionStorage is unavailable.
   }
@@ -103,9 +105,11 @@ export async function trackMarketingEvent(eventType: MarketingFunnelEvent): Prom
     if (response.success && response.data?.recorded === true) {
       try { window.sessionStorage.setItem(sessionKey, '1'); } catch {}
     } else {
+      try { window.sessionStorage.removeItem(sessionKey); } catch {}
       console.warn('[MarketingAttribution] funnel event was not recorded:', response.message || response.data);
     }
   } catch (error) {
+    try { window.sessionStorage.removeItem(sessionKey); } catch {}
     console.warn('[MarketingAttribution] funnel event tracking failed:', error);
   }
 }
