@@ -81,8 +81,7 @@ router.put('/slots', auth, auth.requireAdmin, (req, res) => {
     if (!result.saved) {
       const messages = {
         'invalid-slot': 'جایگاه تبلیغاتی معتبر نیست.',
-        'missing-name': 'نام کانال یا سایت را وارد کنید.',
-        'missing-link': 'لینک اختصاصی تبلیغ را وارد کنید.',
+        'incomplete-slot': 'برای فعال‌بودن جایگاه، هم نام کانال یا سایت و هم لینک اختصاصی را وارد کنید؛ برای غیرفعال‌کردن، هر دو را پاک کنید.',
         'invalid-link': 'لینک واردشده معتبر نیست.',
         'invalid-attribution-link': 'لینک باید شامل utm_source معتبر (نام سایت یا پلتفرم)، utm_medium=paid، utm_campaign=roniya_ads و utm_content معتبر باشد.',
         'duplicate-link': 'این لینک در جایگاه دیگری استفاده شده است.',
