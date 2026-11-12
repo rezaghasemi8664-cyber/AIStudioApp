@@ -90,7 +90,7 @@ const AdminMarketingAttributionPanel: React.FC = () => {
         const trailing = rawUrl.match(/[),.!?،؛]+$/)?.[0] || '';
         finalMessage = campaignMessage.slice(0, match.index) + link + trailing + campaignMessage.slice(match.index + rawUrl.length);
       } else {
-        finalMessage = finalMessage + '\\n\\n' + link;
+        finalMessage = finalMessage + '\n\n' + link;
       }
       await saveMarketingAdCampaign({ id: created.id, name: campaignName.trim(), message: finalMessage });
       setGeneratedLink(link); setGeneratedMessage(finalMessage);
