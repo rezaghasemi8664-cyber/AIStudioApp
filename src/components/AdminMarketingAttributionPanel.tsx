@@ -83,13 +83,13 @@ const AdminMarketingAttributionPanel: React.FC = () => {
       // Replace an existing Ronya/UTM tracking URL instead of appending a second link.
       // Strip trailing punctuation only for URL parsing; preserve it in the message.
       let replacedExistingLink = false;
-      const finalMessage = campaignMessage.replace(/https?:\\/\\/[^\\s<>"']+/gi, candidate => {
-        const trailing = candidate.match(/[.,،؛!?؟)\\]»]+$/)?.[0] || '';
+      const finalMessage = campaignMessage.replace(/https?:\/\/[^\s<>"']+/gi, candidate => {
+        const trailing = candidate.match(/[.,،؛!?؟)\]»]+$/)?.[0] || '';
         const rawUrl = trailing ? candidate.slice(0, -trailing.length) : candidate;
         let shouldReplace = false;
         try {
           const parsed = new URL(rawUrl);
-          const host = parsed.hostname.toLowerCase().replace(/^www\\./, '');
+          const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
           const isRonyaHost = host === 'roniya-analyzer.ir';
           const isRonyaTracking = ['roniya_ads', 'roniya_oct2026'].includes(parsed.searchParams.get('utm_campaign') || '');
           shouldReplace = isRonyaHost || isRonyaTracking || parsed.searchParams.has('utm_content');
