@@ -3,7 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middlewares/auth.middleware.cjs');
-const { normalizeAttribution, recordVisit, recordEvent, getReport } = require('../services/marketingAttribution.service.cjs');
+const { normalizeAttribution, recordVisit, recordEvent, getReport, getAdCampaigns, saveAdCampaign } = require('../services/marketingAttribution.service.cjs');
 
 router.post('/visit', (req, res) => {
   try {
@@ -40,6 +40,32 @@ router.post('/event', (req, res) => {
   } catch (error) {
     console.error('[MARKETING_ATTRIBUTION] event failed:', error.message);
     return res.status(500).json({ success: false, message: 'ثبت رویداد تبلیغاتی ناموفق بود.' });
+  }
+});
+
+
+router.get('/settings', auth, auth.requireAdmin, (_req, res) => {
+  try {
+    return res.json({ success: true, data: { campaigns: getAdCampaigns() } });
+  } catch (error) {
+    console.error('[MARKETING_ATTRIBUTION] settings read failed:', error.message);
+    return res.status(500).json({ success: false, message: 'دریافت تنظیمات پیام تبلیغات ناموفق بود.' });
+  }
+});
+
+router.put('/settings', auth, auth.requireAdmin, (req, res) => {
+  try {
+    const result = saveAdCampaign(req.body || {});
+    if (!result.saved) {
+      const message = result.reason === 'missing-name' ? 'نام کانال یا سایت را وارد کنید.'
+        : result.reason === 'missing-message' ? 'متن پیام تبلیغاتی را وارد کنید.'
+        : 'شناسه کانال معتبر نیست.';
+      return res.status(400).json({ success: false, message });
+    }
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('[MARKETING_ATTRIBUTION] settings save failed:', error.message);
+    return res.status(500).json({ success: false, message: 'ذخیره تنظیمات پیام تبلیغات ناموفق بود.' });
   }
 });
 
