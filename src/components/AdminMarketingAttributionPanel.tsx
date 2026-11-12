@@ -80,17 +80,61 @@ const AdminMarketingAttributionPanel: React.FC = () => {
       url.searchParams.set('utm_campaign', 'roniya_ads');
       url.searchParams.set('utm_content', created.id);
       const link = url.toString();
-      const linkPattern = /https?:\/\/\S*utm_campaign=roniya_ads\S*/i;
-      const finalMessage = linkPattern.test(campaignMessage) ? campaignMessage.replace(linkPattern, link) : campaignMessage.trimEnd() + '\n\n' + link;
-      await saveMarketingAdCampaign({ id: created.id, name: campaignName.trim(), message: finalMessage });
-      setGeneratedLink(link); setGeneratedMessage(finalMessage);
+      // Replace an existing Ronya/UTM tracking URL instead of appending a second link.
+      // Strip trailing punctuation only for URL parsing; preserve it in the message.
+      let replacedExistingLink = false;
+      const finalMessage = campaignMessage.replace(/https?:\\/\\/[^\\s<>"']+/gi, candidate => {
+        const trailing = candidate.match(/[.,،؛!?؟)\\]»]+$/)?.[0] || '';
+        const rawUrl = trailing ? candidate.slice(0, -trailing.length) : candidate;
+        let shouldReplace = false;
+        try {
+          const parsed = new URL(rawUrl);
+          const host = parsed.hostname.toLowerCase().replace(/^www\\./, '');
+          const isRonyaHost = host === 'roniya-analyzer.ir';
+          const isRonyaTracking = ['roniya_ads', 'roniya_oct2026'].includes(parsed.searchParams.get('utm_campaign') || '');
+          shouldReplace = isRonyaHost || isRonyaTracking || parsed.searchParams.has('utm_content');
+        } catch {
+          shouldReplace = false;
+        }
+        if (!shouldReplace) return candidate;
+        replacedExistingLink = true;
+        return link + trailing;
+      });
+      const messageWithLink = replacedExistingLink
+        ? finalMessage
+        : campaignMessage.trimEnd() + '\n\n' + link;
+      await saveMarketingAdCampaign({ id: created.id, name: campaignName.trim(), message: messageWithLink });
+      setGeneratedLink(link); setGeneratedMessage(messageWithLink);
       setNotice('لینک رهگیری اختصاصی ساخته شد. آن را در جایگاه موردنظر ثبت کنید.');
     } catch (e) { setError(e instanceof Error ? e.message : 'ساخت لینک رهگیری ناموفق بود.'); }
     finally { setCampaignSaving(false); }
   };
   const copyText = async (value: string, label: string) => {
-    try { await navigator.clipboard.writeText(value); setNotice(label + ' کپی شد.'); }
-    catch { setError('کپی خودکار ممکن نشد؛ متن را انتخاب و کپی کنید.'); }
+    if (!value) { setError('متنی برای کپی وجود ندارد.'); return; }
+    try {
+      if (navigator.clipboard?.writeText && window.isSecureContext) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        // iOS Safari and embedded webviews may not expose Clipboard API.
+        const textarea = document.createElement('textarea');
+        textarea.value = value;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        textarea.style.fontSize = '16px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        textarea.setSelectionRange(0, textarea.value.length);
+        const copied = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        if (!copied) throw new Error('clipboard-fallback-failed');
+      }
+      setNotice(label + ' کپی شد.');
+      setError(null);
+    } catch {
+      setError('کپی خودکار در این مرورگر انجام نشد؛ متن را از کادر انتخاب و کپی کنید.');
+    }
   };
   const updateDraft = (slotId: string, field: 'name' | 'link', value: string) =>
     setDrafts(previous => ({ ...previous, [slotId]: { ...(previous[slotId] || { name: '', link: '' }), [field]: value } }));
