@@ -32,11 +32,14 @@ function readStore() {
     return {
       visits,
       clicks: Array.isArray(parsed.clicks) ? parsed.clicks : legacyClicks,
+      landingPageViews: Array.isArray(parsed.landingPageViews) ? parsed.landingPageViews : legacyClicks,
+      ctaClicks: Array.isArray(parsed.ctaClicks) ? parsed.ctaClicks : [],
+      loginPageViews: Array.isArray(parsed.loginPageViews) ? parsed.loginPageViews : [],
       registrations: Array.isArray(parsed.registrations) ? parsed.registrations : [],
       purchases: Array.isArray(parsed.purchases) ? parsed.purchases : [],
     };
   } catch {
-    return { visits: [], clicks: [], registrations: [], purchases: [] };
+    return { visits: [], clicks: [], landingPageViews: [], ctaClicks: [], loginPageViews: [], registrations: [], purchases: [] };
   }
 }
 
@@ -53,10 +56,25 @@ function recordVisit(input) {
   // A landing-page hit is a click, not a qualified visit. It must not inflate
   // the visitor count until this attributed registrant successfully logs in.
   const store = readStore();
-  store.clicks.push({ id: crypto.randomBytes(12).toString('hex'), ...attribution, clickedAt: new Date().toISOString() });
-  if (store.clicks.length > MAX_EVENTS) store.clicks = store.clicks.slice(-MAX_EVENTS);
+  store.landingPageViews.push({ id: crypto.randomBytes(12).toString('hex'), ...attribution, viewedAt: new Date().toISOString() });
+  if (store.landingPageViews.length > MAX_EVENTS) store.landingPageViews = store.landingPageViews.slice(-MAX_EVENTS);
   writeStore(store);
   return { recorded: true, counted: false };
+}
+
+function recordEvent({ input, eventType }) {
+  const attribution = normalizeAttribution(input);
+  if (!attribution || !['cta_click', 'login_page_view'].includes(eventType)) return { recorded: false };
+  const store = readStore();
+  const key = eventType === 'cta_click' ? 'ctaClicks' : 'loginPageViews';
+  store[key].push({
+    id: crypto.randomBytes(12).toString('hex'),
+    ...attribution,
+    occurredAt: new Date().toISOString(),
+  });
+  if (store[key].length > MAX_EVENTS) store[key] = store[key].slice(-MAX_EVENTS);
+  writeStore(store);
+  return { recorded: true };
 }
 
 function recordAuthenticatedVisit({ userId }) {
@@ -116,20 +134,28 @@ function getReport() {
   for (const content of ALLOWED_CONTENT) {
     const visits = store.visits.filter(item => item.content === content && item.userId !== undefined && item.userId !== null);
     const clicks = store.clicks.filter(item => item.content === content);
+    const landingPageViews = store.landingPageViews.filter(item => item.content === content);
+    const ctaClicks = store.ctaClicks.filter(item => item.content === content);
+    const loginPageViews = store.loginPageViews.filter(item => item.content === content);
     const registrations = store.registrations.filter(item => item.content === content);
     const purchases = store.purchases.filter(item => item.content === content);
     const revenueAmount = purchases.reduce((total, item) => total + Number(item.amount || 0), 0);
     channels[content] = {
-      visits: visits.length, visitCount: visits.length, clickCount: clicks.length, registrationCount: registrations.length,
+      visits: visits.length, visitCount: visits.length, clickCount: clicks.length,
+      landingPageViewCount: landingPageViews.length, ctaClickCount: ctaClicks.length, loginPageViewCount: loginPageViews.length,
+      registrationCount: registrations.length,
       conversionRatePercent: clicks.length ? Math.round((registrations.length / clicks.length) * 10000) / 100 : 0,
       paidPurchaseCount: purchases.length, revenueAmount,
       currency: purchases.find(item => item.currency)?.currency || 'IRR',
       recentRegistrations: registrations.slice(-100).map(({ userId, registeredAt, source, medium, campaign, content: channel }) => ({ userId, registeredAt, source, medium, campaign, content: channel })),
       recentPurchases: purchases.slice(-100).map(({ paymentId, userId, planId, amount, currency, refId, paidAt, content: channel }) => ({ paymentId, userId, planId, amount, currency, refId, paidAt, content: channel })),
-      recentClicks: clicks.slice(-100).map(({ id, clickedAt, source, medium, campaign, content: channel }) => ({ id, clickedAt, source, medium, campaign, content: channel }))
+      recentClicks: clicks.slice(-100).map(({ id, clickedAt, source, medium, campaign, content: channel }) => ({ id, clickedAt, source, medium, campaign, content: channel })),
+      recentLandingPageViews: landingPageViews.slice(-100).map(({ id, viewedAt, source, medium, campaign, content: channel }) => ({ id, occurredAt: viewedAt, source, medium, campaign, content: channel })),
+      recentCtaClicks: ctaClicks.slice(-100).map(({ id, occurredAt, source, medium, campaign, content: channel }) => ({ id, occurredAt, source, medium, campaign, content: channel })),
+      recentLoginPageViews: loginPageViews.slice(-100).map(({ id, occurredAt, source, medium, campaign, content: channel }) => ({ id, occurredAt, source, medium, campaign, content: channel }))
     };
   }
   return { generatedAt: new Date().toISOString(), channels };
 }
 
-module.exports = { normalizeAttribution, recordVisit, recordAuthenticatedVisit, recordRegistration, recordPurchase, getReport };
+module.exports = { normalizeAttribution, recordVisit, recordEvent, recordAuthenticatedVisit, recordRegistration, recordPurchase, getReport };
