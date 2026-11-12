@@ -2948,3 +2948,23 @@ a:focus-visible {
   position: relative;
   z-index: 2;
 }
+
+
+/* Dashboard header width fix:
+   The header currently has one direct child containing the complete header layout.
+   Do not apply the legacy three-column workstation grid or end-align that child,
+   otherwise the nested clock/index row can shrink to its intrinsic content width. */
+@media (min-width: 901px) {
+  .app-shell > .app-header {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .app-shell > .app-header > :first-child {
+    display: flex;
+    flex-direction: column;
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-self: stretch !important;
+  }
+}
