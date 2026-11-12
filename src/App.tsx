@@ -1267,7 +1267,7 @@ const App: React.FC = () => {
                 <button onClick={handleLogout} className="p-2.5 rounded-xl border border-transparent hover:border-red-200 dark:hover:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors text-red-500 hover:text-red-600" title="خروج" aria-label="خروج"><ArrowRightOnRectangleIcon /></button>
               </div>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 items-stretch gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-1 items-stretch gap-3 sm:gap-4">
               <div className="flex w-full min-w-0 items-center justify-center lg:justify-start rounded-xl border px-3 py-3 sm:px-4" style={{ borderColor: 'var(--header-border-color)', backgroundColor: 'var(--color-surface)' }}>
                 <Clock />
               </div>
