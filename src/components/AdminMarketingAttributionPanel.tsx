@@ -85,7 +85,7 @@ const AdminMarketingAttributionPanel: React.FC = () => {
 
   return <div className="space-y-5">
     <section className="rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">آمار تبلیغات تلگرام</h2><p className="mt-1 text-sm text-gray-500">آمار پنج جایگاه تبلیغاتی به‌صورت مستقل ثبت می‌شود. لینک هر جایگاه باید لینک رهگیری رونیا و دارای پارامترهای UTM معتبر باشد.</p></div><button onClick={() => { void loadReport(); void loadSettings(); }} disabled={loading || settingsLoading} className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50">بروزرسانی آمار</button></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">آمار تبلیغات</h2><p className="mt-1 text-sm text-gray-500">آمار پنج جایگاه تبلیغاتی به‌صورت مستقل ثبت می‌شود. لینک هر جایگاه باید لینک رهگیری رونیا و دارای پارامترهای UTM معتبر باشد.</p></div><button onClick={() => { void loadReport(); void loadSettings(); }} disabled={loading || settingsLoading} className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50">بروزرسانی آمار</button></div>
       {report && <p className="mt-3 text-xs text-gray-500">آخرین دریافت: {dateFmt(report.generatedAt)}</p>}
     </section>
     {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
@@ -110,7 +110,7 @@ const AdminMarketingAttributionPanel: React.FC = () => {
           return <div key={slot.slotId} className="rounded-xl border border-[var(--card-border-color)] p-4 space-y-3">
             <h4 className="font-semibold">جایگاه تبلیغاتی {fmt(index + 1)}</h4>
             <label className="block text-sm font-medium">نام کانال یا سایت<input value={draft.name} onChange={e => updateDraft(slot.slotId, 'name', e.target.value)} maxLength={120} placeholder="نام کانال یا سایت" className="mt-2 w-full rounded-xl border border-[var(--card-border-color)] bg-transparent p-3" /></label>
-            <label className="block text-sm font-medium">لینک اختصاصی موجود در پیام تبلیغ<textarea value={draft.link} onChange={e => updateDraft(slot.slotId, 'link', e.target.value)} rows={3} maxLength={2048} placeholder="https://www.roniya-analyzer.ir/?utm_source=telegram&..." dir="ltr" className="mt-2 w-full rounded-xl border border-[var(--card-border-color)] bg-transparent p-3 text-left text-sm" /></label>
+            <label className="block text-sm font-medium">لینک اختصاصی موجود در پیام تبلیغ<textarea value={draft.link} onChange={e => updateDraft(slot.slotId, 'link', e.target.value)} rows={3} maxLength={2048} placeholder="https://www.roniya-analyzer.ir/?utm_source=نام-سایت-یا-پلتفرم&utm_medium=paid&utm_campaign=roniya_ads&utm_content=..." dir="ltr" className="mt-2 w-full rounded-xl border border-[var(--card-border-color)] bg-transparent p-3 text-left text-sm" /></label>
             <button type="button" onClick={() => void saveSlot(slot)} disabled={savingSlot === slot.slotId} className="rounded-xl bg-cyan-600 px-5 py-2.5 font-semibold text-white disabled:opacity-50">{savingSlot === slot.slotId ? 'در حال ذخیره…' : 'ذخیره جایگاه'}</button>
           </div>;
         })}
