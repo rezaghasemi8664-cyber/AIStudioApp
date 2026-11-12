@@ -277,6 +277,15 @@
         <p>رونیا ابزارهای تحلیل تکنیکال و بنیادی، مقایسه سهام، بررسی بازار و نوسان‌گیری بورس ایران را در یک سامانه یکپارچه ارائه می‌کند.</p>
       </main>
     </div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function (error) {
+            console.warn('Roniya service worker registration failed:', error);
+          });
+        });
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
