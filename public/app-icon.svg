@@ -3,8 +3,8 @@
   <rect width="512" height="512" rx="96" fill="#ffffff"/>
   <defs>
     <clipPath id="mark-crop">
-      <rect x="0" y="64" width="512" height="300"/>
+      <rect x="0" y="106" width="512" height="300"/>
     </clipPath>
   </defs>
-  <image x="0" y="64" width="512" height="384" xlink:href="/2.png" preserveAspectRatio="none" clip-path="url(#mark-crop)"/>
+  <image x="0" y="106" width="512" height="384" xlink:href="/2.png" preserveAspectRatio="none" clip-path="url(#mark-crop)"/>
 </svg>
