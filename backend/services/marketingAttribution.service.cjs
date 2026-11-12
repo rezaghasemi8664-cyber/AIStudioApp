@@ -8,6 +8,8 @@ const dataDir = path.join(__dirname, '..', 'data');
 const filePath = path.join(dataDir, 'marketing-attribution.json');
 const ALLOWED_CONTENT = new Set(['bursebazaar', 'arzonlineinfo', 'roniya']);
 const MAX_EVENTS = 100000;
+const AD_CAMPAIGN = 'roniya_ads';
+const isDynamicContent = value => /^[a-f0-9]{16,32}$/.test(String(value || ''));
 
 function normalizeAttribution(input) {
   if (!input || typeof input !== 'object') return null;
@@ -15,7 +17,10 @@ function normalizeAttribution(input) {
   const medium = String(input.medium || '').trim().slice(0, 100);
   const campaign = String(input.campaign || '').trim().slice(0, 100);
   const content = String(input.content || '').trim().slice(0, 100);
-  if (source !== 'telegram' || medium !== 'paid' || campaign !== 'roniya_oct2026' || !ALLOWED_CONTENT.has(content)) return null;
+  if (source !== 'telegram' || medium !== 'paid') return null;
+  const isLegacyCampaign = campaign === 'roniya_oct2026' && ALLOWED_CONTENT.has(content);
+  const isAdCampaign = campaign === AD_CAMPAIGN && isDynamicContent(content);
+  if (!isLegacyCampaign && !isAdCampaign) return null;
   return { source, medium, campaign, content };
 }
 
@@ -38,9 +43,10 @@ function readStore() {
       signupClicks: Array.isArray(parsed.signupClicks) ? parsed.signupClicks : [],
       registrations: Array.isArray(parsed.registrations) ? parsed.registrations : [],
       purchases: Array.isArray(parsed.purchases) ? parsed.purchases : [],
+      adCampaigns: Array.isArray(parsed.adCampaigns) ? parsed.adCampaigns : [],
     };
   } catch {
-    return { visits: [], clicks: [], landingPageViews: [], ctaClicks: [], loginPageViews: [], signupClicks: [], registrations: [], purchases: [] };
+    return { visits: [], clicks: [], landingPageViews: [], ctaClicks: [], loginPageViews: [], signupClicks: [], registrations: [], purchases: [], adCampaigns: [] };
   }
 }
 
@@ -132,7 +138,8 @@ function recordPurchase({ userId, paymentId, amount, currency = 'IRR', paidAt, p
 function getReport() {
   const store = readStore();
   const channels = {};
-  for (const content of ALLOWED_CONTENT) {
+  const reportContentKeys = new Set([...ALLOWED_CONTENT, ...store.adCampaigns.map(item => item && item.id).filter(isDynamicContent)]);
+  for (const content of reportContentKeys) {
     const visits = store.visits.filter(item => item.content === content && item.userId !== undefined && item.userId !== null);
     const clicks = store.clicks.filter(item => item.content === content);
     const landingPageViews = store.landingPageViews.filter(item => item.content === content);
@@ -162,4 +169,35 @@ function getReport() {
   return { generatedAt: new Date().toISOString(), channels };
 }
 
-module.exports = { normalizeAttribution, recordVisit, recordEvent, recordAuthenticatedVisit, recordRegistration, recordPurchase, getReport };
+
+function getAdCampaigns() {
+  return readStore().adCampaigns
+    .filter(item => item && isDynamicContent(item.id))
+    .map(item => ({ id: item.id, name: String(item.name || ''), message: String(item.message || ''), createdAt: item.createdAt || null, updatedAt: item.updatedAt || null }));
+}
+
+function saveAdCampaign(input) {
+  const name = String(input?.name || '').trim().slice(0, 120);
+  const message = String(input?.message || '').trim().slice(0, 5000);
+  const requestedId = String(input?.id || '').trim();
+  if (!name) return { saved: false, reason: 'missing-name' };
+  if (!message) return { saved: false, reason: 'missing-message' };
+  if (requestedId && !isDynamicContent(requestedId)) return { saved: false, reason: 'invalid-id' };
+
+  const store = readStore();
+  const existingIndex = requestedId ? store.adCampaigns.findIndex(item => item && item.id === requestedId) : -1;
+  const now = new Date().toISOString();
+  const record = {
+    id: existingIndex >= 0 ? requestedId : crypto.randomBytes(12).toString('hex'),
+    name,
+    message,
+    createdAt: existingIndex >= 0 ? store.adCampaigns[existingIndex].createdAt || now : now,
+    updatedAt: now,
+  };
+  if (existingIndex >= 0) store.adCampaigns[existingIndex] = record;
+  else store.adCampaigns.push(record);
+  writeStore(store);
+  return { saved: true, campaign: record };
+}
+
+module.exports = { normalizeAttribution, recordVisit, recordEvent, recordAuthenticatedVisit, recordRegistration, recordPurchase, getReport, getAdCampaigns, saveAdCampaign };
