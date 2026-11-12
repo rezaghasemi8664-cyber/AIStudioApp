@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>تحلیلگر هوشمند بورس رونیا</title>
     <meta name="description" content="رونیا، نرم‌افزار تحلیل بورس ایران با ابزارهای تحلیل تکنیکال و بنیادی، مقایسه سهام، بررسی بازار و نوسان‌گیری برای تصمیم‌گیری آگاهانه‌تر." />
+    <meta name="theme-color" content="#0891b2" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="رونیا" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" href="/2.png" />
+    <link rel="apple-touch-icon" href="/2.png" />
     <link rel="canonical" href="https://www.roniya-analyzer.ir/" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta property="og:type" content="website" />
@@ -269,6 +277,15 @@
         <p>رونیا ابزارهای تحلیل تکنیکال و بنیادی، مقایسه سهام، بررسی بازار و نوسان‌گیری بورس ایران را در یک سامانه یکپارچه ارائه می‌کند.</p>
       </main>
     </div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function (error) {
+            console.warn('Roniya service worker registration failed:', error);
+          });
+        });
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
