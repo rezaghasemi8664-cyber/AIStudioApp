@@ -195,7 +195,21 @@ setForgotStep('mobile'); setForgotMobile(''); setForgotOtp(''); setResetToken(''
               {[28,42,35,58,48,72,62,88,70,96,78,100,84,108].map((height,index)=><span key={index} className="flex-1 rounded-t-md bg-gradient-to-t from-emerald-300/20 to-emerald-100/90" style={{height:height+'%'}} />)}
             </div>
           </div>
-          <div className="relative z-10 mt-8 lg:mt-10 flex items-center justify-between text-[11px] sm:text-xs text-emerald-100/75"><span>پلتفرم تحلیلگر هوشمند بورس</span><span>roniya-analyzer.ir</span></div>
+          <div className="relative z-10 mt-8 lg:mt-10 flex items-end justify-between gap-4 text-[11px] sm:text-xs text-emerald-100/75">
+            <span>پلتفرم تحلیلگر هوشمند بورس</span>
+            <div className="flex flex-col items-end gap-2 text-right">
+              <span dir="ltr">roniya-analyzer.ir</span>
+              <a
+                href="https://t.me/RoniyaAnalyzer"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-emerald-100 hover:text-white hover:underline underline-offset-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 focus-visible:ring-offset-2 focus-visible:ring-offset-[#164b40] rounded-sm"
+                aria-label="ورود به کانال تلگرام رونیا"
+              >
+                ورود به کانال تلگرام رونیا
+              </a>
+            </div>
+          </div>
         </section>
         <section className="order-1 lg:order-2 flex items-center justify-center min-w-0" style={{ backgroundColor: 'var(--login-card-bg, #ffffff)' }}>
           <div className="w-full max-w-xl" style={{ color: 'var(--login-card-color, var(--card-color))' }}>{renderContent()}</div>
