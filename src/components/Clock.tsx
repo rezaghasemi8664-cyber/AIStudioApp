@@ -74,7 +74,7 @@ const Clock: React.FC = () => {
             <CalendarDaysIcon className="h-5 w-5 flex-shrink-0 text-cyan-600 dark:text-cyan-500 sm:h-6 sm:w-6" />
             <div className="min-w-0 flex-1 text-right">
                 <div className="roniya-clock-date-row flex min-w-0 flex-col items-end justify-center gap-0.5 text-right">
-                    <p className="whitespace-nowrap font-semibold leading-5 text-gray-800 dark:text-gray-300 font-mono">{shamsiDate}</p>
+                    <p className="whitespace-normal break-words font-semibold leading-5 text-gray-800 dark:text-gray-300 font-mono">{shamsiDate}</p>
                     <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-0.5 leading-5">
                         <p className="whitespace-nowrap font-mono text-[10px] sm:text-xs">{gregorianDate}</p>
                         <span className="text-gray-400 dark:text-gray-600">|</span>

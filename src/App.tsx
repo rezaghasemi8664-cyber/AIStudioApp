@@ -1243,15 +1243,15 @@ const App: React.FC = () => {
         {!isOnline && !currentUser.isAdmin && <OfflineBanner />}
         {activeTab === 'dashboard' && <header data-style-id="header" data-style-name="هدر اصلی" className="app-header -mx-3 sm:-mx-4 lg:-mx-6 mb-4 rounded-none sm:rounded-2xl border-b sm:border shadow-sm overflow-visible px-3 sm:px-5 lg:px-6 py-4 sm:py-5" style={{ backgroundColor: 'var(--header-bg)', borderColor: 'var(--header-border-color)' }}>
           <div className="flex flex-col gap-4 sm:gap-5">
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-              <div className="brand-lockup flex min-w-0 items-center gap-3">
-                <img src="/2.png" alt="لوگوی رونیا" className="brand-logo h-12 w-12 sm:h-14 sm:w-14 object-contain shrink-0" />
+            <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-x-4 gap-y-3">
+              <div className="brand-lockup flex min-w-0 flex-1 items-center gap-3">
+                <img src="/2.png" alt="لوگوی رونیا" className="brand-logo h-14 w-14 sm:h-16 sm:w-16 object-contain shrink-0" />
                 <div className="brand-copy min-w-0">
                   <h1 className="brand-title whitespace-nowrap text-base sm:text-lg lg:text-xl font-extrabold tracking-tight">تحلیلگر هوشمند بورس <span>رونیا</span></h1>
                   <p className="brand-subtitle hidden sm:block text-xs lg:text-sm mt-1">هوشمندی داده‌محور برای تصمیم‌گیری بهتر در بازار سرمایه</p>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 relative">
+              <div className="flex flex-wrap lg:flex-nowrap items-center justify-end gap-2 sm:gap-3 relative shrink-0">
                 <div className="rounded-xl border px-3 py-2" style={{ borderColor: 'var(--header-border-color)', backgroundColor: 'var(--color-surface)' }}>
                   <ValidityBadge validityInfo={validityInfo} />
                 </div>
@@ -1267,8 +1267,8 @@ const App: React.FC = () => {
                 <button onClick={handleLogout} className="p-2.5 rounded-xl border border-transparent hover:border-red-200 dark:hover:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors text-red-500 hover:text-red-600" title="خروج" aria-label="خروج"><ArrowRightOnRectangleIcon /></button>
               </div>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,460px)] items-center gap-3 sm:gap-4">
-              <div className="flex min-w-0 items-center justify-center lg:justify-start rounded-xl border px-3 py-3 sm:px-4" style={{ borderColor: 'var(--header-border-color)', backgroundColor: 'var(--color-surface)' }}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 items-stretch gap-3 sm:gap-4">
+              <div className="flex w-full min-w-0 items-center justify-center lg:justify-start rounded-xl border px-3 py-3 sm:px-4" style={{ borderColor: 'var(--header-border-color)', backgroundColor: 'var(--color-surface)' }}>
                 <Clock />
               </div>
               <div className="w-full min-w-0">
