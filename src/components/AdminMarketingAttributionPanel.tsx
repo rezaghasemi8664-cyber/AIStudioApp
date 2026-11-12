@@ -45,7 +45,8 @@ const AdminMarketingAttributionPanel: React.FC = () => {
     return /https?:\/\/[^\s]+/.test(cleaned)
       ? cleaned.replace(/https?:\/\/[^\s]+/g, link)
       : `${cleaned}${cleaned ? '\n\n' : ''}${link}`;
-  };\n  const resetCampaignForm = () => { setEditingId(null); setCampaignName(''); setCampaignMessage(''); setSettingsError(null); setSettingsNotice(null); };
+  };
+  const resetCampaignForm = () => { setEditingId(null); setCampaignName(''); setCampaignMessage(''); setSettingsError(null); setSettingsNotice(null); };
   const editCampaign = (campaign: MarketingAdCampaign) => { setEditingId(campaign.id); setCampaignName(campaign.name); setCampaignMessage(campaign.message); setSettingsError(null); setSettingsNotice(null); };
   const saveCampaign = async () => {
     if (!campaignName.trim() || !campaignMessage.trim()) { setSettingsError('نام کانال یا سایت و متن پیام تبلیغاتی را وارد کنید.'); return; }
