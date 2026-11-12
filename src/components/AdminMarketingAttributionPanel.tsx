@@ -82,7 +82,7 @@ const AdminMarketingAttributionPanel: React.FC = () => {
       const link = url.toString();
       // Replace the first existing URL regardless of its previous UTM campaign/source.
       // Keep common punctuation that belongs to the surrounding message.
-      const existingUrl = /https?:\\/\\/[^\\s<>"']+/i;
+      const existingUrl = /https?:\/\/[^\s<>"']+/i;
       const match = campaignMessage.match(existingUrl);
       let finalMessage = campaignMessage.trimEnd();
       if (match && typeof match.index === 'number') {
