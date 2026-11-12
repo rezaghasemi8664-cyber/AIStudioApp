@@ -70,12 +70,12 @@ const Clock: React.FC = () => {
     }).format(new Date(now)), [now]);
 
     return (
-        <div className="roniya-clock flex min-w-0 items-center gap-2 text-sm text-gray-600 dark:text-gray-400 sm:gap-3">
-            <CalendarDaysIcon className="h-5 w-5 flex-shrink-0 text-cyan-600 dark:text-cyan-500 sm:h-6 sm:w-6" />
-            <div className="min-w-0 flex-1 text-right">
-                <div className="roniya-clock-date-row flex min-w-0 flex-col items-end justify-center gap-0.5 text-right">
+        <div className="roniya-clock relative flex min-w-0 items-center justify-center gap-2 text-sm text-gray-600 dark:text-gray-400 sm:gap-3 lg:justify-center">
+            <CalendarDaysIcon className="h-5 w-5 flex-shrink-0 text-cyan-600 dark:text-cyan-500 sm:h-6 sm:w-6 lg:absolute lg:left-0" />
+            <div className="min-w-0 flex-1 text-right lg:w-full lg:flex-none lg:text-center">
+                <div className="roniya-clock-date-row flex min-w-0 flex-col items-end justify-center gap-0.5 text-right lg:items-center lg:text-center">
                     <p className="whitespace-normal break-words font-semibold leading-5 text-gray-800 dark:text-gray-300 font-mono">{shamsiDate}</p>
-                    <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-0.5 leading-5">
+                    <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-0.5 leading-5 lg:justify-center">
                         <p className="whitespace-nowrap font-mono text-[10px] sm:text-xs">{gregorianDate}</p>
                         <span className="text-gray-400 dark:text-gray-600">|</span>
                         <p className="whitespace-nowrap font-mono text-[11px] sm:text-sm">{currentTime}</p>
