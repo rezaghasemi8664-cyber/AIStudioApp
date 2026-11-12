@@ -134,12 +134,12 @@ const AdminMarketingAttributionPanel: React.FC = () => {
     setDrafts(previous => ({ ...previous, [slotId]: { ...(previous[slotId] || { name: '', link: '' }), [field]: value } }));
   const saveSlot = async (slot: MarketingAdSlot) => {
     const draft = drafts[slot.slotId];
-    if (!draft?.name.trim() || !draft?.link.trim()) { setError('نام کانال یا سایت و لینک اختصاصی آن را وارد کنید.'); return; }
+    if (Boolean(draft?.name.trim()) !== Boolean(draft?.link.trim())) { setError('برای فعال‌بودن جایگاه، نام و لینک را هر دو وارد کنید؛ برای غیرفعال‌کردن، هر دو را پاک کنید.'); return; }
     setSavingSlot(slot.slotId); setError(null); setNotice(null);
     try {
       await saveMarketingAdSlot({ slotId: slot.slotId, name: draft.name, link: draft.link, message: slot.message || '' });
       await Promise.all([loadReport(), loadSettings()]);
-      setNotice('تنظیمات ذخیره شد. آمار لینک قبلی در بخش «آمار تبلیغات قبلی» نگهداری شده است.');
+      setNotice(draft.name.trim() && draft.link.trim() ? 'تنظیمات ذخیره شد. آمار قبلی با مشخصات قبلی در آرشیو نگهداری شده است.' : 'جایگاه غیرفعال شد؛ نام و لینک از تنظیمات و آمار فعال حذف و آمار قبلی بایگانی شد.');
     } catch (e) { setError(e instanceof Error ? e.message : 'ذخیره جایگاه تبلیغاتی ناموفق بود.'); }
     finally { setSavingSlot(null); }
   };
@@ -162,7 +162,7 @@ const AdminMarketingAttributionPanel: React.FC = () => {
       <div><h3 className="text-lg font-bold">تنظیم پیام تبلیغات و ساخت لینک رهگیری</h3><p className="mt-1 text-sm text-gray-500">منبع تبلیغ را مشخص کنید؛ رونیا یک شناسه یکتای مستقل می‌سازد و لینک آماده انتشار را در متن پیام قرار می‌دهد. پس از ساخت، لینک را کپی کنید و در یکی از پنج جایگاه پایین ثبت کنید.</p></div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label className="block text-sm font-medium">نام کمپین / کانال / سایت<input value={campaignName} onChange={e => setCampaignName(e.target.value)} maxLength={120} placeholder="مثلاً تبلیغ در سایت نمونه" className="mt-2 w-full rounded-xl border border-[var(--card-border-color)] bg-transparent p-3" /></label>
-        <label className="block text-sm font-medium">منبع تبلیغ (utm_source)<input value={campaignSource} onChange={e => setCampaignSource(e.target.value)} maxLength={100} placeholder="telegram یا نام سایت / پلتفرم" dir="ltr" className="mt-2 w-full rounded-xl border border-[var(--card-border-color)] bg-transparent p-3 text-left" /></label>
+        <label className="block text-sm font-medium">منبع تبلیغ (utm_source)<input value={campaignSource} onChange={e => setCampaignSource(e.target.value)} maxLength={100} placeholder="مثلاً کانال بورس یا سایت خبری" dir="rtl" className="mt-2 w-full rounded-xl border border-[var(--card-border-color)] bg-transparent p-3 text-right" /></label>
       </div>
       <label className="block text-sm font-medium">متن پیام تبلیغات<textarea value={campaignMessage} onChange={e => setCampaignMessage(e.target.value)} rows={5} maxLength={5000} placeholder="متن پیام تبلیغاتی را وارد کنید…" className="mt-2 w-full rounded-xl border border-[var(--card-border-color)] bg-transparent p-3" /></label>
       <div className="flex justify-end"><button type="button" onClick={() => void createTrackingLink()} disabled={campaignSaving} className="rounded-xl bg-cyan-600 px-5 py-2.5 font-semibold text-white disabled:opacity-50">{campaignSaving ? 'در حال ساخت لینک…' : 'ساخت لینک اختصاصی و ذخیره پیام'}</button></div>
@@ -171,10 +171,10 @@ const AdminMarketingAttributionPanel: React.FC = () => {
     <section className="space-y-4">
       <h3 className="text-lg font-bold">آمار جایگاه‌های فعال</h3>
       {loading || settingsLoading ? <div className="py-8 text-center text-gray-500">در حال دریافت آمار و تنظیمات…</div> : <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        {slots.map((slot, index) => {
+        {slots.filter(slot => slot.name.trim() && slot.link.trim()).map((slot, index) => {
           const data = report?.channels[slot.content];
           return <article key={slot.slotId} className="rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5">
-            <div className="flex items-center justify-between gap-2"><h4 className="font-bold">{slot.name || EMPTY_SLOT_NAMES[index]}</h4><span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600 dark:bg-gray-800">جایگاه {fmt(index + 1)}</span></div>
+            <div className="flex items-center justify-between gap-2"><h4 className="font-bold">{slot.name || EMPTY_SLOT_NAMES[index]}</h4><span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600 dark:bg-gray-800">جایگاه {fmt(Number(slot.slotId.replace('slot', '')))}</span></div>
             <MetricGrid data={data} /><div className="mt-5"><ActivityTables data={data} /></div>
           </article>;
         })}
@@ -184,7 +184,7 @@ const AdminMarketingAttributionPanel: React.FC = () => {
       <div><h3 className="text-lg font-bold">تنظیم پنج جایگاه تبلیغاتی</h3><p className="mt-1 text-sm text-gray-500">نام کانال یا سایت و همان لینک اختصاصی دارای UTM که در متن تبلیغ منتشر می‌شود را وارد کنید. با تغییر لینک، آمار دوره قبلی بایگانی و آمار لینک جدید از صفر محاسبه می‌شود.</p></div>
       {settingsLoading ? <div className="py-4 text-sm text-gray-500">در حال دریافت تنظیمات…</div> : <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {slots.map((slot, index) => {
-          const draft = drafts[slot.slotId] || { name: slot.name || EMPTY_SLOT_NAMES[index], link: slot.link || '' };
+          const draft = drafts[slot.slotId] || { name: slot.name, link: slot.link || '' };
           return <div key={slot.slotId} className="rounded-xl border border-[var(--card-border-color)] p-4 space-y-3">
             <h4 className="font-semibold">جایگاه تبلیغاتی {fmt(index + 1)}</h4>
             <label className="block text-sm font-medium">نام کانال یا سایت<input value={draft.name} onChange={e => updateDraft(slot.slotId, 'name', e.target.value)} maxLength={120} placeholder="نام کانال یا سایت" className="mt-2 w-full rounded-xl border border-[var(--card-border-color)] bg-transparent p-3" /></label>

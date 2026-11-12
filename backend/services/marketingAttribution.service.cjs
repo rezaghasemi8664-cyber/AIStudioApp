@@ -237,18 +237,23 @@ function saveAdCampaignSlot(input) {
   const link = String(input?.link || '').trim().slice(0, 2048);
   const message = String(input?.message || '').trim().slice(0, 5000);
   if (!/^slot[1-5]$/.test(slotId)) return { saved: false, reason: 'invalid-slot' };
-  if (!name) return { saved: false, reason: 'missing-name' };
-  if (!link) return { saved: false, reason: 'missing-link' };
-  let parsed;
-  try { parsed = new URL(link); } catch { return { saved: false, reason: 'invalid-link' }; }
-  if (!['http:', 'https:'].includes(parsed.protocol)) return { saved: false, reason: 'invalid-link' };
-  const attribution = normalizeAttribution({
-    source: parsed.searchParams.get('utm_source'),
-    medium: parsed.searchParams.get('utm_medium'),
-    campaign: parsed.searchParams.get('utm_campaign'),
-    content: parsed.searchParams.get('utm_content'),
-  });
-  if (!attribution) return { saved: false, reason: 'invalid-attribution-link' };
+  // An empty name AND link explicitly deactivate a slot. Partial clearing is
+  // rejected so an active slot can never be left in an ambiguous state.
+  const clearing = !name && !link;
+  if (!clearing && (!name || !link)) return { saved: false, reason: 'incomplete-slot' };
+  let attribution = null;
+  if (!clearing) {
+    let parsed;
+    try { parsed = new URL(link); } catch { return { saved: false, reason: 'invalid-link' }; }
+    if (!['http:', 'https:'].includes(parsed.protocol)) return { saved: false, reason: 'invalid-link' };
+    attribution = normalizeAttribution({
+      source: parsed.searchParams.get('utm_source'),
+      medium: parsed.searchParams.get('utm_medium'),
+      campaign: parsed.searchParams.get('utm_campaign'),
+      content: parsed.searchParams.get('utm_content'),
+    });
+    if (!attribution) return { saved: false, reason: 'invalid-attribution-link' };
+  }
 
   const store = readStore();
   const slots = DEFAULT_AD_SLOTS.map(defaultSlot => {
@@ -256,37 +261,38 @@ function saveAdCampaignSlot(input) {
     return saved ? { ...defaultSlot, ...saved } : { ...defaultSlot, content: defaultSlot.content || crypto.randomBytes(12).toString('hex'), link: '', message: '', createdAt: null, updatedAt: null };
   });
   const current = slots.find(item => item.slotId === slotId);
-  if (slots.some(item => item.slotId !== slotId && item.content === attribution.content)) return { saved: false, reason: 'duplicate-link' };
+  if (!clearing && slots.some(item => item.slotId !== slotId && item.name && item.link && item.content === attribution.content)) return { saved: false, reason: 'duplicate-link' };
   const now = new Date().toISOString();
-  const changedTracking = current.content !== attribution.content;
-  if (changedTracking) {
-    const previousReport = getReport().channels[current.content] || null;
-    const hasActivity = previousReport && (
-      previousReport.landingPageViewCount || previousReport.ctaClickCount || previousReport.loginPageViewCount ||
-      previousReport.signupClickCount || previousReport.registrationCount || previousReport.paidPurchaseCount || previousReport.visitCount
-    );
-    if (hasActivity || current.link || current.message) {
-      store.adCampaignArchives.push({
-        id: crypto.randomBytes(12).toString('hex'),
-        slotId,
-        slotName: current.name,
-        content: current.content,
-        link: String(current.link || ''),
-        message: String(current.message || ''),
-        report: previousReport,
-        archivedAt: now,
-      });
-    }
+  const changedConfiguration = String(current.name || '') !== name || String(current.link || '') !== link || (!clearing && current.content !== attribution.content);
+  if (changedConfiguration && (current.name || current.link || current.message)) {
+    // Snapshot the old campaign before replacing/deactivating it. Always retain
+    // a complete zero-valued report too, so the archive UI never renders blanks.
+    const previousReport = getReport().channels[current.content] || {
+      visits: 0, visitCount: 0, clickCount: 0, landingPageViewCount: 0, ctaClickCount: 0,
+      loginPageViewCount: 0, signupClickCount: 0, registrationCount: 0, conversionRatePercent: 0,
+      paidPurchaseCount: 0, revenueAmount: 0, currency: 'IRR', recentRegistrations: [], recentPurchases: [],
+      recentClicks: [], recentLandingPageViews: [], recentCtaClicks: [], recentLoginPageViews: [], recentSignupClicks: [],
+    };
+    store.adCampaignArchives.push({
+      id: crypto.randomBytes(12).toString('hex'),
+      slotId,
+      slotName: String(current.name || DEFAULT_AD_SLOTS.find(item => item.slotId === slotId)?.name || slotId),
+      content: current.content,
+      link: String(current.link || ''),
+      message: String(current.message || ''),
+      report: previousReport,
+      archivedAt: now,
+    });
   }
   const record = {
-    slotId, name, content: attribution.content, link, message,
+    slotId, name, content: clearing ? crypto.randomBytes(12).toString('hex') : attribution.content, link, message,
     createdAt: current.createdAt || now, updatedAt: now,
   };
   const existingIndex = store.adCampaignSlots.findIndex(item => item && item.slotId === slotId);
   if (existingIndex >= 0) store.adCampaignSlots[existingIndex] = record;
   else store.adCampaignSlots.push(record);
   writeStore(store);
-  return { saved: true, slot: record, archived: changedTracking };
+  return { saved: true, slot: record, archived: changedConfiguration, cleared: clearing };
 }
 
 function getAdCampaignArchives() {
