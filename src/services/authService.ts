@@ -44,7 +44,9 @@ export async function getUsers(): Promise<StoredUser[]> {
       : res.data?.users || res.data?.data || [];
     allRows.push(...rows);
 
-    const pagination = res.pagination || res.data?.pagination;
+    // ApiResponse does not declare pagination, although the admin endpoint may
+    // include it alongside data in the JSON response.
+    const pagination = (res as any).pagination || (res.data as any)?.pagination;
     const totalPages = Number(pagination?.totalPages);
     if (Number.isFinite(totalPages) && totalPages > 0) {
       if (page >= totalPages) break;
