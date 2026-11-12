@@ -3,7 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middlewares/auth.middleware.cjs');
-const { normalizeAttribution, recordVisit, getReport } = require('../services/marketingAttribution.service.cjs');
+const { normalizeAttribution, recordVisit, recordEvent, getReport } = require('../services/marketingAttribution.service.cjs');
 
 router.post('/visit', (req, res) => {
   try {
@@ -28,6 +28,18 @@ router.post('/visit', (req, res) => {
   } catch (error) {
     console.error('[MARKETING_ATTRIBUTION] visit failed:', error.message);
     res.status(500).json({ success: false, message: 'ثبت بازدید تبلیغاتی ناموفق بود.' });
+  }
+});
+
+router.post('/event', (req, res) => {
+  try {
+    const attribution = normalizeAttribution(req.body?.attribution);
+    if (!attribution) return res.json({ success: true, data: { recorded: false } });
+    const result = recordEvent({ input: attribution, eventType: String(req.body?.eventType || '') });
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('[MARKETING_ATTRIBUTION] event failed:', error.message);
+    return res.status(500).json({ success: false, message: 'ثبت رویداد تبلیغاتی ناموفق بود.' });
   }
 });
 

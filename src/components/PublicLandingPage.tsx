@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { trackMarketingVisit } from '../services/marketingAttribution';
+import { trackMarketingEvent, trackMarketingVisit } from '../services/marketingAttribution';
 
 const features = [
   { title: 'تحلیل تکنیکال بورس', description: 'تحلیل روندهای قیمتی و داده‌های بازار برای شناخت بهتر رفتار نمادها و تصمیم‌گیری آگاهانه‌تر در بازار بورس.', icon: '◈' },
@@ -45,7 +45,11 @@ const PublicLandingPage: React.FC = () => {
     void trackMarketingVisit();
   }, []);
 
-  const goToLogin = () => {
+  const goToLogin = async () => {
+    await Promise.race([
+      trackMarketingEvent('cta_click'),
+      new Promise<void>((resolve) => window.setTimeout(resolve, 900)),
+    ]);
     window.location.href = '/login';
   };
 
