@@ -17,7 +17,7 @@ function normalizeAttribution(input) {
   const medium = String(input.medium || '').trim().slice(0, 100);
   const campaign = String(input.campaign || '').trim().slice(0, 100);
   const content = String(input.content || '').trim().slice(0, 100);
-  const validSource = /^[a-z0-9][a-z0-9._-]{0,99}$/i.test(source);
+  const validSource = Boolean(source) && !/[|\u0000-\u001f\u007f]/.test(source);
   if (!validSource || medium !== 'paid') return null;
   // Keep legacy Telegram attribution backward-compatible; current ad slots may
   // come from any website or platform and are still isolated by utm_content.
