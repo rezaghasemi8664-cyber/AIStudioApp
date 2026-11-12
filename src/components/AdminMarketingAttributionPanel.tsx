@@ -28,7 +28,7 @@ const AdminMarketingAttributionPanel: React.FC = () => {
   return <div className="space-y-5">
     <div className="rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><h2 className="text-lg font-bold">آمار تبلیغات تلگرام</h2><p className="mt-1 text-sm text-gray-500">بازدید فقط پس از ثبت‌نام منتسب و اولین ورود موفق کاربر شمرده می‌شود؛ مشاهده صفحه ورود بدون ثبت‌نام و ورود، بازدید محسوب نمی‌شود.</p></div>
+        <div><h2 className="text-lg font-bold">آمار تبلیغات تلگرام</h2><p className="mt-1 text-sm text-gray-500">برای هر کانال، بازدید صفحه معرفی، کلیک روی دکمه ورود، مشاهده صفحه ورود، ثبت‌نام و خرید به‌صورت جداگانه ثبت می‌شود. آمار جدید از زمان انتشار این نسخه جمع‌آوری خواهد شد.</p></div>
         <button onClick={() => void load()} disabled={loading} className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50">{loading ? 'در حال بروزرسانی…' : 'بروزرسانی آمار'}</button>
       </div>
       {report && <p className="mt-3 text-xs text-gray-500">آخرین دریافت: {dateFmt(report.generatedAt)}</p>}
@@ -40,10 +40,15 @@ const AdminMarketingAttributionPanel: React.FC = () => {
         return <section key={channel.key} className="rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5">
           <h3 className="font-bold">{channel.label}</h3>
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">کلیک تبلیغاتی ثبت‌شده</div><div className="mt-1 text-2xl font-extrabold">{fmt(data?.clickCount || 0)}</div></div>
-            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">بازدید ثبت‌شده</div><div className="mt-1 text-2xl font-extrabold">{fmt(data?.visits || 0)}</div></div>
-            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">ثبت‌نام منتسب</div><div className="mt-1 text-2xl font-extrabold">{fmt(data?.registrationCount || 0)}</div></div>
-            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">خرید اشتراک موفق</div><div className="mt-1 text-2xl font-extrabold">{fmt(data?.paidPurchaseCount || 0)}</div></div><div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">درآمد منتسب (ریال)</div><div className="mt-1 text-xl font-extrabold">{fmt(data?.revenueAmount || 0)}</div></div><div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4 col-span-2"><div className="text-sm text-gray-500">نرخ تبدیل کلیک تبلیغاتی به ثبت‌نام</div><div className="mt-1 text-xl font-bold">{fmt(data?.conversionRatePercent || 0)}٪</div></div>
+            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">بازدید صفحه معرفی</div><div className="mt-1 text-2xl font-extrabold">{fmt(data?.landingPageViewCount || 0)}</div></div>
+            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">کلیک روی ورود / ثبت‌نام</div><div className="mt-1 text-2xl font-extrabold">{fmt(data?.ctaClickCount || 0)}</div></div>
+            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">ورود به صفحه ورود</div><div className="mt-1 text-2xl font-extrabold">{fmt(data?.loginPageViewCount || 0)}</div></div>
+            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">ثبت‌نام موفق منتسب</div><div className="mt-1 text-2xl font-extrabold">{fmt(data?.registrationCount || 0)}</div></div>
+            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">خرید اشتراک موفق</div><div className="mt-1 text-2xl font-extrabold">{fmt(data?.paidPurchaseCount || 0)}</div></div>
+            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">درآمد منتسب (ریال)</div><div className="mt-1 text-xl font-extrabold">{fmt(data?.revenueAmount || 0)}</div></div>
+            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">نرخ کلیک ورود از صفحه معرفی</div><div className="mt-1 text-xl font-bold">{fmt(data?.landingPageViewCount ? ((data?.ctaClickCount || 0) / data.landingPageViewCount) * 100 : 0)}٪</div></div>
+            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4"><div className="text-sm text-gray-500">نرخ رسیدن به صفحه ورود پس از کلیک</div><div className="mt-1 text-xl font-bold">{fmt(data?.ctaClickCount ? ((data?.loginPageViewCount || 0) / data.ctaClickCount) * 100 : 0)}٪</div></div>
+            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-4 col-span-2"><div className="text-sm text-gray-500">نرخ تبدیل صفحه ورود به ثبت‌نام</div><div className="mt-1 text-xl font-bold">{fmt(data?.loginPageViewCount ? ((data?.registrationCount || 0) / data.loginPageViewCount) * 100 : 0)}٪</div></div>
           </div>
           <h4 className="mt-5 font-semibold">آخرین ثبت‌نام‌های منتسب</h4>
           <div className="mt-2 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-[var(--card-border-color)] text-right"><th className="p-2">شناسه کاربر</th><th className="p-2">زمان ثبت‌نام</th></tr></thead><tbody>
@@ -56,7 +61,7 @@ const AdminMarketingAttributionPanel: React.FC = () => {
         </section>;
       })}
     </div>}
-    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">خرید فقط پس از تأیید موفق زرین‌پال و در صورت وجود انتساب ثبت‌نام به یکی از کانال‌ها شمارش می‌شود. پرداخت‌های قبل از فعال‌شدن این قابلیت ممکن است سابقه انتساب نداشته باشند.</div>
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">رویدادهای صفحه معرفی، کلیک روی دکمه و مشاهده صفحه ورود از زمان انتشار این نسخه ثبت می‌شوند؛ بنابراین آمار تاریخی این سه مرحله در دسترس نیست. ثبت‌نام و خریدهای قبلی که انتساب معتبر داشته‌اند حفظ می‌شوند. خرید فقط پس از تأیید موفق پرداخت و وجود انتساب ثبت‌نام شمارش می‌شود.</div>
   </div>;
 };
 export default AdminMarketingAttributionPanel;
