@@ -247,6 +247,52 @@ async function changePassword(req,res){try{const id=parseId(req.user?.userId||re
 async function getSubscription(req,res){try{const id=parseId(req.user?.userId||req.user?.id||req.user?.sub),u=await prisma.user.findUnique({where:{id},select:{subscriptionStart:true,subscriptionEnd:true,subscriptionMonths:true,subscriptionType:true,analysisLimit:true,analysisLimit24h:true}});if(!u)return res.status(404).json({success:false,message:'کاربر یافت نشد'});const effective=await getEffectiveSubscription(id);const source=mergeEffectiveSubscription(u,effective);const days=remainingDays(source.subscriptionStart,source.subscriptionEnd,source.subscriptionMonths);return res.json({success:true,data:{subscriptionStart:source.subscriptionStart,subscriptionEnd:source.subscriptionEnd,subscriptionDays:subscriptionDurationDays(source.subscriptionStart,source.subscriptionEnd,source.subscriptionMonths),subscriptionMonths:source.subscriptionMonths||0,subscriptionType:source.subscriptionType||'free',analysisLimit:u.analysisLimit24h||u.analysisLimit||0,analysisLimit24h:u.analysisLimit24h||u.analysisLimit||0,remainingDays:days,isActive:days>0,isSubscriptionActive:days>0}});}catch(e){return res.status(500).json({success:false,message:'خطا در دریافت اطلاعات اشتراک'});}}
 async function recoverPassword(req,res){try{const email=normalizeEmail(req.body?.email);if(!required(email))return res.status(400).json({success:false,message:'ایمیل الزامی است'});const u=await prisma.user.findFirst({where:{OR:[{email},{username:email}],isDeleted:false},select:{id:true,email:true,username:true,passwordEncrypted:true,passwordHash:true}});if(!u)return res.status(404).json({success:false,message:'شما قبلا با این ایمیل ثبت نام انجام نداده اید'});let password=null;try{password=decryptPassword(u.passwordEncrypted);}catch(_){}if(!password){password=generatePassword();await prisma.user.update({where:{id:u.id},data:{passwordHash:await bcrypt.hash(password,12),passwordEncrypted:encryptPassword(password),updatedAt:new Date()}});}await sendPasswordEmail(email,password,'بازیابی کلمه عبور - تحلیلگر هوشمند بورس رونیا');return res.json({success:true,message:'کلمه عبور به ایمیل شما ارسال گردید لطفا جهت مشاهده کلمه عبور ایمیل خود را بررسی نمایید',data:{emailSent:true}});}catch(e){console.error('[AUTH] recoverPassword',e);return res.status(502).json({success:false,message:'ارسال ایمیل انجام نشد. لطفا دوباره تلاش کنید'});}}
 async function resetPassword(req,res){return res.status(400).json({success:false,message:'برای بازیابی کلمه عبور از گزینه بازیابی از طریق پیامک استفاده کنید'});}
-async function refreshToken(req,res){try{const tok=req.body?.refreshToken||req.cookies?.refreshToken;if(!tok)return res.status(401).json({success:false,message:'توکن ارائه نشده'});const d=jwt.verify(tok,secret('refresh')),u=await prisma.user.findUnique({where:{id:parseId(d.userId||d.sub)},select:USER_SELECT});if(!u||!u.isActive)return res.status(401).json({success:false,message:'کاربر یافت نشد'});const t=tokens(u);setCookies(req,res,t.accessToken,t.refreshToken);return res.json({success:true,data:{user:formatUser(u),token:t.accessToken,accessToken:t.accessToken,refreshToken:t.refreshToken}});}catch(e){return res.status(401).json({success:false,message:'توکن نامعتبر یا منقضی'});}}
+async function refreshToken(req, res) {
+  try {
+    const token = req.body?.refreshToken || req.cookies?.refreshToken;
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'توکن ارائه نشده', code: 'REFRESH_TOKEN_MISSING' });
+    }
+
+    const decoded = jwt.verify(token, secret('refresh'));
+    if (decoded?.type !== 'refresh') {
+      return res.status(401).json({ success: false, message: 'نوع توکن نامعتبر است', code: 'INVALID_REFRESH_TOKEN_TYPE' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: parseId(decoded.userId || decoded.sub) },
+      select: USER_SELECT,
+    });
+
+    if (!user || !user.isActive || user.isDeleted) {
+      return res.status(401).json({ success: false, message: 'حساب کاربری غیرفعال یا نامعتبر است', code: 'REFRESH_USER_DISABLED' });
+    }
+
+    if (user.passwordChangedAt && decoded.iat && user.passwordChangedAt.getTime() > Number(decoded.iat) * 1000) {
+      return res.status(401).json({ success: false, message: 'کلمه عبور تغییر کرده است. لطفاً مجدداً وارد شوید.', code: 'REFRESH_PASSWORD_CHANGED' });
+    }
+
+    const effectiveSubscription = await getEffectiveSubscription(user.id);
+    const effectiveUser = mergeEffectiveSubscription(user, effectiveSubscription);
+    const nextTokens = tokens(user);
+    setCookies(req, res, nextTokens.accessToken, nextTokens.refreshToken);
+
+    return res.json({
+      success: true,
+      data: {
+        user: formatUser(effectiveUser),
+        token: nextTokens.accessToken,
+        accessToken: nextTokens.accessToken,
+        refreshToken: nextTokens.refreshToken,
+      },
+    });
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      message: 'توکن نامعتبر یا منقضی',
+      code: error?.name === 'TokenExpiredError' ? 'REFRESH_TOKEN_EXPIRED' : 'REFRESH_TOKEN_INVALID',
+    });
+  }
+}
 async function logout(req,res){clearCookies(req,res);return res.json({success:true,message:'خروج موفق'});}
 module.exports={login,register,verify,refreshToken,logout,me,updateProfile,changePassword,getSubscription,recoverPassword,resetPassword,refresh:refreshToken,getMe:me,getProfile:me};

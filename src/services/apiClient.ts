@@ -1,6 +1,7 @@
 ﻿// src/services/apiClient.ts
 import type { ApiResponse } from '../types';
 import { API_BASE_URL } from '../api/config';
+import { notifyUnauthorizedOnce, refreshAccessToken } from '../api/tokenRefresh';
 
 const API_TOKEN_KEY = 'accessToken';
 const API_TOKEN_FALLBACK_KEY = 'token';
@@ -225,7 +226,11 @@ async function enrichStockAnalysis(payload: any, symbol: string, headers: Record
   }
 }
 
-export async function request<T>(method: string, endpoint: string, data?: unknown, customHeaders?: Record<string, string>): Promise<ApiResponse<T>> {
+function isAuthEndpoint(endpoint: string): boolean {
+  return /\/auth\/(?:login|register|refresh(?:-token)?|logout|recover-password|reset-password)(?:[/?]|$)/i.test(normalizeEndpoint(endpoint));
+}
+
+export async function request<T>(method: string, endpoint: string, data?: unknown, customHeaders?: Record<string, string>, allowRefresh = true): Promise<ApiResponse<T>> {
   const url = buildUrl(endpoint);
   const headers: Record<string, string> = { ...customHeaders };
   const token = getStoredToken();
@@ -236,9 +241,16 @@ export async function request<T>(method: string, endpoint: string, data?: unknow
 
   try {
     const response = await fetch(url, options);
-    if (response.status === 401) {
+    if (response.status === 401 && !isAuthEndpoint(endpoint)) {
       console.warn(`[apiClient] 401 Unauthorized detected at ${endpoint}`);
-      dispatchLogoutEvent();
+      if (allowRefresh) {
+        const refreshedToken = await refreshAccessToken();
+        if (refreshedToken) {
+          return request<T>(method, endpoint, data, customHeaders, false);
+        }
+      } else {
+        notifyUnauthorizedOnce();
+      }
     }
     const contentType = response.headers.get('content-type') || '';
     let payload: any = contentType.includes('application/json') ? await response.json() : { message: await response.text() };
@@ -254,15 +266,6 @@ export async function request<T>(method: string, endpoint: string, data?: unknow
     const errorMessage = error instanceof Error ? error.message : 'An unexpected network error occurred';
     console.error(`[apiClient] ${method} ${endpoint} failed:`, error);
     return { success: false, message: errorMessage, error: errorMessage, statusCode: 0 };
-  }
-}
-
-function dispatchLogoutEvent(): void {
-  invalidateCachedGet();
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem(API_TOKEN_KEY);
-    localStorage.removeItem(API_TOKEN_FALLBACK_KEY);
-    window.dispatchEvent(new CustomEvent('auth:logout'));
   }
 }
 
