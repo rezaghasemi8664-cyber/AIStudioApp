@@ -29,7 +29,45 @@ router.post('/send', async (req, res) => {
       return res.status(400).json({ success: false, message: 'نوع درخواست OTP نامعتبر است' });
     }
 
-    const result = await smsService.createAndSendOtp({ mobile, purpose });
+    let normalizedMobile = mobile;
+    let resetUserId = null;
+
+    if (purpose === 'reset-password') {
+      try {
+        normalizedMobile = smsService.normalizeMobile(mobile);
+      } catch (_) {
+        return res.status(400).json({
+          success: false,
+          message: 'شماره موبایل وارد شده صحیح نمی باشد',
+        });
+      }
+
+      const user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { mobile: normalizedMobile },
+            { phone: normalizedMobile },
+          ],
+          isDeleted: false,
+        },
+        select: { id: true },
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'شماره موبایل وارد شده صحیح نمی باشد',
+        });
+      }
+
+      resetUserId = user.id;
+    }
+
+    const result = await smsService.createAndSendOtp({
+      userId: resetUserId,
+      mobile: normalizedMobile,
+      purpose,
+    });
 
     return res.status(200).json({
       success: true,
