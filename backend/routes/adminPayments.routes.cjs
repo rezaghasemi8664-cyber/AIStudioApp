@@ -4,6 +4,17 @@ const {prisma}=require('../config/prisma.cjs');
 const authMiddleware=require('../middlewares/auth.middleware.cjs');
 const {hasPermission}=require('../services/rbac.service.cjs');
 const router=express.Router();
+// SQL Server BIGINT values are returned by Prisma as JavaScript BigInt,
+// which Express cannot serialize with res.json(). Keep safe integers numeric
+// for the existing UI and stringify only values outside Number's safe range.
+function jsonSafeRow(row){
+  return Object.fromEntries(Object.entries(row).map(([key,value])=>[
+    key,
+    typeof value==='bigint'
+      ? (value<=BigInt(Number.MAX_SAFE_INTEGER)&&value>=BigInt(Number.MIN_SAFE_INTEGER)?Number(value):value.toString())
+      : value,
+  ]));
+}
 const uid=req=>Number(req.user?.id??req.user?.userId??0)||null;
 async function admin(req,res,next){const id=uid(req);if(!id)return res.status(401).json({success:false,message:'احراز هویت الزامی است.'});try{if(!(await hasPermission(id,'admin.payments.manage')))return res.status(403).json({success:false,message:'دسترسی مدیریت پرداخت‌ها مجاز نیست.'});next();}catch(e){res.status(500).json({success:false,message:'بررسی دسترسی ناموفق بود.'});}}
 async function ensure(){await prisma.$executeRawUnsafe(`IF OBJECT_ID(N'dbo.AdminPaymentTransaction',N'U') IS NULL BEGIN CREATE TABLE dbo.AdminPaymentTransaction(id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,userId INT NOT NULL,amount DECIMAL(18,2) NOT NULL,currency NVARCHAR(10) NOT NULL DEFAULT N'IRR',gateway NVARCHAR(50) NULL,authority NVARCHAR(200) NULL,referenceNo NVARCHAR(200) NULL,status NVARCHAR(30) NOT NULL DEFAULT N'pending',description NVARCHAR(500) NULL,createdAt DATETIME2 NOT NULL DEFAULT SYSDATETIME(),updatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME(),paidAt DATETIME2 NULL); CREATE INDEX IX_AdminPaymentTransaction_userId ON dbo.AdminPaymentTransaction(userId); CREATE INDEX IX_AdminPaymentTransaction_status ON dbo.AdminPaymentTransaction(status); END;`);}
@@ -94,7 +105,7 @@ router.get('/transactions',async(req,res)=>{
     const total=Number(countRows[0]?.total||0);
     const offset=(page-1)*limit;
     const rows=await prisma.$queryRawUnsafe(`${cte} SELECT id,userId,amount,currency,gateway,authority,referenceNo,normalizedStatus AS status,description,createdAt,paidAt,source FROM AllPayments ${where} ORDER BY createdAt DESC,id DESC OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`,...params);
-    return res.json({success:true,data:{items:rows,pagination:{page,limit,total,totalPages:Math.ceil(total/limit)}}});
+    return res.json({success:true,data:{items:rows.map(jsonSafeRow),pagination:{page,limit,total,totalPages:Math.ceil(total/limit)}}});
   } catch(e) {
     console.error('[AdminPayments] transactions:',e);
     return res.status(500).json({success:false,message:'دریافت تراکنش‌ها ناموفق بود.'});
