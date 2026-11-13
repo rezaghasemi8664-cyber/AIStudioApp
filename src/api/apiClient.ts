@@ -1,5 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { API_BASE_URL } from './config';
+import { notifyUnauthorizedOnce, refreshAccessToken } from './tokenRefresh';
 
 const TOKEN_KEYS = ['accessToken', 'token'];
 
@@ -254,6 +255,12 @@ async function enrichStockAnalysisResponse(response: any): Promise<any> {
   return response;
 }
 
+type RetryableRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean };
+
+function isAuthEndpoint(url: string | undefined): boolean {
+  return !!url && /\\/auth\\/(?:login|register|refresh(?:-token)?|logout|recover-password|reset-password)(?:[/?]|$)/i.test(url);
+}
+
 api.interceptors.response.use(
   async (response) => {
     try {
@@ -269,15 +276,26 @@ api.interceptors.response.use(
       }
     }
   },
-  (error: AxiosError) => {
+  async (error: AxiosError) => {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('roniya:request-finish'));
     }
     const status = error.response?.status;
+    const originalRequest = error.config as RetryableRequestConfig | undefined;
 
-    if (status === 401) {
-      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
-    } else if (status === 403) {
+    if (status === 401 && originalRequest && !originalRequest._retry && !isAuthEndpoint(originalRequest.url)) {
+      originalRequest._retry = true;
+      const refreshedToken = await refreshAccessToken();
+      if (refreshedToken) {
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers.Authorization = `Bearer ${refreshedToken}`;
+        return api.request(originalRequest);
+      }
+    } else if (status === 401 && originalRequest?._retry) {
+      notifyUnauthorizedOnce();
+    }
+
+    if (status === 403) {
       window.dispatchEvent(new CustomEvent('auth:forbidden'));
     } else if (!error.response) {
       window.dispatchEvent(

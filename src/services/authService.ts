@@ -1,6 +1,7 @@
 import type { StoredUser, ValidityInfo } from '../types';
 import { get, post, put, del } from './apiClient';
 import { clearMarketingAttribution, getStoredMarketingAttribution } from './marketingAttribution';
+import { resetUnauthorizedNotification } from '../api/tokenRefresh';
 export type { StoredUser, ValidityInfo };
 export interface RegisterUserData { firstName: string; lastName: string; mobile: string; email: string; referralCode?: string; }
 const ACCESS_TOKEN_KEY = 'token'; const REFRESH_TOKEN_KEY = 'refreshToken'; const USER_STORAGE_KEY = 'currentUser';
@@ -10,7 +11,7 @@ function normalizeUser(raw: any, fallbackEmail?: string): StoredUser { const ema
 function getExpiryDate(user: StoredUser): Date | null { const value = user.subscriptionEnd || (user as any).validityDate || (user as any).expiresAt; if (!value) return null; const date = new Date(value); return Number.isNaN(date.getTime()) ? null : date; }
 function getCookieValue(name: string): string | null { if (typeof document === 'undefined') return null; const prefix = `${encodeURIComponent(name)}=`; const found = document.cookie.split(';').map(x => x.trim()).find(x => x.startsWith(prefix)); return found ? decodeURIComponent(found.slice(prefix.length)) : null; }
 function getStorageToken(): string | null { if (typeof window === 'undefined') return null; return localStorage.getItem(ACCESS_TOKEN_KEY) || localStorage.getItem('accessToken'); }
-function setStoredToken(token: string): void { if (typeof window !== 'undefined' && token) { localStorage.setItem(ACCESS_TOKEN_KEY, token); localStorage.setItem('accessToken', token); } }
+function setStoredToken(token: string): void { if (typeof window !== 'undefined' && token) { localStorage.setItem(ACCESS_TOKEN_KEY, token); localStorage.setItem('accessToken', token); resetUnauthorizedNotification(); } }
 function removeStoredToken(): void { if (typeof window !== 'undefined') { localStorage.removeItem(ACCESS_TOKEN_KEY); localStorage.removeItem('accessToken'); } }
 function getStoredRefreshToken(): string | null { return typeof window === 'undefined' ? null : localStorage.getItem(REFRESH_TOKEN_KEY); }
 function setStoredRefreshToken(token: string): void { if (typeof window !== 'undefined' && token) localStorage.setItem(REFRESH_TOKEN_KEY, token); }

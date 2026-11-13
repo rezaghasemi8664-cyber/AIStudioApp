@@ -56,11 +56,23 @@ function callbackUrl() {
 }
 
 function frontendUrl() {
-  return String(
+  const configured = String(
     process.env.ZARINPAL_FRONTEND_URL ||
     process.env.FRONTEND_URL ||
-    'https://roniya-analyzer.ir'
-  ).replace(/\/$/, '');
+    'https://www.roniya-analyzer.ir'
+  ).trim();
+
+  try {
+    const url = new URL(configured);
+    // The public production hostname is canonicalized to www so the payment
+    // callback never returns to a separate browser-storage origin.
+    if (url.hostname.toLowerCase() === 'roniya-analyzer.ir') {
+      url.hostname = 'www.roniya-analyzer.ir';
+    }
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return configured.replace(/\/$/, '');
+  }
 }
 
 function toRialAmount(price) {
