@@ -55,7 +55,7 @@ setForgotStep('mobile'); setForgotMobile(''); setForgotOtp(''); setResetToken(''
     finally { setLoading(false); }
   };
 
-  const handlePasskeyLogin = async () => { setError(null); if (!username.trim()) { setError('ابتدا نام کاربری یا ایمیل خود را وارد کنید.'); return; } setLoading(true); try { const user = await authService.loginWithPasskey(username.trim()); onLogin(user); } catch (err: any) { const message = String(err?.message || ''); const disabledMessage = 'کاربر گرامی این قابلیت برای شما فعال نمی باشد جهت فعالسازی وارد نرم افزار شوید و از تب تنظیمات قابلیت را فعال کنید'; setError(/ورود بیومتریک برای این حساب فعال نیست|برای این حساب ورود بیومتریک فعال نیست|ورود بیومتریک غیرفعال شده است|کلید امنیتی ثبت نشده است/i.test(message) ? disabledMessage : (message || 'ورود بیومتریک ناموفق بود.')); } finally { setLoading(false); } };
+  const handlePasskeyLogin = async () => { setError(null); setLoading(true); try { const user = await authService.loginWithPasskey(); onLogin(user); } catch (err: any) { const message = String(err?.message || ''); const disabledMessage = 'برای این حساب هنوز کلید امنیتی قابل استفاده ثبت نشده است. ابتدا با رمز عبور وارد شوید و در تنظیمات، این دستگاه را دوباره ثبت کنید.'; setError(/ورود بیومتریک برای این حساب فعال نیست|برای این حساب ورود بیومتریک فعال نیست|ورود بیومتریک غیرفعال شده است|کلید امنیتی ثبت نشده است/i.test(message) ? disabledMessage : (message || 'ورود بیومتریک ناموفق بود.')); } finally { setLoading(false); } };
 
   const handleSendResetOtp = async (e?: React.FormEvent) => {
     e?.preventDefault(); setError(null); setLoading(true);
@@ -167,7 +167,7 @@ setForgotStep('mobile'); setForgotMobile(''); setForgotOtp(''); setResetToken(''
         <button type="submit" disabled={loading} className="w-full min-h-12 rounded-xl px-6 py-3 font-extrabold text-white shadow-md transition-all duration-200 flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-emerald-500/30 disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.99]">
           {loading ? <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin" /> : <><LockClosedIcon /><span>ورود</span></>}
         </button>
-        {browserSupportsWebAuthn() && <button type="button" onClick={() => void handlePasskeyLogin()} disabled={loading || !username.trim()} className="w-full min-h-12 rounded-xl px-6 py-3 font-bold flex items-center justify-center gap-2 border border-emerald-700 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-50"><span aria-hidden="true">◉</span><span>ورود با Face ID، اثر انگشت یا قفل صفحه</span></button>}
+        {browserSupportsWebAuthn() && <button type="button" onClick={() => void handlePasskeyLogin()} disabled={loading} className="w-full min-h-12 rounded-xl px-6 py-3 font-bold flex items-center justify-center gap-2 border border-emerald-700 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-50"><span aria-hidden="true">◉</span><span>ورود با Face ID، اثر انگشت یا قفل صفحه</span></button>}
         <div className="pt-4 border-t border-slate-100 dark:border-slate-700 space-y-3">
           <div className="text-center">
             <p className="text-sm font-semibold" style={{ color: 'var(--login-label-color)' }}>هنوز حساب کاربری ندارید؟</p>

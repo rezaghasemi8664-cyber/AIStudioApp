@@ -93,7 +93,7 @@ async function registrationOptions(req, userId) {
       id: item.credentialId,
       transports: item.transports ? JSON.parse(item.transports) : undefined,
     })),
-    authenticatorSelection: { residentKey: 'preferred', userVerification: 'required' },
+    authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
     timeout: 60000,
   });
   const challengeId = await saveChallenge({ userId, purpose: 'registration', challenge: options.challenge });
@@ -143,25 +143,32 @@ async function verifyRegistration(req, userId, response, challengeId, deviceName
 async function authenticationOptions(req, identifier) {
   const config = requestConfig(req);
   const normalized = String(identifier || '').trim().toLowerCase();
-  if (!normalized) throw Object.assign(new Error('ابتدا نام کاربری یا ایمیل خود را وارد کنید.'), { status: 400 });
-  const user = await prisma.user.findFirst({
-    where: { OR: [{ email: normalized }, { username: normalized }], isActive: true, isDeleted: false },
-    select: { id: true },
-  });
-  if (!user || !(await isEnabled(user.id))) throw Object.assign(new Error('برای این حساب ورود بیومتریک فعال نیست.'), { status: 401 });
-  const credentials = await prisma.passkeyCredential.findMany({ where: { userId: user.id } });
-  if (!credentials.length) throw Object.assign(new Error('برای این حساب کلید امنیتی ثبت نشده است.'), { status: 401 });
+  let user = null;
+  let allowCredentials;
+  if (normalized) {
+    user = await prisma.user.findFirst({
+      where: { OR: [{ email: normalized }, { username: normalized }], isActive: true, isDeleted: false },
+      select: { id: true },
+    });
+    if (!user || !(await isEnabled(user.id))) throw Object.assign(new Error('برای این حساب ورود بیومتریک فعال نیست.'), { status: 401 });
+    const credentials = await prisma.passkeyCredential.findMany({ where: { userId: user.id } });
+    if (!credentials.length) throw Object.assign(new Error('برای این حساب کلید امنیتی ثبت نشده است.'), { status: 401 });
+    allowCredentials = credentials.map((item) => ({
+      id: item.credentialId,
+      transports: item.transports ? JSON.parse(item.transports) : undefined,
+    }));
+  }
+
   const { generateAuthenticationOptions } = await webauthn();
   const options = await generateAuthenticationOptions({
     rpID: config.rpID,
-    allowCredentials: credentials.map((item) => ({
-      id: item.credentialId,
-      transports: item.transports ? JSON.parse(item.transports) : undefined,
-    })),
+    ...(allowCredentials ? { allowCredentials } : {}),
     userVerification: 'required',
     timeout: 60000,
   });
-  const challengeId = await saveChallenge({ userId: user.id, purpose: 'authentication', challenge: options.challenge });
+  // A null userId enables discoverable-credential authentication. The credential
+  // returned by the authenticator identifies the account during verification.
+  const challengeId = await saveChallenge({ userId: user?.id || null, purpose: 'authentication', challenge: options.challenge });
   return { challengeId, options };
 }
 
@@ -171,7 +178,7 @@ async function verifyAuthentication(req, challengeId, response, userSelect) {
   const credentialId = String(response?.id || response?.rawId || '');
   const credentialIdHash = crypto.createHash('sha256').update(credentialId).digest('hex');
   const stored = await prisma.passkeyCredential.findUnique({ where: { credentialIdHash } });
-  if (!stored || stored.userId !== challenge.userId || !(await isEnabled(stored.userId))) {
+  if (!stored || (challenge.userId != null && stored.userId !== challenge.userId) || !(await isEnabled(stored.userId))) {
     throw Object.assign(new Error('کلید امنیتی معتبر نیست یا ورود بیومتریک غیرفعال شده است.'), { status: 401 });
   }
   const { verifyAuthenticationResponse } = await webauthn();
