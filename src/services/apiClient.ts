@@ -227,7 +227,9 @@ async function enrichStockAnalysis(payload: any, symbol: string, headers: Record
 }
 
 function isAuthEndpoint(endpoint: string): boolean {
-  return /\/auth\/(?:login|register|refresh(?:-token)?|logout|recover-password|reset-password)(?:[/?]|$)/i.test(normalizeEndpoint(endpoint));
+  const normalized = normalizeEndpoint(endpoint).toLowerCase();
+  const authEndpoints = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/refresh-token', '/auth/logout', '/auth/recover-password', '/auth/reset-password', '/auth/passkey/authentication/options', '/auth/passkey/authentication/verify'];
+  return authEndpoints.some((path) => normalized === path || normalized.startsWith(path + '?') || normalized.startsWith(path + '/'));
 }
 
 export async function request<T>(method: string, endpoint: string, data?: unknown, customHeaders?: Record<string, string>, allowRefresh = true): Promise<ApiResponse<T>> {

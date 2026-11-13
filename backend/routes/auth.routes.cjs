@@ -44,6 +44,16 @@ router.patch('/profile',authMiddleware,authController.updateProfile);
 router.post('/change-password',authMiddleware,passwordSecurity,authController.changePassword);
 router.put('/change-password',authMiddleware,passwordSecurity,authController.changePassword);
 router.get('/subscription',authMiddleware,authController.getSubscription);
+router.post('/passkey/registration/options',authMiddleware,loginSecurity,authController.passkeyRegistrationOptions);
+router.post('/passkey/registration/verify',authMiddleware,authController.passkeyRegistrationVerify);
+router.get('/passkey/devices',authMiddleware,authController.passkeyListDevices);
+router.put('/passkey/enable',authMiddleware,authController.passkeyEnable);
+router.put('/passkey/disable',authMiddleware,authController.passkeyDisable);
+router.delete('/passkey/devices/:id',authMiddleware,authController.passkeyRemoveDevice);
+router.delete('/passkey/devices',authMiddleware,authController.passkeyRemoveAllDevices);
+router.post('/passkey/authentication/options',loginSecurity,authController.passkeyAuthenticationOptions);
+router.post('/passkey/authentication/verify',loginSecurity,authController.passkeyAuthenticationVerify);
+
 
 module.exports = router;
 
