@@ -1,10 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512" viewBox="0 0 512 512">
-  <title>لوگوی رونیا</title>
-  <rect width="512" height="512" rx="96" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">نشان تحلیلگر بورس رونیا</title>
   <defs>
-    <clipPath id="mark-crop">
-      <rect x="0" y="106" width="512" height="300"/>
-    </clipPath>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#102f50"/>
+      <stop offset="1" stop-color="#06182d"/>
+    </linearGradient>
+    <linearGradient id="bars" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8bd43f"/>
+      <stop offset="1" stop-color="#16a05a"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity=".22"/>
+    </filter>
   </defs>
-  <image x="0" y="106" width="512" height="384" xlink:href="/2.png" preserveAspectRatio="none" clip-path="url(#mark-crop)"/>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <g filter="url(#shadow)">
+    <path d="M104 366V270a18 18 0 0 1 18-18h42a18 18 0 0 1 18 18v96z" fill="url(#bars)"/>
+    <path d="M205 366V202a18 18 0 0 1 18-18h42a18 18 0 0 1 18 18v164z" fill="url(#bars)"/>
+    <path d="M306 366V137a18 18 0 0 1 18-18h42a18 18 0 0 1 18 18v229z" fill="url(#bars)"/>
+    <path d="M92 391 210 291l78 52 132-169" fill="none" stroke="#fff" stroke-width="25" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="m379 174 58-18-4 61z" fill="#fff"/>
+  </g>
 </svg>
