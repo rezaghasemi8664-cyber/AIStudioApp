@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import DatePicker, { DayValue } from 'react-modern-calendar-datepicker';
+import 'react-modern-calendar-datepicker/lib/DatePicker.css';
 import * as adminActionsService from '../services/adminActionsService';
 import * as paymentsService from '../services/adminPaymentsService';
 
@@ -9,6 +11,21 @@ const labels:Record<string,string>={pending:'در انتظار',paid:'پرداخ
 const fmt=(v:number)=>Number(v||0).toLocaleString('fa-IR');
 const dateFmt=(v?:string|null)=>v?new Date(v).toLocaleString('fa-IR'):'—';
 const currencyLabel=(c:string)=>c==='IRT'?'تومان':c==='IRR'?'ریال':c;
+const jalaliToIso=(day:DayValue):string=>{
+ if(!day)return '';
+ const div=(a:number,b:number)=>Math.floor(a/b);
+ let jy=day.year-979,jm=day.month-1,jd=day.day-1;
+ let jDay=365*jy+div(jy,33)*8+div((jy%33)+3,4);
+ for(let i=0;i<jm;i++)jDay+=i<6?31:30;
+ jDay+=jd; let gDay=jDay+79,gy=1600+400*div(gDay,146097);gDay%=146097;
+ let leap=true;
+ if(gDay>=36525){gDay--;gy+=100*div(gDay,36524);gDay%=36524;if(gDay>=365)gDay++;else leap=false;}
+ gy+=4*div(gDay,1461);gDay%=1461;
+ if(gDay>=366){leap=false;gDay--;gy+=div(gDay,365);gDay%=365;}
+ const md=[31,leap?29:28,31,30,31,30,31,31,30,31,30,31];let gm=0;
+ while(gm<12&&gDay>=md[gm])gDay-=md[gm++];
+ return String(gy)+'-'+String(gm+1).padStart(2,'0')+'-'+String(gDay+1).padStart(2,'0');
+};
 
 const AdminPaymentsPanel:React.FC<Props>=({onComplete=()=>undefined})=>{
  const [summary,setSummary]=useState<paymentsService.PaymentSummary|null>(null);
@@ -17,7 +34,9 @@ const AdminPaymentsPanel:React.FC<Props>=({onComplete=()=>undefined})=>{
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState<string|null>(null);
  const [message,setMessage]=useState<string|null>(null);
- const [filters,setFilters]=useState({userId:'',search:'',status:'',gateway:'',currency:'',from:'',to:''});
+ const [filters,setFilters]=useState({userId:'',search:'',status:'',gateway:'',currency:'',from:'',to:'',period:'all'});
+ const [fromDay,setFromDay]=useState<DayValue>(null);
+ const [toDay,setToDay]=useState<DayValue>(null);
  const [form,setForm]=useState({userId:'',amount:'',currency:'IRR',gateway:'',description:''});
  const [selected,setSelected]=useState<paymentsService.PaymentRow|null>(null);
  const [statusForm,setStatusForm]=useState({status:'paid',referenceNo:''});
@@ -53,7 +72,8 @@ const AdminPaymentsPanel:React.FC<Props>=({onComplete=()=>undefined})=>{
  };
  const create=()=>{if(!form.userId||!form.amount)return;void runAction('create-transaction',{userId:Number(form.userId),amount:Number(form.amount),currency:form.currency,gateway:form.gateway,description:form.description});};
  const setStatus=()=>{if(!selected)return;const next=statusForm.status;const current=selected.status;if(next===current){setError('وضعیت جدید با وضعیت فعلی یکسان است.');return;}if((next==='paid'||next==='refunded')&&!statusForm.referenceNo.trim()){setError('برای پرداخت‌شده یا مستردشده، شماره مرجع الزامی است.');return;}if(current==='refunded'){setError('تراکنش مستردشده دیگر قابل تغییر نیست.');return;}if(current==='paid'&&next!=='refunded'){setError('تراکنش پرداخت‌شده فقط به «مستردشده» قابل تغییر است.');return;}if(current==='pending'&&!['paid','failed','cancelled'].includes(next)){setError('تراکنش در انتظار فقط می‌تواند پرداخت‌شده، ناموفق یا لغوشده شود.');return;}if((current==='failed'||current==='cancelled')&&next!=='pending'){setError('تراکنش ناموفق یا لغوشده ابتدا باید به «در انتظار» برگردد.');return;}if(!window.confirm(`وضعیت تراکنش #${selected.id} از «${labels[current]||current}» به «${labels[next]||next}» تغییر کند؟`))return;void runAction('set-status',{transactionId:selected.id,status:next,referenceNo:statusForm.referenceNo});setSelected(null);};
- const reset=()=>{const empty={userId:'',search:'',status:'',gateway:'',currency:'',from:'',to:''};setFilters(empty);void load(1,empty);};
+ const reset=()=>{const empty={userId:'',search:'',status:'',gateway:'',currency:'',from:'',to:'',period:'all'};setFilters(empty);setFromDay(null);setToDay(null);void load(1,empty);};
+ const setPeriod=(period:'all'|'custom')=>{if(period==='all'){const next={...filters,period,from:'',to:''};setFilters(next);setFromDay(null);setToDay(null);}else setFilters({...filters,period});};
  const currencyBlock=(currency:string,data:{paidAmount:number;pendingAmount:number;refundedAmount:number;failedAmount:number})=><div key={currency} className="rounded-xl border border-[var(--card-border-color)] p-4"><div className="text-sm text-gray-500">مبالغ {currencyLabel(currency)}</div><div className="mt-2 grid grid-cols-2 lg:grid-cols-4 gap-3"><div><div className="text-xs text-gray-500">پرداخت‌شده</div><b>{fmt(data.paidAmount)}</b></div><div><div className="text-xs text-gray-500">در انتظار</div><b>{fmt(data.pendingAmount)}</b></div><div><div className="text-xs text-gray-500">مستردشده</div><b>{fmt(data.refundedAmount)}</b></div><div><div className="text-xs text-gray-500">ناموفق</div><b>{fmt(data.failedAmount)}</b></div></div></div>;
  return <div className="space-y-5" dir="rtl">
    <div><h2 className="text-xl font-extrabold">پرداخت‌ها و تراکنش‌ها</h2><p className="mt-1 text-sm text-gray-500">داشبورد مالی، جست‌وجو، فیلتر و کنترل وضعیت تراکنش‌ها.</p></div>
@@ -84,8 +104,9 @@ const AdminPaymentsPanel:React.FC<Props>=({onComplete=()=>undefined})=>{
       <select className={input} value={filters.status} onChange={e=>setFilters({...filters,status:e.target.value})}><option value="">همه وضعیت‌ها</option>{Object.entries(labels).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>
       <input className={input} value={filters.gateway} onChange={e=>setFilters({...filters,gateway:e.target.value})} placeholder="درگاه"/>
       <select className={input} value={filters.currency} onChange={e=>setFilters({...filters,currency:e.target.value})}><option value="">همه ارزها</option><option value="IRR">ریال</option><option value="IRT">تومان</option></select>
-      <input className={input} type="date" value={filters.from} onChange={e=>setFilters({...filters,from:e.target.value})}/><input className={input} type="date" value={filters.to} onChange={e=>setFilters({...filters,to:e.target.value})}/>
-      <button disabled={busy} onClick={()=>void load(1)} className="rounded-xl bg-cyan-600 px-4 py-2.5 font-semibold text-white disabled:opacity-50">اعمال فیلتر</button>
+      <select className={input} value={filters.period} onChange={e=>setPeriod(e.target.value as "all"|"custom")}><option value="all">همه دوره‌ها</option><option value="custom">بازه زمانی دلخواه</option></select>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:col-span-2"><div><label className="mb-1 block text-xs text-gray-500">از تاریخ</label><DatePicker value={fromDay} onChange={(day)=>{setFromDay(day);setFilters({...filters,period:"custom",from:jalaliToIso(day)});}} inputPlaceholder="انتخاب تاریخ شروع" shouldHighlightWeekends locale="fa" inputClassName={input+" pr-10 text-right"} wrapperClassName="w-full" calendarPopperPosition="bottom"/></div><div><label className="mb-1 block text-xs text-gray-500">تا تاریخ</label><DatePicker value={toDay} onChange={(day)=>{setToDay(day);setFilters({...filters,period:"custom",to:jalaliToIso(day)});}} inputPlaceholder="انتخاب تاریخ پایان" shouldHighlightWeekends locale="fa" inputClassName={input+" pr-10 text-right"} wrapperClassName="w-full" calendarPopperPosition="bottom"/></div></div>
+      <button disabled={busy||(filters.period==="custom"&&(!filters.from||!filters.to))} onClick={()=>void load(1)} className="rounded-xl bg-cyan-600 px-4 py-2.5 font-semibold text-white disabled:opacity-50">اعمال فیلتر</button>
     </div>
    </div>
    <div className={card}>
