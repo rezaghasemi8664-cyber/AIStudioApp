@@ -1,26 +1,38 @@
 {
-  "id": "/",
-  "name": "تحلیلگر هوشمند بورس رونیا",
-  "short_name": "تحلیلگر بورس رونیا",
-  "description": "سامانه تخصصی تحلیل بازار بورس و سهام ایران",
-  "lang": "fa",
-  "dir": "rtl",
-  "start_url": "/",
-  "scope": "/",
-  "display": "standalone",
-  "display_override": [
-    "standalone",
-    "minimal-ui"
-  ],
-  "orientation": "any",
-  "background_color": "#0f172a",
-  "theme_color": "#0891b2",
-  "icons": [
-    {
-      "src": "/2.png",
-      "sizes": "903x677",
-      "type": "image/png",
-      "purpose": "any"
-    }
-  ]
+    "id":  "/",
+    "name":  "تحلیلگر هوشمند بورس رونیا",
+    "short_name":  "تحلیلگر بورس رونیا",
+    "description":  "سامانه تخصصی تحلیل بازار بورس و سهام ایران",
+    "lang":  "fa",
+    "dir":  "rtl",
+    "start_url":  "/",
+    "scope":  "/",
+    "display":  "standalone",
+    "display_override":  [
+                             "standalone",
+                             "minimal-ui"
+                         ],
+    "orientation":  "any",
+    "background_color":  "#0f172a",
+    "theme_color":  "#0891b2",
+    "icons":  [
+                  {
+                      "purpose":  "any",
+                      "type":  "image/png",
+                      "sizes":  "192x192",
+                      "src":  "/roniya-icon-192.png"
+                  },
+                  {
+                      "purpose":  "any",
+                      "type":  "image/png",
+                      "sizes":  "512x512",
+                      "src":  "/roniya-icon-512.png"
+                  },
+                  {
+                      "purpose":  "maskable",
+                      "type":  "image/png",
+                      "sizes":  "512x512",
+                      "src":  "/roniya-icon-maskable-512.png"
+                  }
+              ]
 }
