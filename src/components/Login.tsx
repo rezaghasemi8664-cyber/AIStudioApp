@@ -55,7 +55,7 @@ setForgotStep('mobile'); setForgotMobile(''); setForgotOtp(''); setResetToken(''
     finally { setLoading(false); }
   };
 
-  const handlePasskeyLogin = async () => { setError(null); if (!username.trim()) { setError('ابتدا نام کاربری یا ایمیل خود را وارد کنید.'); return; } setLoading(true); try { const user = await authService.loginWithPasskey(username.trim()); onLogin(user); } catch (err: any) { setError(err.message || 'ورود بیومتریک ناموفق بود.'); } finally { setLoading(false); } };
+  const handlePasskeyLogin = async () => { setError(null); if (!username.trim()) { setError('ابتدا نام کاربری یا ایمیل خود را وارد کنید.'); return; } setLoading(true); try { const user = await authService.loginWithPasskey(username.trim()); onLogin(user); } catch (err: any) { const message = String(err?.message || ''); const disabledMessage = 'کاربر گرامی این قابلیت برای شما فعال نمی باشد جهت فعالسازی وارد نرم افزار شوید و از تب تنظیمات قابلیت را فعال کنید'; setError(/ورود بیومتریک برای این حساب فعال نیست|برای این حساب ورود بیومتریک فعال نیست|ورود بیومتریک غیرفعال شده است|کلید امنیتی ثبت نشده است/i.test(message) ? disabledMessage : (message || 'ورود بیومتریک ناموفق بود.')); } finally { setLoading(false); } };
 
   const handleSendResetOtp = async (e?: React.FormEvent) => {
     e?.preventDefault(); setError(null); setLoading(true);
