@@ -41,7 +41,11 @@ export interface PaymentsResult {
   pagination: { page: number; limit: number; total: number; totalPages: number };
 }
 
-const getData = (response: any) => response?.data?.data ?? response?.data ?? {};
+// Support both AxiosResponse and clients/interceptors that already unwrap the HTTP body.
+const getData = (response: any) => {
+  const body = response?.data ?? response;
+  return body?.data ?? body ?? {};
+};
 
 export async function getSummary(): Promise<PaymentSummary> {
   const response = await api.get('/admin-payments/summary');

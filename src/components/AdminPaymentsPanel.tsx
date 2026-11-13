@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import DatePicker, { DayValue } from 'react-modern-calendar-datepicker';
-import 'react-modern-calendar-datepicker/lib/DatePicker.css';
+import JalaliDatePicker from './JalaliDatePicker';
+import type { JalaliDate } from '../utils/jalaliDate';
 import * as adminActionsService from '../services/adminActionsService';
 import * as paymentsService from '../services/adminPaymentsService';
 
@@ -11,7 +11,7 @@ const labels:Record<string,string>={pending:'در انتظار',paid:'پرداخ
 const fmt=(v:number)=>Number(v||0).toLocaleString('fa-IR');
 const dateFmt=(v?:string|null)=>v?new Date(v).toLocaleString('fa-IR'):'—';
 const currencyLabel=(c:string)=>c==='IRT'?'تومان':c==='IRR'?'ریال':c;
-const jalaliToIso=(day:DayValue):string=>{
+const jalaliToIso=(day:JalaliDate|null):string=>{
  if(!day)return '';
  const div=(a:number,b:number)=>Math.floor(a/b);
  let jy=day.year-979,jm=day.month-1,jd=day.day-1;
@@ -35,8 +35,8 @@ const AdminPaymentsPanel:React.FC<Props>=({onComplete=()=>undefined})=>{
  const [error,setError]=useState<string|null>(null);
  const [message,setMessage]=useState<string|null>(null);
  const [filters,setFilters]=useState({userId:'',search:'',status:'',gateway:'',currency:'',from:'',to:'',period:'all'});
- const [fromDay,setFromDay]=useState<DayValue>(null);
- const [toDay,setToDay]=useState<DayValue>(null);
+ const [fromDay,setFromDay]=useState<JalaliDate|null>(null);
+ const [toDay,setToDay]=useState<JalaliDate|null>(null);
  const [form,setForm]=useState({userId:'',amount:'',currency:'IRR',gateway:'',description:''});
  const [selected,setSelected]=useState<paymentsService.PaymentRow|null>(null);
  const [statusForm,setStatusForm]=useState({status:'paid',referenceNo:''});
@@ -105,7 +105,16 @@ const AdminPaymentsPanel:React.FC<Props>=({onComplete=()=>undefined})=>{
       <input className={input} value={filters.gateway} onChange={e=>setFilters({...filters,gateway:e.target.value})} placeholder="درگاه"/>
       <select className={input} value={filters.currency} onChange={e=>setFilters({...filters,currency:e.target.value})}><option value="">همه ارزها</option><option value="IRR">ریال</option><option value="IRT">تومان</option></select>
       <select className={input} value={filters.period} onChange={e=>setPeriod(e.target.value as "all"|"custom")}><option value="all">همه دوره‌ها</option><option value="custom">بازه زمانی دلخواه</option></select>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:col-span-2"><div><label className="mb-1 block text-xs text-gray-500">از تاریخ</label><div className="flex items-center gap-2"><div className="min-w-0 flex-1"><DatePicker value={fromDay} onChange={(day)=>{setFromDay(day);setFilters({...filters,period:"custom",from:jalaliToIso(day)});}} inputPlaceholder="انتخاب تاریخ شروع" shouldHighlightWeekends locale="fa" inputClassName={input+" text-right"} wrapperClassName="w-full" calendarPopperPosition="bottom"/></div><button type="button" aria-label="باز کردن تقویم تاریخ شروع" onClick={e=>{const el=e.currentTarget.parentElement?.querySelector("input");el?.focus();el?.click();}} className="rounded-xl border p-2.5" title="تقویم"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg></button></div></div><div><label className="mb-1 block text-xs text-gray-500">تا تاریخ</label><div className="flex items-center gap-2"><div className="min-w-0 flex-1"><DatePicker value={toDay} onChange={(day)=>{setToDay(day);setFilters({...filters,period:"custom",to:jalaliToIso(day)});}} inputPlaceholder="انتخاب تاریخ پایان" shouldHighlightWeekends locale="fa" inputClassName={input+" text-right"} wrapperClassName="w-full" calendarPopperPosition="bottom"/></div><button type="button" aria-label="باز کردن تقویم تاریخ پایان" onClick={e=>{const el=e.currentTarget.parentElement?.querySelector("input");el?.focus();el?.click();}} className="rounded-xl border p-2.5" title="تقویم"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg></button></div></div></div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:col-span-2">
+        <div>
+          <label className="mb-1 block text-xs text-gray-500">از تاریخ</label>
+          <JalaliDatePicker value={fromDay} onChange={(day)=>{setFromDay(day);setFilters(current=>({...current,period:"custom",from:jalaliToIso(day)}));}} placeholder="انتخاب تاریخ شروع" className={input}/>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-gray-500">تا تاریخ</label>
+          <JalaliDatePicker value={toDay} onChange={(day)=>{setToDay(day);setFilters(current=>({...current,period:"custom",to:jalaliToIso(day)}));}} placeholder="انتخاب تاریخ پایان" className={input}/>
+        </div>
+      </div>
       <button disabled={busy||(filters.period==="custom"&&(!filters.from||!filters.to))} onClick={()=>{if(filters.period==="custom"&&filters.from>filters.to){setError("تاریخ شروع نباید بعد از تاریخ پایان باشد.");return;}void load(1);}} className="rounded-xl bg-cyan-600 px-4 py-2.5 font-semibold text-white disabled:opacity-50">اعمال فیلتر</button>
     </div>
    </div>
