@@ -61,6 +61,115 @@ export async function getUsers(): Promise<StoredUser[]> {
 
   return allRows.map((u: any) => normalizeUser(u));
 }
+function base64UrlToBytes(value: string): Uint8Array {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+  const binary = window.atob(padded);
+  return Uint8Array.from(binary, character => character.charCodeAt(0));
+}
+function bytesToBase64Url(value: ArrayBuffer): string {
+  const bytes = new Uint8Array(value);
+  let binary = '';
+  bytes.forEach(byte => { binary += String.fromCharCode(byte); });
+  return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+function serializePasskeyCredential(credential: PublicKeyCredential, registration: boolean): Record<string, any> {
+  const response = credential.response as AuthenticatorAttestationResponse | AuthenticatorAssertionResponse;
+  const payload: Record<string, any> = {
+    id: credential.id, rawId: bytesToBase64Url(credential.rawId), type: credential.type,
+    authenticatorAttachment: credential.authenticatorAttachment,
+    clientExtensionResults: credential.getClientExtensionResults?.() || {},
+  };
+  const common = { clientDataJSON: bytesToBase64Url(response.clientDataJSON) };
+  if (registration) {
+    const attestation = response as AuthenticatorAttestationResponse;
+    payload.response = {
+      ...common, attestationObject: bytesToBase64Url(attestation.attestationObject),
+      transports: typeof attestation.getTransports === 'function' ? attestation.getTransports() : [],
+    };
+  } else {
+    const assertion = response as AuthenticatorAssertionResponse;
+    payload.response = {
+      ...common, authenticatorData: bytesToBase64Url(assertion.authenticatorData),
+      signature: bytesToBase64Url(assertion.signature),
+      ...(assertion.userHandle ? { userHandle: bytesToBase64Url(assertion.userHandle) } : {}),
+    };
+  }
+  return payload;
+}
+function requirePasskeySupport(): void {
+  if (!window.isSecureContext || !navigator.credentials || !window.PublicKeyCredential) {
+    throw new Error('ورود بیومتریک در این مرورگر یا نشانی امن (HTTPS) پشتیبانی نمی‌شود.');
+  }
+}
+export interface PasskeyDevice {
+  id: number; deviceName: string; deviceType?: string | null; backedUp: boolean;
+  createdAt: string; lastUsedAt?: string | null;
+}
+export interface PasskeySettings { enabled: boolean; devices: PasskeyDevice[]; }
+export async function getPasskeySettings(): Promise<PasskeySettings> {
+  const res = await get<any>('/auth/passkeys');
+  if (!res.success) throw new Error(res.message || 'دریافت دستگاه‌های ثبت‌شده ناموفق بود');
+  return res.data || { enabled: false, devices: [] };
+}
+export async function registerPasskey(deviceName?: string): Promise<void> {
+  requirePasskeySupport();
+  const optionsRes = await post<any>('/auth/passkeys/register/options', {});
+  if (!optionsRes.success || !optionsRes.data?.options) throw new Error(optionsRes.message || 'آماده‌سازی ثبت دستگاه ناموفق بود');
+  const options = optionsRes.data.options;
+  const publicKey: PublicKeyCredentialCreationOptions = {
+    ...options, challenge: base64UrlToBytes(options.challenge),
+    user: { ...options.user, id: base64UrlToBytes(options.user.id) },
+    excludeCredentials: (options.excludeCredentials || []).map((item: any) => ({ ...item, id: base64UrlToBytes(item.id) })),
+  };
+  const credential = await navigator.credentials.create({ publicKey }) as PublicKeyCredential | null;
+  if (!credential) throw new Error('ثبت دستگاه توسط کاربر لغو شد.');
+  const verifyRes = await post<any>('/auth/passkeys/register/verify', {
+    challenge: optionsRes.data.challenge, response: serializePasskeyCredential(credential, true),
+    deviceName: deviceName || (navigator.platform || 'دستگاه') + ' - ' + navigator.userAgent.slice(0, 55),
+  });
+  if (!verifyRes.success) throw new Error(verifyRes.message || 'ثبت دستگاه ناموفق بود');
+}
+export async function setPasskeyEnabled(enabled: boolean): Promise<void> {
+  const res = await put<any>('/auth/passkeys/enabled', { enabled });
+  if (!res.success) throw new Error(res.message || 'تغییر وضعیت ورود بیومتریک ناموفق بود');
+}
+export async function removePasskeyDevice(id: number): Promise<void> {
+  const res = await del<any>('/auth/passkeys/' + encodeURIComponent(String(id)));
+  if (!res.success) throw new Error(res.message || 'حذف دستگاه ناموفق بود');
+}
+export async function removeAllPasskeyDevices(): Promise<void> {
+  const res = await del<any>('/auth/passkeys');
+  if (!res.success) throw new Error(res.message || 'حذف دستگاه‌ها ناموفق بود');
+}
+export async function loginWithPasskey(): Promise<StoredUser> {
+  requirePasskeySupport();
+  const optionsRes = await post<any>('/auth/passkeys/login/options', {});
+  if (!optionsRes.success || !optionsRes.data?.options) throw new Error(optionsRes.message || 'ورود بیومتریک در دسترس نیست');
+  const options = optionsRes.data.options;
+  const publicKey: PublicKeyCredentialRequestOptions = {
+    ...options, challenge: base64UrlToBytes(options.challenge),
+    allowCredentials: (options.allowCredentials || []).map((item: any) => ({ ...item, id: base64UrlToBytes(item.id) })),
+  };
+  const credential = await navigator.credentials.get({ publicKey }) as PublicKeyCredential | null;
+  if (!credential) throw new Error('درخواست ورود بیومتریک لغو شد.');
+  const verifyRes = await post<any>('/auth/passkeys/login/verify', {
+    challenge: optionsRes.data.challenge, response: serializePasskeyCredential(credential, false),
+  });
+  if (!verifyRes.success) throw new Error(verifyRes.message || 'ورود بیومتریک ناموفق بود');
+  const token = extractTokenFromResponse(verifyRes);
+  const refresh = extractRefreshTokenFromResponse(verifyRes);
+  if (token) setStoredToken(token);
+  if (refresh) setStoredRefreshToken(refresh);
+  const direct = extractUserFromResponse(verifyRes);
+  if (direct?.id || direct?.email || direct?.username) {
+    const user = normalizeUser(direct); setStoredUser(user); return user;
+  }
+  const me = await refreshCurrentUser();
+  if (!me) throw new Error('پس از احراز هویت، اطلاعات حساب کاربری دریافت نشد.');
+  return me;
+}
+
 export async function login(emailOrUsername: string, password: string, _rememberMe = false): Promise<StoredUser> { const res = await post<any>('/auth/login', { email: emailOrUsername, password }); if (!res.success) throw new Error(res.message || 'Login failed'); const token = extractTokenFromResponse(res); const refresh = extractRefreshTokenFromResponse(res); if (token) setStoredToken(token); if (refresh) setStoredRefreshToken(refresh); const direct = extractUserFromResponse(res); if (direct?.id || direct?.email || direct?.username) { const user = normalizeUser(direct, emailOrUsername); setStoredUser(user); return user; } const me = await refreshCurrentUser(); if (!me) throw new Error('Authenticated user could not be resolved after login'); return me; }
 export async function logout(): Promise<void> { try { await post('/auth/logout', {}); } finally { removeStoredToken(); removeStoredRefreshToken(); removeStoredUser(); } }
 export async function updateUser(userOrId: StoredUser | string, updates?: Partial<StoredUser>): Promise<StoredUser> { const userId = typeof userOrId === 'string' ? userOrId : userOrId.id; const payload = typeof userOrId === 'string' ? (updates || {}) : { ...userOrId, ...(updates || {}) }; const res = await put<any>(`/admin/users/${encodeURIComponent(userId)}`, payload); if (!res.success) throw new Error(res.message || 'Failed to update user'); const user = normalizeUser(res.data?.user || res.data?.data || res.data); setStoredUser(user); return user; }
@@ -75,5 +184,5 @@ export async function registerUser(userData: RegisterUserData): Promise<StoredUs
 export function isAccountExpired(user: StoredUser): boolean { if (user.isAdmin) return false; const expiry = getExpiryDate(user); if (expiry) return expiry.getTime() <= Date.now(); if (user.isSubscriptionActive === false) return true; return typeof user.remainingDays === 'number' && user.remainingDays <= 0; }
 export function getUserValidityInfo(user: StoredUser): ValidityInfo { const expiry = getExpiryDate(user); let days: number | null = null; let expired = false; if (expiry) { const diff = expiry.getTime() - Date.now(); days = Math.max(0, Math.ceil(diff / 86400000)); expired = diff <= 0; } else if (typeof user.remainingDays === 'number') { days = Math.max(0, user.remainingDays); expired = !user.isAdmin && (user.isSubscriptionActive === false || days <= 0); } return { isExpired: expired, daysRemaining: days, expiryDate: expiry ? expiry.toLocaleDateString('fa-IR') : null, statusText: expired ? 'Account expired' : days !== null ? `${days} days remaining` : 'No expiry date', statusColor: expired ? 'red' : days !== null && days <= 3 ? 'red' : days !== null && days <= 7 ? 'orange' : 'green' }; }
 export function updateUserPresence(_userId: string): void {} export function removeUserPresence(_userId: string): void {} export function getOnlineUserCount(): number { return 0; }
-const authService = { getToken, getStoredCurrentUser, setCurrentUser, getRefreshToken, getCurrentUser, refreshCurrentUser, getMe, getUsers, login, logout, recoverPassword, sendPasswordResetOtp, verifyPasswordResetOtp, resetPasswordWithOtp, registerUser, updateUser, updateProfile, deleteUser, changePassword, isAccountExpired, getUserValidityInfo, updateUserPresence, removeUserPresence, getOnlineUserCount };
+const authService = { getToken, getStoredCurrentUser, setCurrentUser, getRefreshToken, getCurrentUser, refreshCurrentUser, getMe, getUsers, login, loginWithPasskey, getPasskeySettings, registerPasskey, setPasskeyEnabled, removePasskeyDevice, removeAllPasskeyDevices, logout, recoverPassword, sendPasswordResetOtp, verifyPasswordResetOtp, resetPasswordWithOtp, registerUser, updateUser, updateProfile, deleteUser, changePassword, isAccountExpired, getUserValidityInfo, updateUserPresence, removeUserPresence, getOnlineUserCount };
 export default authService;

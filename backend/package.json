@@ -13,6 +13,7 @@
     "@prisma/client": "^5.22.0",
     "@prisma/config": "^7.1.0",
     "@prisma/engines": "^7.4.1",
+    "@simplewebauthn/server": "^13.3.3",
     "adm-zip": "^0.5.16",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
