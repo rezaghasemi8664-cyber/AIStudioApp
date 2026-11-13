@@ -34,7 +34,7 @@ export function refreshAccessToken(): Promise<string | null> {
 
     try {
       const refreshToken = readRefreshToken();
-      const response = await fetch(`${API_BASE_URL.replace(/\\/+$/, '')}/auth/refresh`, {
+      const response = await fetch(`${API_BASE_URL.replace(/\/+$/, '')}/auth/refresh`, {
         method: 'POST',
         credentials: 'include',
         headers: {
