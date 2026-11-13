@@ -21,6 +21,7 @@ export interface PaymentRow {
   description?: string | null;
   createdAt?: string;
   paidAt?: string | null;
+  source?: 'zarinpal' | 'admin';
 }
 
 export interface PaymentsQuery {
