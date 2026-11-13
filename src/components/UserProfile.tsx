@@ -601,6 +601,7 @@ const UserProfile: React.FC<UserProfileProps> = ({
                 isEditing={isEditingInfo}
                 onChange={(v) => setEditData((prev) => ({ ...prev, lastName: v }))}
               />
+              <InfoRow label="شناسه کاربری" value={String(currentUser.id ?? '—')} />
               <InfoRow label="نام کاربری" value={currentUser.username || '—'} />
               <InfoRow label="ایمیل" value={currentUser.email || '—'} />
               <InfoRow
