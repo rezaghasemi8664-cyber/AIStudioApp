@@ -65,9 +65,10 @@ export const passkeyService = {
     return unwrap<PasskeyState>(await del('/auth/passkey/devices'), 'حذف دستگاه‌ها ناموفق بود.');
   },
 
-  async authenticate(identifier: string): Promise<any> {
+  async authenticate(identifier?: string): Promise<any> {
+    const normalizedIdentifier = String(identifier || '').trim();
     const start = unwrap<{ challengeId: string; options: any }>(
-      await post('/auth/passkey/authentication/options', { identifier }),
+      await post('/auth/passkey/authentication/options', normalizedIdentifier ? { identifier: normalizedIdentifier } : {}),
       'ورود بیومتریک برای این حساب فعال نیست.',
     );
     const response = await startAuthentication({ optionsJSON: start.options });
