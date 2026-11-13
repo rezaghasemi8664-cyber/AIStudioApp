@@ -6,7 +6,7 @@ const failures = new Map();
 
 function clientKey(req) {
   const ip = req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
-  const identity = String(req.body?.email || req.body?.username || '').trim().toLowerCase();
+  const identity = String(req.body?.email || req.body?.username || req.body?.identifier || '').trim().toLowerCase();
   return `${ip}:${identity}`;
 }
 
@@ -23,7 +23,7 @@ async function loginSecurity(req, res, next) {
   const originalEnd = res.end.bind(res);
   res.end = function (...args) {
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      failures.delete(key);
+      if (!String(req.path || '').includes('/passkey/authentication/options')) failures.delete(key);
     } else if (res.statusCode === 401 || res.statusCode === 403) {
       const current = failures.get(key) || { count:0, lockedUntil:0 };
       current.count += 1;

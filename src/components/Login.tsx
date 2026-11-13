@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { browserSupportsWebAuthn } from '@simplewebauthn/browser';
 import type { StoredUser } from '../types';
 import * as authService from '../services/authService';
 import { LockClosedIcon, EyeIcon, EyeSlashIcon, XMarkIcon, UserPlusIcon, CheckCircleIcon, ArrowUturnLeftIcon } from './Icons';
@@ -53,6 +54,8 @@ setForgotStep('mobile'); setForgotMobile(''); setForgotOtp(''); setResetToken(''
     catch (err: any) { setError(err.message || 'خطای ناشناخته در هنگام ورود.'); }
     finally { setLoading(false); }
   };
+
+  const handlePasskeyLogin = async () => { setError(null); if (!username.trim()) { setError('ابتدا نام کاربری یا ایمیل خود را وارد کنید.'); return; } setLoading(true); try { const user = await authService.loginWithPasskey(username.trim()); onLogin(user); } catch (err: any) { setError(err.message || 'ورود بیومتریک ناموفق بود.'); } finally { setLoading(false); } };
 
   const handleSendResetOtp = async (e?: React.FormEvent) => {
     e?.preventDefault(); setError(null); setLoading(true);
@@ -164,6 +167,7 @@ setForgotStep('mobile'); setForgotMobile(''); setForgotOtp(''); setResetToken(''
         <button type="submit" disabled={loading} className="w-full min-h-12 rounded-xl px-6 py-3 font-extrabold text-white shadow-md transition-all duration-200 flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-emerald-500/30 disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.99]">
           {loading ? <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin" /> : <><LockClosedIcon /><span>ورود</span></>}
         </button>
+        {browserSupportsWebAuthn() && <button type="button" onClick={() => void handlePasskeyLogin()} disabled={loading || !username.trim()} className="w-full min-h-12 rounded-xl px-6 py-3 font-bold flex items-center justify-center gap-2 border border-emerald-700 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-50"><span aria-hidden="true">◉</span><span>ورود با Face ID، اثر انگشت یا قفل صفحه</span></button>}
         <div className="pt-4 border-t border-slate-100 dark:border-slate-700 space-y-3">
           <div className="text-center">
             <p className="text-sm font-semibold" style={{ color: 'var(--login-label-color)' }}>هنوز حساب کاربری ندارید؟</p>

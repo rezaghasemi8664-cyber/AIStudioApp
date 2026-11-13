@@ -67,6 +67,8 @@ model User {
   referralRedemption    ReferralInvite?          @relation("ReferralRedeemer")
   telegramReferralLinks TelegramReferralLink[]
   telegramReferralMembers TelegramReferralMember[]
+  passkeyCredentials PasskeyCredential[]
+  webAuthnChallenges WebAuthnChallenge[]
 
   @@index([isActive])
   @@index([isDeleted])
@@ -778,5 +780,40 @@ model OptionMarketCurrent {
   updatedAt      DateTime @default(dbgenerated("sysdatetime()"))
 
   @@map("OptionMarketCurrent")
+  @@schema("dbo")
+}
+
+model PasskeyCredential {
+  id           Int      @id(map: "PK_PasskeyCredential") @default(autoincrement())
+  userId       Int
+  credentialId String   @db.NVarChar(2048)
+  credentialIdHash String @unique(map: "UQ_PasskeyCredential_credentialIdHash") @db.VarChar(64)
+  publicKey    String   @db.NVarChar(Max)
+  counter      Int      @default(0)
+  transports   String?  @db.NVarChar(500)
+  deviceName   String?  @db.NVarChar(200)
+  deviceType   String?  @db.NVarChar(30)
+  backedUp     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime?
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "FK_PasskeyCredential_User")
+
+  @@index([userId], map: "IX_PasskeyCredential_userId")
+  @@map("PasskeyCredential")
+  @@schema("dbo")
+}
+
+model WebAuthnChallenge {
+  id        String   @id(map: "PK_WebAuthnChallenge") @db.NVarChar(36)
+  userId    Int?
+  purpose   String   @db.NVarChar(30)
+  challenge String   @db.NVarChar(255)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade, map: "FK_WebAuthnChallenge_User")
+
+  @@index([userId, expiresAt], map: "IX_WebAuthnChallenge_userId_expiresAt")
+  @@index([expiresAt], map: "IX_WebAuthnChallenge_expiresAt")
+  @@map("WebAuthnChallenge")
   @@schema("dbo")
 }

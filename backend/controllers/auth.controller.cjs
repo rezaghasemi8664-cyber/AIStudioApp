@@ -12,6 +12,7 @@ const { encryptPassword, decryptPassword } = require('../services/passwordVault.
 const subscriptionService = require('../services/subscription.service.cjs');
 const marketingAttribution = require('../services/marketingAttribution.service.cjs');
 const telegramReferralLinksService = require('../services/telegramReferralLinks.service.cjs');
+const passkeyService = require('../services/passkey.service.cjs');
 
 let env = {};
 try { env = require('../config/env.cjs'); } catch (_) {}
@@ -294,5 +295,24 @@ async function refreshToken(req, res) {
     });
   }
 }
+
+async function passkeyRegistrationOptions(req,res){try{const currentPassword=String(req.body?.currentPassword||'');if(!currentPassword)return res.status(400).json({success:false,message:'برای ثبت دستگاه، رمز عبور فعلی را وارد کنید.'});const user=await prisma.user.findUnique({where:{id:Number(req.user.userId)},select:{passwordHash:true}});if(!user||!(await bcrypt.compare(currentPassword,user.passwordHash)))return res.status(401).json({success:false,message:'رمز عبور فعلی صحیح نیست.'});const data=await passkeyService.registrationOptions(req,req.user.userId);return res.json({success:true,data});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||'ساخت درخواست ثبت دستگاه ناموفق بود.'});}}
+async function passkeyRegistrationVerify(req,res){try{const data=await passkeyService.verifyRegistration(req,req.user.userId,req.body?.response,req.body?.challengeId,req.body?.deviceName);return res.json({success:true,data,message:'دستگاه با موفقیت ثبت شد.'});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||'ثبت دستگاه ناموفق بود.'});}}
+async function passkeyListDevices(req,res){try{return res.json({success:true,data:await passkeyService.listDevices(req.user.userId)});}catch(error){return res.status(500).json({success:false,message:'دریافت دستگاه‌های ثبت‌شده ناموفق بود.'});}}
+async function passkeyEnable(req,res){try{return res.json({success:true,data:await passkeyService.enable(req.user.userId),message:'ورود بیومتریک فعال شد.'});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||'فعال‌سازی ورود بیومتریک ناموفق بود.'});}}
+async function passkeyDisable(req,res){try{return res.json({success:true,data:await passkeyService.disable(req.user.userId),message:'ورود بیومتریک غیرفعال شد.'});}catch(error){return res.status(500).json({success:false,message:'غیرفعال‌سازی ورود بیومتریک ناموفق بود.'});}}
+async function passkeyRemoveDevice(req,res){try{return res.json({success:true,data:await passkeyService.removeDevice(req.user.userId,req.params.id),message:'دستگاه حذف شد.'});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||'حذف دستگاه ناموفق بود.'});}}
+async function passkeyRemoveAllDevices(req,res){try{return res.json({success:true,data:await passkeyService.removeAllDevices(req.user.userId),message:'همه دستگاه‌ها حذف شدند.'});}catch(error){return res.status(500).json({success:false,message:'حذف دستگاه‌ها ناموفق بود.'});}}
+async function passkeyAuthenticationOptions(req,res){try{const data=await passkeyService.authenticationOptions(req,req.body?.identifier);return res.json({success:true,data});}catch(error){return res.status(error.status||500).json({success:false,message:error.message||'ورود بیومتریک در دسترس نیست.'});}}
+async function passkeyAuthenticationVerify(req,res){try{
+  const user=await passkeyService.verifyAuthentication(req,req.body?.challengeId,req.body?.response,PUBLIC_SELECT);
+  const maintenanceRow=await prisma.globalSetting.findUnique({where:{key:'maintenance.policy'}}).catch(()=>null);
+  if(maintenanceRow&&maintenanceRow.category==='maintenance'){let policy={};try{policy=JSON.parse(maintenanceRow.value)||{};}catch(_){}const roleName=String(user.Role?.name||'').toUpperCase();const isAdmin=roleName==='ADMIN'||roleName==='SUPERADMIN'||user.roleId===2;if(policy.enabled===true&&!(policy.allowAdmins!==false&&isAdmin))return res.status(503).json({success:false,code:'MAINTENANCE_MODE',maintenance:true,message:String(policy.message||'سامانه موقتاً در حال نگهداری است.').slice(0,500)});}
+  try{await telegramReferralLinksService.ensureTelegramReferralLink(user.id);}catch(error){console.error('[TELEGRAM_REFERRAL] passkey login provisioning failed',{userId:user.id,code:String(error?.code||'UNKNOWN').slice(0,80)});}
+  try{marketingAttribution.recordAuthenticatedVisit({userId:user.id});}catch(error){console.error('[MARKETING_ATTRIBUTION] passkey authenticated visit tracking failed',error.message);}
+  const effective=await getEffectiveSubscription(user.id);const effectiveUser=mergeEffectiveSubscription(user,effective);const t=tokens(user);setCookies(req,res,t.accessToken,t.refreshToken);
+  await prisma.user.update({where:{id:user.id},data:{lastLoginAt:new Date(),loginCount:{increment:1}}}).catch(()=>{});
+  return res.json({success:true,message:'ورود موفق',data:{user:formatUser({...effectiveUser,lastLoginAt:new Date()}),token:t.accessToken,accessToken:t.accessToken,refreshToken:t.refreshToken}});
+}catch(error){console.error('[AUTH] passkey login failed',error?.code||error?.name||'ERROR');return res.status(error.status||500).json({success:false,message:error.message||'ورود بیومتریک ناموفق بود.'});}}
 async function logout(req,res){clearCookies(req,res);return res.json({success:true,message:'خروج موفق'});}
-module.exports={login,register,verify,refreshToken,logout,me,updateProfile,changePassword,getSubscription,recoverPassword,resetPassword,refresh:refreshToken,getMe:me,getProfile:me};
+module.exports={login,register,verify,refreshToken,logout,me,updateProfile,changePassword,getSubscription,recoverPassword,resetPassword,passkeyRegistrationOptions,passkeyRegistrationVerify,passkeyListDevices,passkeyEnable,passkeyDisable,passkeyRemoveDevice,passkeyRemoveAllDevices,passkeyAuthenticationOptions,passkeyAuthenticationVerify,refresh:refreshToken,getMe:me,getProfile:me};
