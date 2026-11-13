@@ -258,7 +258,7 @@ async function enrichStockAnalysisResponse(response: any): Promise<any> {
 type RetryableRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
 function isAuthEndpoint(url: string | undefined): boolean {
-  return !!url && /\/auth\//(?:login|register|refresh(?:-token)?|logout|recover-password|reset-password)(?:[/?]|$)/i.test(url);
+  return !!url && /\/auth\/(?:login|register|refresh(?:-token)?|logout|recover-password|reset-password)(?:[/?]|$)/i.test(url);
 }
 
 api.interceptors.response.use(

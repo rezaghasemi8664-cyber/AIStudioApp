@@ -227,7 +227,7 @@ async function enrichStockAnalysis(payload: any, symbol: string, headers: Record
 }
 
 function isAuthEndpoint(endpoint: string): boolean {
-  return /\/auth\//(?:login|register|refresh(?:-token)?|logout|recover-password|reset-password)(?:[/?]|$)/i.test(normalizeEndpoint(endpoint));
+  return /\/auth\/(?:login|register|refresh(?:-token)?|logout|recover-password|reset-password)(?:[/?]|$)/i.test(normalizeEndpoint(endpoint));
 }
 
 export async function request<T>(method: string, endpoint: string, data?: unknown, customHeaders?: Record<string, string>, allowRefresh = true): Promise<ApiResponse<T>> {
