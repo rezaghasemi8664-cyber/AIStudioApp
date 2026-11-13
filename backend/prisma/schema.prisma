@@ -67,6 +67,8 @@ model User {
   referralRedemption    ReferralInvite?          @relation("ReferralRedeemer")
   telegramReferralLinks TelegramReferralLink[]
   telegramReferralMembers TelegramReferralMember[]
+  passkeyCredentials     PasskeyCredential[]
+  passkeyChallenges      PasskeyChallenge[]
 
   @@index([isActive])
   @@index([isDeleted])
@@ -778,5 +780,41 @@ model OptionMarketCurrent {
   updatedAt      DateTime @default(dbgenerated("sysdatetime()"))
 
   @@map("OptionMarketCurrent")
+  @@schema("dbo")
+}
+
+
+model PasskeyCredential {
+  id               Int      @id @default(autoincrement())
+  userId           Int
+  credentialId     String   @db.NVarChar(2000)
+  credentialIdHash String   @unique @db.NVarChar(64)
+  publicKey        Bytes    @db.VarBinary(Max)
+  counter          BigInt   @default(0)
+  transportsJson   String?  @db.NVarChar(Max)
+  deviceName       String   @db.NVarChar(120)
+  deviceType       String?  @db.NVarChar(30)
+  backedUp         Boolean  @default(false)
+  createdAt        DateTime @default(dbgenerated("sysdatetime()")) @db.DateTime2
+  lastUsedAt       DateTime? @db.DateTime2
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("PasskeyCredential")
+  @@schema("dbo")
+}
+
+model PasskeyChallenge {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  challenge String   @unique @db.NVarChar(128)
+  purpose   String   @db.NVarChar(30)
+  expiresAt DateTime @db.DateTime2
+  createdAt DateTime @default(dbgenerated("sysdatetime()")) @db.DateTime2
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([userId, purpose])
+  @@map("PasskeyChallenge")
   @@schema("dbo")
 }
