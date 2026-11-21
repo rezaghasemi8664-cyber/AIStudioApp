@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getCached, invalidateCachedGet } from '../services/apiClient';
 import { onCommoditySnapshotUpdated } from '../services/socketService';
 
@@ -26,11 +26,14 @@ const Commodity: React.FC = () => {
   const [snapshot, setSnapshot] = useState<CommoditySnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const refreshSequence = useRef(0);
 
   const loadSnapshot = useCallback(async () => {
+    const sequence = ++refreshSequence.current;
     try {
       const response: any = await getCached(ENDPOINT, 300000);
       const data = response?.data?.data ?? response?.data ?? null;
+      if (sequence !== refreshSequence.current) return;
       if (response?.success && data?.groups) {
         setSnapshot(data);
         setError('');
@@ -38,23 +41,33 @@ const Commodity: React.FC = () => {
         setError('اطلاعات کامودیتی هنوز آماده نیست.');
       }
     } catch {
-      setError('دریافت اطلاعات کامودیتی با خطا مواجه شد.');
+      if (sequence === refreshSequence.current) setError('دریافت اطلاعات کامودیتی با خطا مواجه شد.');
     } finally {
-      setLoading(false);
+      if (sequence === refreshSequence.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadSnapshot();
     const unsubscribe = onCommoditySnapshotUpdated((payload: any) => {
       const updated = payload?.snapshot;
       if (updated?.groups) {
+        // Prefer the committed snapshot delivered by the server; do not wait for another GET.
+        refreshSequence.current += 1;
+        invalidateCachedGet(ENDPOINT);
         setSnapshot(updated);
         setError('');
-        invalidateCachedGet(ENDPOINT);
+        setLoading(false);
+        return;
       }
+      // Socket has just connected/reconnected; fetch the latest server-side cached snapshot.
+      invalidateCachedGet(ENDPOINT);
+      loadSnapshot();
     });
-    return unsubscribe;
+    loadSnapshot();
+    return () => {
+      refreshSequence.current += 1;
+      unsubscribe();
+    };
   }, [loadSnapshot]);
 
   return (
