@@ -77,24 +77,34 @@ const Commodity: React.FC = () => {
           <div key={group.key} className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
             <h2 className="px-4 py-3 font-bold bg-gray-50 dark:bg-gray-800">{group.title}</h2>
             <div className="overflow-x-auto">
-              <table className="min-w-[850px] w-full text-sm">
+              <table className="min-w-[850px] w-full table-fixed text-sm">
+                <colgroup>
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '8%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '12%' }} />
+                </colgroup>
                 <thead className="text-gray-500 bg-gray-50/70 dark:bg-gray-800/60">
                   <tr>{['تاریخ','زمان','نماد','نام','قیمت','تغییر قیمت','درصد تغییر','واحد'].map(title =>
-                    <th key={title} className="px-3 py-3 text-right font-medium whitespace-nowrap">{title}</th>)}</tr>
+                    <th key={title} className="px-3 py-3 text-center align-middle font-medium whitespace-nowrap">{title}</th>)}</tr>
                 </thead>
                 <tbody>
                   {rows.map(row => {
                     const positive = Number(row.change_value || 0) >= 0;
                     const color = positive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
                     return <tr key={row.symbol} className="border-t border-gray-100 dark:border-gray-700">
-                      <td className="px-3 py-3 whitespace-nowrap">{row.date || '—'}</td>
-                      <td className="px-3 py-3 whitespace-nowrap">{row.time || '—'}</td>
-                      <td className="px-3 py-3 font-semibold whitespace-nowrap" dir="ltr">{row.symbol}</td>
-                      <td className="px-3 py-3 whitespace-nowrap">{row.name}</td>
-                      <td className="px-3 py-3 font-semibold whitespace-nowrap" dir="ltr">{formatNumber(row.price)}</td>
-                      <td className={'px-3 py-3 whitespace-nowrap '+color} dir="ltr">{row.change_value == null ? '—' : (row.change_value > 0 ? '+' : '')+formatNumber(row.change_value)}</td>
-                      <td className={'px-3 py-3 whitespace-nowrap '+color} dir="ltr">{row.change_percent == null ? '—' : (row.change_percent > 0 ? '+' : '')+formatNumber(row.change_percent)+'%'}</td>
-                      <td className="px-3 py-3 whitespace-nowrap">{row.unit || 'دلار'}</td>
+                      <td className="px-3 py-3 text-center align-middle whitespace-nowrap">{row.date || '—'}</td>
+                      <td className="px-3 py-3 text-center align-middle whitespace-nowrap">{row.time || '—'}</td>
+                      <td className="px-3 py-3 text-center align-middle font-semibold whitespace-nowrap" dir="ltr">{row.symbol}</td>
+                      <td className="px-3 py-3 text-center align-middle whitespace-nowrap">{row.name}</td>
+                      <td className="px-3 py-3 text-center align-middle font-semibold whitespace-nowrap" dir="ltr">{formatNumber(row.price)}</td>
+                      <td className={'px-3 py-3 text-center align-middle whitespace-nowrap '+color} dir="ltr">{row.change_value == null ? '—' : (row.change_value > 0 ? '+' : '')+formatNumber(row.change_value)}</td>
+                      <td className={'px-3 py-3 text-center align-middle whitespace-nowrap '+color} dir="ltr">{row.change_percent == null ? '—' : (row.change_percent > 0 ? '+' : '')+formatNumber(row.change_percent)+'%'}</td>
+                      <td className="px-3 py-3 text-center align-middle whitespace-nowrap">{row.unit || 'دلار'}</td>
                     </tr>;
                   })}
                 </tbody>
