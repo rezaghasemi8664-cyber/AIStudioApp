@@ -100,7 +100,7 @@ const Commodity: React.FC = () => {
                 </tbody>
               </table>
             </div>
-          </div>;
+          </div>);
       })}
       {!loading && !snapshot && !error && <div className="text-center text-gray-500 py-8">داده‌ای موجود نیست.</div>}
     </section>
