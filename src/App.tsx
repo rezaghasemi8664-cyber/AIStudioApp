@@ -54,7 +54,7 @@ import {
   ChevronDownIcon,
   PresentationChartLineIcon,
   ClipboardDocumentIcon,
-  DocumentTextIcon,
+  CalendarDaysIcon,
   LockClosedIcon,
   PaperclipIcon,
   Squares2X2Icon,
@@ -66,7 +66,7 @@ import {
   ArrowsPointingOutIcon,
   CpuChipIcon,
   FunnelIcon,
-  DocumentDuplicateIcon,
+  ListBulletIcon,
   WrenchIcon,
 } from './components/Icons';
 
@@ -1302,12 +1302,12 @@ const App: React.FC = () => {
             <TabButton tab="scalping" label="نوسان‌گیری" icon={<BoltIcon />} alertType={scalpingAlert ? 'cyan' : 'none'} locked={isExpired && isSubscriptionRestrictedTab('scalping')} activeTab={activeTab} onTabClick={handleTabClick} />
             <TabButton tab="portfolio" label="سبد سهام" icon={<BriefcaseIcon />} alertType={portfolioAlert === 'buy' ? 'green' : portfolioAlert === 'sell' ? 'red' : 'none'} activeTab={activeTab} onTabClick={handleTabClick} />
             <TabButton tab="traderJournal" label="دفترچه معاملات" icon={<ClipboardDocumentListIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
-            <TabButton tab="codalIntelligence" label="مرکز رویداد کدال" icon={<DocumentTextIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
+            <TabButton tab="codalIntelligence" label="مرکز رویداد کدال" icon={<CalendarDaysIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
             <TabButton tab="comparison" label="مقایسه" icon={<ArrowsPointingOutIcon />} alertType="none" locked={isExpired && isSubscriptionRestrictedTab('comparison')} activeTab={activeTab} onTabClick={handleTabClick} />
             <TabButton tab="strategyLab" label="آزمایشگاه استراتژی" icon={<CpuChipIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
             <TabButton tab="dailyFilters" label="فیلترهای روزانه" icon={<FunnelIcon />} alertType="none" locked={isExpired && isSubscriptionRestrictedTab('dailyFilters')} activeTab={activeTab} onTabClick={handleTabClick} />
             {currentUser.isAdmin && <><TabButton tab="users" label="پنل مدیریت" icon={<Cog6ToothIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /><TabButton tab="notifications" label="اطلاعیه‌ها" icon={<MegaphoneIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /></>}
-            <TabButton tab="comprehensiveGuide" label="راهنمای جامع نرم‌افزار" icon={<DocumentDuplicateIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
+            <TabButton tab="comprehensiveGuide" label="راهنمای جامع نرم‌افزار" icon={<ListBulletIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
             <TabButton tab="profile" label="پروفایل" icon={<UserCircleIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} /><TabButton tab="settings" label="تنظیمات" icon={<WrenchIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
           </div>
           <div className="md:hidden px-3" dir="rtl">
@@ -1343,12 +1343,12 @@ const App: React.FC = () => {
                 <TabButton tab="scalping" label="نوسان‌گیری" icon={<BoltIcon />} alertType={scalpingAlert ? 'cyan' : 'none'} locked={isExpired && isSubscriptionRestrictedTab('scalping')} activeTab={activeTab} onTabClick={handleTabClick} mobile />
                 <TabButton tab="portfolio" label="سبد سهام" icon={<BriefcaseIcon />} alertType={portfolioAlert === 'buy' ? 'green' : portfolioAlert === 'sell' ? 'red' : 'none'} activeTab={activeTab} onTabClick={handleTabClick} mobile />
                 <TabButton tab="traderJournal" label="دفترچه معاملات" icon={<ClipboardDocumentListIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} mobile />
-                <TabButton tab="codalIntelligence" label="مرکز رویداد کدال" icon={<DocumentTextIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} mobile />
+                <TabButton tab="codalIntelligence" label="مرکز رویداد کدال" icon={<CalendarDaysIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} mobile />
                 <TabButton tab="comparison" label="مقایسه" icon={<ArrowsPointingOutIcon />} alertType="none" locked={isExpired && isSubscriptionRestrictedTab('comparison')} activeTab={activeTab} onTabClick={handleTabClick} mobile />
                 <TabButton tab="strategyLab" label="آزمایشگاه استراتژی" icon={<CpuChipIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} mobile />
                 <TabButton tab="dailyFilters" label="فیلترهای روزانه" icon={<FunnelIcon />} alertType="none" locked={isExpired && isSubscriptionRestrictedTab('dailyFilters')} activeTab={activeTab} onTabClick={handleTabClick} mobile />
                 {currentUser.isAdmin && <><TabButton tab="users" label="پنل مدیریت" icon={<Cog6ToothIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} mobile /><TabButton tab="notifications" label="اطلاعیه‌ها" icon={<MegaphoneIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} mobile /></>}
-                <TabButton tab="comprehensiveGuide" label="راهنمای جامع نرم‌افزار" icon={<DocumentDuplicateIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} mobile />
+                <TabButton tab="comprehensiveGuide" label="راهنمای جامع نرم‌افزار" icon={<ListBulletIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} mobile />
                 <TabButton tab="profile" label="پروفایل" icon={<UserCircleIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} mobile />
                 <TabButton tab="settings" label="تنظیمات" icon={<WrenchIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} mobile />
               </div>
