@@ -92,6 +92,7 @@ const PaperTrading = lazy(() => import('./components/PaperTrading'));
 const TraderPerformance = lazy(() => import('./components/TraderPerformance'));
 const RoniaAssistant = lazy(() => import('./components/RoniaAssistant'));
 const OptionsMarket = lazy(() => import('./components/OptionsMarket'));
+const Commodity = lazy(() => import('./components/Commodity'));
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
 
 type Tab =
@@ -113,6 +114,7 @@ type Tab =
   | 'traderPerformance'
   | 'roniaAssistant'
   | 'optionsMarket'
+  | 'commodity'
   | 'comprehensiveGuide';
 
 const SUBSCRIPTION_RESTRICTED_TABS: Tab[] = ['analysis', 'scalping', 'comparison', 'dailyFilters'];
@@ -1152,6 +1154,7 @@ const App: React.FC = () => {
       case 'comparison': return <StockComparison currentUser={currentUser} isOnline={isOnline} />;
       case 'marketIndices': return <MarketIndicesDashboard />;
       case 'optionsMarket': return <OptionsMarket />;
+      case 'commodity': return <Commodity />;
       case 'strategyLab':
         return <StrategyLab isOnline={isOnline} />;
       case 'paperTrading':
@@ -1283,6 +1286,7 @@ const App: React.FC = () => {
             <TabButton tab="analysis" label="تحلیل سهام" icon={<MagnifyingGlassIcon />} alertType="none" locked={isExpired && isSubscriptionRestrictedTab('analysis')} activeTab={activeTab} onTabClick={handleTabClick} />
             <TabButton tab="marketIndices" label="شاخص‌های بازار" icon={<ChartBarIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
             <TabButton tab="optionsMarket" label="بازار آپشن" icon={<ChartBarIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
+            <TabButton tab="commodity" label="کامودیتی" icon={<ChartBarIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
             <TabButton tab="roniaAssistant" label="دستیار رونیا" icon={<PresentationChartLineIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} />
             <TabButton tab="scalping" label="نوسان‌گیری" icon={<ChartBarIcon />} alertType={scalpingAlert ? 'cyan' : 'none'} locked={isExpired && isSubscriptionRestrictedTab('scalping')} activeTab={activeTab} onTabClick={handleTabClick} />
             <TabButton tab="portfolio" label="سبد سهام" icon={<BriefcaseIcon />} alertType={portfolioAlert === 'buy' ? 'green' : portfolioAlert === 'sell' ? 'red' : 'none'} activeTab={activeTab} onTabClick={handleTabClick} />
@@ -1308,7 +1312,7 @@ const App: React.FC = () => {
                 <span className="shrink-0 text-[var(--tab-active-color)]"><ChevronDownIcon className="h-4 w-4" /></span>
                 <span className="truncate">{({
                   dashboard: 'داشبورد', analysis: 'تحلیل سهام', marketIndices: 'شاخص‌های بازار',
-                  optionsMarket: 'بازار آپشن', roniaAssistant: 'دستیار رونیا', scalping: 'نوسان‌گیری',
+                  optionsMarket: 'بازار آپشن', commodity: 'کامودیتی', roniaAssistant: 'دستیار رونیا', scalping: 'نوسان‌گیری',
                   portfolio: 'سبد سهام', traderJournal: 'دفترچه معاملات', codalIntelligence: 'مرکز رویداد کدال',
                   comparison: 'مقایسه', strategyLab: 'آزمایشگاه استراتژی', dailyFilters: 'فیلترهای روزانه',
                   users: 'پنل مدیریت', notifications: 'اطلاعیه‌ها', comprehensiveGuide: 'راهنمای جامع نرم‌افزار',
@@ -1323,6 +1327,7 @@ const App: React.FC = () => {
                 <TabButton tab="analysis" label="تحلیل سهام" icon={<MagnifyingGlassIcon />} alertType="none" locked={isExpired && isSubscriptionRestrictedTab('analysis')} activeTab={activeTab} onTabClick={handleTabClick} mobile />
                 <TabButton tab="marketIndices" label="شاخص‌های بازار" icon={<ChartBarIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} mobile />
                 <TabButton tab="optionsMarket" label="بازار آپشن" icon={<ChartBarIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} mobile />
+                <TabButton tab="commodity" label="کامودیتی" icon={<ChartBarIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} mobile />
                 <TabButton tab="roniaAssistant" label="دستیار رونیا" icon={<PresentationChartLineIcon />} alertType="none" activeTab={activeTab} onTabClick={handleTabClick} mobile />
                 <TabButton tab="scalping" label="نوسان‌گیری" icon={<ChartBarIcon />} alertType={scalpingAlert ? 'cyan' : 'none'} locked={isExpired && isSubscriptionRestrictedTab('scalping')} activeTab={activeTab} onTabClick={handleTabClick} mobile />
                 <TabButton tab="portfolio" label="سبد سهام" icon={<BriefcaseIcon />} alertType={portfolioAlert === 'buy' ? 'green' : portfolioAlert === 'sell' ? 'red' : 'none'} activeTab={activeTab} onTabClick={handleTabClick} mobile />

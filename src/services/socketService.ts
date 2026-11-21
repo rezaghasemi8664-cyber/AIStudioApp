@@ -22,3 +22,9 @@ export const onCodalSnapshotUpdated = (handler: (payload: { snapshotId?: string 
   socket.on('codal-snapshot:updated', handler);
   return () => socket?.off('codal-snapshot:updated', handler);
 };
+
+export const onCommoditySnapshotUpdated = (handler: (payload: any) => void): (() => void) => {
+  if (!socket) { console.warn('[socketService] Socket is not initialized.'); return () => {}; }
+  socket.on('commodity:snapshot:updated', handler);
+  return () => socket?.off('commodity:snapshot:updated', handler);
+};
