@@ -13,8 +13,9 @@ describe('Nerkh price normalization', () => {
       crypto: {}
     });
     expect(result.groups.gold).toHaveLength(2);
-    expect(result.groups.currency[0]).toMatchObject({ symbol: 'USD', current: 268960, change24hPercent: -0.37, min24h: 268740, max24h: 272280 });
-    expect(result.groups.gold[0].symbol).toBe('GOLD18K');
+    expect(result.groups.gold[0]).toMatchObject({ symbol: 'GOLD18K', current: 232140000, min24h: 228840000, max24h: 233480000 });
+    expect(result.groups.gold[1]).toMatchObject({ symbol: 'OUNCE', current: 3535, min24h: 3535, max24h: 3535 });
+    expect(result.groups.currency[0]).toMatchObject({ symbol: 'USD', current: 2689600, change24hPercent: -0.37, min24h: 2687400, max24h: 2722800 });
   });
 
   test('rejects an empty or invalid provider response', () => {
