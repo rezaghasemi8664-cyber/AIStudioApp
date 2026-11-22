@@ -220,9 +220,12 @@ function parseReferralDate(value, endOfDay) {
   if (value === undefined || value === null || String(value).trim() === '') return null;
   var raw = String(value).trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) throw new Error('Invalid date format; expected YYYY-MM-DD');
-  var date = new Date(raw + 'T00:00:00.000Z');
-  if (isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== raw) throw new Error('Invalid date value');
-  if (endOfDay) date.setUTCDate(date.getUTCDate() + 1);
+  var calendarDate = new Date(raw + 'T00:00:00.000Z');
+  if (isNaN(calendarDate.getTime()) || calendarDate.toISOString().slice(0, 10) !== raw) throw new Error('Invalid date value');
+  // Admin date filters follow the same Tehran calendar day used by the UI.
+  var date = new Date(raw + 'T00:00:00.000+03:30');
+  if (isNaN(date.getTime())) throw new Error('Invalid date value');
+  if (endOfDay) date.setTime(date.getTime() + 24 * 60 * 60 * 1000);
   return date;
 }
 
