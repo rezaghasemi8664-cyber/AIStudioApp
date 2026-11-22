@@ -667,6 +667,7 @@ mountRoute('/api/v1/telegram-referrals', './routes/telegramReferral.routes.cjs',
 
 // Keep this explicit alias before the broad /api/v1 aggregator; its fallback can intercept referral requests.
 mountRoute('/api/v1/referrals', './routes/referral.routes.cjs', 'Referral Invites v1 alias (priority)');
+mountRoute('/api/v1/nerkh', './routes/nerkh.routes.cjs', 'Nerkh Live Prices v1 alias');
 mountRoute('/api/v1', './routes/v1/index.cjs', 'API v1 Root');
 // Compatibility aliases for reverse proxies that strip the /api prefix.
 // This keeps /api/v1/* requests functional when Nginx forwards them as /v1/*.
@@ -1197,4 +1198,3 @@ process.on('unhandledRejection', function (reason, promise) {
 // 18. EXPORT
 // ═══════════════════════════════════════════════════════════════════
 module.exports = app;
-
