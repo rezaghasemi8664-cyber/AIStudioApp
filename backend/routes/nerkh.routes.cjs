@@ -37,6 +37,7 @@ router.put('/admin/token', authMiddleware, requireAdmin, async (req, res) => {
       update: { category: nerkh.TOKEN_CATEGORY, value: encrypted, updatedBy: String(req.user?.id ?? ''), updatedAt: new Date(), isPublic: false },
       create: { category: nerkh.TOKEN_CATEGORY, key: nerkh.TOKEN_KEY, value: encrypted, updatedBy: String(req.user?.id ?? ''), isPublic: false }
     });
+    void nerkh.refreshPrices({ reason: 'token-updated' });
     return res.json({ success: true, data: { configured: true }, message: 'توکن Nerkh به‌صورت رمزنگاری‌شده ذخیره شد.' });
   } catch (error) {
     console.error('[NERKH] Token save failed:', error?.name || 'SAVE_ERROR');
