@@ -11,6 +11,7 @@ const { registerTelegramPublisherCron } = require('./telegramPublisher.cron.cjs'
 const { startCodalSnapshotCron } = require('../services/codalSnapshot.service.cjs');
 const { startFinancialDocumentCacheCron } = require('../services/codal-document.service.cjs');
 const { startCommoditySnapshotCron } = require('../services/commoditySnapshot.service.cjs');
+const { startNerkhPriceCron } = require('../services/nerkhPrice.service.cjs');
 
 let cronStarted = false;
 
@@ -52,6 +53,7 @@ function startCronJobs(io) {
   const results = [
     safeStart('market-worker', () => startMarketWorker(io)),
     safeStart('commodity-snapshot-5-minute', () => startCommoditySnapshotCron(io)),
+    safeStart('nerkh-price-snapshot-5-minute', () => startNerkhPriceCron(io)),
     safeRegister('market-history', () => registerMarketCron(io)),
     safeRegister('all-symbols-one-minute-snapshot', () => registerAllSymbolsSnapshotCron(io)),
     safeRegister('usage', registerUsageCron),

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getCached, invalidateCachedGet } from '../services/apiClient';
 import { onCommoditySnapshotUpdated } from '../services/socketService';
+import NerkhCommodityPanel from './NerkhCommodityPanel';
 
 type CommodityRow = {
   date: string | null; time: string | null; time_unix: number | null;
@@ -126,6 +127,7 @@ const Commodity: React.FC = () => {
           </div>);
       })}
       {!loading && !snapshot && !error && <div className="text-center text-gray-500 py-8">داده‌ای موجود نیست.</div>}
+      <NerkhCommodityPanel />
     </section>
   );
 };
