@@ -18,10 +18,14 @@ type FundSymbol = {
   realSellVolume?: number | null;
   legalBuyVolume?: number | null;
   legalSellVolume?: number | null;
+  instBuyVolume?: number | null;
+  instSellVolume?: number | null;
   realBuyCount?: number | null;
   realSellCount?: number | null;
   legalBuyCount?: number | null;
   legalSellCount?: number | null;
+  instBuyCount?: number | null;
+  instSellCount?: number | null;
 };
 type AllSymbolsSnapshot = {
   status: string;
@@ -140,13 +144,13 @@ const GoldSilverFundsCard: React.FC = () => {
                   <td className="px-3 py-3 text-center">{number(row.allowedMax)}</td>
                   <td className="px-3 py-3 text-center">{number(row.tradeCount)}</td>
                   <td className="px-3 py-3 text-center">{number(row.realBuyVolume)}</td>
-                  <td className="px-3 py-3 text-center">{number(row.legalBuyVolume)}</td>
+                  <td className="px-3 py-3 text-center">{number(row.legalBuyVolume ?? row.instBuyVolume)}</td>
                   <td className="px-3 py-3 text-center">{number(row.realSellVolume)}</td>
-                  <td className="px-3 py-3 text-center">{number(row.legalSellVolume)}</td>
+                  <td className="px-3 py-3 text-center">{number(row.legalSellVolume ?? row.instSellVolume)}</td>
                   <td className="px-3 py-3 text-center">{number(row.realBuyCount)}</td>
-                  <td className="px-3 py-3 text-center">{number(row.legalBuyCount)}</td>
+                  <td className="px-3 py-3 text-center">{number(row.legalBuyCount ?? row.instBuyCount)}</td>
                   <td className="px-3 py-3 text-center">{number(row.realSellCount)}</td>
-                  <td className="px-3 py-3 text-center">{number(row.legalSellCount)}</td>
+                  <td className="px-3 py-3 text-center">{number(row.legalSellCount ?? row.instSellCount)}</td>
                 </tr>
               ))}
             </tbody>
