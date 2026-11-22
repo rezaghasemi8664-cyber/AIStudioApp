@@ -7,9 +7,14 @@ type GlobalSettingsHandler = (payload: GlobalSettingsUpdatedPayload) => void;
 type CommoditySnapshotHandler = (payload: any) => void;
 const GLOBAL_SETTINGS_EVENTS = ['global-settings:updated', 'global-settings:bulk-updated'] as const;
 const commoditySnapshotHandlers = new Set<CommoditySnapshotHandler>();
+const allSymbolsSnapshotHandlers = new Set<CommoditySnapshotHandler>();
 
 function attachCommoditySnapshotHandlers(target: Socket): void {
   commoditySnapshotHandlers.forEach(handler => target.on('commodity:snapshot:updated', handler));
+  allSymbolsSnapshotHandlers.forEach(handler => {
+    target.on('all-symbols-snapshot:updated', handler);
+    target.on('market-snapshot:updated', handler);
+  });
 }
 
 export const initializeSocket = (token = ''): Socket => {
@@ -23,6 +28,7 @@ export const initializeSocket = (token = ''): Socket => {
     // A reconnect may have missed one or more server snapshot events.
     invalidateCachedGet('/market/commodity');
     commoditySnapshotHandlers.forEach(handler => handler({ reason: 'socket:connected' }));
+    allSymbolsSnapshotHandlers.forEach(handler => handler({ reason: 'socket:connected' }));
   });
   return socket;
 };
@@ -33,6 +39,10 @@ export const disconnectSocket = () => {
   if (!socket) return;
   GLOBAL_SETTINGS_EVENTS.forEach(eventName => socket?.removeAllListeners(eventName));
   commoditySnapshotHandlers.forEach(handler => socket?.off('commodity:snapshot:updated', handler));
+  allSymbolsSnapshotHandlers.forEach(handler => {
+    socket?.off('all-symbols-snapshot:updated', handler);
+    socket?.off('market-snapshot:updated', handler);
+  });
   socket.disconnect();
   socket = null;
 };
@@ -56,5 +66,19 @@ export const onCommoditySnapshotUpdated = (handler: CommoditySnapshotHandler): (
   return () => {
     commoditySnapshotHandlers.delete(handler);
     socket?.off('commodity:snapshot:updated', handler);
+  };
+};
+
+export const onAllSymbolsSnapshotUpdated = (handler: CommoditySnapshotHandler): (() => void) => {
+  allSymbolsSnapshotHandlers.add(handler);
+  // Preserve subscriptions created before the application initializes Socket.IO.
+  if (socket) {
+    socket.on('all-symbols-snapshot:updated', handler);
+    socket.on('market-snapshot:updated', handler);
+  }
+  return () => {
+    allSymbolsSnapshotHandlers.delete(handler);
+    socket?.off('all-symbols-snapshot:updated', handler);
+    socket?.off('market-snapshot:updated', handler);
   };
 };

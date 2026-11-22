@@ -129,6 +129,17 @@ router.get('/industries', async function getMarketIndustries(_req, res, next) {
 // تا وقتی handler مجزا وجود ندارد، این route alias رسمی همان market index است.
 router.get('/brs-index', marketHistoryController.getMarketIndex);
 
+// کل نمادهای آخرین AllSymbols snapshot از کش مرکزی؛ بدون درخواست جداگانه به BRS یا SQL برای هر نماد.
+router.get('/all-symbols', async function getAllSymbolsSnapshot(_req, res, next) {
+  try {
+    const result = await allSymbolsSnapshotService.getSnapshot();
+    if (result.status === 'NO_SNAPSHOT') {
+      return res.status(503).json({ success: false, code: 'ALL_SYMBOLS_SNAPSHOT_UNAVAILABLE', message: 'هنوز اسنپ‌شات AllSymbols در دسترس نیست.' });
+    }
+    return res.json({ success: true, data: result, source: 'all-symbols-central-cache' });
+  } catch (error) { return next(error); }
+});
+
 // جستجوی نماد فقط از آخرین اسنپ‌شات AllSymbols ذخیره‌شده در دیتابیس؛ بدون فراخوانی مستقیم BRS در درخواست کاربر.
 router.get('/all-symbols/search', async function searchAllSymbolsSnapshot(req, res, next) {
   try {
