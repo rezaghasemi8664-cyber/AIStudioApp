@@ -55,22 +55,35 @@ async function requestPrices(token) {
   }
 }
 
+const TOMAN_TO_RIAL = 10;
+
+function getPriceMultiplier(symbol, group, item) {
+  const unit = String(item.unit ?? item.currency ?? item.quote_currency ?? '').trim().toLowerCase();
+  if (/(rial|irr|ریال)/i.test(unit)) return 1;
+  if (/(usd|\$|دلار)/i.test(unit)) return 1;
+  // International ounce quotes are denominated in USD, not Toman.
+  if (group === 'gold' && /^(OUNCE|XAUUSD|XAGUSD|XAU|XAG)$/i.test(String(symbol))) return 1;
+  // Nerkh's domestic gold, currency and crypto quotes are in Toman.
+  return TOMAN_TO_RIAL;
+}
+
 function normalizeItem(symbol, item, group) {
   if (!item || typeof item !== 'object') return null;
-  const current = Number(item.current ?? item.price);
+  const multiplier = getPriceMultiplier(symbol, group, item);
+  const current = Number(item.current ?? item.price) * multiplier;
   if (!Number.isFinite(current)) return null;
   // Nerkh v2 returns the 24-hour range under min/max["24hour"].
   // Keep aliases for compatibility with older or alternate response shapes.
-  const min = Number(item.min?.['24hour'] ?? item.min?.['24h'] ?? item.min_24h ?? item.min24h);
-  const max = Number(item.max?.['24hour'] ?? item.max?.['24h'] ?? item.max_24h ?? item.max24h);
+  const rawMin = Number(item.min?.['24hour'] ?? item.min?.['24h'] ?? item.min_24h ?? item.min24h);
+  const rawMax = Number(item.max?.['24hour'] ?? item.max?.['24h'] ?? item.max_24h ?? item.max24h);
   const change = Number(item.ch_24h_percent ?? item.change_24h_percent ?? item.changePercent);
   return {
     symbol: String(symbol),
     group,
     current,
     change24hPercent: Number.isFinite(change) ? change : null,
-    min24h: Number.isFinite(min) ? min : null,
-    max24h: Number.isFinite(max) ? max : null,
+    min24h: Number.isFinite(rawMin) ? rawMin * multiplier : null,
+    max24h: Number.isFinite(rawMax) ? rawMax * multiplier : null,
     update: item.update || item.updated_at || null
   };
 }
