@@ -219,7 +219,7 @@ router.get('/health',authMiddleware,requireAdmin,function(req,res){var start=Dat
 function parseReferralDate(value, endOfDay) {
   if (value === undefined || value === null || String(value).trim() === '') return null;
   var raw = String(value).trim();
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) throw new Error('Invalid date format; expected YYYY-MM-DD');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) throw new Error('Invalid date format; expected YYYY-MM-DD');
   var date = new Date(raw + 'T00:00:00.000Z');
   if (isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== raw) throw new Error('Invalid date value');
   if (endOfDay) date.setUTCDate(date.getUTCDate() + 1);
