@@ -17,6 +17,14 @@ const labels: Record<string, string> = {
   CAD:'دلار کانادا', CHF:'فرانک سوئیس', CNY:'یوآن چین', QAR:'ریال قطر'
 };
 const number = (v: number) => new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 2 }).format(v);
+// Recover absolute 24-hour movement from current price and percentage change.
+const absoluteChange = (current: number, percent: number | null): number | null => {
+  if (percent == null || !Number.isFinite(current) || !Number.isFinite(percent) || percent <= -100) return null;
+  return current * percent / (100 + percent);
+};
+const signedNumber = (value: number | null) => value == null
+  ? '—'
+  : (value > 0 ? '+' : '') + number(value);
 
 const NerkhCommodityPanel: React.FC = () => {
   const [open, setOpen] = useState(false);
@@ -64,10 +72,14 @@ const NerkhCommodityPanel: React.FC = () => {
         const current = ounce && usd ? item.current * usd : item.current;
         const min = item.min24h == null ? null : ounce && usd ? item.min24h * usd : item.min24h;
         const max = item.max24h == null ? null : ounce && usd ? item.max24h * usd : item.max24h;
-        const positive = Number(item.change24hPercent || 0) >= 0;
+        const changeRial = absoluteChange(current, item.change24hPercent);
+        const changePositive = changeRial == null ? null : changeRial >= 0;
+        const changeColor = changePositive == null ? 'text-gray-500' : changePositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+        const percentColor = item.change24hPercent == null ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' : item.change24hPercent >= 0 ? 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400' : 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400';
         return <article key={item.symbol} className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
-          <div className="flex items-start justify-between gap-2"><div><div className="font-semibold">{labels[item.symbol] || item.symbol}</div><div className="mt-1 text-xs text-gray-500" dir="ltr">{item.symbol}</div></div><span className={'rounded-md px-2 py-1 text-xs ' + (positive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700')}>{item.change24hPercent == null ? '—' : (positive ? '+' : '') + number(item.change24hPercent) + '%'}</span></div>
+          <div className="flex items-start justify-between gap-2"><div><div className="font-semibold">{labels[item.symbol] || item.symbol}</div><div className="mt-1 text-xs text-gray-500" dir="ltr">{item.symbol}</div></div><span className={'rounded-md px-2 py-1 text-xs ' + percentColor}>{item.change24hPercent == null ? '—' : (item.change24hPercent > 0 ? '+' : '') + number(item.change24hPercent) + '%'}</span></div>
           <div className="mt-4 text-xl font-bold" dir="ltr">{number(current)} <span className="text-xs font-normal text-gray-500">ریال</span></div>
+          <div className={'mt-2 flex items-center justify-between gap-2 text-sm ' + changeColor}><span className="text-xs text-gray-500">مقدار تغییر ۲۴ ساعته</span><b dir="ltr">{signedNumber(changeRial)} <span className="text-[10px] font-normal">ریال</span></b></div>
           {ounce && <div className="mt-1 text-xs text-gray-500" dir="ltr">{number(item.current)} USD / oz · معادل ریالی با نرخ دلار Nerkh</div>}
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500"><div>کمینه ۲۴ساعت: <b>{min == null ? '—' : number(min)}</b></div><div>بیشینه ۲۴ساعت: <b>{max == null ? '—' : number(max)}</b></div></div>
           <div className="mt-3 border-t border-gray-100 pt-2 text-[11px] text-gray-500 dark:border-gray-700">آخرین بروزرسانی: {item.update || '—'}</div>
