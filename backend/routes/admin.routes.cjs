@@ -215,4 +215,124 @@ router.get('/roles',authMiddleware,requireAdmin,function(req,res){prisma.role.fi
 router.get('/logs',authMiddleware,requireAdmin,function(req,res){var page=toInt(req.query.page,1),limit=toInt(req.query.limit,50),level=req.query.level||'',offset=(page-1)*limit,countQuery,dataQuery;if(level&&String(level).trim()!==''){countQuery=prisma.$queryRawUnsafe("SELECT COUNT(*) as cnt FROM [dbo].[LogEntry] WHERE level = '"+String(level).replace(/'/g,"''")+"'");dataQuery=function(skip,take){return prisma.$queryRawUnsafe("SELECT id, level, message, createdAt FROM [dbo].[LogEntry] WHERE level = '"+String(level).replace(/'/g,"''")+"' ORDER BY id DESC OFFSET "+skip+" ROWS FETCH NEXT "+take+" ROWS ONLY");};}else{countQuery=prisma.$queryRawUnsafe('SELECT COUNT(*) as cnt FROM [dbo].[LogEntry]');dataQuery=function(skip,take){return prisma.$queryRawUnsafe('SELECT id, level, message, createdAt FROM [dbo].[LogEntry] ORDER BY id DESC OFFSET '+skip+' ROWS FETCH NEXT '+take+' ROWS ONLY');};}countQuery.then(function(cr){var total=Number(cr[0].cnt);return dataQuery(offset,limit).then(function(logs){res.json({success:true,data:logs,pagination:{page:page,limit:limit,total:total,totalPages:Math.ceil(total/limit)}});});}).catch(function(e){var file=path.join(__dirname,'..','access.log'),logs=[],total=0;if(fs.existsSync(file)){try{var lines=fs.readFileSync(file,'utf-8').split('\n').filter(function(l){return l.trim()!=='';});var rev=lines.reverse().slice(0,500);total=rev.length;for(var i=offset;i<Math.min(offset+limit,total);i++)logs.push({id:total-i,level:'info',message:rev[i],createdAt:new Date()});}catch(_){} }res.json({success:true,data:logs,pagination:{page:page,limit:limit,total:total,totalPages:Math.ceil(total/limit)}});});});
 router.get('/stats',authMiddleware,requireAdmin,function(req,res){Promise.all([prisma.user.count().then(function(c){return{model:'users',count:c};}),prisma.user.count({where:{isActive:true}}).then(function(c){return{model:'activeUsers',count:c};}),prisma.notification.count().then(function(c){return{model:'notifications',count:c};}),prisma.conversation.count().then(function(c){return{model:'conversations',count:c};}),prisma.message.count().then(function(c){return{model:'messages',count:c};}),prisma.analysisHistory.count().then(function(c){return{model:'analyses',count:c};}),prisma.apiKey.count().then(function(c){return{model:'apiKeys',count:c};}),prisma.session.count().then(function(c){return{model:'sessions',count:c};})]).then(function(cs){var s={};for(var i=0;i<cs.length;i++)s[cs[i].model]=cs[i].count;res.json({success:true,data:s});}).catch(function(e){res.status(500).json({success:false,message:'Error fetching stats',error:e.message});});});
 router.get('/health',authMiddleware,requireAdmin,function(req,res){var start=Date.now();prisma.$queryRawUnsafe('SELECT 1 as ok').then(function(){res.json({success:true,data:{status:'healthy',database:'connected',dbResponseTime:(Date.now()-start)+'ms',uptime:process.uptime(),memoryUsage:process.memoryUsage(),timestamp:new Date().toISOString()}});}).catch(function(e){res.status(500).json({success:true,data:{status:'degraded',database:'error',error:e.message,timestamp:new Date().toISOString()}});});});
+
+function parseReferralDate(value, endOfDay) {
+  if (value === undefined || value === null || String(value).trim() === '') return null;
+  var raw = String(value).trim();
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) throw new Error('Invalid date format; expected YYYY-MM-DD');
+  var date = new Date(raw + 'T00:00:00.000Z');
+  if (isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== raw) throw new Error('Invalid date value');
+  if (endOfDay) date.setUTCDate(date.getUTCDate() + 1);
+  return date;
+}
+
+router.get('/referrals', authMiddleware, requireAdmin, async function(req, res) {
+  try {
+    var page = Math.max(1, toInt(req.query.page, 1));
+    var limit = Math.min(100, Math.max(1, toInt(req.query.limit, 25)));
+    var inviterIdRaw = normalizeString(req.query.inviterId);
+    var inviteeIdRaw = normalizeString(req.query.inviteeId);
+    var inviterId = inviterIdRaw === null ? null : toInt(inviterIdRaw, NaN);
+    var inviteeId = inviteeIdRaw === null ? null : toInt(inviteeIdRaw, NaN);
+    if (inviterIdRaw && (!Number.isInteger(inviterId) || inviterId <= 0)) {
+      return res.status(400).json({ success: false, message: 'شناسه دعوت‌کننده نامعتبر است.' });
+    }
+    if (inviteeIdRaw && (!Number.isInteger(inviteeId) || inviteeId <= 0)) {
+      return res.status(400).json({ success: false, message: 'شناسه دعوت‌شده نامعتبر است.' });
+    }
+
+    var registeredFrom, registeredTo;
+    try {
+      registeredFrom = parseReferralDate(req.query.registeredFrom, false);
+      registeredTo = parseReferralDate(req.query.registeredTo, true);
+    } catch (dateError) {
+      return res.status(400).json({ success: false, message: 'تاریخ ثبت‌نام نامعتبر است؛ قالب YYYY-MM-DD را وارد کنید.' });
+    }
+    if (registeredFrom && registeredTo && registeredFrom >= registeredTo) {
+      return res.status(400).json({ success: false, message: 'بازه تاریخ ثبت‌نام نامعتبر است.' });
+    }
+
+    var name = normalizeString(req.query.name);
+    var nameConditions = name ? [
+      { name: { contains: name } },
+      { firstName: { contains: name } },
+      { lastName: { contains: name } },
+      { username: { contains: name } },
+      { email: { contains: name } }
+    ] : null;
+    var inviteeUserFilter = {};
+    if (registeredFrom || registeredTo) {
+      inviteeUserFilter.createdAt = {};
+      if (registeredFrom) inviteeUserFilter.createdAt.gte = registeredFrom;
+      if (registeredTo) inviteeUserFilter.createdAt.lt = registeredTo;
+    }
+    if (nameConditions) inviteeUserFilter.OR = nameConditions;
+
+    var where = {
+      status: 'REDEEMED',
+      redeemedByUserId: { not: null }
+    };
+    if (inviterId !== null) where.inviterId = inviterId;
+    if (inviteeId !== null) where.redeemedByUserId = inviteeId;
+    if (name) {
+      where.OR = [
+        { inviter: { is: { OR: nameConditions } } },
+        { redeemedBy: { is: inviteeUserFilter } }
+      ];
+    } else if (Object.keys(inviteeUserFilter).length) {
+      where.redeemedBy = { is: inviteeUserFilter };
+    }
+
+    var userSelect = {
+      id: true, username: true, name: true, firstName: true, lastName: true,
+      email: true, mobile: true, phone: true, referralCode: true, createdAt: true
+    };
+    var skip = (page - 1) * limit;
+    var results = await Promise.all([
+      prisma.referralInvite.findMany({
+        where: where,
+        include: {
+          inviter: { select: userSelect },
+          redeemedBy: { select: userSelect }
+        },
+        orderBy: [{ redeemedAt: 'desc' }, { id: 'desc' }],
+        skip: skip,
+        take: limit
+      }),
+      prisma.referralInvite.count({ where: where }),
+      prisma.referralInvite.groupBy({ by: ['inviterId'], where: where }),
+      prisma.referralInvite.groupBy({ by: ['redeemedByUserId'], where: where })
+    ]);
+    var items = results[0].filter(function(row) { return row.inviter && row.redeemedBy; }).map(function(row) {
+      return {
+        id: row.id,
+        referralCode: row.referralCode,
+        redeemedAt: row.redeemedAt,
+        inviter: row.inviter,
+        invitee: row.redeemedBy
+      };
+    });
+    return res.json({
+      success: true,
+      data: {
+        items: items,
+        summary: {
+          total: results[1],
+          uniqueInviters: results[2].length,
+          uniqueInvitees: results[3].length
+        },
+        pagination: {
+          page: page,
+          limit: limit,
+          total: results[1],
+          totalPages: Math.ceil(results[1] / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('[Admin] Referral report error:', error.message);
+    return res.status(500).json({ success: false, message: 'دریافت گزارش کد دعوت ناموفق بود.', error: error.message });
+  }
+});
+
 module.exports=router;
