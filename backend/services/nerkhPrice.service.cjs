@@ -59,8 +59,10 @@ function normalizeItem(symbol, item, group) {
   if (!item || typeof item !== 'object') return null;
   const current = Number(item.current ?? item.price);
   if (!Number.isFinite(current)) return null;
-  const min = Number(item.min?.['24h'] ?? item.min_24h ?? item.min24h);
-  const max = Number(item.max?.['24h'] ?? item.max_24h ?? item.max24h);
+  // Nerkh v2 returns the 24-hour range under min/max["24hour"].
+  // Keep aliases for compatibility with older or alternate response shapes.
+  const min = Number(item.min?.['24hour'] ?? item.min?.['24h'] ?? item.min_24h ?? item.min24h);
+  const max = Number(item.max?.['24hour'] ?? item.max?.['24h'] ?? item.max_24h ?? item.max24h);
   const change = Number(item.ch_24h_percent ?? item.change_24h_percent ?? item.changePercent);
   return {
     symbol: String(symbol),
