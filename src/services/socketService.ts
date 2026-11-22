@@ -11,7 +11,10 @@ const allSymbolsSnapshotHandlers = new Set<CommoditySnapshotHandler>();
 
 function attachCommoditySnapshotHandlers(target: Socket): void {
   commoditySnapshotHandlers.forEach(handler => target.on('commodity:snapshot:updated', handler));
-  allSymbolsSnapshotHandlers.forEach(handler => target.on('all-symbols-snapshot:updated', handler));
+  allSymbolsSnapshotHandlers.forEach(handler => {
+    target.on('all-symbols-snapshot:updated', handler);
+    target.on('market-snapshot:updated', handler);
+  });
 }
 
 export const initializeSocket = (token = ''): Socket => {
@@ -36,7 +39,10 @@ export const disconnectSocket = () => {
   if (!socket) return;
   GLOBAL_SETTINGS_EVENTS.forEach(eventName => socket?.removeAllListeners(eventName));
   commoditySnapshotHandlers.forEach(handler => socket?.off('commodity:snapshot:updated', handler));
-  allSymbolsSnapshotHandlers.forEach(handler => socket?.off('all-symbols-snapshot:updated', handler));
+  allSymbolsSnapshotHandlers.forEach(handler => {
+    socket?.off('all-symbols-snapshot:updated', handler);
+    socket?.off('market-snapshot:updated', handler);
+  });
   socket.disconnect();
   socket = null;
 };
@@ -66,9 +72,13 @@ export const onCommoditySnapshotUpdated = (handler: CommoditySnapshotHandler): (
 export const onAllSymbolsSnapshotUpdated = (handler: CommoditySnapshotHandler): (() => void) => {
   allSymbolsSnapshotHandlers.add(handler);
   // Preserve subscriptions created before the application initializes Socket.IO.
-  if (socket) socket.on('all-symbols-snapshot:updated', handler);
+  if (socket) {
+    socket.on('all-symbols-snapshot:updated', handler);
+    socket.on('market-snapshot:updated', handler);
+  }
   return () => {
     allSymbolsSnapshotHandlers.delete(handler);
     socket?.off('all-symbols-snapshot:updated', handler);
+    socket?.off('market-snapshot:updated', handler);
   };
 };
