@@ -129,7 +129,6 @@ function renderCommodityItem(item) {
 
 function renderCommodityCaption(group, snapshot, now = new Date()) {
   let items = [];
-  let sourceTime = snapshot?.fetchedAt;
   if (group.source === 'commodity') {
     items = Array.isArray(snapshot?.groups?.metal_precious) ? snapshot.groups.metal_precious : [];
     items = items.filter(item => toNumber(item.price) > 0);
@@ -144,13 +143,11 @@ function renderCommodityCaption(group, snapshot, now = new Date()) {
   const header = [
     '📊 رونیا | ' + group.title,
     '━━━━━━━━━━━━━━━━━━',
-    'زمان دریافت کش: ' + dateTime(sourceTime),
     ''
   ];
   const footer = [
     '',
     '━━━━━━━━━━━━━━━━━━',
-    'منبع: کش قیمت‌های تب کامودیتی در رونیا',
     'زمان انتشار: ' + dateTime(now),
     'اطلاعات بر اساس آخرین داده ذخیره‌شده منبع است.'
   ];
