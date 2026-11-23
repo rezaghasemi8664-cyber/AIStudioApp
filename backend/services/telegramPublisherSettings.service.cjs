@@ -13,7 +13,12 @@ const DEFAULT_SETTINGS = Object.freeze({
   valuable: { enabled: true, intervalMinutes: 15, startTime: '09:00', endTime: '12:30', days: TRADING_DAYS, maxSymbolsPerMessage: 10 },
   scalping: { enabled: true, intervalMinutes: 5, startTime: '09:00', endTime: '12:30', days: TRADING_DAYS, maxSymbolsPerMessage: 10 },
   index: { enabled: true, intervalMinutes: 60, startTime: '09:15', endTime: '12:30', days: TRADING_DAYS },
-  summary: { enabled: true, publishTime: '13:30', days: TRADING_DAYS }
+  summary: { enabled: true, publishTime: '13:30', days: TRADING_DAYS },
+  preciousMetals: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: TRADING_DAYS },
+  goldPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: TRADING_DAYS },
+  silverPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: TRADING_DAYS },
+  coinPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: TRADING_DAYS },
+  currencyPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: TRADING_DAYS }
 });
 
 function tehranParts(date = new Date()) {
@@ -72,18 +77,26 @@ function normalizeSettings(value) {
   index.endTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(index.endTime)) ? String(index.endTime) : DEFAULT_SETTINGS.index.endTime;
   const summary = normalizeGroup('summary', DEFAULT_SETTINGS.summary);
   summary.publishTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(summary.publishTime)) ? String(summary.publishTime) : DEFAULT_SETTINGS.summary.publishTime;
-  return { timezone: TIMEZONE, valuable, scalping, index, summary };
+  const commodityGroups = {};
+  for (const name of ['preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']) {
+    const group = normalizeGroup(name, DEFAULT_SETTINGS[name]);
+    group.intervalMinutes = boundedInteger(group.intervalMinutes, DEFAULT_SETTINGS[name].intervalMinutes, 1, 720);
+    group.startTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(group.startTime)) ? String(group.startTime) : DEFAULT_SETTINGS[name].startTime;
+    group.endTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(group.endTime)) ? String(group.endTime) : DEFAULT_SETTINGS[name].endTime;
+    commodityGroups[name] = group;
+  }
+  return { timezone: TIMEZONE, valuable, scalping, index, summary, ...commodityGroups };
 }
 
 function validateSettings(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('ساختار تنظیمات تلگرام نامعتبر است.');
-  for (const groupName of ['valuable', 'scalping', 'index', 'summary']) {
+  for (const groupName of ['valuable', 'scalping', 'index', 'summary', 'preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']) {
     const group = value[groupName];
     if (!group || typeof group !== 'object' || Array.isArray(group)) throw new Error('تنظیمات بخش ' + groupName + ' ارسال نشده است.');
     if (typeof group.enabled !== 'boolean') throw new Error('وضعیت فعال/غیرفعال هر بخش باید بولی باشد.');
     if (!Array.isArray(group.days) || group.days.some(day => !WEEKDAYS.includes(day))) throw new Error('روزهای انتشار نامعتبر هستند.');
   }
-  for (const groupName of ['valuable', 'scalping', 'index']) {
+  for (const groupName of ['valuable', 'scalping', 'index', 'preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']) {
     const n = Number(value[groupName].intervalMinutes);
     if (!Number.isInteger(n) || n < 1 || n > 720) throw new Error('فاصله انتشار باید بین ۱ تا ۷۲۰ دقیقه باشد.');
   }
@@ -91,10 +104,10 @@ function validateSettings(value) {
     const n = Number(value[groupName].maxSymbolsPerMessage);
     if (!Number.isInteger(n) || n < 1 || n > 20) throw new Error('حداکثر نماد هر پیام باید بین ۱ تا ۲۰ باشد.');
   }
-  for (const groupName of ['valuable', 'scalping', 'index']) {
+  for (const groupName of ['valuable', 'scalping', 'index', 'preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']) {
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(value[groupName].endTime || ''))) throw new Error('زمان پایان انتشار بخش‌ها نامعتبر است.');
   }
-  for (const groupName of ['valuable', 'scalping']) {
+  for (const groupName of ['valuable', 'scalping', 'preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']) {
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(value[groupName].startTime || ''))) throw new Error('زمان شروع چرخه انتشار نامعتبر است.');
   }
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(value.index.startTime || ''))) throw new Error('زمان شروع انتشار شاخص‌ها نامعتبر است.');

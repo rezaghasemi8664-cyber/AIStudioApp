@@ -226,4 +226,29 @@ async function sendTelegramPhoto(buffer, mimeType, caption, options = {}) {
   });
 }
 
-module.exports = { getTelegramConfig, createTelegramInviteLink, sendTelegramMessage, sendTelegramPhoto };
+async function sendTelegramPhotoUrl(photoUrl, caption, options = {}) {
+  const { token, chatId } = getTelegramConfig();
+  if (!token || !chatId) {
+    const error = new Error('TELEGRAM_NOT_CONFIGURED');
+    error.code = 'TELEGRAM_NOT_CONFIGURED';
+    throw error;
+  }
+  let parsed;
+  try { parsed = new URL(String(photoUrl || '')); } catch (_) { throw new Error('TELEGRAM_PHOTO_URL_INVALID'); }
+  if (parsed.protocol !== 'https:' || !parsed.hostname) throw new Error('TELEGRAM_PHOTO_URL_INVALID');
+  const text = String(caption || '').trim();
+  if (!text) throw new Error('TELEGRAM_CAPTION_EMPTY');
+  if (text.length > 1024) throw new Error('TELEGRAM_CAPTION_TOO_LONG');
+  const endpoint = [TELEGRAM_API_BASE, '/bot', token, '/sendPhoto'].join('');
+  return requestTelegram(endpoint, {
+    chat_id: chatId,
+    photo: parsed.toString(),
+    caption: text,
+    disable_notification: options.disableNotification === true
+  }, {
+    timeoutMs: Number(process.env.TELEGRAM_TIMEOUT_MS) || 20000,
+    headers: { 'content-type': 'application/json' }
+  });
+}
+
+module.exports = { getTelegramConfig, createTelegramInviteLink, sendTelegramMessage, sendTelegramPhoto, sendTelegramPhotoUrl };

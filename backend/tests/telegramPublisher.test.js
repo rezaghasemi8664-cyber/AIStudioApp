@@ -6,6 +6,7 @@ const {
   renderSummaryMessage, renderSummaryMessages, renderIndexMessage, getScalpingOpportunityQuery
 } = require('../services/telegramPublisher.service.cjs');
 const { DEFAULT_SETTINGS, normalizeSettings, validateSettings, isAllowedWeekday, isIntervalDue, isBeforeEndTime } = require('../services/telegramPublisherSettings.service.cjs');
+const { GROUPS, renderCommodityCaption } = require('../services/commodityTelegramPublisher.service.cjs');
 
 describe('Telegram publisher helpers', () => {
   test('scalping Telegram query only selects active opportunities from the current Tehran market date', () => {
@@ -150,6 +151,13 @@ describe('Telegram publisher helpers', () => {
     expect(parts[0]).toContain(paragraphs[1]);
     expect(parts[1]).toContain(paragraphs[2]);
   });
+  test('adds five independently disabled commodity Telegram schedules by default', () => {
+    const settings = normalizeSettings({});
+    for (const key of ['preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']) {
+      expect(settings[key]).toMatchObject({ enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30' });
+    }
+    expect(validateSettings(settings)).toMatchObject({ preciousMetals: { enabled: false }, goldPrice: { enabled: false } });
+  });
   test('does not cut a paragraph that is too long for one Telegram summary part', () => {
     expect(() => renderSummaryMessages({
       content: 'بند بلند ' + 'الف'.repeat(1700),
@@ -157,4 +165,35 @@ describe('Telegram publisher helpers', () => {
       createdAt: new Date('2026-10-14T10:05:00.000Z')
     })).toThrow('SUMMARY_PARAGRAPH_EXCEEDS_PART_LIMIT');
   });
-});
+
+
+describe('Commodity Telegram captions', () => {
+  test('renders precious metals from the commodity snapshot with the data timestamp', () => {
+    const now = new Date('2026-11-23T06:00:00.000Z');
+    const group = GROUPS.find(item => item.key === 'preciousMetals');
+    const caption = renderCommodityCaption(group, {
+      fetchedAt: now.toISOString(),
+      groups: { metal_precious: [{ symbol: 'XAU', name: 'انس طلا', price: 2650, unit: 'دلار', change_value: 25, change_percent: 0.95 }] }
+    }, now);
+    expect(caption).toContain('فلزات گران‌بهای جهانی');
+    expect(caption).toContain('انس طلا');
+    expect(caption).toContain('+۲۵');
+    expect(caption.length).toBeLessThanOrEqual(1024);
+  });
+
+  test('renders gold prices from Nerkh cache and includes currency conversion context for ounce', () => {
+    const now = new Date('2026-11-23T06:00:00.000Z');
+    const group = GROUPS.find(item => item.key === 'goldPrice');
+    const caption = renderCommodityCaption(group, {
+      fetchedAt: now.toISOString(),
+      groups: {
+        gold: [{ symbol: 'OUNCE', current: 2650, change24hPercent: 1.2, min24h: 2600, max24h: 2670, update: '10:00' }],
+        currency: [{ symbol: 'USD', current: 700000 }]
+      }
+    }, now);
+    expect(caption).toContain('قیمت طلا');
+    expect(caption).toContain('انس جهانی طلا');
+    expect(caption).toContain('معادل ریالی');
+    expect(caption.length).toBeLessThanOrEqual(1024);
+  });
+});});

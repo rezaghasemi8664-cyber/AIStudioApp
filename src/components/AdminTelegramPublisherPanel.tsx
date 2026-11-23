@@ -9,13 +9,18 @@ const DAYS: { value: TehranWeekday; label: string }[] = [
   { value: 'Wed', label: 'چهارشنبه' }, { value: 'Thu', label: 'پنجشنبه' },
   { value: 'Fri', label: 'جمعه' }
 ];
-const TYPE_LABELS: Record<string, string> = { valuable: 'نمادهای ارزنده', scalping: 'فرصت‌های نوسان‌گیری', index: 'شاخص‌های بورس', summary: 'خلاصه بازار', 'custom-ad': 'پیام تبلیغات در کانال تلگرام رونیا', 'membership-message': 'پیام عضویت در کانال تلگرام رونیا', 'channel-message': 'ارسال پیام در کانال تلگرام رونیا' };
+const TYPE_LABELS: Record<string, string> = { valuable: 'نمادهای ارزنده', scalping: 'فرصت‌های نوسان‌گیری', index: 'شاخص‌های بورس', summary: 'خلاصه بازار', preciousMetals: 'فلزات گران‌بهای جهانی', goldPrice: 'قیمت طلا', silverPrice: 'قیمت نقره', coinPrice: 'قیمت سکه', currencyPrice: 'قیمت ارز', 'custom-ad': 'پیام تبلیغات در کانال تلگرام رونیا', 'membership-message': 'پیام عضویت در کانال تلگرام رونیا', 'channel-message': 'ارسال پیام در کانال تلگرام رونیا' };
 const DEFAULT_SETTINGS: TelegramPublisherSettings = {
   timezone: 'Asia/Tehran',
   valuable: { enabled: true, intervalMinutes: 15, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'], maxSymbolsPerMessage: 10 },
   scalping: { enabled: true, intervalMinutes: 5, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'], maxSymbolsPerMessage: 10 },
   index: { enabled: true, intervalMinutes: 60, startTime: '09:15', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] },
-  summary: { enabled: true, publishTime: '13:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] }
+  summary: { enabled: true, publishTime: '13:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] },
+  preciousMetals: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] },
+  goldPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] },
+  silverPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] },
+  coinPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] },
+  currencyPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] }
 };
 const formatTehranDate = (value: string) => {
   try { return new Intl.DateTimeFormat('fa-IR', { dateStyle: 'long', timeZone: 'Asia/Tehran' }).format(new Date(value + 'T12:00:00Z')); }
@@ -105,7 +110,7 @@ const AdminTelegramPublisherPanel: React.FC = () => {
 
   useEffect(() => { void load(); }, [load]);
 
-  const updateGroup = (key: keyof Pick<TelegramPublisherSettings, 'valuable' | 'scalping' | 'index' | 'summary'>, value: TelegramSchedule) => {
+  const updateGroup = (key: keyof Pick<TelegramPublisherSettings, 'valuable' | 'scalping' | 'index' | 'summary' | 'preciousMetals' | 'goldPrice' | 'silverPrice' | 'coinPrice' | 'currencyPrice'>, value: TelegramSchedule) => {
     setSettings(previous => ({ ...previous, [key]: { ...previous[key], ...value } }));
   };
 
@@ -142,6 +147,11 @@ const AdminTelegramPublisherPanel: React.FC = () => {
     <TelegramScheduleCard title="فرصت‌های نوسان‌گیری" description="فرصت‌های تازه یا تغییرات مهم را فقط با داده‌های معتبر بازار منتشر می‌کند؛ فاصله زمانی حداقل بین دو پیام رعایت می‌شود." value={settings.scalping} interval maxSymbols startTime endTime onChange={value => updateGroup('scalping', value)} />
     <TelegramScheduleCard title="شاخص‌های بورس" description="در ساعات بازار و فقط با تصویر تازه و معتبر بازار منتشر می‌شود. چرخه‌ها از زمان شروع انتخاب‌شده محاسبه می‌شوند." value={settings.index} interval startTime endTime onChange={value => updateGroup('index', value)} />
     <TelegramScheduleCard title="خلاصه بازار" description="در زمان انتخاب‌شده و فقط وقتی خلاصه کامل همان روز در سامانه موجود باشد منتشر می‌شود." value={settings.summary} publishTime onChange={value => updateGroup('summary', value)} />
+    <TelegramScheduleCard title="فلزات گران‌بهای جهانی" description="اطلاعات گروه فلزات گران‌بها را از کش کامودیتی دریافت و همراه تصویر مرتبط منتشر می‌کند." value={settings.preciousMetals} interval startTime endTime onChange={value => updateGroup('preciousMetals', value)} />
+    <TelegramScheduleCard title="قیمت طلا" description="قیمت‌های طلا را از کش Nerkh دریافت و همراه تصویر شمش طلا منتشر می‌کند." value={settings.goldPrice} interval startTime endTime onChange={value => updateGroup('goldPrice', value)} />
+    <TelegramScheduleCard title="قیمت نقره" description="قیمت‌های نقره را از کش Nerkh دریافت و همراه تصویر شمش نقره منتشر می‌کند." value={settings.silverPrice} interval startTime endTime onChange={value => updateGroup('silverPrice', value)} />
+    <TelegramScheduleCard title="قیمت سکه" description="قیمت انواع سکه را از کش Nerkh دریافت و همراه تصویر سکه طلا منتشر می‌کند." value={settings.coinPrice} interval startTime endTime onChange={value => updateGroup('coinPrice', value)} />
+    <TelegramScheduleCard title="قیمت ارز" description="قیمت ارزهای جهانی را از کش Nerkh دریافت و همراه تصویر ارزهای بین‌المللی منتشر می‌کند." value={settings.currencyPrice} interval startTime endTime onChange={value => updateGroup('currencyPrice', value)} />
     <div className="flex justify-end gap-2">
       <button type="button" onClick={() => void load()} disabled={saving} className="rounded-xl border border-[var(--card-border-color)] px-4 py-2.5 text-sm">بارگذاری مجدد</button>
       <button type="button" onClick={() => void save()} disabled={saving} className="rounded-xl bg-cyan-600 px-6 py-2.5 font-semibold text-white disabled:opacity-50">{saving ? 'در حال ذخیره…' : 'ذخیره تنظیمات انتشار'}</button>
