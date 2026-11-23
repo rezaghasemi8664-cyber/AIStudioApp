@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import './MarketIndicesDashboard.motion.css';
 import { getMarketRadarSnapshot, getMarketRadarSymbols, readMarketRadarCache, writeMarketRadarCache } from '../services/marketRadarService';
 import { getSocket } from '../services/socketService';
 import type { MarketRadarSnapshot, MarketRadarSymbol } from '../types/marketRadar';
@@ -8,7 +9,7 @@ import MarketRadarHistoryChart from './MarketRadar/MarketRadarHistory';
 const fa = (value: number | null | undefined, digits = 0) => value == null || !Number.isFinite(value) ? '—' : new Intl.NumberFormat('fa-IR', { maximumFractionDigits: digits }).format(value);
 const pct = (value: number | null | undefined) => value == null || !Number.isFinite(value) ? '—' : `${value > 0 ? '+' : value < 0 ? '−' : ''}${fa(Math.abs(value), 2)}٪`;
 const tone = (value: number | null | undefined) => value == null ? 'text-slate-500' : value > 0 ? 'text-emerald-500 dark:text-emerald-300' : value < 0 ? 'text-rose-500 dark:text-rose-300' : 'text-slate-500';
-const card = 'rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-5';
+const card = 'market-indices-motion-card rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-5';
 const isSnapshotStale = (snapshot: MarketRadarSnapshot | null) => {
   const raw = snapshot?.breadth?.generatedAt;
   if (!raw) return true;
@@ -188,7 +189,7 @@ const MarketIndicesDashboard: React.FC = () => {
   if (loading && !data) return <section dir="rtl" className={`${card} animate-pulse text-slate-500`}>در حال دریافت داده‌های معتبر بازار…</section>;
   if (error && !data) return <section dir="rtl" className={`${card} text-center`}><p className="text-rose-500">{error}</p></section>;
 
-  return <section dir="rtl" className="page-shell space-y-5">
+  return <section dir="rtl" className="page-shell market-indices-motion space-y-5">
     <header className={`${card} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
       <div><div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-black text-[var(--color-text-primary)]">شاخص‌های بازار</h1><span className={`rounded-full px-3 py-1 text-xs font-bold ${data?.marketOpen ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-500/10 text-slate-500'}`}>{data?.marketOpen ? 'بازار باز' : 'بازار بسته / خارج از جلسه'}</span><span className={`rounded-full px-3 py-1 text-xs font-bold ${stale ? 'bg-amber-500/10 text-amber-500' : 'bg-sky-500/10 text-sky-500'}`}>{stale ? 'داده ذخیره‌شده یا قدیمی' : 'داده خوانده‌شده از دیتابیس مشترک'}</span></div><p className="mt-2 text-xs text-slate-500">تاریخ و زمان ثبت داده در منبع: {lastUpdated}</p></div>
     </header>
