@@ -186,3 +186,71 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Premium pass: sharper metric hierarchy and data-change motion. */
+.market-indices-motion .mi-metric-card {
+  min-width: 0;
+  background:
+    radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--mi-cyan) 11%, transparent), transparent 48%),
+    linear-gradient(145deg, color-mix(in srgb, #071323 5%, var(--color-surface)), var(--color-surface) 62%, color-mix(in srgb, var(--mi-violet) 6%, var(--color-surface))) !important;
+}
+.market-indices-motion .mi-metric-label {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  letter-spacing: .01em;
+}
+.market-indices-motion .mi-metric-label::before {
+  content: "";
+  display: inline-block;
+  width: .35rem;
+  height: 1.15rem;
+  flex: 0 0 .35rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--mi-cyan), var(--mi-violet));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--mi-cyan) 45%, transparent);
+}
+.market-indices-motion .mi-metric-value {
+  min-height: 1.85rem;
+  text-shadow: 0 0 22px color-mix(in srgb, var(--mi-cyan) 13%, transparent);
+}
+.market-indices-motion .mi-value-transition {
+  display: inline-block;
+  animation: mi-value-update .58s cubic-bezier(.2,.75,.25,1) both;
+  transform-origin: center right;
+}
+.market-indices-motion .mi-metric-change {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: .25rem .65rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 9%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+}
+.market-indices-motion .mi-metric-sub {
+  line-height: 1.7;
+}
+.market-indices-motion > .grid:first-of-type > .mi-metric-card:nth-child(-n+4) {
+  border-color: color-mix(in srgb, var(--mi-cyan) 31%, var(--color-border)) !important;
+}
+.market-indices-motion > .grid:first-of-type > .mi-metric-card:nth-child(-n+4)::after {
+  background: radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--mi-blue) 14%, transparent), transparent 68%);
+}
+.market-indices-motion h1 {
+  text-shadow: 0 0 24px color-mix(in srgb, var(--mi-cyan) 17%, transparent);
+}
+.market-indices-motion article h2 {
+  letter-spacing: -.015em;
+}
+.market-indices-motion article:has(.mi-metric-card) {
+  backdrop-filter: blur(10px);
+}
+@keyframes mi-value-update {
+  0% { opacity: .35; transform: translateY(7px) scale(.985); filter: blur(2px); }
+  65% { opacity: 1; transform: translateY(-1px) scale(1.012); filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .market-indices-motion .mi-value-transition { animation: none !important; }
+}
