@@ -433,7 +433,7 @@ async function publishTodaySummaryIfReady(now = new Date(), suppliedSettings) {
     if (!messages?.length) return { skipped: true, reason: 'SUMMARY_INCOMPLETE' };
 
     let progress = state.summaryProgress;
-    if (!progress || progress.identity !== identity || !Array.isArray(progress.sentParts) ||
+    if (!progress || progress.completedAt || progress.identity !== identity || !Array.isArray(progress.sentParts) ||
         progress.totalParts !== messages.length || !Array.isArray(progress.messages) ||
         progress.messages.length !== messages.length) {
       progress = {
