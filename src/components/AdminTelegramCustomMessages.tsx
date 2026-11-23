@@ -31,7 +31,7 @@ const normalizeCustomMessageSettings = (key: TelegramCustomMessageKey, candidate
     text: typeof value.text === 'string' ? value.text : fallback.text,
     imageDataUrl: typeof value.imageDataUrl === 'string' ? value.imageDataUrl : fallback.imageDataUrl,
     days: Array.isArray(value.days) ? value.days.filter(day => DAYS.some(item => item.value === day)) : [...fallback.days],
-    times: Array.isArray(value.times) ? value.times.filter(time => /^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(time))) : [...fallback.times],
+    times: Array.isArray(value.times) ? value.times.filter(time => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(time))) : [...fallback.times],
     timezone: 'Asia/Tehran'
   };
 };
