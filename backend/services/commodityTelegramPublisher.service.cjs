@@ -12,28 +12,29 @@ const MAX_CACHE_AGE_MS = 15 * 60 * 1000;
 const GROUPS = [
   {
     key: 'preciousMetals', title: 'فلزات گران‌بهای جهانی', historyType: 'preciousMetals',
-    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Silver_%26_Gold_Bars.jpg',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/d/df/Silver_%26_Gold_Bars.jpg',
     credit: 'تصویر: Goddaddy365 · CC BY-SA 4.0 · Wikimedia Commons',
     source: 'commodity'
   },
   {
     key: 'goldPrice', title: 'قیمت طلا', historyType: 'goldPrice',
-    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Chip_gold_bullion_bar.jpg',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/3/3c/Chip_gold_bullion_bar.jpg',
     source: 'nerkh'
   },
   {
     key: 'silverPrice', title: 'قیمت نقره', historyType: 'silverPrice',
-    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Chip_silver_bullion_bar.jpg',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/a/a1/Chip_silver_bullion_bar.jpg',
     source: 'nerkh'
   },
   {
     key: 'coinPrice', title: 'قیمت سکه', historyType: 'coinPrice',
-    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Gold_Bullion.JPG',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/0/06/This_is_a_stack_of_gold_coins.jpg',
+    credit: 'تصویر: Maura Teague · CC BY 2.0 · Wikimedia Commons',
     source: 'nerkh'
   },
   {
     key: 'currencyPrice', title: 'قیمت ارز', historyType: 'currencyPrice',
-    image: 'https://commons.wikimedia.org/wiki/Special:FilePath/World_currencies_past_and_present.jpg',
+    image: 'https://upload.wikimedia.org/wikipedia/commons/a/aa/World_currencies_past_and_present.jpg',
     source: 'nerkh'
   }
 ];
