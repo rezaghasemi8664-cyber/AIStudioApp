@@ -66,7 +66,7 @@ const MarketRadarHistory: React.FC = () => {
   const [hovered, setHovered] = useState<{ index: number; x: number; y: number } | null>(null);
   const chartSvgRef = useRef<SVGSVGElement | null>(null);
   const chartWidth = Math.max(760, (data?.points.length ?? 0) * 14);
-  const maxVolume = Math.max(1, ...(data?.points.map((point) => valueIsValid(point.totalVolume) ? point.totalVolume : 0) ?? [1]);
+  const maxVolume = Math.max(1, ...(data?.points.map((point) => valueIsValid(point.totalVolume) ? point.totalVolume : 0) ?? [1]));
 
   useEffect(() => {
     const handleOutsidePointerDown = (event: PointerEvent) => {
