@@ -81,8 +81,8 @@ function normalizeSettings(value) {
   for (const name of ['preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']) {
     const group = normalizeGroup(name, DEFAULT_SETTINGS[name]);
     group.intervalMinutes = boundedInteger(group.intervalMinutes, DEFAULT_SETTINGS[name].intervalMinutes, 1, 720);
-    group.startTime = /^([01]\d|2[0-3]):[0-5]\\d$/.test(String(group.startTime)) ? String(group.startTime) : DEFAULT_SETTINGS[name].startTime;
-    group.endTime = /^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(group.endTime)) ? String(group.endTime) : DEFAULT_SETTINGS[name].endTime;
+    group.startTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(group.startTime)) ? String(group.startTime) : DEFAULT_SETTINGS[name].startTime;
+    group.endTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(group.endTime)) ? String(group.endTime) : DEFAULT_SETTINGS[name].endTime;
     commodityGroups[name] = group;
   }
   return { timezone: TIMEZONE, valuable, scalping, index, summary, ...commodityGroups };
