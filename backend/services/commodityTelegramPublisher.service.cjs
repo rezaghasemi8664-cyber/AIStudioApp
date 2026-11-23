@@ -165,7 +165,8 @@ function renderCommodityCaption(group, snapshot, now = new Date()) {
   let caption = [...header, ...footer].join('\n');
   for (const row of formatted) {
     const candidate = [...header, ...selected, row, ...footer].join('\n');
-    const maxMessageLength = group.key === 'currencyPrice' ? 4096 : 1024;\n    if (candidate.length > maxMessageLength) break;
+    const maxMessageLength = group.key === 'currencyPrice' ? 4096 : 1024;
+    if (candidate.length > maxMessageLength) break;
     selected.push(row);
     caption = candidate;
   }
