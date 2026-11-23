@@ -558,10 +558,21 @@ async function publishTelegramGroupNow(type, now = new Date()) {
       if (!row) throw new Error('NO_STORED_MARKET_SUMMARY');
       const messages = renderSummaryMessages(row);
       if (!messages?.length) throw new Error('SUMMARY_INCOMPLETE');
-      for (const message of messages) await sendAndRecord('summary', message, now);
-      const identity = tehranDateKey(now) + '#' + String(row.id);
-      await saveState({ ...state, lastSummaryIdentity: identity, lastSummaryPublishedAt: now.toISOString(),
-        summaryProgress: { identity, totalParts: messages.length, messages, sentParts: messages.map((_, i) => i + 1), startedAt: now.toISOString(), updatedAt: now.toISOString(), completedAt: now.toISOString() } });
+      const identity = tehranDateKey(now) + '#manual#' + String(row.id);
+      let progress = state.summaryProgress;
+      if (!progress || progress.identity !== identity || !Array.isArray(progress.sentParts) ||
+          progress.totalParts !== messages.length || !Array.isArray(progress.messages) ||
+          progress.messages.length !== messages.length) {
+        progress = { identity, totalParts: messages.length, messages, sentParts: [], startedAt: now.toISOString(), updatedAt: now.toISOString() };
+      }
+      for (let index = 0; index < progress.totalParts; index += 1) {
+        if (progress.sentParts.includes(index + 1)) continue;
+        await sendAndRecord('summary', progress.messages[index], now);
+        progress = { ...progress, sentParts: [...progress.sentParts, index + 1].sort((a, b) => a - b), updatedAt: new Date().toISOString() };
+        await saveState({ ...state, summaryProgress: progress });
+      }
+      await saveState({ ...state, lastSummaryIdentity: tehranDateKey(now) + '#' + String(row.id), lastSummaryPublishedAt: now.toISOString(),
+        summaryProgress: { ...progress, completedAt: now.toISOString() } });
       return { published: true, type, totalParts: messages.length };
     } finally { summaryPublishInFlight = false; }
   }
