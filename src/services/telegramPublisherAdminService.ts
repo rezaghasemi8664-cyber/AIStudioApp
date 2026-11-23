@@ -16,6 +16,11 @@ export interface TelegramPublisherSettings {
   scalping: TelegramSchedule & { intervalMinutes: number; maxSymbolsPerMessage: number; startTime: string; endTime: string };
   index: TelegramSchedule & { intervalMinutes: number; startTime: string; endTime: string };
   summary: TelegramSchedule & { publishTime: string };
+  preciousMetals: TelegramSchedule & { intervalMinutes: number; startTime: string; endTime: string };
+  goldPrice: TelegramSchedule & { intervalMinutes: number; startTime: string; endTime: string };
+  silverPrice: TelegramSchedule & { intervalMinutes: number; startTime: string; endTime: string };
+  coinPrice: TelegramSchedule & { intervalMinutes: number; startTime: string; endTime: string };
+  currencyPrice: TelegramSchedule & { intervalMinutes: number; startTime: string; endTime: string };
 }
 export interface TelegramPublisherHistoryEntry {
   id: string;
