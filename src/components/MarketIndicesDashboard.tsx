@@ -100,7 +100,14 @@ function calculateMarketStrength(data: MarketRadarSnapshot | null): { label: str
 }
 
 const Metric: React.FC<{ label: string; value: string; sub?: string; change?: number | null }> = ({ label, value, sub, change }) => (
-  <article className={card}><div className="text-sm font-bold text-slate-500">{label}</div><div className="mt-2 break-words text-xl sm:text-2xl font-black tabular-nums text-[var(--color-text-primary)]">{value}</div>{sub && <div className="mt-1 text-xs text-slate-500">{sub}</div>}{change !== undefined && <div className={`mt-2 text-sm font-black ${tone(change)}`}>{pct(change)}</div>}</article>
+  <article className={`${card} mi-metric-card`}>
+    <div className="mi-metric-label text-sm font-bold text-slate-500">{label}</div>
+    <div className="mi-metric-value mt-2 break-words text-xl sm:text-2xl font-black tabular-nums text-[var(--color-text-primary)]">
+      <span key={value} className="mi-value-transition">{value}</span>
+    </div>
+    {sub && <div className="mi-metric-sub mt-1 text-xs text-slate-500">{sub}</div>}
+    {change !== undefined && <div className={`mi-metric-change mt-2 text-sm font-black ${tone(change)}`}>{pct(change)}</div>}
+  </article>
 );
 
 const MarketIndicesDashboard: React.FC = () => {
