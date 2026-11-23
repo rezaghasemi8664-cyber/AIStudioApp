@@ -19,6 +19,22 @@ const SECTIONS: { key: TelegramCustomMessageKey; fallback: string; description: 
   { key: 'channel-message', fallback: 'ارسال پیام در کانال تلگرام رونیا', description: 'برای ارسال پیام‌های عمومی کانال با زمان‌بندی و تنظیمات مستقل.' }
 ];
 const cardClass = 'rounded-2xl border border-[var(--card-border-color)] bg-[var(--card-bg)] p-5';
+
+const normalizeCustomMessageSettings = (key: TelegramCustomMessageKey, candidate?: Partial<TelegramAdMessageSettings> | null): TelegramAdMessageSettings => {
+  const fallback = DEFAULT_TELEGRAM_CUSTOM_MESSAGES[key];
+  const value = candidate && typeof candidate === 'object' ? candidate : {};
+  return {
+    ...fallback,
+    ...value,
+    title: typeof value.title === 'string' && value.title ? value.title : fallback.title,
+    enabled: typeof value.enabled === 'boolean' ? value.enabled : fallback.enabled,
+    text: typeof value.text === 'string' ? value.text : fallback.text,
+    imageDataUrl: typeof value.imageDataUrl === 'string' ? value.imageDataUrl : fallback.imageDataUrl,
+    days: Array.isArray(value.days) ? value.days.filter(day => DAYS.some(item => item.value === day)) : [...fallback.days],
+    times: Array.isArray(value.times) ? value.times.filter(time => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(time))) : [...fallback.times],
+    timezone: 'Asia/Tehran'
+  };
+};
 const inputClass = 'mt-1 w-full rounded-xl border border-[var(--card-border-color)] bg-transparent p-2.5 text-sm';
 
 const AdminTelegramCustomMessages: React.FC = () => {
@@ -33,7 +49,7 @@ const AdminTelegramCustomMessages: React.FC = () => {
     setLoading(true);
     try {
       const entries = await Promise.all(SECTIONS.map(async section => [section.key, await getTelegramCustomMessageSettings(section.key)] as const));
-      setValues(previous => ({ ...previous, ...Object.fromEntries(entries) }));
+      setValues(previous => ({ ...previous, ...Object.fromEntries(entries.map(([key, config]) => [key, normalizeCustomMessageSettings(key, config)])) }));
     } catch (error) {
       setErrors(previous => ({ ...previous, load: error instanceof Error ? error.message : 'دریافت تنظیمات پیام‌های تلگرام ناموفق بود.' }));
     } finally { setLoading(false); }
