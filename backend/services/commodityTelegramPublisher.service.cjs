@@ -38,6 +38,15 @@ const GROUPS = [
   }
 ];
 
+const SYMBOL_LABELS = {
+  GOLD18K: 'طلای ۱۸ عیار', GOLD24K: 'طلای ۲۴ عیار', MESGHAL: 'مثقال طلا', MAZANEH: 'مظنه طلا',
+  OUNCE: 'انس جهانی طلا', MILLI_GOLD18K: 'طلای ۱۸ عیار (میلی)',
+  SEKE_EMAMI: 'سکه امامی', SEKE_BAHAR: 'سکه بهار آزادی', SEKE_NIM: 'نیم‌سکه',
+  SEKE_ROB: 'ربع‌سکه', SEKE_1G: 'سکه یک گرمی', OUNCE_SILVER: 'انس جهانی نقره',
+  USD: 'دلار آمریکا', EUR: 'یورو', GBP: 'پوند انگلیس', AED: 'درهم امارات',
+  TRY: 'لیر ترکیه', CAD: 'دلار کانادا', CHF: 'فرانک سوئیس', CNY: 'یوآن چین', QAR: 'ریال قطر'
+};
+
 let publishingRunning = false;
 
 function toNumber(value) {
@@ -92,7 +101,7 @@ function renderNerkhItem(item, groupKey, usdRate) {
   const currency = isOunce ? 'دلار / اونس' : 'ریال';
   const delta = current !== null && percent !== null && percent > -100
     ? current * percent / (100 + percent) : null;
-  const lines = ['🔸 ' + (item.name || symbol) + (symbol ? ' (' + symbol + ')' : '')];
+  const lines = ['🔸 ' + (item.name || SYMBOL_LABELS[symbol] || symbol) + (symbol ? ' (' + symbol + ')' : '')];
   if (isOunce) {
     lines.push('قیمت جهانی: ' + number(current, 4) + ' دلار / اونس');
     if (usdRate > 0) lines.push('معادل ریالی: ' + number(current * usdRate) + ' ریال');
@@ -151,12 +160,19 @@ function renderCommodityCaption(group, snapshot, now = new Date()) {
     'اطلاعات بر اساس آخرین داده ذخیره‌شده منبع است.'
   ];
   if (group.credit) footer.splice(footer.length - 1, 0, group.credit);
-  let caption = [...header, ...formatted, ...footer].join('\n');
-  if (caption.length > 1024) {
-    const compact = formatted.slice(0, 8);
-    caption = [...header, ...compact, '…', ...footer].join('\n');
+  let selected = [];
+  let caption = [...header, ...footer].join('\n');
+  for (const row of formatted) {
+    const candidate = [...header, ...selected, row, ...footer].join('\n');
+    if (candidate.length > 1024) break;
+    selected.push(row);
+    caption = candidate;
   }
-  if (caption.length > 1024) caption = caption.slice(0, 1021) + '…';
+  if (selected.length < formatted.length) {
+    const omitted = '… موارد بیشتر در تب کامودیتی نرم‌افزار رونیا';
+    const candidate = [...header, ...selected, omitted, ...footer].join('\n');
+    if (candidate.length <= 1024) caption = candidate;
+  }
   return caption;
 }
 
