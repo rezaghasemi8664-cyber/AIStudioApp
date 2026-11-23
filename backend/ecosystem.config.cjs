@@ -3,6 +3,7 @@
     {
       name: "roniya-backend",
       script: "server.cjs",
+      interpreter: "C:\\Program Files\\nodejs\\node.exe",
 
       exec_mode: "fork",
       instances: 1,
