@@ -2,7 +2,7 @@
 
 const prisma = require('../config/prisma.cjs');
 const centralCache = require('./centralMarketCache.service.cjs');
-const { sendTelegramPhotoUrl, getTelegramConfig } = require('./telegramBotApi.service.cjs');
+const { sendTelegramMessage, getTelegramConfig } = require('./telegramBotApi.service.cjs');
 const { getTelegramPublisherSettings, tehranDateKey, isAllowedWeekday, getDueIntervalSlot, isBeforeEndTime, recordTelegramPublisherMessage } = require('./telegramPublisherSettings.service.cjs');
 
 const STATE_KEY = 'telegram.publisher.state.v1';
@@ -12,29 +12,22 @@ const MAX_CACHE_AGE_MS = 15 * 60 * 1000;
 const GROUPS = [
   {
     key: 'preciousMetals', title: 'فلزات گران‌بهای جهانی', historyType: 'preciousMetals',
-    image: 'https://upload.wikimedia.org/wikipedia/commons/d/df/Silver_%26_Gold_Bars.jpg',
-    credit: 'تصویر: Goddaddy365 · CC BY-SA 4.0 · Wikimedia Commons',
     source: 'commodity'
   },
   {
     key: 'goldPrice', title: 'قیمت طلا', historyType: 'goldPrice',
-    image: 'https://upload.wikimedia.org/wikipedia/commons/3/3c/Chip_gold_bullion_bar.jpg',
     source: 'nerkh'
   },
   {
     key: 'silverPrice', title: 'قیمت نقره', historyType: 'silverPrice',
-    image: 'https://upload.wikimedia.org/wikipedia/commons/a/a1/Chip_silver_bullion_bar.jpg',
     source: 'nerkh'
   },
   {
     key: 'coinPrice', title: 'قیمت سکه', historyType: 'coinPrice',
-    image: 'https://upload.wikimedia.org/wikipedia/commons/0/06/This_is_a_stack_of_gold_coins.jpg',
-    credit: 'تصویر: Maura Teague · CC BY 2.0 · Wikimedia Commons',
     source: 'nerkh'
   },
   {
     key: 'currencyPrice', title: 'قیمت ارز', historyType: 'currencyPrice',
-    image: 'https://upload.wikimedia.org/wikipedia/commons/a/aa/World_currencies_past_and_present.jpg',
     source: 'nerkh'
   }
 ];
@@ -161,7 +154,6 @@ function renderCommodityCaption(group, snapshot, now = new Date()) {
     'زمان انتشار: ' + dateTime(now),
     'اطلاعات بر اساس آخرین داده ذخیره‌شده منبع است.'
   ];
-  if (group.credit) footer.splice(footer.length - 1, 0, group.credit);
   let selected = [];
   let caption = [...header, ...footer].join('\n');
   for (const row of formatted) {
@@ -220,7 +212,7 @@ async function publishCommodityPricesIfScheduled(now = new Date(), suppliedSetti
       if (!caption) { outcomes.push({ name: group.key, skipped: true, reason: 'NO_VALID_PRICE_ROWS' }); continue; }
 
       try {
-        await sendTelegramPhotoUrl(group.image, caption);
+        await sendTelegramMessage(caption);
         try { await recordTelegramPublisherMessage(group.historyType, 'success', { messageTitle: caption.split('\n')[0] }, now); }
         catch (historyError) { console.error('[CRON][TelegramPublisher] Commodity history write failed:', historyError?.message || historyError); }
         state.lastCommodityTelegramSlots = { ...(state.lastCommodityTelegramSlots || {}), [group.key]: slot };
@@ -253,7 +245,7 @@ async function publishCommodityGroupNow(groupKey, now = new Date()) {
     const caption = renderCommodityCaption(group, snapshot, now);
     if (!caption) throw new Error('NO_VALID_PRICE_ROWS');
     try {
-      await sendTelegramPhotoUrl(group.image, caption);
+      await sendTelegramMessage(caption);
       try { await recordTelegramPublisherMessage(group.historyType, 'success', { messageTitle: caption.split('\n')[0] }, now); }
       catch (historyError) { console.error('[TelegramPublisherAdmin] Manual commodity history write failed:', historyError?.message || historyError); }
       return { published: true, type: groupKey, rows: group.source === 'commodity' ? snapshot.groups.metal_precious.length : getNerkhItems(snapshot, group.key).length };
