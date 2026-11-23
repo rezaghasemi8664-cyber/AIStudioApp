@@ -91,7 +91,10 @@ const TelegramScheduleCard: React.FC<{
   startTime?: boolean;
   publishTime?: boolean;
   endTime?: boolean;
-}> = ({ title, description, value, onChange, interval, maxSymbols, startTime, publishTime, endTime }) => {
+  groupKey: telegramAdmin.TelegramPublisherGroupKey;
+  onPublishNow: (key: telegramAdmin.TelegramPublisherGroupKey) => void;
+  publishing: boolean;
+}> = ({ title, description, value, onChange, interval, maxSymbols, startTime, publishTime, endTime, groupKey, onPublishNow, publishing }) => {
   const toggleDay = (day: TehranWeekday, checked: boolean) => {
     const days = checked ? [...new Set([...value.days, day])] : value.days.filter(item => item !== day);
     onChange({ ...value, days });
@@ -99,6 +102,7 @@ const TelegramScheduleCard: React.FC<{
   return <section className={cardClass}>
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h3 className="font-extrabold">{title}</h3><p className="mt-1 text-xs leading-6 text-gray-500">{description}</p></div>
+      <button type="button" onClick={() => onPublishNow(groupKey)} disabled={publishing} className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{publishing ? 'در حال انتشار…' : 'انتشار آنی'}</button>
       <label className="flex items-center gap-2 rounded-xl border border-[var(--card-border-color)] px-3 py-2 text-sm font-semibold">
         <input type="checkbox" checked={value.enabled} onChange={e => onChange({ ...value, enabled: e.target.checked })} />
         {value.enabled ? 'انتشار فعال' : 'انتشار غیرفعال'}
@@ -144,6 +148,7 @@ const AdminTelegramPublisherPanel: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [publishingGroup, setPublishingGroup] = useState<telegramAdmin.TelegramPublisherGroupKey | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -160,6 +165,21 @@ const AdminTelegramPublisherPanel: React.FC = () => {
 
   const updateGroup = (key: keyof Pick<TelegramPublisherSettings, 'valuable' | 'scalping' | 'index' | 'summary' | 'preciousMetals' | 'goldPrice' | 'silverPrice' | 'coinPrice' | 'currencyPrice'>, value: TelegramSchedule) => {
     setSettings(previous => ({ ...previous, [key]: { ...previous[key], ...value } }));
+  };
+
+
+  const publishNow = async (key: telegramAdmin.TelegramPublisherGroupKey) => {
+    setPublishingGroup(key); setError(null); setMessage(null);
+    try {
+      const result = await telegramAdmin.publishTelegramGroupNow(key);
+      const label = TYPE_LABELS[key] || key;
+      const detail = result.symbols ? ' (' + result.symbols + ' نماد)' : result.totalParts ? ' (' + result.totalParts + ' بخش)' : result.rows ? ' (' + result.rows + ' ردیف)' : '';
+      setMessage('انتشار آنی «' + label + '» با موفقیت انجام شد' + detail + '.');
+      await refreshHistory();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'انتشار آنی پیام ناموفق بود.');
+      await refreshHistory();
+    } finally { setPublishingGroup(null); }
   };
 
   const save = async () => {
@@ -205,15 +225,15 @@ const AdminTelegramPublisherPanel: React.FC = () => {
 
     <AdminTelegramCustomMessages />
 
-    <TelegramScheduleCard title="نمادهای ارزنده" description="در بازه تعیین‌شده تغییرات مهم و نمادهای تازه شناسایی‌شده را منتشر می‌کند. در صورت بیشتر بودن موارد، موارد باقی‌مانده در چرخه‌های بعدی پیگیری می‌شوند." value={settings.valuable} interval maxSymbols startTime endTime onChange={value => updateGroup('valuable', value)} />
-    <TelegramScheduleCard title="فرصت‌های نوسان‌گیری" description="فرصت‌های تازه یا تغییرات مهم را فقط با داده‌های معتبر بازار منتشر می‌کند؛ فاصله زمانی حداقل بین دو پیام رعایت می‌شود." value={settings.scalping} interval maxSymbols startTime endTime onChange={value => updateGroup('scalping', value)} />
-    <TelegramScheduleCard title="شاخص‌های بورس" description="در ساعات بازار و فقط با تصویر تازه و معتبر بازار منتشر می‌شود. چرخه‌ها از زمان شروع انتخاب‌شده محاسبه می‌شوند." value={settings.index} interval startTime endTime onChange={value => updateGroup('index', value)} />
-    <TelegramScheduleCard title="خلاصه بازار" description="در زمان انتخاب‌شده و فقط وقتی خلاصه کامل همان روز در سامانه موجود باشد منتشر می‌شود." value={settings.summary} publishTime onChange={value => updateGroup('summary', value)} />
-    <TelegramScheduleCard title="فلزات گران‌بهای جهانی" description="اطلاعات گروه فلزات گران‌بها را از کش کامودیتی دریافت و همراه تصویر مرتبط منتشر می‌کند." value={settings.preciousMetals} interval startTime endTime onChange={value => updateGroup('preciousMetals', value)} />
-    <TelegramScheduleCard title="قیمت طلا" description="قیمت‌های طلا را از کش Nerkh دریافت و همراه تصویر شمش طلا منتشر می‌کند." value={settings.goldPrice} interval startTime endTime onChange={value => updateGroup('goldPrice', value)} />
-    <TelegramScheduleCard title="قیمت نقره" description="قیمت‌های نقره را از کش Nerkh دریافت و همراه تصویر شمش نقره منتشر می‌کند." value={settings.silverPrice} interval startTime endTime onChange={value => updateGroup('silverPrice', value)} />
-    <TelegramScheduleCard title="قیمت سکه" description="قیمت انواع سکه را از کش Nerkh دریافت و همراه تصویر سکه طلا منتشر می‌کند." value={settings.coinPrice} interval startTime endTime onChange={value => updateGroup('coinPrice', value)} />
-    <TelegramScheduleCard title="قیمت ارز" description="قیمت ارزهای جهانی را از کش Nerkh دریافت و همراه تصویر ارزهای بین‌المللی منتشر می‌کند." value={settings.currencyPrice} interval startTime endTime onChange={value => updateGroup('currencyPrice', value)} />
+    <TelegramScheduleCard title="نمادهای ارزنده" description="در بازه تعیین‌شده تغییرات مهم و نمادهای تازه شناسایی‌شده را منتشر می‌کند. در صورت بیشتر بودن موارد، موارد باقی‌مانده در چرخه‌های بعدی پیگیری می‌شوند." value={settings.valuable} interval maxSymbols startTime endTime onChange={value => updateGroup('valuable', value)}  groupKey="valuable" onPublishNow={publishNow} publishing={publishingGroup === 'valuable'} />
+    <TelegramScheduleCard title="فرصت‌های نوسان‌گیری" description="فرصت‌های تازه یا تغییرات مهم را فقط با داده‌های معتبر بازار منتشر می‌کند؛ فاصله زمانی حداقل بین دو پیام رعایت می‌شود." value={settings.scalping} interval maxSymbols startTime endTime onChange={value => updateGroup('scalping', value)}  groupKey="scalping" onPublishNow={publishNow} publishing={publishingGroup === 'scalping'} />
+    <TelegramScheduleCard title="شاخص‌های بورس" description="در ساعات بازار و فقط با تصویر تازه و معتبر بازار منتشر می‌شود. چرخه‌ها از زمان شروع انتخاب‌شده محاسبه می‌شوند." value={settings.index} interval startTime endTime onChange={value => updateGroup('index', value)}  groupKey="index" onPublishNow={publishNow} publishing={publishingGroup === 'index'} />
+    <TelegramScheduleCard title="خلاصه بازار" description="در زمان انتخاب‌شده و فقط وقتی خلاصه کامل همان روز در سامانه موجود باشد منتشر می‌شود." value={settings.summary} publishTime onChange={value => updateGroup('summary', value)}  groupKey="summary" onPublishNow={publishNow} publishing={publishingGroup === 'summary'} />
+    <TelegramScheduleCard title="فلزات گران‌بهای جهانی" description="اطلاعات گروه فلزات گران‌بها را از کش کامودیتی دریافت و همراه تصویر مرتبط منتشر می‌کند." value={settings.preciousMetals} interval startTime endTime onChange={value => updateGroup('preciousMetals', value)}  groupKey="preciousMetals" onPublishNow={publishNow} publishing={publishingGroup === 'preciousMetals'} />
+    <TelegramScheduleCard title="قیمت طلا" description="قیمت‌های طلا را از کش Nerkh دریافت و همراه تصویر شمش طلا منتشر می‌کند." value={settings.goldPrice} interval startTime endTime onChange={value => updateGroup('goldPrice', value)}  groupKey="goldPrice" onPublishNow={publishNow} publishing={publishingGroup === 'goldPrice'} />
+    <TelegramScheduleCard title="قیمت نقره" description="قیمت‌های نقره را از کش Nerkh دریافت و همراه تصویر شمش نقره منتشر می‌کند." value={settings.silverPrice} interval startTime endTime onChange={value => updateGroup('silverPrice', value)}  groupKey="silverPrice" onPublishNow={publishNow} publishing={publishingGroup === 'silverPrice'} />
+    <TelegramScheduleCard title="قیمت سکه" description="قیمت انواع سکه را از کش Nerkh دریافت و همراه تصویر سکه طلا منتشر می‌کند." value={settings.coinPrice} interval startTime endTime onChange={value => updateGroup('coinPrice', value)}  groupKey="coinPrice" onPublishNow={publishNow} publishing={publishingGroup === 'coinPrice'} />
+    <TelegramScheduleCard title="قیمت ارز" description="قیمت ارزهای جهانی را از کش Nerkh دریافت و همراه تصویر ارزهای بین‌المللی منتشر می‌کند." value={settings.currencyPrice} interval startTime endTime onChange={value => updateGroup('currencyPrice', value)}  groupKey="currencyPrice" onPublishNow={publishNow} publishing={publishingGroup === 'currencyPrice'} />
     <div className="flex justify-end gap-2">
       <button type="button" onClick={() => void load()} disabled={saving} className="rounded-xl border border-[var(--card-border-color)] px-4 py-2.5 text-sm">بارگذاری مجدد</button>
       <button type="button" onClick={() => void save()} disabled={saving} className="rounded-xl bg-cyan-600 px-6 py-2.5 font-semibold text-white disabled:opacity-50">{saving ? 'در حال ذخیره…' : 'ذخیره تنظیمات انتشار'}</button>
