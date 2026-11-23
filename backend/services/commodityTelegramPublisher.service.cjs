@@ -142,15 +142,14 @@ function renderCommodityCaption(group, snapshot, now = new Date()) {
   const formatted = items.slice(0, 14).map(item => group.source === 'commodity'
     ? renderCommodityItem(item) : renderNerkhItem(item, group.key, usdRate));
   const header = [
+    'زمان دریافت کش: ' + dateTime(sourceTime),
     '📊 رونیا | ' + group.title,
     '━━━━━━━━━━━━━━━━━━',
-    'زمان دریافت کش: ' + dateTime(sourceTime),
     ''
   ];
   const footer = [
     '',
     '━━━━━━━━━━━━━━━━━━',
-    'منبع: کش قیمت‌های تب کامودیتی در رونیا',
     'زمان انتشار: ' + dateTime(now),
     'اطلاعات بر اساس آخرین داده ذخیره‌شده منبع است.'
   ];
