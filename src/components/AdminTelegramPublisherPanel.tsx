@@ -9,13 +9,18 @@ const DAYS: { value: TehranWeekday; label: string }[] = [
   { value: 'Wed', label: 'چهارشنبه' }, { value: 'Thu', label: 'پنجشنبه' },
   { value: 'Fri', label: 'جمعه' }
 ];
-const TYPE_LABELS: Record<string, string> = { valuable: 'نمادهای ارزنده', scalping: 'فرصت‌های نوسان‌گیری', index: 'شاخص‌های بورس', summary: 'خلاصه بازار', 'custom-ad': 'پیام تبلیغات در کانال تلگرام رونیا', 'membership-message': 'پیام عضویت در کانال تلگرام رونیا', 'channel-message': 'ارسال پیام در کانال تلگرام رونیا' };
+const TYPE_LABELS: Record<string, string> = { valuable: 'نمادهای ارزنده', scalping: 'فرصت‌های نوسان‌گیری', index: 'شاخص‌های بورس', summary: 'خلاصه بازار', preciousMetals: 'فلزات گران‌بهای جهانی', goldPrice: 'قیمت طلا', silverPrice: 'قیمت نقره', coinPrice: 'قیمت سکه', currencyPrice: 'قیمت ارز', 'custom-ad': 'پیام تبلیغات در کانال تلگرام رونیا', 'membership-message': 'پیام عضویت در کانال تلگرام رونیا', 'channel-message': 'ارسال پیام در کانال تلگرام رونیا' };
 const DEFAULT_SETTINGS: TelegramPublisherSettings = {
   timezone: 'Asia/Tehran',
   valuable: { enabled: true, intervalMinutes: 15, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'], maxSymbolsPerMessage: 10 },
   scalping: { enabled: true, intervalMinutes: 5, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'], maxSymbolsPerMessage: 10 },
   index: { enabled: true, intervalMinutes: 60, startTime: '09:15', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] },
-  summary: { enabled: true, publishTime: '13:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] }
+  summary: { enabled: true, publishTime: '13:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] },
+  preciousMetals: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] },
+  goldPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] },
+  silverPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] },
+  coinPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] },
+  currencyPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] }
 };
 const formatTehranDate = (value: string) => {
   try { return new Intl.DateTimeFormat('fa-IR', { dateStyle: 'long', timeZone: 'Asia/Tehran' }).format(new Date(value + 'T12:00:00Z')); }
