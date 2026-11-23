@@ -35,37 +35,6 @@ async function audit(req, action, statusCode, details) {
 }
 
 
-const MANUAL_PUBLISH_TYPES = new Set(['valuable', 'scalping', 'index', 'summary', 'preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']);
-router.post('/:type/publish-now', async (req, res) => {
-  const { type } = req.params;
-  if (!MANUAL_PUBLISH_TYPES.has(type)) return res.status(404).json({ success: false, message: 'نوع انتشار فوری معتبر نیست.' });
-  try {
-    const result = ['preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice'].includes(type)
-      ? await commodityTelegramPublisher.publishCommodityGroupNow(type, new Date())
-      : await telegramPublisherService.publishTelegramGroupNow(type, new Date());
-    await audit(req, 'publish-' + type + '-now', 200, { published: true, updatedBy: userId(req), result });
-    return res.json({ success: true, message: 'پیام با موفقیت در کانال تلگرام منتشر شد.', data: result });
-  } catch (error) {
-    const detail = String(error?.message || 'انتشار فوری در تلگرام ناموفق بود.');
-    await audit(req, 'publish-' + type + '-now', 502, { error: detail.slice(0, 300), updatedBy: userId(req) });
-    const messages = {
-      TELEGRAM_NOT_CONFIGURED: 'اتصال ربات تلگرام تنظیم نشده است.',
-      MARKET_SNAPSHOT_STALE: 'داده شاخص‌های بازار تازه نیست؛ ابتدا داده بازار را بروزرسانی کنید.',
-      NO_VALID_STORED_MARKET_SNAPSHOT: 'تصویر معتبر شاخص‌های بازار در دسترس نیست.',
-      NO_FRESH_VALUABLE_EVALUATION: 'ارزیابی تازه نمادهای ارزنده در دسترس نیست.',
-      NO_FRESH_VALUABLE_RESULTS: 'نماد ارزنده معتبری برای انتشار وجود ندارد.',
-      NO_FRESH_ACTIVE_SCALPING_OPPORTUNITIES: 'فرصت نوسان‌گیری معتبر و فعالی برای انتشار وجود ندارد.',
-      NO_STORED_MARKET_SUMMARY: 'خلاصه بازاری برای انتشار در سامانه ثبت نشده است.',
-      SUMMARY_INCOMPLETE: 'متن خلاصه بازار کامل یا قابل انتشار نیست.',
-      CACHE_MISSING_OR_STALE: 'کش قیمت‌ها موجود نیست یا اطلاعات آن قدیمی است.',
-      NO_VALID_PRICE_ROWS: 'قیمت معتبر برای این گروه در کش پیدا نشد.',
-      ALREADY_RUNNING: 'انتشار این گروه در حال انجام است؛ کمی بعد دوباره تلاش کنید.',
-      SUMMARY_PUBLISH_ALREADY_RUNNING: 'انتشار خلاصه بازار دیگری در حال انجام است.'
-    };
-    return res.status(502).json({ success: false, message: messages[detail] || 'انتشار فوری ناموفق بود: ' + detail });
-  }
-});
-
 router.get('/settings', async (req, res) => {
   try {
     return res.json({ success: true, data: await getTelegramPublisherSettings(), timezone: 'Asia/Tehran' });
@@ -176,5 +145,37 @@ for (const [routeKey, messageType] of [['membership-message', 'membership'], ['c
     }
   });
 }
+
+const MANUAL_PUBLISH_TYPES = new Set(['valuable', 'scalping', 'index', 'summary', 'preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']);
+router.post('/:type/publish-now', async (req, res) => {
+  const { type } = req.params;
+  if (!MANUAL_PUBLISH_TYPES.has(type)) return res.status(404).json({ success: false, message: 'نوع انتشار فوری معتبر نیست.' });
+  try {
+    const result = ['preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice'].includes(type)
+      ? await commodityTelegramPublisher.publishCommodityGroupNow(type, new Date())
+      : await telegramPublisherService.publishTelegramGroupNow(type, new Date());
+    await audit(req, 'publish-' + type + '-now', 200, { published: true, updatedBy: userId(req), result });
+    return res.json({ success: true, message: 'پیام با موفقیت در کانال تلگرام منتشر شد.', data: result });
+  } catch (error) {
+    const detail = String(error?.message || 'انتشار فوری در تلگرام ناموفق بود.');
+    await audit(req, 'publish-' + type + '-now', 502, { error: detail.slice(0, 300), updatedBy: userId(req) });
+    const messages = {
+      TELEGRAM_NOT_CONFIGURED: 'اتصال ربات تلگرام تنظیم نشده است.',
+      MARKET_SNAPSHOT_STALE: 'داده شاخص‌های بازار تازه نیست؛ ابتدا داده بازار را بروزرسانی کنید.',
+      NO_VALID_STORED_MARKET_SNAPSHOT: 'تصویر معتبر شاخص‌های بازار در دسترس نیست.',
+      NO_FRESH_VALUABLE_EVALUATION: 'ارزیابی تازه نمادهای ارزنده در دسترس نیست.',
+      NO_FRESH_VALUABLE_RESULTS: 'نماد ارزنده معتبری برای انتشار وجود ندارد.',
+      NO_FRESH_ACTIVE_SCALPING_OPPORTUNITIES: 'فرصت نوسان‌گیری معتبر و فعالی برای انتشار وجود ندارد.',
+      NO_STORED_MARKET_SUMMARY: 'خلاصه بازاری برای انتشار در سامانه ثبت نشده است.',
+      SUMMARY_INCOMPLETE: 'متن خلاصه بازار کامل یا قابل انتشار نیست.',
+      CACHE_MISSING_OR_STALE: 'کش قیمت‌ها موجود نیست یا اطلاعات آن قدیمی است.',
+      NO_VALID_PRICE_ROWS: 'قیمت معتبر برای این گروه در کش پیدا نشد.',
+      ALREADY_RUNNING: 'انتشار این گروه در حال انجام است؛ کمی بعد دوباره تلاش کنید.',
+      SUMMARY_PUBLISH_ALREADY_RUNNING: 'انتشار خلاصه بازار دیگری در حال انجام است.'
+    };
+    return res.status(502).json({ success: false, message: messages[detail] || 'انتشار فوری ناموفق بود: ' + detail });
+  }
+});
+
 
 module.exports = router;
