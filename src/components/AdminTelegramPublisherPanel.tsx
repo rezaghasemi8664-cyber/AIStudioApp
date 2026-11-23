@@ -144,7 +144,7 @@ const AdminTelegramPublisherPanel: React.FC = () => {
     setSaving(true); setError(null); setMessage(null);
     try {
       const next = await telegramAdmin.saveTelegramPublisherSettings(settings);
-      setSettings(next); setMessage('تنظیمات انتشار تلگرام ذخیره شد و در چرخه‌های بعدی اعمال می‌شود.');
+      setSettings(normalizePublisherSettings(next)); setMessage('تنظیمات انتشار تلگرام ذخیره شد و در چرخه‌های بعدی اعمال می‌شود.');
       await refreshHistory();
     } catch (e) { setError(e instanceof Error ? e.message : 'ذخیره تنظیمات ناموفق بود.'); }
     finally { setSaving(false); }
