@@ -578,7 +578,8 @@ async function publishTelegramGroupNow(type, now = new Date()) {
   }
   throw new Error('UNSUPPORTED_TELEGRAM_PUBLISH_TYPE');
 }
-\nasync function runTelegramPublisherTick(now = new Date()) {
+
+async function runTelegramPublisherTick(now = new Date()) {
   const config = getTelegramConfig();
   if (!config.token || !config.chatId) return { skipped: true, reason: 'TELEGRAM_NOT_CONFIGURED' };
   await getTelegramPublisherHistory(now); // Rolls over the single-day history at Tehran midnight.
