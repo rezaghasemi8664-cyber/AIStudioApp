@@ -22,6 +22,32 @@ const DEFAULT_SETTINGS: TelegramPublisherSettings = {
   coinPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] },
   currencyPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed'] }
 };
+
+const normalizeSchedule = (fallback: TelegramSchedule, candidate?: Partial<TelegramSchedule> | null): TelegramSchedule => {
+  const value = candidate && typeof candidate === 'object' ? candidate : {};
+  return {
+    ...fallback,
+    ...value,
+    enabled: typeof value.enabled === 'boolean' ? value.enabled : fallback.enabled,
+    days: Array.isArray(value.days) ? value.days.filter(day => DAYS.some(item => item.value === day)) : [...fallback.days]
+  };
+};
+
+const normalizePublisherSettings = (input?: Partial<TelegramPublisherSettings> | null): TelegramPublisherSettings => {
+  const source = input && typeof input === 'object' ? input : {};
+  return {
+    timezone: 'Asia/Tehran',
+    valuable: { ...DEFAULT_SETTINGS.valuable, ...normalizeSchedule(DEFAULT_SETTINGS.valuable, source.valuable) },
+    scalping: { ...DEFAULT_SETTINGS.scalping, ...normalizeSchedule(DEFAULT_SETTINGS.scalping, source.scalping) },
+    index: { ...DEFAULT_SETTINGS.index, ...normalizeSchedule(DEFAULT_SETTINGS.index, source.index) },
+    summary: { ...DEFAULT_SETTINGS.summary, ...normalizeSchedule(DEFAULT_SETTINGS.summary, source.summary) },
+    preciousMetals: { ...DEFAULT_SETTINGS.preciousMetals, ...normalizeSchedule(DEFAULT_SETTINGS.preciousMetals, source.preciousMetals) },
+    goldPrice: { ...DEFAULT_SETTINGS.goldPrice, ...normalizeSchedule(DEFAULT_SETTINGS.goldPrice, source.goldPrice) },
+    silverPrice: { ...DEFAULT_SETTINGS.silverPrice, ...normalizeSchedule(DEFAULT_SETTINGS.silverPrice, source.silverPrice) },
+    coinPrice: { ...DEFAULT_SETTINGS.coinPrice, ...normalizeSchedule(DEFAULT_SETTINGS.coinPrice, source.coinPrice) },
+    currencyPrice: { ...DEFAULT_SETTINGS.currencyPrice, ...normalizeSchedule(DEFAULT_SETTINGS.currencyPrice, source.currencyPrice) }
+  };
+};
 const formatTehranDate = (value: string) => {
   try { return new Intl.DateTimeFormat('fa-IR', { dateStyle: 'long', timeZone: 'Asia/Tehran' }).format(new Date(value + 'T12:00:00Z')); }
   catch { return value; }
@@ -103,7 +129,7 @@ const AdminTelegramPublisherPanel: React.FC = () => {
       const [nextSettings, nextHistory] = await Promise.all([
         telegramAdmin.getTelegramPublisherSettings(), telegramAdmin.getTelegramPublisherHistory()
       ]);
-      setSettings(nextSettings); setHistory(nextHistory);
+      setSettings(normalizePublisherSettings(nextSettings)); setHistory(nextHistory);
     } catch (e) { setError(e instanceof Error ? e.message : 'دریافت اطلاعات انتشار تلگرام ناموفق بود.'); }
     finally { setLoading(false); }
   }, []);
