@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import './MarketIndex.dashboard.css';
 import * as apiConfigService from '../services/apiConfigService';
 import type { MarketIndexData } from '../types';
 import { ArrowTrendingUpIcon, ArrowTrendingDownIcon } from './Icons';
@@ -78,14 +79,25 @@ const IndexDisplay: React.FC<IndexDisplayProps> = ({ name, value, changeValue, c
     const safeChangePercent = toFiniteNumber(changePercent);
     const isPositive = safeChangeValue !== null && safeChangeValue > 0;
     const isNegative = safeChangeValue !== null && safeChangeValue < 0;
-    const valueColor = hasValue ? 'text-[var(--color-text-primary)]' : 'text-slate-500';
-    const changeColor = isPositive ? 'text-[var(--color-positive)]' : isNegative ? 'text-[var(--color-negative)]' : 'text-slate-400';
+    const direction = isPositive ? 'positive' : isNegative ? 'negative' : 'neutral';
     const Icon = isPositive ? ArrowTrendingUpIcon : ArrowTrendingDownIcon;
-    return <div className="min-w-0 flex-1 px-2 sm:px-3 lg:px-8">
-        <div className="mb-2 text-[13px] font-bold leading-6 text-slate-300 whitespace-nowrap overflow-hidden text-ellipsis">{name}</div>
-        {hasValue ? <div className={`${valueColor} whitespace-nowrap text-[16px] sm:text-[22px] lg:text-[clamp(24px,2vw,32px)] font-black leading-tight tracking-tight tabular-nums`} dir="ltr">{formatIndexValue(value)}</div> : <div className="text-[12px] sm:text-[13px] font-semibold leading-5 text-slate-500 whitespace-nowrap">داده در دسترس نیست</div>}
-        <div className={`mt-2 flex min-w-0 flex-nowrap items-center gap-1 ${changeColor} text-[10px] sm:text-[13px] lg:text-[14px] font-bold tabular-nums whitespace-nowrap`} dir="ltr">{showIcon && <Icon className="h-4 w-4 shrink-0" />}<span>{safeChangeValue === null ? 'داده در دسترس نیست' : formatSignedNumber(safeChangeValue)}</span><span className="opacity-80">({safeChangePercent === null ? '—' : formatPercent(safeChangePercent)})</span></div>
-    </div>;
+    return <article className={`market-index-visual-card market-index-${direction}`}>
+        <div className="market-index-card-glow" aria-hidden="true" />
+        <div className="market-index-card-top">
+            <span className="market-index-card-symbol" aria-hidden="true">{name.includes('هم‌وزن') ? 'EW' : 'TSE'}</span>
+            <span className="market-index-card-label">{name}</span>
+        </div>
+        <div className="market-index-card-value" dir="ltr">{hasValue ? formatIndexValue(value) : 'داده در دسترس نیست'}</div>
+        <div className="market-index-card-change" dir="ltr">
+            {showIcon && <Icon className="market-index-change-icon" />}
+            <span>{safeChangeValue === null ? 'داده در دسترس نیست' : formatSignedNumber(safeChangeValue)}</span>
+            <span className="market-index-change-percent">{safeChangePercent === null ? '—' : formatPercent(safeChangePercent)}</span>
+        </div>
+        <div className="market-index-card-footer">
+            <span>تغییر نسبت به مقدار مبنا</span>
+            <span className="market-index-card-status">{isPositive ? 'رشد' : isNegative ? 'افت' : 'بدون تغییر'}</span>
+        </div>
+    </article>;
 };
 
 const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
@@ -164,9 +176,30 @@ const MarketIndex: React.FC<MarketIndexProps> = ({ isOnline }) => {
     if (isLoading && !data) return <div dir="rtl" className="w-full min-w-[300px] rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 animate-pulse"><div className="grid grid-cols-2 gap-4"><div className="space-y-3"><div className="h-3 w-20 rounded bg-white/10" /><div className="h-7 w-32 rounded bg-white/10" /><div className="h-3 w-24 rounded bg-white/10" /></div><div className="space-y-3"><div className="h-3 w-24 rounded bg-white/10" /><div className="h-7 w-32 rounded bg-white/10" /><div className="h-3 w-24 rounded bg-white/10" /></div></div></div>;
     if (!data) return <div dir="rtl" className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-center text-[13px] text-slate-400">داده‌ای برای نمایش شاخص موجود نیست.</div>;
     const showAsClosed = !isMarketInScheduledTime || data.isMarketOpen === false;
-    return <div dir="rtl" data-style-id={showAsClosed ? 'market-index-closed' : 'market-index-open'} data-style-name={showAsClosed ? 'شاخص بازار بسته' : 'شاخص بازار باز'} data-style-props="bg,border,positive,negative" className="market-index-widget market-index-workstation w-full min-w-0 max-w-none overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg shadow-black/10" style={{ width: "100%", maxWidth: "none" }}>
-        <div className="market-index-header flex items-center justify-between gap-2 border-b border-[var(--color-border)] px-2.5 py-2.5 sm:gap-3 sm:px-4 sm:py-3 lg:px-7"><div className="min-w-0 flex-1"><div className="text-[13px] sm:text-[14px] font-bold text-[var(--color-text-primary)] whitespace-nowrap">شاخص‌های بازار</div><div className="mt-0.5 hidden text-[11px] font-medium text-slate-400 sm:block">{dataMeta?.status === 'CACHED' ? 'آخرین داده معتبر ذخیره‌شده' : dataMeta?.status === 'LIVE' ? 'داده واقعی بازار' : 'وضعیت داده مشخص نیست'}</div></div><span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-bold leading-5 sm:gap-2 sm:px-3 sm:py-1 sm:text-[12px] ${showAsClosed ? 'border-red-500/20 bg-red-500/10 text-red-400' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'}`}><span className={`h-1.5 w-1.5 rounded-full sm:h-2 sm:w-2 ${showAsClosed ? 'bg-red-400' : 'bg-emerald-400'}`} />{showAsClosed ? 'بازار بسته' : 'بازار باز'}</span></div>
-        <div className="market-index-values relative grid w-full grid-cols-2 items-stretch gap-0 px-1.5 py-4 sm:px-2 lg:px-8 lg:py-5"><div aria-hidden="true" className="pointer-events-none absolute right-1/2 top-4 bottom-4 w-px translate-x-1/2 bg-[var(--color-border)]" /><div className="market-index-column min-w-0 w-full px-0 sm:pl-5"><IndexDisplay name="شاخص کل" value={data.value} changeValue={data.changeValue} changePercent={data.changePercent} showIcon={!showAsClosed} /></div><div className="market-index-column min-w-0 w-full px-0 sm:pr-5"><IndexDisplay name="شاخص هم‌وزن" value={data.equalWeightedValue} changeValue={data.equalWeightedChangeValue} changePercent={data.equalWeightedChangePercent} showIcon={!showAsClosed} /></div></div>
-    </div>;
+    return <section dir="rtl" data-style-id={showAsClosed ? 'market-index-closed' : 'market-index-open'} data-style-name={showAsClosed ? 'شاخص بازار بسته' : 'شاخص بازار باز'} data-style-props="bg,border,positive,negative" className="market-index-widget market-index-visual-dashboard w-full min-w-0 max-w-none overflow-hidden rounded-2xl" style={{ width: "100%", maxWidth: "none" }}>
+        <header className="market-index-visual-header">
+            <div className="market-index-header-art" aria-hidden="true"><span /><span /><span /><span /></div>
+            <div className="market-index-visual-title">
+                <div className="market-index-eyebrow">RONIYA · MARKET OVERVIEW</div>
+                <h2>شاخص‌های بازار</h2>
+                <p>{dataMeta?.status === 'CACHED' ? 'آخرین داده معتبر ذخیره‌شده' : dataMeta?.status === 'LIVE' ? 'داده واقعی بازار' : 'وضعیت داده مشخص نیست'}</p>
+            </div>
+            <div className={`market-index-market-status ${showAsClosed ? 'is-closed' : 'is-open'}`}>
+                <span className="market-index-status-orbit" aria-hidden="true"><span /></span>
+                <div><strong>{showAsClosed ? 'بازار بسته' : 'بازار باز'}</strong><small>{showAsClosed ? 'اطلاعات آخرین وضعیت در دسترس' : 'در حال معامله'}</small></div>
+            </div>
+        </header>
+        <div className="market-index-visual-body">
+            <div className="market-index-cards-grid">
+                <IndexDisplay name="شاخص کل" value={data.value} changeValue={data.changeValue} changePercent={data.changePercent} showIcon={!showAsClosed} />
+                <IndexDisplay name="شاخص هم‌وزن" value={data.equalWeightedValue} changeValue={data.equalWeightedChangeValue} changePercent={data.equalWeightedChangePercent} showIcon={!showAsClosed} />
+            </div>
+            <footer className="market-index-visual-footer">
+                <span className="market-index-footer-dot" />
+                <span>مقادیر و تغییرات بر اساس داده‌های فعلی بازار</span>
+                <span className="market-index-footer-live">{dataMeta?.status === 'LIVE' ? 'LIVE' : 'CACHE'}</span>
+            </footer>
+        </div>
+    </section>;
 };
 export default MarketIndex;
