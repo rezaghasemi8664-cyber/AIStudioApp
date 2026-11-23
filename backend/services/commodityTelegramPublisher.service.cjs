@@ -84,7 +84,15 @@ function getNerkhItems(snapshot, groupKey) {
     return all.filter(item => ['OUNCE_SILVER', 'XAGUSD'].includes(String(item.symbol).toUpperCase()));
   }
   if (groupKey === 'coinPrice') return all.filter(item => String(item.symbol).startsWith('SEKE_'));
-  if (groupKey === 'currencyPrice') return Array.isArray(snapshot?.groups?.currency) ? snapshot.groups.currency : [];
+  if (groupKey === 'currencyPrice') {
+    const currencies = Array.isArray(snapshot?.groups?.currency) ? snapshot.groups.currency : [];
+    // Keep USD first so the 14-row and Telegram caption-length limits never omit it.
+    return currencies.slice().sort((a, b) => {
+      const aIsUsd = String(a?.symbol || '').trim().toUpperCase() === 'USD';
+      const bIsUsd = String(b?.symbol || '').trim().toUpperCase() === 'USD';
+      return Number(bIsUsd) - Number(aIsUsd);
+    });
+  }
   return [];
 }
 
