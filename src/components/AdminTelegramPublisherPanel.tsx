@@ -110,7 +110,7 @@ const AdminTelegramPublisherPanel: React.FC = () => {
 
   useEffect(() => { void load(); }, [load]);
 
-  const updateGroup = (key: keyof Pick<TelegramPublisherSettings, 'valuable' | 'scalping' | 'index' | 'summary'>, value: TelegramSchedule) => {
+  const updateGroup = (key: keyof Pick<TelegramPublisherSettings, 'valuable' | 'scalping' | 'index' | 'summary' | 'preciousMetals' | 'goldPrice' | 'silverPrice' | 'coinPrice' | 'currencyPrice'>, value: TelegramSchedule) => {
     setSettings(previous => ({ ...previous, [key]: { ...previous[key], ...value } }));
   };
 
