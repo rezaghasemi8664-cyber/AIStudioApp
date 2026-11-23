@@ -81,7 +81,7 @@ function normalizeSettings(value) {
   for (const name of ['preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']) {
     const group = normalizeGroup(name, DEFAULT_SETTINGS[name]);
     group.intervalMinutes = boundedInteger(group.intervalMinutes, DEFAULT_SETTINGS[name].intervalMinutes, 1, 720);
-    group.startTime = /^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(group.startTime)) ? String(group.startTime) : DEFAULT_SETTINGS[name].startTime;
+    group.startTime = /^([01]\d|2[0-3]):[0-5]\\d$/.test(String(group.startTime)) ? String(group.startTime) : DEFAULT_SETTINGS[name].startTime;
     group.endTime = /^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(group.endTime)) ? String(group.endTime) : DEFAULT_SETTINGS[name].endTime;
     commodityGroups[name] = group;
   }
@@ -100,7 +100,7 @@ function validateSettings(value) {
     const n = Number(value[groupName].intervalMinutes);
     if (!Number.isInteger(n) || n < 1 || n > 720) throw new Error('فاصله انتشار باید بین ۱ تا ۷۲۰ دقیقه باشد.');
   }
-  for (const groupName of ['valuable', 'scalping', 'preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']) {
+  for (const groupName of ['valuable', 'scalping']) {
     const n = Number(value[groupName].maxSymbolsPerMessage);
     if (!Number.isInteger(n) || n < 1 || n > 20) throw new Error('حداکثر نماد هر پیام باید بین ۱ تا ۲۰ باشد.');
   }
