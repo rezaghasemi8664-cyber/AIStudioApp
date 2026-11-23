@@ -142,12 +142,26 @@ const AdminTelegramPublisherPanel: React.FC = () => {
 
   const save = async () => {
     setSaving(true); setError(null); setMessage(null);
+    // Keep an immutable snapshot of exactly what the administrator submitted.
+    const submitted = normalizePublisherSettings(settings);
     try {
-      const next = await telegramAdmin.saveTelegramPublisherSettings(settings);
-      setSettings(normalizePublisherSettings(next)); setMessage('تنظیمات انتشار تلگرام ذخیره شد و در چرخه‌های بعدی اعمال می‌شود.');
+      await telegramAdmin.saveTelegramPublisherSettings(submitted);
+      // Do not replace the form with a possibly incomplete/stale PUT response.
+      // Verify persistence with a fresh GET and only then report success.
+      const persisted = normalizePublisherSettings(await telegramAdmin.getTelegramPublisherSettings());
+      setSettings(submitted);
+      const matches = JSON.stringify(persisted) === JSON.stringify(submitted);
+      if (!matches) {
+        setError('درخواست ذخیره موفق بود، اما مقادیر بازخوانی‌شده با تنظیمات ارسالی یکسان نیستند. تنظیمات فرم حفظ شد؛ برای جلوگیری از اعلام موفقیت کاذب، وضعیت ذخیره‌سازی نیاز به بررسی دارد.');
+      } else {
+        setMessage('تنظیمات انتشار تلگرام ذخیره و مجدداً از سرور تأیید شد؛ در چرخه‌های بعدی اعمال می‌شود.');
+      }
       await refreshHistory();
-    } catch (e) { setError(e instanceof Error ? e.message : 'ذخیره تنظیمات ناموفق بود.'); }
-    finally { setSaving(false); }
+    } catch (e) {
+      // Preserve the administrator's edits if the confirmation read fails.
+      setSettings(submitted);
+      setError(e instanceof Error ? e.message : 'تأیید ذخیره تنظیمات ناموفق بود. مقادیر فرم حفظ شده‌اند.');
+    } finally { setSaving(false); }
   };
 
   const refreshHistory = async () => {
