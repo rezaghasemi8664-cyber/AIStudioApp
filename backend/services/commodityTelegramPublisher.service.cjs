@@ -51,6 +51,7 @@ const SYMBOL_LABELS = {
 let publishingRunning = false;
 
 function toNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
