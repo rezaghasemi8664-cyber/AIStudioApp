@@ -3,7 +3,7 @@
 const prisma = require('../config/prisma.cjs');
 const centralCache = require('./centralMarketCache.service.cjs');
 const { sendTelegramPhotoUrl, getTelegramConfig } = require('./telegramBotApi.service.cjs');
-const { isAllowedWeekday, getDueIntervalSlot, isBeforeEndTime, recordTelegramPublisherMessage } = require('./telegramPublisherSettings.service.cjs');
+const { getTelegramPublisherSettings, tehranDateKey, isAllowedWeekday, getDueIntervalSlot, isBeforeEndTime, recordTelegramPublisherMessage } = require('./telegramPublisherSettings.service.cjs');
 
 const STATE_KEY = 'telegram.publisher.state.v1';
 const COMMODITY_CACHE_KEY = 'commodity:snapshot:active';
@@ -199,7 +199,7 @@ async function publishCommodityPricesIfScheduled(now = new Date(), suppliedSetti
   try {
     const config = getTelegramConfig();
     if (!config.token || !config.chatId) return [{ name: 'commodity-prices', skipped: true, reason: 'TELEGRAM_NOT_CONFIGURED' }];
-    const settings = suppliedSettings || await require('./telegramPublisherSettings.service.cjs').getTelegramPublisherSettings();
+    const settings = suppliedSettings || await getTelegramPublisherSettings();
     const state = await readState();
     const outcomes = [];
 
@@ -210,7 +210,7 @@ async function publishCommodityPricesIfScheduled(now = new Date(), suppliedSetti
       if (!isBeforeEndTime(now, schedule.endTime)) { outcomes.push({ name: group.key, skipped: true, reason: 'PUBLISHING_END_TIME_REACHED' }); continue; }
       const slotTime = getDueIntervalSlot(now, schedule.startTime, schedule.intervalMinutes, 2);
       if (!slotTime) { outcomes.push({ name: group.key, skipped: true, reason: 'NOT_IN_PUBLISH_CYCLE' }); continue; }
-      const slot = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now) + '@' + slotTime;
+      const slot = tehranDateKey(now) + '@' + slotTime;
       if (state.lastCommodityTelegramSlots?.[group.key] === slot) { outcomes.push({ name: group.key, skipped: true, reason: 'ALREADY_PUBLISHED_THIS_SLOT' }); continue; }
 
       const snapshot = centralCache.get(group.source === 'commodity' ? COMMODITY_CACHE_KEY : NERKH_CACHE_KEY);
