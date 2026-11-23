@@ -84,6 +84,24 @@ function dateTime(value) {
   }).format(date);
 }
 
+function latestSourceUpdate(items, source) {
+  const candidates = (Array.isArray(items) ? items : []).map(item => {
+    const raw = source === 'commodity'
+      ? [item?.date, item?.time].filter(Boolean).join(' ').trim()
+      : String(item?.update || '').trim();
+    if (!raw) return null;
+    const normalized = raw.replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+      .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+    const parsed = new Date(normalized.replace(/\//g, '-'));
+    return { raw, normalized, timestamp: Number.isFinite(parsed.getTime()) ? parsed.getTime() : null };
+  }).filter(Boolean);
+  if (!candidates.length) return '—';
+  const parseable = candidates.filter(item => item.timestamp !== null);
+  if (!parseable.length) return candidates[0].raw;
+  return dateTime(parseable.reduce((latest, item) =>
+    item.timestamp > latest.timestamp ? item : latest).normalized);
+}
+
 function freshSnapshot(snapshot, now = new Date()) {
   const fetchedAt = new Date(snapshot?.fetchedAt || '').getTime();
   return Number.isFinite(fetchedAt) && fetchedAt <= now.getTime() + 60_000 && now.getTime() - fetchedAt <= MAX_CACHE_AGE_MS;
@@ -143,7 +161,6 @@ function renderNerkhItem(item, groupKey, usdRate) {
   if (item.min24h != null || item.max24h != null) {
     lines.push('کمینه / بیشینه ۲۴ساعت: ' + bold(number(item.min24h) + ' / ' + number(item.max24h) + (isOunce ? ' دلار' : ' ریال')));
   }
-  if (item.update) lines.push('آخرین بروزرسانی منبع: ' + htmlEscape(item.update));
   return lines.join('\n');
 }
 
@@ -156,7 +173,6 @@ function renderCommodityItem(item) {
   lines.push('قیمت: ' + bold(number(item.price, 4) + ' ' + unit));
   lines.push('تغییر قیمت: ' + trend(change, 4, ' ' + unit) +
     (percent === null ? '' : ' (' + trend(percent, 2, '٪') + ')'));
-  if (item.date || item.time) lines.push('زمان ثبت: ' + htmlEscape([item.date, item.time].filter(Boolean).join(' ')));
   return lines.join('\n');
 }
 
@@ -178,6 +194,7 @@ function renderCommodityCaption(group, snapshot, now = new Date()) {
   const header = [
     '📊 رونیا | ' + group.title,
     '━━━━━━━━━━━━━━━━━━',
+    'آخرین به‌روزرسانی منبع: ' + htmlEscape(latestSourceUpdate(items, group.source)),
     ''
   ];
   const footer = [
