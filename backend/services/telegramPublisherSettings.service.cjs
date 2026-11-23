@@ -77,7 +77,15 @@ function normalizeSettings(value) {
   index.endTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(index.endTime)) ? String(index.endTime) : DEFAULT_SETTINGS.index.endTime;
   const summary = normalizeGroup('summary', DEFAULT_SETTINGS.summary);
   summary.publishTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(summary.publishTime)) ? String(summary.publishTime) : DEFAULT_SETTINGS.summary.publishTime;
-  return { timezone: TIMEZONE, valuable, scalping, index, summary };
+  const commodityGroups = {};
+  for (const name of ['preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']) {
+    const group = normalizeGroup(name, DEFAULT_SETTINGS[name]);
+    group.intervalMinutes = boundedInteger(group.intervalMinutes, DEFAULT_SETTINGS[name].intervalMinutes, 1, 720);
+    group.startTime = /^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(group.startTime)) ? String(group.startTime) : DEFAULT_SETTINGS[name].startTime;
+    group.endTime = /^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(group.endTime)) ? String(group.endTime) : DEFAULT_SETTINGS[name].endTime;
+    commodityGroups[name] = group;
+  }
+  return { timezone: TIMEZONE, valuable, scalping, index, summary, ...commodityGroups };
 }
 
 function validateSettings(value) {
