@@ -146,7 +146,9 @@ function renderCommodityCaption(group, snapshot, now = new Date()) {
   if (!items.length) return null;
 
   const usdRate = toNumber(snapshot?.groups?.currency?.find(item => item.symbol === 'USD')?.current) || 0;
-  const formatted = items.slice(0, 14).map(item => group.source === 'commodity'
+  // Currency posts must include all nine currencies shown in the Commodity tab.
+  const formattedItems = group.key === 'currencyPrice' ? items : items.slice(0, 14);
+  const formatted = formattedItems.map(item => group.source === 'commodity'
     ? renderCommodityItem(item) : renderNerkhItem(item, group.key, usdRate));
   const header = [
     '📊 رونیا | ' + group.title,
@@ -163,14 +165,14 @@ function renderCommodityCaption(group, snapshot, now = new Date()) {
   let caption = [...header, ...footer].join('\n');
   for (const row of formatted) {
     const candidate = [...header, ...selected, row, ...footer].join('\n');
-    if (candidate.length > 1024) break;
+    const maxMessageLength = group.key === 'currencyPrice' ? 4096 : 1024;\n    if (candidate.length > maxMessageLength) break;
     selected.push(row);
     caption = candidate;
   }
   if (selected.length < formatted.length) {
     const omitted = '… موارد بیشتر در تب کامودیتی نرم‌افزار رونیا';
     const candidate = [...header, ...selected, omitted, ...footer].join('\n');
-    if (candidate.length <= 1024) caption = candidate;
+    if (candidate.length <= (group.key === 'currencyPrice' ? 4096 : 1024)) caption = candidate;
   }
   return caption;
 }
