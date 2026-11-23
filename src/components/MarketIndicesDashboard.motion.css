@@ -519,7 +519,6 @@
 .mi-reference-dashboard .mi-history-main { padding: 12px; overflow: hidden; }
 .mi-reference-dashboard .mi-history-main .mi-history-panel { padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; }
 .mi-reference-dashboard .mi-history-main .mi-history-panel h2 { font-size: 15px; }
-.mi-reference-dashboard .mi-history-main .mi-history-panel > div:nth-child(2) { display: none !important; }
 .mi-reference-dashboard .mi-history-main .mi-history-panel svg { max-height: 270px; }
 .mi-reference-dashboard .mi-history-main .mi-history-panel > div:nth-child(3) { margin-top: 8px !important; }
 .mi-reference-dashboard .mi-bottom-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; direction: rtl; }
