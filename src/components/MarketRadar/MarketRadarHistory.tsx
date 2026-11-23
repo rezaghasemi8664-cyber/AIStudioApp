@@ -126,7 +126,7 @@ const MarketRadarHistory: React.FC = () => {
   const high = extremaValues.length ? Math.max(...extremaValues) : null;
   const low = extremaValues.length ? Math.min(...extremaValues) : null;
 
-  return <article dir="rtl" className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+  return <article dir="rtl" className="mi-history-panel rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
       <div><h2 className="font-black text-[var(--color-text-primary)]">روند تاریخی بازار</h2><p className="mt-1 text-xs text-slate-500">{range === '1d' && data?.granularity === 'intraday' ? 'نقاط زمان‌دار جلسه جاری از ثبت‌های واقعی شاخص؛ ارزش تجمعی از جمع همین نقاط محاسبه می‌شود.' : 'داده روزانه واقعی از پایگاه بازار؛ در حالت تجمعی، ارزش نقاط موجود در بازه با هم جمع می‌شود.'}</p></div>
       <div className="flex flex-wrap gap-2">{ranges.map((item) => <button key={item.value} onClick={() => setRange(item.value)} className={`rounded-xl px-3 py-2 text-sm font-black transition ${range === item.value ? 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-400/30' : 'border border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.06]'}`}>{item.label}</button>)}</div>
