@@ -615,5 +615,5 @@ module.exports = {
   isFresh, formatPercent, normalizeValuableResults, getImportantSymbolChanges,
   renderValuableChanges, renderIndexMessage, renderSummaryMessage, renderSummaryMessages, getScalpingOpportunityQuery,
   publishIndexIfScheduled, publishValuableChangesIfAny, publishScalpingOpportunitiesIfAny, publishTodaySummaryIfReady,
-  runTelegramPublisherTick, sendAndRecord
+  runTelegramPublisherTick, sendAndRecord, publishTelegramGroupNow
 };
