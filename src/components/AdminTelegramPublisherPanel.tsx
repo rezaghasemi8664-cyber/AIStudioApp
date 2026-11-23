@@ -33,6 +33,28 @@ const normalizeSchedule = (fallback: TelegramSchedule, candidate?: Partial<Teleg
   };
 };
 
+const stableSerialize = (value: unknown): string => {
+  if (Array.isArray(value)) return '[' + value.map(stableSerialize).join(',') + ']';
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return '{' + Object.keys(record).sort().map(key => JSON.stringify(key) + ':' + stableSerialize(record[key])).join(',') + '}';
+  }
+  return JSON.stringify(value) ?? String(value);
+};
+
+const findSettingsDifferences = (expected: unknown, actual: unknown, path = ''): string[] => {
+  if (Array.isArray(expected) || Array.isArray(actual)) {
+    return stableSerialize(expected) === stableSerialize(actual) ? [] : [path || 'settings'];
+  }
+  if (expected && actual && typeof expected === 'object' && typeof actual === 'object') {
+    const left = expected as Record<string, unknown>;
+    const right = actual as Record<string, unknown>;
+    const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+    return [...keys].sort().flatMap(key => findSettingsDifferences(left[key], right[key], path ? path + '.' + key : key));
+  }
+  return Object.is(expected, actual) ? [] : [path || 'settings'];
+};
+
 const normalizePublisherSettings = (input?: Partial<TelegramPublisherSettings> | null): TelegramPublisherSettings => {
   const source = input && typeof input === 'object' ? input : {};
   return {
@@ -150,9 +172,9 @@ const AdminTelegramPublisherPanel: React.FC = () => {
       // Verify persistence with a fresh GET and only then report success.
       const persisted = normalizePublisherSettings(await telegramAdmin.getTelegramPublisherSettings());
       setSettings(submitted);
-      const matches = JSON.stringify(persisted) === JSON.stringify(submitted);
-      if (!matches) {
-        setError('درخواست ذخیره موفق بود، اما مقادیر بازخوانی‌شده با تنظیمات ارسالی یکسان نیستند. تنظیمات فرم حفظ شد؛ برای جلوگیری از اعلام موفقیت کاذب، وضعیت ذخیره‌سازی نیاز به بررسی دارد.');
+      const differences = findSettingsDifferences(submitted, persisted);
+      if (differences.length > 0) {
+        setError('درخواست ذخیره موفق بود، اما این مقادیر پس از بازخوانی متفاوت هستند: ' + differences.join('، ') + '. تنظیمات فرم حفظ شد؛ وضعیت ذخیره‌سازی نیاز به بررسی دارد.');
       } else {
         setMessage('تنظیمات انتشار تلگرام ذخیره و مجدداً از سرور تأیید شد؛ در چرخه‌های بعدی اعمال می‌شود.');
       }
