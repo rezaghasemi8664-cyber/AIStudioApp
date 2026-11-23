@@ -239,4 +239,29 @@ async function publishCommodityPricesIfScheduled(now = new Date(), suppliedSetti
   }
 }
 
-module.exports = { GROUPS, renderCommodityCaption, publishCommodityPricesIfScheduled };
+
+async function publishCommodityGroupNow(groupKey, now = new Date()) {
+  if (publishingRunning) throw new Error('ALREADY_RUNNING');
+  const group = GROUPS.find(item => item.key === groupKey);
+  if (!group) throw new Error('UNSUPPORTED_COMMODITY_GROUP');
+  publishingRunning = true;
+  try {
+    const config = getTelegramConfig();
+    if (!config.token || !config.chatId) throw new Error('TELEGRAM_NOT_CONFIGURED');
+    const snapshot = centralCache.get(group.source === 'commodity' ? COMMODITY_CACHE_KEY : NERKH_CACHE_KEY);
+    if (!snapshot || !freshSnapshot(snapshot, now)) throw new Error('CACHE_MISSING_OR_STALE');
+    const caption = renderCommodityCaption(group, snapshot, now);
+    if (!caption) throw new Error('NO_VALID_PRICE_ROWS');
+    try {
+      await sendTelegramPhotoUrl(group.image, caption);
+      try { await recordTelegramPublisherMessage(group.historyType, 'success', { messageTitle: caption.split('\n')[0] }, now); }
+      catch (historyError) { console.error('[TelegramPublisherAdmin] Manual commodity history write failed:', historyError?.message || historyError); }
+      return { published: true, type: groupKey, rows: group.source === 'commodity' ? snapshot.groups.metal_precious.length : getNerkhItems(snapshot, group.key).length };
+    } catch (error) {
+      try { await recordTelegramPublisherMessage(group.historyType, 'failure', { messageTitle: caption.split('\n')[0], error: error?.message || 'PUBLISH_FAILED' }, now); }
+      catch (historyError) { console.error('[TelegramPublisherAdmin] Manual commodity failure history write failed:', historyError?.message || historyError); }
+      throw error;
+    }
+  } finally { publishingRunning = false; }
+}
+\nmodule.exports = { GROUPS, renderCommodityCaption, publishCommodityPricesIfScheduled, publishCommodityGroupNow };

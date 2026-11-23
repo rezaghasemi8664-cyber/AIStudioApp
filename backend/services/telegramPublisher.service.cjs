@@ -433,7 +433,7 @@ async function publishTodaySummaryIfReady(now = new Date(), suppliedSettings) {
     if (!messages?.length) return { skipped: true, reason: 'SUMMARY_INCOMPLETE' };
 
     let progress = state.summaryProgress;
-    if (!progress || progress.identity !== identity || !Array.isArray(progress.sentParts) ||
+    if (!progress || progress.completedAt || progress.identity !== identity || !Array.isArray(progress.sentParts) ||
         progress.totalParts !== messages.length || !Array.isArray(progress.messages) ||
         progress.messages.length !== messages.length) {
       progress = {
@@ -489,7 +489,96 @@ async function sendAndRecord(type, message, now = new Date()) {
   }
 }
 
-async function runTelegramPublisherTick(now = new Date()) {
+
+async function publishTelegramGroupNow(type, now = new Date()) {
+  const config = getTelegramConfig();
+  if (!config.token || !config.chatId) throw new Error('TELEGRAM_NOT_CONFIGURED');
+  const state = await loadState();
+  if (type === 'index') {
+    const row = await prisma.marketCurrent.findFirst({ orderBy: [{ updatedAt: 'desc' }, { marketDate: 'desc' }] });
+    if (!row || !(toNumber(row.overallIndex) > 0) || !(toNumber(row.equalIndex) > 0)) throw new Error('NO_VALID_STORED_MARKET_SNAPSHOT');
+    if (!isFresh(row.updatedAt, MAX_INDEX_AGE_MS)) throw new Error('MARKET_SNAPSHOT_STALE');
+    await sendAndRecord('index', renderIndexMessage(row, row.updatedAt || now), now);
+    return { published: true, type };
+  }
+  if (type === 'valuable') {
+    const stored = await getStoredValuableSymbols({ force: true });
+    if (!stored?.evaluatedAt || !isFresh(stored.evaluatedAt, MAX_VALUABLE_EVALUATION_AGE_MS)) throw new Error('NO_FRESH_VALUABLE_EVALUATION');
+    const current = normalizeValuableResults(stored.results);
+    if (!current.length) throw new Error('NO_FRESH_VALUABLE_RESULTS');
+    const selected = current.slice(0, 10);
+    const lines = ['📊 رونیا | آخرین فهرست ذخیره‌شده نمادهای ارزنده',
+      'زمان ارزیابی ثبت‌شده: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(stored.evaluatedAt)),
+      'قیمت هر نماد همراه با زمان ثبت قیمت اصلی آن نمایش داده می‌شود.', ''];
+    for (const item of selected) {
+      lines.push('🔹 ' + (item.name || item.symbol) + ' (' + item.symbol + ')');
+      lines.push('امتیاز: ' + formatNumber(item.score, 0) + ' | آخرین قیمت ثبت‌شده: ' + formatNumber(item.currentPrice));
+      lines.push('زمان ثبت قیمت: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(item.marketUpdatedAt)));
+      if (toNumber(item.targetPrice) > 0) lines.push('هدف محاسباتی: ' + formatNumber(item.targetPrice));
+      if (toNumber(item.stopLoss) > 0) lines.push('سطح ابطال/حمایت: ' + formatNumber(item.stopLoss));
+      lines.push('');
+    }
+    lines.push('این پیام بازتاب آخرین داده‌های ذخیره‌شده است؛ زمان هر قیمت را بررسی کنید. سیگنال قطعی یا تضمین سود نیست.');
+    await sendAndRecord('valuable', lines.join('\n').slice(0, 3900), now);
+    return { published: true, type, symbols: selected.length };
+  }
+  if (type === 'scalping') {
+    const rows = await prisma.marketScalpingOpportunity.findMany({ where: getScalpingOpportunityQuery(now), orderBy: [{ updatedAt: 'desc' }, { marketDate: 'desc' }], take: 100 });
+    const bySymbol = new Map();
+    for (const item of rows) {
+      const symbol = String(item?.symbol || '').trim();
+      if (!symbol || bySymbol.has(symbol) || !(toNumber(item.currentPrice) > 0)) continue;
+      bySymbol.set(symbol, item);
+    }
+    const valid = [...bySymbol.values()];
+    if (!valid.length) throw new Error('NO_FRESH_ACTIVE_SCALPING_OPPORTUNITIES');
+    const selected = valid.slice(0, 10);
+    const lines = ['⚡ رونیا | آخرین فرصت‌های ذخیره‌شده نوسان‌گیری', 'این فهرست از رکوردهای ذخیره‌شده دیتابیس تهیه شده؛ زمان ثبت هر فرصت درج شده است.', ''];
+    for (const item of selected) {
+      lines.push('🔹 ' + (item.name || item.symbol) + ' (' + item.symbol + ')');
+      lines.push('نوع سیگنال: ' + (item.signal || 'نامشخص') + ' | امتیاز: ' + formatNumber(item.score, 0));
+      lines.push('آخرین قیمت ثبت‌شده: ' + formatNumber(item.currentPrice));
+      lines.push('تاریخ بازار: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, dateStyle: 'short' }).format(new Date(item.marketDate)) +
+        ' | زمان ثبت فرصت: ' + new Intl.DateTimeFormat('fa-IR', { timeZone: TEHRAN_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(item.updatedAt)));
+      if (toNumber(item.entryPrice) > 0) lines.push('ورود محاسباتی: ' + formatNumber(item.entryPrice));
+      if (toNumber(item.takeProfit) > 0) lines.push('هدف محاسباتی: ' + formatNumber(item.takeProfit));
+      if (toNumber(item.stopLoss) > 0) lines.push('سطح ابطال: ' + formatNumber(item.stopLoss));
+      if (item.recommendationText) lines.push(String(item.recommendationText).slice(0, 250));
+      lines.push('');
+    }
+    lines.push('فرصت‌های منقضی‌شده حذف شده‌اند؛ داده‌های نمایش‌داده‌شده آخرین رکوردهای ذخیره‌شده هستند و تضمین سود نیستند.');
+    await sendAndRecord('scalping', lines.join('\n').slice(0, 3900), now);
+    return { published: true, type, symbols: selected.length };
+  }
+  if (type === 'summary') {
+    if (summaryPublishInFlight) throw new Error('SUMMARY_PUBLISH_ALREADY_RUNNING');
+    summaryPublishInFlight = true;
+    try {
+      const row = await prisma.marketSummary.findFirst({ orderBy: [{ summaryDate: 'desc' }, { createdAt: 'desc' }] });
+      if (!row) throw new Error('NO_STORED_MARKET_SUMMARY');
+      const messages = renderSummaryMessages(row);
+      if (!messages?.length) throw new Error('SUMMARY_INCOMPLETE');
+      const identity = tehranDateKey(now) + '#manual#' + String(row.id);
+      let progress = state.summaryProgress;
+      if (!progress || progress.identity !== identity || !Array.isArray(progress.sentParts) ||
+          progress.totalParts !== messages.length || !Array.isArray(progress.messages) ||
+          progress.messages.length !== messages.length) {
+        progress = { identity, totalParts: messages.length, messages, sentParts: [], startedAt: now.toISOString(), updatedAt: now.toISOString() };
+      }
+      for (let index = 0; index < progress.totalParts; index += 1) {
+        if (progress.sentParts.includes(index + 1)) continue;
+        await sendAndRecord('summary', progress.messages[index], now);
+        progress = { ...progress, sentParts: [...progress.sentParts, index + 1].sort((a, b) => a - b), updatedAt: new Date().toISOString() };
+        await saveState({ ...state, summaryProgress: progress });
+      }
+      await saveState({ ...state, lastSummaryIdentity: tehranDateKey(now) + '#' + String(row.id), lastSummaryPublishedAt: now.toISOString(),
+        summaryProgress: { ...progress, completedAt: now.toISOString() } });
+      return { published: true, type, totalParts: messages.length };
+    } finally { summaryPublishInFlight = false; }
+  }
+  throw new Error('UNSUPPORTED_TELEGRAM_PUBLISH_TYPE');
+}
+\nasync function runTelegramPublisherTick(now = new Date()) {
   const config = getTelegramConfig();
   if (!config.token || !config.chatId) return { skipped: true, reason: 'TELEGRAM_NOT_CONFIGURED' };
   await getTelegramPublisherHistory(now); // Rolls over the single-day history at Tehran midnight.
@@ -526,5 +615,5 @@ module.exports = {
   isFresh, formatPercent, normalizeValuableResults, getImportantSymbolChanges,
   renderValuableChanges, renderIndexMessage, renderSummaryMessage, renderSummaryMessages, getScalpingOpportunityQuery,
   publishIndexIfScheduled, publishValuableChangesIfAny, publishScalpingOpportunitiesIfAny, publishTodaySummaryIfReady,
-  runTelegramPublisherTick, sendAndRecord
+  runTelegramPublisherTick, sendAndRecord, publishTelegramGroupNow
 };

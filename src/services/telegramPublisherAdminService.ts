@@ -60,6 +60,13 @@ export async function getTelegramPublisherHistory(): Promise<TelegramPublisherHi
 }
 
 
+
+export type TelegramPublisherGroupKey = 'valuable' | 'scalping' | 'index' | 'summary' | 'preciousMetals' | 'goldPrice' | 'silverPrice' | 'coinPrice' | 'currencyPrice';
+export async function publishTelegramGroupNow(type: TelegramPublisherGroupKey): Promise<{ published: boolean; type: TelegramPublisherGroupKey; symbols?: number; totalParts?: number; rows?: number }> {
+  const response = await apiClient.post<{ published: boolean; type: TelegramPublisherGroupKey; symbols?: number; totalParts?: number; rows?: number }>(`${BASE}/${type}/publish-now`, {});
+  return unwrap(response, 'انتشار فوری پیام تلگرام ناموفق بود.');
+}
+
 export interface TelegramAdMessageSettings {
   title: string;
   enabled: boolean;
