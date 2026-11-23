@@ -13,7 +13,12 @@ const DEFAULT_SETTINGS = Object.freeze({
   valuable: { enabled: true, intervalMinutes: 15, startTime: '09:00', endTime: '12:30', days: TRADING_DAYS, maxSymbolsPerMessage: 10 },
   scalping: { enabled: true, intervalMinutes: 5, startTime: '09:00', endTime: '12:30', days: TRADING_DAYS, maxSymbolsPerMessage: 10 },
   index: { enabled: true, intervalMinutes: 60, startTime: '09:15', endTime: '12:30', days: TRADING_DAYS },
-  summary: { enabled: true, publishTime: '13:30', days: TRADING_DAYS }
+  summary: { enabled: true, publishTime: '13:30', days: TRADING_DAYS },
+  preciousMetals: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: TRADING_DAYS },
+  goldPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: TRADING_DAYS },
+  silverPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: TRADING_DAYS },
+  coinPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: TRADING_DAYS },
+  currencyPrice: { enabled: false, intervalMinutes: 60, startTime: '09:00', endTime: '12:30', days: TRADING_DAYS }
 });
 
 function tehranParts(date = new Date()) {
@@ -77,13 +82,13 @@ function normalizeSettings(value) {
 
 function validateSettings(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('ساختار تنظیمات تلگرام نامعتبر است.');
-  for (const groupName of ['valuable', 'scalping', 'index', 'summary']) {
+  for (const groupName of ['valuable', 'scalping', 'index', 'summary', 'preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']) {
     const group = value[groupName];
     if (!group || typeof group !== 'object' || Array.isArray(group)) throw new Error('تنظیمات بخش ' + groupName + ' ارسال نشده است.');
     if (typeof group.enabled !== 'boolean') throw new Error('وضعیت فعال/غیرفعال هر بخش باید بولی باشد.');
     if (!Array.isArray(group.days) || group.days.some(day => !WEEKDAYS.includes(day))) throw new Error('روزهای انتشار نامعتبر هستند.');
   }
-  for (const groupName of ['valuable', 'scalping', 'index']) {
+  for (const groupName of ['valuable', 'scalping', 'index', 'preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']) {
     const n = Number(value[groupName].intervalMinutes);
     if (!Number.isInteger(n) || n < 1 || n > 720) throw new Error('فاصله انتشار باید بین ۱ تا ۷۲۰ دقیقه باشد.');
   }
