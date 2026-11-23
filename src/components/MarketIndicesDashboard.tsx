@@ -201,18 +201,20 @@ const MarketIndicesDashboard: React.FC = () => {
       <div><div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-black text-[var(--color-text-primary)]">شاخص‌های بازار</h1><span className={`rounded-full px-3 py-1 text-xs font-bold ${data?.marketOpen ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-500/10 text-slate-500'}`}>{data?.marketOpen ? 'بازار باز' : 'بازار بسته / خارج از جلسه'}</span><span className={`rounded-full px-3 py-1 text-xs font-bold ${stale ? 'bg-amber-500/10 text-amber-500' : 'bg-sky-500/10 text-sky-500'}`}>{stale ? 'داده ذخیره‌شده یا قدیمی' : 'داده خوانده‌شده از دیتابیس مشترک'}</span></div><p className="mt-2 text-xs text-slate-500">تاریخ و زمان ثبت داده در منبع: {lastUpdated}</p></div>
     </header>
 
-    <div className="mi-summary-strip grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="mi-summary-strip grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <Metric label="شاخص کل بورس" value={fa(mainIndex?.value, 2)} change={mainIndex?.changePercent ?? null} sub={mainIndex ? `تغییر: ${fa(mainIndex.changeValue, 2)}` : 'داده معتبر موجود نیست'} />
-      <Metric label="شاخص کل هم‌وزن" value={fa(equalIndex?.value, 2)} change={equalIndex?.changePercent ?? null} sub={equalIndex ? `تغییر: ${fa(equalIndex.changeValue, 2)}` : 'داده معتبر موجود نیست'} />
-      <Metric label="شاخص قیمت" value={priceIndex?.value == null ? 'در دسترس نیست' : fa(priceIndex.value, 2)} change={priceIndex?.changePercent ?? null} sub={priceIndex ? `تغییر: ${fa(priceIndex.changeValue, 2)}` : 'در پاسخ معتبر منبع موجود نیست'} />
-      <Metric label="شاخص آزاد شناور" value={freeFloatIndex?.value == null ? 'در دسترس نیست' : fa(freeFloatIndex.value, 2)} change={freeFloatIndex?.changePercent ?? null} sub={freeFloatIndex ? `تغییر: ${fa(freeFloatIndex.changeValue, 2)}` : 'در پاسخ معتبر منبع موجود نیست'} />
-      <Metric label="ارزش کل معاملات" value={data?.totalValue == null ? '—' : fa(data.totalValue)} sub="واحد طبق منبع داده" />
-      <Metric label="حجم کل معاملات" value={data?.totalVolume == null ? '—' : fa(data.totalVolume)} />
+      <Metric label="حجم معاملات" value={data?.totalVolume == null ? '—' : fa(data.totalVolume)} sub="حجم کل معاملات بازار" />
+      <Metric label="ارزش معاملات" value={data?.totalValue == null ? '—' : fa(data.totalValue)} sub="واحد طبق منبع داده" />
+      <Metric label="نمادهای مثبت" value={breadth ? fa(breadth.positive) : '—'} change={breadth?.positivePercent ?? null} sub={breadth ? `از ${fa(breadth.total)} نماد` : 'داده معتبر موجود نیست'} />
+      <Metric label="نمادهای منفی" value={breadth ? fa(breadth.negative) : '—'} change={breadth?.negativePercent == null ? null : -breadth.negativePercent} sub={breadth ? `از ${fa(breadth.total)} نماد` : 'داده معتبر موجود نیست'} />
+    </div>
+    <div className="mi-secondary-metrics grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <Metric label="شاخص کل هم‌وزن" value={fa(equalIndex?.value, 2)} change={equalIndex?.changePercent ?? null} />
+      <Metric label="شاخص قیمت" value={priceIndex?.value == null ? 'در دسترس نیست' : fa(priceIndex.value, 2)} change={priceIndex?.changePercent ?? null} />
+      <Metric label="شاخص آزاد شناور" value={freeFloatIndex?.value == null ? 'در دسترس نیست' : fa(freeFloatIndex.value, 2)} change={freeFloatIndex?.changePercent ?? null} />
       <Metric label="تعداد معاملات" value={data?.totalTrades == null ? '—' : fa(data.totalTrades)} />
-      <Metric label="ارزش معاملات نسبت به میانگین تاریخی" value={breadth?.marketValueVsAverage?.available && breadth.marketValueVsAverage.changePercent != null ? pct(breadth.marketValueVsAverage.changePercent) : 'در دسترس نیست'} sub={breadth?.marketValueVsAverage?.available ? `میانگین ${fa(breadth.marketValueVsAverage.sampleDays)} روز معاملاتی قبل` : 'به سابقه روزانه معتبر نیاز دارد'} />
-      <Metric label="نمادهای مثبت / منفی / خنثی" value={breadth ? `${fa(breadth.positive)} / ${fa(breadth.negative)} / ${fa(breadth.neutral)}` : '—'} sub={breadth ? `پوشش داده: ${fa(breadth.coveragePercent, 1)}٪` : 'آمار در دسترس نیست'} />
-      <Metric label="صف خرید" value={breadth?.queues?.available ? fa(breadth.queues.buy) : 'در دسترس نیست'} sub={breadth?.queues?.available ? `از ${fa(breadth.queues.classifiedSymbols)} نماد دارای داده معتبر سفارش` : 'داده کافی برای تشخیص صف وجود ندارد'} />
-      <Metric label="صف فروش" value={breadth?.queues?.available ? fa(breadth.queues.sell) : 'در دسترس نیست'} sub={breadth?.queues?.available ? `از ${fa(breadth.queues.classifiedSymbols)} نماد دارای داده معتبر سفارش` : 'داده کافی برای تشخیص صف وجود ندارد'} />
+      <Metric label="صف خرید" value={breadth?.queues?.available ? fa(breadth.queues.buy) : 'در دسترس نیست'} />
+      <Metric label="صف فروش" value={breadth?.queues?.available ? fa(breadth.queues.sell) : 'در دسترس نیست'} />
     </div>
 
     <div className="mi-dashboard-main grid grid-cols-1 gap-4 xl:grid-cols-3">
