@@ -84,7 +84,15 @@ function getNerkhItems(snapshot, groupKey) {
     return all.filter(item => ['OUNCE_SILVER', 'XAGUSD'].includes(String(item.symbol).toUpperCase()));
   }
   if (groupKey === 'coinPrice') return all.filter(item => String(item.symbol).startsWith('SEKE_'));
-  if (groupKey === 'currencyPrice') return Array.isArray(snapshot?.groups?.currency) ? snapshot.groups.currency : [];
+  if (groupKey === 'currencyPrice') {
+    const currencies = Array.isArray(snapshot?.groups?.currency) ? snapshot.groups.currency : [];
+    // Keep USD first so the 14-row and Telegram caption-length limits never omit it.
+    return currencies.slice().sort((a, b) => {
+      const aIsUsd = String(a?.symbol || '').trim().toUpperCase() === 'USD';
+      const bIsUsd = String(b?.symbol || '').trim().toUpperCase() === 'USD';
+      return Number(bIsUsd) - Number(aIsUsd);
+    });
+  }
   return [];
 }
 
@@ -138,7 +146,9 @@ function renderCommodityCaption(group, snapshot, now = new Date()) {
   if (!items.length) return null;
 
   const usdRate = toNumber(snapshot?.groups?.currency?.find(item => item.symbol === 'USD')?.current) || 0;
-  const formatted = items.slice(0, 14).map(item => group.source === 'commodity'
+  // Currency posts must include all nine currencies shown in the Commodity tab.
+  const formattedItems = group.key === 'currencyPrice' ? items : items.slice(0, 14);
+  const formatted = formattedItems.map(item => group.source === 'commodity'
     ? renderCommodityItem(item) : renderNerkhItem(item, group.key, usdRate));
   const header = [
     '📊 رونیا | ' + group.title,
@@ -155,14 +165,15 @@ function renderCommodityCaption(group, snapshot, now = new Date()) {
   let caption = [...header, ...footer].join('\n');
   for (const row of formatted) {
     const candidate = [...header, ...selected, row, ...footer].join('\n');
-    if (candidate.length > 1024) break;
+    const maxMessageLength = group.key === 'currencyPrice' ? 4096 : 1024;
+    if (candidate.length > maxMessageLength) break;
     selected.push(row);
     caption = candidate;
   }
   if (selected.length < formatted.length) {
     const omitted = '… موارد بیشتر در تب کامودیتی نرم‌افزار رونیا';
     const candidate = [...header, ...selected, omitted, ...footer].join('\n');
-    if (candidate.length <= 1024) caption = candidate;
+    if (candidate.length <= (group.key === 'currencyPrice' ? 4096 : 1024)) caption = candidate;
   }
   return caption;
 }
