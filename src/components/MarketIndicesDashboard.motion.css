@@ -423,3 +423,156 @@
 @media (max-width: 680px) {
   .mi-reference-dashboard .mi-secondary-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+
+/* Reference dashboard layout: recreate the supplied trading-terminal composition */
+.mi-reference-dashboard {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  padding: 10px !important;
+  border-radius: 18px !important;
+  background: radial-gradient(ellipse at 50% 0%, rgba(16, 63, 125, .22), transparent 55%), #050d1b !important;
+  color: #eaf2ff;
+  min-width: 0;
+}
+.mi-reference-dashboard .mi-status-strip {
+  display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap;
+  gap: 14px; min-height: 26px; padding: 0 6px; color: #8295b6; font-size: 11px;
+}
+.mi-reference-dashboard .mi-status-open { color: #00e7a1; font-weight: 900; }
+.mi-reference-dashboard .mi-status-closed { color: #f8b84e; font-weight: 900; }
+.mi-reference-dashboard .mi-summary-strip {
+  display: grid !important; grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 12px !important; direction: rtl;
+}
+.mi-reference-dashboard .mi-hero-card {
+  position: relative; min-width: 0; min-height: 128px; overflow: hidden;
+  padding: 13px 16px !important; border: 1px solid rgba(91, 142, 211, .24);
+  border-radius: 16px; background: linear-gradient(145deg, rgba(16, 31, 57, .98), rgba(5, 14, 28, .98));
+  box-shadow: inset 0 1px rgba(255,255,255,.04), 0 8px 20px rgba(0,0,0,.18);
+}
+.mi-reference-dashboard .mi-hero-index { background: linear-gradient(145deg, rgba(0, 91, 59, .55), rgba(5, 17, 30, .98)); }
+.mi-reference-dashboard .mi-hero-volume { background: linear-gradient(145deg, rgba(30, 60, 145, .55), rgba(5, 17, 30, .98)); }
+.mi-reference-dashboard .mi-hero-value { background: linear-gradient(145deg, rgba(15, 60, 115, .55), rgba(5, 17, 30, .98)); }
+.mi-reference-dashboard .mi-hero-positive { background: linear-gradient(145deg, rgba(0, 82, 59, .48), rgba(5, 17, 30, .98)); }
+.mi-reference-dashboard .mi-hero-negative { background: linear-gradient(145deg, rgba(105, 27, 49, .45), rgba(5, 17, 30, .98)); }
+.mi-reference-dashboard .mi-hero-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: #d7e2f6; font-size: 12px; font-weight: 900; }
+.mi-reference-dashboard .mi-hero-top span:last-child { font-size: 20px; color: #24dba0; }
+.mi-reference-dashboard .mi-hero-negative .mi-hero-top span:last-child { color: #ff4b62; }
+.mi-reference-dashboard .mi-hero-card strong { display: block; margin-top: 9px; font-size: clamp(19px, 1.8vw, 28px); line-height: 1.2; font-weight: 950; color: #f3f7ff; font-variant-numeric: tabular-nums; }
+.mi-reference-dashboard .mi-hero-change { margin-top: 7px; color: #00e59b; font-size: 13px; font-weight: 900; white-space: nowrap; }
+.mi-reference-dashboard .mi-hero-negative .mi-hero-change { color: #ff455c; }
+.mi-reference-dashboard .mi-mini-chart { position: absolute; left: 10px; bottom: 8px; width: 38%; height: 34px; opacity: .9; }
+.mi-reference-dashboard .mi-mini-chart path { fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; color: #00e59b; }
+.mi-reference-dashboard .mi-hero-negative .mi-mini-chart path { color: #ff455c; }
+.mi-reference-dashboard .mi-dashboard-main {
+  display: grid !important; grid-template-columns: minmax(260px, .92fr) minmax(220px, .72fr) minmax(0, 2.15fr) !important;
+  gap: 12px !important; align-items: stretch; direction: rtl; min-width: 0;
+}
+.mi-reference-dashboard .mi-index-list,
+.mi-reference-dashboard .mi-market-score,
+.mi-reference-dashboard .mi-history-main,
+.mi-reference-dashboard .mi-movers-panel,
+.mi-reference-dashboard .mi-flow-card,
+.mi-reference-dashboard .mi-heatmap-panel {
+  min-width: 0; border: 1px solid rgba(86, 133, 198, .24); border-radius: 15px;
+  background: linear-gradient(155deg, rgba(12, 25, 47, .98), rgba(5, 13, 26, .98));
+  box-shadow: inset 0 1px rgba(255,255,255,.035);
+}
+.mi-reference-dashboard .mi-index-list { padding: 12px; }
+.mi-reference-dashboard .mi-index-list h2,
+.mi-reference-dashboard .mi-market-score h2,
+.mi-reference-dashboard .mi-movers-panel h2,
+.mi-reference-dashboard .mi-flow-card h2,
+.mi-reference-dashboard .mi-heatmap-panel h2 {
+  margin: 0 0 10px; color: #e8f0ff; font-size: 15px; font-weight: 950;
+}
+.mi-reference-dashboard .mi-index-row { display: grid; grid-template-columns: 1fr auto; gap: 5px 8px; padding: 10px 7px; border-top: 1px solid rgba(120,160,220,.10); }
+.mi-reference-dashboard .mi-index-row-primary { border-radius: 10px; background: linear-gradient(120deg, rgba(18, 66, 119, .42), rgba(11, 28, 51, .55)); }
+.mi-reference-dashboard .mi-index-row-title { color: #a8bbd8; font-size: 12px; font-weight: 800; }
+.mi-reference-dashboard .mi-index-row strong { color: #f1f6ff; font-size: 14px; font-weight: 950; font-variant-numeric: tabular-nums; }
+.mi-reference-dashboard .mi-index-row > span { font-size: 12px; font-weight: 900; }
+.mi-reference-dashboard .mi-index-spark { grid-column: 1 / -1; width: 100%; height: 22px; color: #00d99b; }
+.mi-reference-dashboard .mi-index-spark path { fill: none; stroke: currentColor; stroke-width: 2; }
+.mi-reference-dashboard .mi-index-spark.is-negative { color: #ff475d; }
+.mi-reference-dashboard .mi-index-foot { display: grid; grid-template-columns: 1fr auto; gap: 7px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(120,160,220,.1); color: #91a5c5; font-size: 11px; }
+.mi-reference-dashboard .mi-index-foot b { color: #dce8fb; font-variant-numeric: tabular-nums; }
+.mi-reference-dashboard .mi-market-score { padding: 13px 10px; text-align: center; display: flex; flex-direction: column; align-items: center; }
+.mi-reference-dashboard .mi-score-caption { margin: 0; color: #8194b2; font-size: 10px; line-height: 1.6; }
+.mi-reference-dashboard .mi-score-gauge { width: 100%; max-width: 230px; margin-top: 8px; overflow: visible; }
+.mi-reference-dashboard .mi-gauge-track,
+.mi-reference-dashboard .mi-gauge-value { fill: none; stroke-width: 18; stroke-linecap: round; }
+.mi-reference-dashboard .mi-gauge-track { stroke: #26344c; }
+.mi-reference-dashboard .mi-gauge-value { stroke: #00e39b; filter: drop-shadow(0 0 5px rgba(0,227,155,.35)); }
+.mi-reference-dashboard .mi-gauge-symbol { fill: #00d991; font-size: 40px; font-weight: 900; }
+.mi-reference-dashboard .mi-score-number { margin-top: -3px; font-size: 28px; line-height: 1; font-weight: 950; }
+.mi-reference-dashboard .mi-score-number.is-positive,
+.mi-reference-dashboard .mi-score-label.is-positive { color: #00e39b; }
+.mi-reference-dashboard .mi-score-number.is-negative { color: #ff455c; }
+.mi-reference-dashboard .mi-score-number.is-neutral { color: #f5bd4c; }
+.mi-reference-dashboard .mi-score-label { margin-top: 5px; color: #00e39b; font-size: 15px; font-weight: 950; }
+.mi-reference-dashboard .mi-score-legend { display: flex; flex-direction: column; gap: 7px; width: 100%; margin-top: auto; padding-top: 14px; font-size: 11px; text-align: right; }
+.mi-reference-dashboard .mi-score-legend .is-positive { color: #00e39b; }
+.mi-reference-dashboard .mi-score-legend .is-negative { color: #ff455c; }
+.mi-reference-dashboard .mi-market-score small { margin-top: 10px; color: #627590; font-size: 9px; line-height: 1.5; }
+.mi-reference-dashboard .mi-history-main { padding: 12px; overflow: hidden; }
+.mi-reference-dashboard .mi-history-main .mi-history-panel { padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; }
+.mi-reference-dashboard .mi-history-main .mi-history-panel h2 { font-size: 15px; }
+.mi-reference-dashboard .mi-history-main .mi-history-panel > div:nth-child(2) { display: none !important; }
+.mi-reference-dashboard .mi-history-main .mi-history-panel svg { max-height: 270px; }
+.mi-reference-dashboard .mi-history-main .mi-history-panel > div:nth-child(3) { margin-top: 8px !important; }
+.mi-reference-dashboard .mi-bottom-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; direction: rtl; }
+.mi-reference-dashboard .mi-movers-panel,
+.mi-reference-dashboard .mi-flow-card,
+.mi-reference-dashboard .mi-heatmap-panel { padding: 12px; }
+.mi-reference-dashboard .mi-movers-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.mi-reference-dashboard .mi-movers-positive,
+.mi-reference-dashboard .mi-movers-negative { padding: 8px; border-radius: 10px; background: rgba(255,255,255,.025); }
+.mi-reference-dashboard .mi-movers-positive h3,
+.mi-reference-dashboard .mi-movers-negative h3 { margin: 0 0 7px; font-size: 12px; font-weight: 950; color: #00e39b; }
+.mi-reference-dashboard .mi-movers-negative h3 { color: #ff455c; }
+.mi-reference-dashboard .mi-mover { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-top: 1px solid rgba(120,160,220,.08); font-size: 12px; }
+.mi-reference-dashboard .mi-mover b { color: #dce8fb; }
+.mi-reference-dashboard .mi-movers-positive .mi-mover strong { color: #00e39b; }
+.mi-reference-dashboard .mi-movers-negative .mi-mover strong { color: #ff455c; }
+.mi-reference-dashboard .mi-flow-net { margin: 0 0 12px; text-align: center; font-size: 16px; font-weight: 950; }
+.mi-reference-dashboard .mi-flow-bars { display: flex; flex-direction: column; gap: 12px; }
+.mi-reference-dashboard .mi-flow-bar-row { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; color: #a8bbd8; font-size: 11px; }
+.mi-reference-dashboard .mi-flow-bar-row b { color: #eaf2ff; }
+.mi-reference-dashboard .mi-flow-track { grid-column: 1 / -1; height: 8px; overflow: hidden; border-radius: 99px; background: #18263c; }
+.mi-reference-dashboard .mi-flow-track i { display: block; height: 100%; border-radius: inherit; }
+.mi-reference-dashboard .mi-flow-buy { background: linear-gradient(90deg, #008d62, #00e39b); }
+.mi-reference-dashboard .mi-flow-sell { background: linear-gradient(90deg, #9b243d, #ff455c); }
+.mi-reference-dashboard .mi-no-data { color: #8194b2; font-size: 12px; line-height: 1.7; }
+.mi-reference-dashboard .mi-heatmap-panel .mi-heatmap { gap: 5px !important; }
+.mi-reference-dashboard .mi-news-ticker { display: flex; align-items: center; gap: 15px; min-width: 0; padding: 10px 14px; border: 1px solid rgba(49, 120, 225, .35); border-radius: 13px; background: linear-gradient(90deg, rgba(19, 44, 94, .8), rgba(11, 21, 44, .96)); color: #a9bddc; font-size: 11px; }
+.mi-reference-dashboard .mi-news-ticker strong { flex: 0 0 auto; color: #dce8ff; font-weight: 950; }
+.mi-reference-dashboard .mi-news-ticker span { min-width: 0; }
+.mi-reference-dashboard .mi-ticker-divider { width: 1px; align-self: stretch; background: rgba(140,170,220,.25); }
+@media (max-width: 1250px) {
+  .mi-reference-dashboard .mi-summary-strip { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .mi-reference-dashboard .mi-dashboard-main { grid-template-columns: minmax(220px, .9fr) minmax(0, 1.8fr) !important; }
+  .mi-reference-dashboard .mi-index-list { grid-column: 1; }
+  .mi-reference-dashboard .mi-market-score { grid-column: 1; }
+  .mi-reference-dashboard .mi-history-main { grid-column: 2; grid-row: 1 / span 2; }
+  .mi-reference-dashboard .mi-bottom-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mi-reference-dashboard .mi-heatmap-panel { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  .mi-reference-dashboard { padding: 7px !important; gap: 9px !important; }
+  .mi-reference-dashboard .mi-summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+  .mi-reference-dashboard .mi-hero-card { min-height: 112px; padding: 10px !important; }
+  .mi-reference-dashboard .mi-hero-card strong { font-size: 19px; }
+  .mi-reference-dashboard .mi-hero-top { font-size: 10px; }
+  .mi-reference-dashboard .mi-hero-change { font-size: 10px; }
+  .mi-reference-dashboard .mi-dashboard-main { grid-template-columns: 1fr !important; }
+  .mi-reference-dashboard .mi-index-list,
+  .mi-reference-dashboard .mi-market-score,
+  .mi-reference-dashboard .mi-history-main { grid-column: 1 !important; grid-row: auto !important; }
+  .mi-reference-dashboard .mi-market-score { min-height: 280px; }
+  .mi-reference-dashboard .mi-bottom-grid { grid-template-columns: 1fr !important; }
+  .mi-reference-dashboard .mi-heatmap-panel { grid-column: auto; }
+  .mi-reference-dashboard .mi-news-ticker { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .mi-reference-dashboard .mi-ticker-divider { display: none; }
+}

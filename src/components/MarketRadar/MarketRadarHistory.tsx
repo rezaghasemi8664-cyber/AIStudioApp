@@ -3,8 +3,8 @@ import { getMarketRadarHistory } from '../../services/marketRadarService';
 import type { MarketRadarHistory as HistoryData, MarketRadarHistoryRange, MarketRadarHistoryPoint } from '../../types/marketRadar';
 
 const ranges: Array<{ value: MarketRadarHistoryRange; label: string }> = [
-  { value: '1d', label: '۱ روز' }, { value: '1w', label: '۱ هفته' }, { value: '1m', label: '۱ ماه' },
-  { value: '3m', label: '۳ ماه' }, { value: '6m', label: '۶ ماه' }, { value: '1y', label: '۱ سال' },
+  { value: '1d', label: '1D' }, { value: '1w', label: '1W' }, { value: '1m', label: '1M' },
+  { value: '3m', label: '3M' }, { value: '6m', label: '6M' }, { value: '1y', label: '1Y' },
 ];
 
 type Metric = 'index' | 'equalWeightedIndex' | 'value' | 'cumulativeValue' | 'volume';
@@ -66,6 +66,7 @@ const MarketRadarHistory: React.FC = () => {
   const [hovered, setHovered] = useState<{ index: number; x: number; y: number } | null>(null);
   const chartSvgRef = useRef<SVGSVGElement | null>(null);
   const chartWidth = Math.max(760, (data?.points.length ?? 0) * 14);
+  const maxVolume = Math.max(1, ...(data?.points.map((point) => valueIsValid(point.totalVolume) ? point.totalVolume : 0) ?? [1]));
 
   useEffect(() => {
     const handleOutsidePointerDown = (event: PointerEvent) => {
@@ -128,7 +129,7 @@ const MarketRadarHistory: React.FC = () => {
 
   return <article dir="rtl" className="mi-history-panel rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-      <div><h2 className="font-black text-[var(--color-text-primary)]">روند تاریخی بازار</h2><p className="mt-1 text-xs text-slate-500">{range === '1d' && data?.granularity === 'intraday' ? 'نقاط زمان‌دار جلسه جاری از ثبت‌های واقعی شاخص؛ ارزش تجمعی از جمع همین نقاط محاسبه می‌شود.' : 'داده روزانه واقعی از پایگاه بازار؛ در حالت تجمعی، ارزش نقاط موجود در بازه با هم جمع می‌شود.'}</p></div>
+      <div><h2 className="font-black text-[var(--color-text-primary)]">نمودار شاخص کل بورس</h2><p className="mt-1 text-xs text-slate-500">{range === '1d' && data?.granularity === 'intraday' ? 'نقاط زمان‌دار جلسه جاری از ثبت‌های واقعی شاخص؛ ارزش تجمعی از جمع همین نقاط محاسبه می‌شود.' : 'داده روزانه واقعی از پایگاه بازار؛ در حالت تجمعی، ارزش نقاط موجود در بازه با هم جمع می‌شود.'}</p></div>
       <div className="flex flex-wrap gap-2">{ranges.map((item) => <button key={item.value} onClick={() => setRange(item.value)} className={`rounded-xl px-3 py-2 text-sm font-black transition ${range === item.value ? 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-400/30' : 'border border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.06]'}`}>{item.label}</button>)}</div>
     </div>
 
@@ -142,6 +143,12 @@ const MarketRadarHistory: React.FC = () => {
       <div className="mt-5 overflow-x-auto rounded-2xl border border-white/5 bg-black/5 p-2">
         <div className="relative" style={{ minWidth: `${chartWidth}px` }}>
           <svg ref={chartSvgRef} viewBox={`0 0 ${chartWidth} 270`} className="h-72 w-full text-sky-400" role="img" aria-label={`نمودار تاریخی ${selectedMetric.label}`} onMouseLeave={() => setHovered(null)}>
+            {data.points.map((point, index) => valueIsValid(point.totalVolume) ? (() => {
+              const plotX = 42 + (index / Math.max(data.points.length - 1, 1)) * (chartWidth - 84);
+              const barHeight = Math.max(2, (point.totalVolume / maxVolume) * 26);
+              return <rect key={"volume-" + index} x={plotX - Math.max(2, chartWidth / data.points.length * 0.28)} y={260 - barHeight} width={Math.max(3, chartWidth / data.points.length * 0.56)} height={barHeight} rx="1" fill="#1677e8" opacity="0.72" />;
+            })() : null)}
+            <line x1="42" x2={chartWidth - 42} y1="260" y2="260" stroke="#3973b7" strokeOpacity="0.4" />
             <ChartLine width={chartWidth} values={values} secondaryValues={metric === 'index' && compareIndex ? equalValues : undefined} pointDates={data.points.map((point) => pointDateLabel(point.timestamp))} pointLabel={selectedMetric.label} onPoint={(index, x, y) => setHovered({ index, x, y })} />
             {hovered && hoveredPoint && <g pointerEvents="none">
               <line x1={hovered.x} x2={hovered.x} y1="25" y2="245" stroke="currentColor" strokeOpacity="0.2" strokeDasharray="4 4" />
