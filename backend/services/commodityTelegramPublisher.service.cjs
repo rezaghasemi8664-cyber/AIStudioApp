@@ -264,4 +264,5 @@ async function publishCommodityGroupNow(groupKey, now = new Date()) {
     }
   } finally { publishingRunning = false; }
 }
-\nmodule.exports = { GROUPS, renderCommodityCaption, publishCommodityPricesIfScheduled, publishCommodityGroupNow };
+
+module.exports = { GROUPS, renderCommodityCaption, publishCommodityPricesIfScheduled, publishCommodityGroupNow };
