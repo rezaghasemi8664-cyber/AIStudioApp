@@ -129,7 +129,6 @@ function renderCommodityItem(item) {
 
 function renderCommodityCaption(group, snapshot, now = new Date()) {
   let items = [];
-  let sourceTime = snapshot?.fetchedAt;
   if (group.source === 'commodity') {
     items = Array.isArray(snapshot?.groups?.metal_precious) ? snapshot.groups.metal_precious : [];
     items = items.filter(item => toNumber(item.price) > 0);
@@ -142,7 +141,6 @@ function renderCommodityCaption(group, snapshot, now = new Date()) {
   const formatted = items.slice(0, 14).map(item => group.source === 'commodity'
     ? renderCommodityItem(item) : renderNerkhItem(item, group.key, usdRate));
   const header = [
-    'زمان دریافت کش: ' + dateTime(sourceTime),
     '📊 رونیا | ' + group.title,
     '━━━━━━━━━━━━━━━━━━',
     ''
