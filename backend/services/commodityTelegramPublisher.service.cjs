@@ -218,6 +218,7 @@ function renderCommodityCaption(group, snapshot, now = new Date()) {
   const formatted = formattedItems.map(item => group.source === 'commodity'
     ? renderCommodityItem(item) : renderNerkhItem(item, group.key, usdRate));
   const header = [
+    bold('تحلیلگر هوشمند بورس رونیا'),
     '📊 رونیا | ' + group.title,
     '━━━━━━━━━━━━━━━━━━',
     'آخرین به‌روزرسانی منبع: ' + htmlEscape(latestSourceUpdate(items, group.source)),
