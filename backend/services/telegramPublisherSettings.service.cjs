@@ -100,11 +100,11 @@ function validateSettings(value) {
     const n = Number(value[groupName].intervalMinutes);
     if (!Number.isInteger(n) || n < 1 || n > 720) throw new Error('فاصله انتشار باید بین ۱ تا ۷۲۰ دقیقه باشد.');
   }
-  for (const groupName of ['valuable', 'scalping']) {
+  for (const groupName of ['valuable', 'scalping', 'preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']) {
     const n = Number(value[groupName].maxSymbolsPerMessage);
     if (!Number.isInteger(n) || n < 1 || n > 20) throw new Error('حداکثر نماد هر پیام باید بین ۱ تا ۲۰ باشد.');
   }
-  for (const groupName of ['valuable', 'scalping', 'index']) {
+  for (const groupName of ['valuable', 'scalping', 'index', 'preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']) {
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(value[groupName].endTime || ''))) throw new Error('زمان پایان انتشار بخش‌ها نامعتبر است.');
   }
   for (const groupName of ['valuable', 'scalping']) {
