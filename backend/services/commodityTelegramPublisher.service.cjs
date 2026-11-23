@@ -59,6 +59,21 @@ function signed(value, digits = 2) {
   return n === null ? '—' : (n > 0 ? '+' : '') + number(n, digits);
 }
 
+function htmlEscape(value) {
+  return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');
+}
+
+function bold(value) {
+  return '<b>' + htmlEscape(value) + '</b>';
+}
+
+function trend(value, digits = 2, suffix = '') {
+  const n = toNumber(value);
+  if (n === null) return bold('—');
+  const marker = n > 0 ? '🟢 ▲' : n < 0 ? '🔴 ▼' : '⚪ —';
+  return bold(marker + ' ' + signed(n, digits) + suffix);
+}
+
 function dateTime(value) {
   if (!value) return '—';
   const date = new Date(value);
@@ -113,21 +128,22 @@ function renderNerkhItem(item, groupKey, usdRate) {
   const currency = isOunce ? 'دلار / اونس' : 'ریال';
   const delta = current !== null && percent !== null && percent > -100
     ? current * percent / (100 + percent) : null;
-  const lines = ['🔸 ' + (item.name || SYMBOL_LABELS[symbol] || symbol) + (symbol ? ' (' + symbol + ')' : '')];
+  const displayName = htmlEscape(item.name || SYMBOL_LABELS[symbol] || symbol);
+  const lines = ['🔸 ' + displayName + (symbol ? ' (' + htmlEscape(symbol) + ')' : '')];
   if (isOunce) {
-    lines.push('قیمت جهانی: ' + number(current, 4) + ' دلار / اونس');
-    if (usdRate > 0) lines.push('معادل ریالی: ' + number(current * usdRate) + ' ریال');
+    lines.push('قیمت جهانی: ' + bold(number(current, 4) + ' دلار / اونس'));
+    if (usdRate > 0) lines.push('معادل ریالی: ' + bold(number(current * usdRate) + ' ریال'));
   } else {
-    lines.push('قیمت: ' + number(current) + ' ' + currency);
+    lines.push('قیمت: ' + bold(number(current) + ' ' + currency));
   }
   if (delta !== null || percent !== null) {
-    lines.push('تغییر ۲۴ ساعته: ' + signed(delta) + (isOunce ? ' دلار' : ' ریال') +
-      ' (' + (percent === null ? '—' : signed(percent) + '٪') + ')');
+    lines.push('تغییر ۲۴ ساعته: ' + trend(delta, 2, isOunce ? ' دلار' : ' ریال') +
+      ' (' + trend(percent, 2, '٪') + ')');
   }
   if (item.min24h != null || item.max24h != null) {
-    lines.push('کمینه / بیشینه ۲۴ساعت: ' + number(item.min24h) + ' / ' + number(item.max24h) + (isOunce ? ' دلار' : ' ریال'));
+    lines.push('کمینه / بیشینه ۲۴ساعت: ' + bold(number(item.min24h) + ' / ' + number(item.max24h) + (isOunce ? ' دلار' : ' ریال')));
   }
-  if (item.update) lines.push('آخرین بروزرسانی منبع: ' + String(item.update));
+  if (item.update) lines.push('آخرین بروزرسانی منبع: ' + htmlEscape(item.update));
   return lines.join('\n');
 }
 
@@ -136,11 +152,11 @@ function renderCommodityItem(item) {
   const unit = String(item.unit || 'دلار');
   const change = toNumber(item.change_value);
   const percent = toNumber(item.change_percent);
-  const lines = ['🔸 ' + name + (item.symbol ? ' (' + item.symbol + ')' : '')];
-  lines.push('قیمت: ' + number(item.price, 4) + ' ' + unit);
-  lines.push('تغییر قیمت: ' + signed(change, 4) + ' ' + unit +
-    (percent === null ? '' : ' (' + signed(percent, 2) + '٪)'));
-  if (item.date || item.time) lines.push('زمان ثبت: ' + [item.date, item.time].filter(Boolean).join(' '));
+  const lines = ['🔸 ' + htmlEscape(name) + (item.symbol ? ' (' + htmlEscape(item.symbol) + ')' : '')];
+  lines.push('قیمت: ' + bold(number(item.price, 4) + ' ' + unit));
+  lines.push('تغییر قیمت: ' + trend(change, 4, ' ' + unit) +
+    (percent === null ? '' : ' (' + trend(percent, 2, '٪') + ')'));
+  if (item.date || item.time) lines.push('زمان ثبت: ' + htmlEscape([item.date, item.time].filter(Boolean).join(' ')));
   return lines.join('\n');
 }
 
@@ -229,7 +245,7 @@ async function publishCommodityPricesIfScheduled(now = new Date(), suppliedSetti
       if (!caption) { outcomes.push({ name: group.key, skipped: true, reason: 'NO_VALID_PRICE_ROWS' }); continue; }
 
       try {
-        await sendTelegramMessage(caption);
+        await sendTelegramMessage(caption, { parseMode: 'HTML' });
         try { await recordTelegramPublisherMessage(group.historyType, 'success', { messageTitle: caption.split('\n')[0] }, now); }
         catch (historyError) { console.error('[CRON][TelegramPublisher] Commodity history write failed:', historyError?.message || historyError); }
         state.lastCommodityTelegramSlots = { ...(state.lastCommodityTelegramSlots || {}), [group.key]: slot };
@@ -262,7 +278,7 @@ async function publishCommodityGroupNow(groupKey, now = new Date()) {
     const caption = renderCommodityCaption(group, snapshot, now);
     if (!caption) throw new Error('NO_VALID_PRICE_ROWS');
     try {
-      await sendTelegramMessage(caption);
+      await sendTelegramMessage(caption, { parseMode: 'HTML' });
       try { await recordTelegramPublisherMessage(group.historyType, 'success', { messageTitle: caption.split('\n')[0] }, now); }
       catch (historyError) { console.error('[TelegramPublisherAdmin] Manual commodity history write failed:', historyError?.message || historyError); }
       return { published: true, type: groupKey, rows: group.source === 'commodity' ? snapshot.groups.metal_precious.length : getNerkhItems(snapshot, group.key).length };
