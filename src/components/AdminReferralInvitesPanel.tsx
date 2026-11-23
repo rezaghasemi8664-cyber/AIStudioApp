@@ -55,11 +55,11 @@ const AdminReferralInvitesPanel: React.FC = () => {
   };
 
   const identity = (user: referralService.AdminReferralUser) => (
-    <div className="min-w-[220px] space-y-1">
-      <div className="font-semibold">{userName(user)}</div>
-      <div className="text-xs text-gray-500">شناسه: <span className="font-mono">{fmt(user.id)}</span> · @{user.username || '—'}</div>
-      <div className="text-xs text-gray-500 break-all" dir="ltr">{user.email || '—'}</div>
-      <div className="text-xs text-gray-500" dir="ltr">{user.mobile || user.phone || '—'}</div>
+    <div className="flex min-w-[760px] items-center gap-4 whitespace-nowrap text-xs">
+      <span className="font-semibold text-sm">{userName(user)}</span>
+      <span className="text-gray-500">شناسه: <span className="font-mono">{fmt(user.id)}</span></span>
+      <span className="text-gray-500" dir="ltr">{user.email || '—'}</span>
+      <span className="text-gray-500" dir="ltr">{user.mobile || user.phone || '—'}</span>
     </div>
   );
 
@@ -92,18 +92,18 @@ const AdminReferralInvitesPanel: React.FC = () => {
 
     {error && <div className="mt-3 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     <div className="mt-4 overflow-x-auto">
-      <table className="w-full min-w-[1250px] text-sm">
+      <table className="w-full min-w-[1800px] text-sm">
         <thead><tr className="border-b">
           <th className="p-3 text-right">دعوت‌کننده</th>
           <th className="p-3 text-right">دعوت‌شده</th>
-          <th className="p-3 text-right">کد دعوت</th>
+          <th className="p-3 text-center">کد دعوت</th>
           <th className="p-3 text-right">تاریخ و زمان ثبت‌نام</th>
         </tr></thead>
         <tbody>
-          {(data?.items || []).map(row => <tr key={row.id} className="border-b last:border-0 align-top hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
+          {(data?.items || []).map(row => <tr key={row.id} className="border-b last:border-0 align-middle hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
             <td className="p-3">{identity(row.inviter)}</td>
             <td className="p-3">{identity(row.invitee)}</td>
-            <td className="p-3 font-mono" dir="ltr">{row.referralCode || '—'}</td>
+            <td className="p-3 text-center font-mono" dir="ltr">{row.referralCode || '—'}</td>
             <td className="p-3 whitespace-nowrap">{dateTimeFmt(row.invitee.createdAt)}</td>
           </tr>)}
           {!loading && !(data?.items.length) && <tr><td colSpan={4} className="p-8 text-center text-gray-500">ثبت‌نام دعوت‌شده‌ای برای این فیلترها پیدا نشد.</td></tr>}
