@@ -195,6 +195,7 @@ async function sendTelegramMessage(text, options = {}) {
   return requestTelegram(endpoint, {
     chat_id: chatId,
     text: message.slice(0, 4096),
+    ...(options.parseMode ? { parse_mode: options.parseMode } : {}),
     disable_web_page_preview: true,
     disable_notification: options.disableNotification === true
   }, {
