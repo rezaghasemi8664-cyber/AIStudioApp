@@ -107,7 +107,7 @@ function validateSettings(value) {
   for (const groupName of ['valuable', 'scalping', 'index', 'preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']) {
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(value[groupName].endTime || ''))) throw new Error('زمان پایان انتشار بخش‌ها نامعتبر است.');
   }
-  for (const groupName of ['valuable', 'scalping']) {
+  for (const groupName of ['valuable', 'scalping', 'preciousMetals', 'goldPrice', 'silverPrice', 'coinPrice', 'currencyPrice']) {
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(value[groupName].startTime || ''))) throw new Error('زمان شروع چرخه انتشار نامعتبر است.');
   }
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(value.index.startTime || ''))) throw new Error('زمان شروع انتشار شاخص‌ها نامعتبر است.');
