@@ -84,24 +84,50 @@ function dateTime(value) {
   }).format(date);
 }
 
+function normalizeDateDigits(value) {
+  return String(value ?? '')
+    .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+}
+
+function toPersianDigits(value) {
+  return String(value).replace(/\d/g, digit => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]);
+}
+
+function parseSourceUpdate(raw) {
+  const normalized = normalizeDateDigits(raw).trim();
+  if (!normalized) return null;
+
+  // Jalali years must not be passed to Date(), which treats them as Gregorian.
+  const jalali = normalized.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})(?:[ T،]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (jalali && Number(jalali[1]) >= 1200 && Number(jalali[1]) <= 1500) {
+    const [, year, month, day, hour = '00', minute = '00', second = '00'] = jalali;
+    const key = [year, month.padStart(2, '0'), day.padStart(2, '0'),
+      hour.padStart(2, '0'), minute, second].join('');
+    const display = toPersianDigits(
+      year + '/' + month.padStart(2, '0') + '/' + day.padStart(2, '0') +
+      (jalali[4] !== undefined ? ' ' + hour.padStart(2, '0') + ':' + minute : '')
+    );
+    return { key, display };
+  }
+
+  const parsed = new Date(normalized.replace(/\//g, '-'));
+  if (!Number.isFinite(parsed.getTime())) return { key: null, display: String(raw).trim() };
+  return { key: String(parsed.getTime()).padStart(16, '0'), display: dateTime(parsed) };
+}
+
 function latestSourceUpdate(items, source) {
   const candidates = (Array.isArray(items) ? items : []).map(item => {
     const raw = source === 'commodity'
       ? [item?.date, item?.time].filter(Boolean).join(' ').trim()
       : String(item?.update || '').trim();
-    if (!raw) return null;
-    const normalized = raw.replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
-      .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
-    const parsed = new Date(normalized.replace(/\//g, '-'));
-    return { raw, normalized, timestamp: Number.isFinite(parsed.getTime()) ? parsed.getTime() : null };
+    return raw ? parseSourceUpdate(raw) : null;
   }).filter(Boolean);
   if (!candidates.length) return '—';
-  const parseable = candidates.filter(item => item.timestamp !== null);
-  if (!parseable.length) return candidates[0].raw;
-  return dateTime(parseable.reduce((latest, item) =>
-    item.timestamp > latest.timestamp ? item : latest).normalized);
+  const parseable = candidates.filter(item => item.key !== null);
+  if (!parseable.length) return candidates[0].display;
+  return parseable.reduce((latest, item) => item.key > latest.key ? item : latest).display;
 }
-
 function freshSnapshot(snapshot, now = new Date()) {
   const fetchedAt = new Date(snapshot?.fetchedAt || '').getTime();
   return Number.isFinite(fetchedAt) && fetchedAt <= now.getTime() + 60_000 && now.getTime() - fetchedAt <= MAX_CACHE_AGE_MS;
