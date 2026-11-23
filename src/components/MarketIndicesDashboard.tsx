@@ -99,17 +99,6 @@ function calculateMarketStrength(data: MarketRadarSnapshot | null): { label: str
   return { label: 'ضعیف', detail: 'برتری نمادهای مثبت و منفی محدود است یا بازار متعادل‌تر است.' };
 }
 
-const Metric: React.FC<{ label: string; value: string; sub?: string; change?: number | null }> = ({ label, value, sub, change }) => (
-  <article className={`${card} mi-metric-card`}>
-    <div className="mi-metric-label text-sm font-bold text-slate-500">{label}</div>
-    <div className="mi-metric-value mt-2 break-words text-xl sm:text-2xl font-black tabular-nums text-[var(--color-text-primary)]">
-      <span key={value} className="mi-value-transition">{value}</span>
-    </div>
-    {sub && <div className="mi-metric-sub mt-1 text-xs text-slate-500">{sub}</div>}
-    {change !== undefined && <div className={`mi-metric-change mt-2 text-sm font-black ${tone(change)}`}>{pct(change)}</div>}
-  </article>
-);
-
 const MarketIndicesDashboard: React.FC = () => {
   const [data, setData] = useState<MarketRadarSnapshot | null>(() => readMarketRadarCache()?.snapshot ?? null);
   const [loading, setLoading] = useState(() => !readMarketRadarCache());
@@ -191,7 +180,6 @@ const MarketIndicesDashboard: React.FC = () => {
   const priceIndex = data?.indices.find(item => /شاخص قیمت|price index/i.test(item.name));
   const freeFloatIndex = data?.indices.find(item => /آزاد\s*شناور|free.?float/i.test(item.name));
   const lastUpdated = breadth?.generatedAt ? new Intl.DateTimeFormat('fa-IR', { timeZone: 'Asia/Tehran', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(breadth.generatedAt)) : 'زمان ثبت در منبع نامشخص';
-  const marketLabel = breadth?.available && breadth.total > 0 ? breadth.positive > breadth.negative ? 'مثبت' : breadth.negative > breadth.positive ? 'منفی' : 'متعادل' : 'نامشخص';
 
   if (loading && !data) return <section dir="rtl" className={`${card} animate-pulse text-slate-500`}>در حال دریافت داده‌های معتبر بازار…</section>;
   if (error && !data) return <section dir="rtl" className={`${card} text-center`}><p className="text-rose-500">{error}</p></section>;
