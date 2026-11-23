@@ -77,13 +77,22 @@ function freshSnapshot(snapshot, now = new Date()) {
 function getNerkhItems(snapshot, groupKey) {
   const all = Array.isArray(snapshot?.groups?.gold) ? snapshot.groups.gold : [];
   if (groupKey === 'goldPrice') {
-    return all.filter(item => !String(item.symbol).startsWith('SEKE_') &&
-      !['OUNCE_SILVER', 'OUNCE_PLATINUM', 'XAGUSD', 'XPTUSD'].includes(String(item.symbol).toUpperCase()));
+    const symbols = ['GOLD18K', 'GOLD24K', 'MESGHAL', 'OUNCE'];
+    return all
+      .filter(item => symbols.includes(String(item?.symbol || '').trim().toUpperCase()))
+      .sort((a, b) => symbols.indexOf(String(a?.symbol || '').trim().toUpperCase()) -
+        symbols.indexOf(String(b?.symbol || '').trim().toUpperCase()));
   }
   if (groupKey === 'silverPrice') {
     return all.filter(item => ['OUNCE_SILVER', 'XAGUSD'].includes(String(item.symbol).toUpperCase()));
   }
-  if (groupKey === 'coinPrice') return all.filter(item => String(item.symbol).startsWith('SEKE_'));
+  if (groupKey === 'coinPrice') {
+    const symbols = ['SEKE_1G', 'SEKE_BAHAR', 'SEKE_EMAMI', 'SEKE_NIM', 'SEKE_ROB'];
+    return all
+      .filter(item => symbols.includes(String(item?.symbol || '').trim().toUpperCase()))
+      .sort((a, b) => symbols.indexOf(String(a?.symbol || '').trim().toUpperCase()) -
+        symbols.indexOf(String(b?.symbol || '').trim().toUpperCase()));
+  }
   if (groupKey === 'currencyPrice') {
     const currencies = Array.isArray(snapshot?.groups?.currency) ? snapshot.groups.currency : [];
     // Keep USD first so the 14-row and Telegram caption-length limits never omit it.
