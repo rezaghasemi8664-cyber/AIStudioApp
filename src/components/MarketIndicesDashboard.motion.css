@@ -1,0 +1,188 @@
+/* Market indices dashboard: scoped motion and luminous data-viz skin.
+   All effects are decorative; market values and calculations remain unchanged. */
+.market-indices-motion {
+  --mi-cyan: #22d3ee;
+  --mi-blue: #3b82f6;
+  --mi-violet: #8b5cf6;
+  --mi-green: #10b981;
+  --mi-red: #f43f5e;
+  position: relative;
+  isolation: isolate;
+  padding: clamp(.25rem, 1vw, .75rem);
+  border-radius: 1.75rem;
+  background:
+    radial-gradient(ellipse at 8% 0%, color-mix(in srgb, var(--mi-blue) 14%, transparent), transparent 38%),
+    radial-gradient(ellipse at 95% 18%, color-mix(in srgb, var(--mi-violet) 12%, transparent), transparent 34%),
+    radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--mi-cyan) 8%, transparent), transparent 42%);
+}
+.market-indices-motion > * { position: relative; }
+.market-indices-motion > header {
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--mi-cyan) 30%, var(--color-border)) !important;
+  background:
+    linear-gradient(115deg, color-mix(in srgb, var(--mi-blue) 13%, var(--color-surface)), color-mix(in srgb, var(--mi-violet) 8%, var(--color-surface)) 55%, var(--color-surface)) !important;
+  box-shadow: 0 16px 45px -28px color-mix(in srgb, var(--mi-blue) 65%, transparent), inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+  animation: mi-rise-in .65s cubic-bezier(.2,.75,.25,1) both;
+}
+.market-indices-motion > header::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 -35%;
+  width: 30%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--mi-cyan) 12%, transparent), transparent);
+  transform: skewX(-18deg);
+  animation: mi-header-sweep 7s ease-in-out infinite;
+}
+.market-indices-motion-card {
+  position: relative;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--mi-blue) 22%, var(--color-border)) !important;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--mi-blue) 6%, var(--color-surface)), var(--color-surface) 55%, color-mix(in srgb, var(--mi-violet) 5%, var(--color-surface))) !important;
+  box-shadow: 0 12px 30px -24px color-mix(in srgb, var(--mi-blue) 60%, transparent), inset 0 1px 0 color-mix(in srgb, white 7%, transparent);
+  transition: transform .28s cubic-bezier(.2,.75,.25,1), box-shadow .28s ease, border-color .28s ease;
+  animation: mi-rise-in .7s cubic-bezier(.2,.75,.25,1) both;
+}
+.market-indices-motion-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--mi-cyan) 85%, white), transparent);
+  opacity: .65;
+}
+.market-indices-motion-card::after {
+  content: "";
+  position: absolute;
+  top: -70%;
+  right: -35%;
+  width: 55%;
+  height: 150%;
+  pointer-events: none;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--mi-cyan) 9%, transparent), transparent 70%);
+  opacity: .45;
+  transition: opacity .3s ease;
+}
+.market-indices-motion-card:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--mi-cyan) 50%, var(--color-border)) !important;
+  box-shadow: 0 18px 38px -24px color-mix(in srgb, var(--mi-cyan) 55%, transparent), inset 0 1px 0 color-mix(in srgb, white 12%, transparent);
+}
+.market-indices-motion-card:hover::after { opacity: .95; }
+.market-indices-motion > .grid > .market-indices-motion-card:nth-child(1) { animation-delay: .08s; }
+.market-indices-motion > .grid > .market-indices-motion-card:nth-child(2) { animation-delay: .14s; }
+.market-indices-motion > .grid > .market-indices-motion-card:nth-child(3) { animation-delay: .20s; }
+.market-indices-motion > .grid > .market-indices-motion-card:nth-child(4) { animation-delay: .26s; }
+.market-indices-motion > .grid > .market-indices-motion-card:nth-child(5) { animation-delay: .32s; }
+.market-indices-motion > .grid > .market-indices-motion-card:nth-child(6) { animation-delay: .38s; }
+.market-indices-motion > .grid > .market-indices-motion-card:nth-child(7) { animation-delay: .44s; }
+.market-indices-motion > .grid > .market-indices-motion-card:nth-child(8) { animation-delay: .50s; }
+.market-indices-motion > .grid > .market-indices-motion-card:nth-child(n+9) { animation-delay: .56s; }
+
+/* Give the market score ring a soft breathing glow without changing its value. */
+.market-indices-motion .flex.h-28.w-28 {
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--mi-cyan) 5%, transparent), 0 0 28px -8px color-mix(in srgb, var(--mi-blue) 55%, transparent);
+  animation: mi-ring-breathe 3.8s ease-in-out infinite;
+}
+.market-indices-motion .h-3.overflow-hidden > div {
+  position: relative;
+  box-shadow: 0 0 15px currentColor;
+  transition: width .9s cubic-bezier(.2,.75,.25,1);
+}
+.market-indices-motion .h-3.overflow-hidden > div::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+  transform: translateX(-100%);
+  animation: mi-progress-shine 3.2s ease-in-out infinite;
+}
+
+/* The historical line glows and its dash movement gives a subtle live-terminal feel. */
+.market-indices-motion svg polyline {
+  filter: drop-shadow(0 0 5px currentColor);
+  stroke-dasharray: 14 8;
+  animation: mi-chart-flow 2.8s linear infinite;
+}
+.market-indices-motion svg circle {
+  filter: drop-shadow(0 0 5px currentColor);
+  transition: r .2s ease, filter .2s ease;
+}
+.market-indices-motion svg circle:hover { filter: drop-shadow(0 0 10px currentColor); }
+
+/* Industry tiles are individually animated and respond to hover/touch. */
+.market-indices-motion button.group {
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.15), 0 8px 20px -16px rgba(0,0,0,.8);
+  transition: transform .22s ease, filter .22s ease, box-shadow .22s ease;
+  animation: mi-tile-in .55s cubic-bezier(.2,.75,.25,1) both;
+}
+.market-indices-motion button.group:nth-child(6n+1) { animation-delay: .05s; }
+.market-indices-motion button.group:nth-child(6n+2) { animation-delay: .10s; }
+.market-indices-motion button.group:nth-child(6n+3) { animation-delay: .15s; }
+.market-indices-motion button.group:nth-child(6n+4) { animation-delay: .20s; }
+.market-indices-motion button.group:nth-child(6n+5) { animation-delay: .25s; }
+.market-indices-motion button.group:nth-child(6n) { animation-delay: .30s; }
+.market-indices-motion button.group::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 20%, rgba(255,255,255,.16) 48%, transparent 72%);
+  transform: translateX(-120%);
+  transition: transform .6s ease;
+}
+.market-indices-motion button.group:hover {
+  transform: translateY(-4px) scale(1.015);
+  filter: saturate(1.15) brightness(1.06);
+  box-shadow: 0 12px 28px -12px rgba(34,211,238,.35), inset 0 1px 0 rgba(255,255,255,.2);
+}
+.market-indices-motion button.group:hover::after { transform: translateX(120%); }
+.market-indices-motion article .rounded-2xl,
+.market-indices-motion article .rounded-xl {
+  transition: border-color .22s ease, background-color .22s ease, transform .22s ease;
+}
+.market-indices-motion article .rounded-2xl:hover,
+.market-indices-motion article .rounded-xl:hover {
+  border-color: color-mix(in srgb, var(--mi-cyan) 28%, var(--color-border));
+}
+@keyframes mi-rise-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes mi-tile-in {
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes mi-header-sweep {
+  0%, 58% { left: -35%; opacity: 0; }
+  68% { opacity: 1; }
+  90%, 100% { left: 120%; opacity: 0; }
+}
+@keyframes mi-ring-breathe {
+  0%, 100% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--mi-cyan) 5%, transparent), 0 0 24px -10px color-mix(in srgb, var(--mi-blue) 45%, transparent); }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--mi-cyan) 8%, transparent), 0 0 34px -7px color-mix(in srgb, var(--mi-violet) 55%, transparent); }
+}
+@keyframes mi-progress-shine {
+  0%, 35% { transform: translateX(-100%); }
+  75%, 100% { transform: translateX(100%); }
+}
+@keyframes mi-chart-flow { to { stroke-dashoffset: -44; } }
+@media (max-width: 640px) {
+  .market-indices-motion { padding: .15rem; border-radius: 1.25rem; }
+  .market-indices-motion-card:hover { transform: translateY(-2px); }
+  .market-indices-motion button.group:hover { transform: translateY(-2px); }
+  .market-indices-motion svg polyline { animation-duration: 4s; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .market-indices-motion *, .market-indices-motion *::before, .market-indices-motion *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
