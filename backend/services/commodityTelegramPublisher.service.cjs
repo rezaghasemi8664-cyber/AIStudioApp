@@ -93,13 +93,13 @@ function latestSourceUpdate(items, source) {
     const normalized = raw.replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
       .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
     const parsed = new Date(normalized.replace(/\//g, '-'));
-    return { raw, timestamp: Number.isFinite(parsed.getTime()) ? parsed.getTime() : null };
+    return { raw, normalized, timestamp: Number.isFinite(parsed.getTime()) ? parsed.getTime() : null };
   }).filter(Boolean);
   if (!candidates.length) return '—';
   const parseable = candidates.filter(item => item.timestamp !== null);
   if (!parseable.length) return candidates[0].raw;
   return dateTime(parseable.reduce((latest, item) =>
-    item.timestamp > latest.timestamp ? item : latest).raw);
+    item.timestamp > latest.timestamp ? item : latest).normalized);
 }
 
 function freshSnapshot(snapshot, now = new Date()) {
