@@ -4,6 +4,7 @@ const prisma = require('../config/prisma.cjs');
 const { getStoredValuableSymbols } = require('./valuableSymbols.engine.cjs');
 const { sendTelegramMessage, getTelegramConfig } = require('./telegramBotApi.service.cjs');
 const telegramAdMessageService = require('./telegramAdMessage.service.cjs');
+const commodityTelegramPublisher = require('./commodityTelegramPublisher.service.cjs');
 const { getTelegramPublisherSettings, getTelegramPublisherHistory, isAllowedWeekday, isIntervalDue, getDueIntervalSlot, isBeforeEndTime, recordTelegramPublisherMessage } = require('./telegramPublisherSettings.service.cjs');
 
 const STATE_KEY = 'telegram.publisher.state.v1';
@@ -509,6 +510,13 @@ async function runTelegramPublisherTick(now = new Date()) {
       console.error('[CRON][TelegramPublisher] ' + name + ' failed:', error?.message || error);
       outcomes.push({ name, error: error?.code || 'PUBLISH_FAILED' });
     }
+  }
+  try {
+    const commodityOutcomes = await commodityTelegramPublisher.publishCommodityPricesIfScheduled(now, settings);
+    outcomes.push(...commodityOutcomes);
+  } catch (error) {
+    console.error('[CRON][TelegramPublisher] commodity-prices failed:', error?.message || error);
+    outcomes.push({ name: 'commodity-prices', error: error?.code || 'PUBLISH_FAILED' });
   }
   return { skipped: false, outcomes };
 }
