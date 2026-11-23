@@ -70,7 +70,7 @@ function bold(value) {
 function trend(value, digits = 2, suffix = '') {
   const n = toNumber(value);
   if (n === null) return bold('—');
-  const marker = n > 0 ? '▲' : n < 0 ? '▼' : '—';
+  const marker = n > 0 ? '🟢 ▲' : n < 0 ? '🔴 ▼' : '⚪ —';
   return bold(marker + ' ' + signed(n, digits) + suffix);
 }
 
