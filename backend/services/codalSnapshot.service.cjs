@@ -10,7 +10,6 @@ const CODAL_SNAPSHOT_CACHE_KEY = 'codal:snapshot:active';
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
 const DEFAULT_DAILY_LIMIT = 500;
 const DEFAULT_MAX_PAGES = 180;
-const DEFAULT_FINANCIAL_PAGES = 30;
 let refreshRunning = false;
 let cronTasks = [];
 
