@@ -106,7 +106,7 @@ async function reserveDailyRequest() {
   });
 }
 
-async function fetchPage(page) {
+async function fetchPage(page, filters = {}) {
   const config = getApiConfig();
   if (!config.url || !config.key) {
     const error = new Error('Codal API URL/key are not configured.');
@@ -116,6 +116,8 @@ async function fetchPage(page) {
   const url = new URL(config.url);
   url.searchParams.set('key', config.key);
   url.searchParams.set('page', String(page));
+  // BRS CODAL v2 uses l18 for the issuer symbol (not symbol).
+  if (filters.l18) url.searchParams.set('l18', String(filters.l18).trim());
   for (const [envName, paramName, fallback] of [
     ['CODAL_AUDITED', 'audited', 'true'],
     ['CODAL_UNAUDITED', 'unaudited', 'true'],
@@ -313,6 +315,30 @@ async function getCompanyReports(options = {}) {
   const symbol = options.symbol ? String(options.symbol).trim() : '';
   const category = options.category == null ? '' : String(options.category).trim();
   const page = Math.max(1, Number(options.page) || 1);
+
+  // Symbol-specific fundamental analysis must query BRS CODAL v2 with l18.
+  // The broad daily snapshot is intentionally not used for this path because
+  // it is capped and may not contain the requested issuer's latest filings.
+  if (symbol) {
+    const payload = await fetchPage(page, { l18: symbol });
+    const items = asArray(payload).map(item => normalizeAnnouncement(item));
+    const filtered = category
+      ? items.filter(item => String(item.category || '') === category)
+      : items;
+    const reportedCount = Number(first(payload, ['count_announcement', 'countAnnouncement'])) || filtered.length;
+    const reportedPages = Number(first(payload, ['count_page', 'countPage'])) || Math.ceil(reportedCount / Math.max(1, items.length));
+    return {
+      success: true,
+      provider: 'BRS_CODAL_V2_SYMBOL',
+      symbol,
+      announcements: filtered,
+      countAnnouncement: category ? filtered.length : reportedCount,
+      countPage: category ? Math.ceil(filtered.length / Math.max(1, items.length)) : reportedPages,
+      page,
+      fetchedAt: new Date().toISOString(),
+      stale: false
+    };
+  }
   const pageSize = 200;
   const state = await prisma.$queryRaw`SELECT ActiveSnapshotId, LastSuccessAt, AnnouncementCount, PageCount FROM dbo.CodalSnapshotState WHERE StateId = 1`;
   const activeId = state[0] && state[0].ActiveSnapshotId ? String(state[0].ActiveSnapshotId) : '';
