@@ -165,23 +165,19 @@ async function getFundamentalData(symbolClean) {
   }
 
   try {
-    // Query the dedicated financial-statement category across several
-    // pages. A single general page can be filled with routine disclosures,
-    // while the financial statements needed for scoring may be on page 2/3.
+    // BRS CODAL v2 does not support category=1. Read consecutive pages
+    // from the persisted snapshot and classify financial announcements by
+    // title/document links in fundamental-analysis.v2.service.
     const financialPages = Math.max(
       1,
       Math.min(5, Number(process.env.CODAL_FINANCIAL_PAGES) || 1)
     );
-    const financialResults = await Promise.all(
+    const pageResults = await Promise.all(
       Array.from({ length: financialPages }, (_, index) =>
-        codal.getCompanyReports({
-          symbol: symbolClean,
-          category: '1',
-          page: index + 1
-        })
+        codal.getCompanyReports({ symbol: symbolClean, page: index + 1 })
       )
     );
-    const generalResult = await codal.getCompanyReports({
+    const generalResult = pageResults[0] || await codal.getCompanyReports({
       symbol: symbolClean,
       page: 1
     });
