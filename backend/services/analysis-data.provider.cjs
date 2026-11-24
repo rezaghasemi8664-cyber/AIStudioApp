@@ -186,8 +186,7 @@ async function getFundamentalData(symbolClean) {
     const seen = new Set();
 
     for (const item of [
-      ...asArray(generalResult && generalResult.announcements),
-      ...financialResults.flatMap(item => asArray(item && item.announcements))
+      ...pageResults.flatMap(item => asArray(item && item.announcements))
     ]) {
       const key = [
         item && item.code,
@@ -210,7 +209,7 @@ async function getFundamentalData(symbolClean) {
       countAnnouncement: mergedAnnouncements.length,
       countPage: Math.max(
         Number(generalResult && generalResult.countPage) || 0,
-        ...financialResults.map(item => Number(item && item.countPage) || 0)
+        ...pageResults.map(item => Number(item && item.countPage) || 0)
       ),
       page: 1,
       fetchedAt: new Date().toISOString()
