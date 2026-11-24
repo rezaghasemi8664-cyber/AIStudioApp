@@ -52,12 +52,8 @@ function classifyAnnouncement(announcement) {
   const searchable = [title, categoryName].filter(Boolean).join(' | ');
   const matched = IMPORTANT_CATEGORIES.filter((item) => item.patterns.some((pattern) => searchable.includes(normalizeText(pattern))));
 
-  // BRS/CODAL uses category=1 for financial statements. The provider now
-  // preserves this field so a valid filing is not lost when its title uses
-  // a generic wording without the phrase "صورت مالی".
-  if (category === '1' && !matched.some((item) => item.key === 'financial_statements')) {
-    matched.unshift(IMPORTANT_CATEGORIES.find((item) => item.key === 'financial_statements'));
-  }
+  // CODAL v2 no longer exposes the legacy category=1 filter. Classify
+  // financial disclosures from their normalized title/category name instead.
 
   return {
     title,
@@ -65,7 +61,7 @@ function classifyAnnouncement(announcement) {
     categoryName,
     categories: matched.filter(Boolean).map((item) => item.key),
     importance: matched.filter(Boolean).reduce((sum, item) => sum + item.weight, 0),
-    financial: category === '1' || matched.some((item) => ['financial_statements', 'profit_loss', 'monthly_activity', 'earnings_forecast'].includes(item.key)),
+    financial: matched.some((item) => ['financial_statements', 'profit_loss', 'monthly_activity', 'earnings_forecast'].includes(item.key)),
   };
 }
 
