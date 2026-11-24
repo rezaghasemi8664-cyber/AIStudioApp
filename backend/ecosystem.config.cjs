@@ -10,13 +10,11 @@
 
       env: {
         NODE_ENV: "production",
-        BRS_API_KEY: "BBd8wTnmLTQpSHcz5kqxFegudgym5Tnd",
         COOKIE_SECURE: "true",
       },
 
       env_production: {
         NODE_ENV: "production",
-        BRS_API_KEY: "BBd8wTnmLTQpSHcz5kqxFegudgym5Tnd",
         COOKIE_SECURE: "true",
       },
 

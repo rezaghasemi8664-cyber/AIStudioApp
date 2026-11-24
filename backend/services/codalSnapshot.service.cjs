@@ -79,8 +79,8 @@ function normalizeAnnouncement(source, requestedCategory) {
 
 function getApiConfig() {
   return {
-    url: String(process.env.CODAL_API_URL || process.env.BRS_CODAL_URL || '').trim(),
-    key: String(process.env.BRS_CODAL_API_KEY || process.env.CODAL_API_KEY || '').trim(),
+    url: String(process.env.BRS_CODAL_URL || process.env.CODAL_API_URL || '').trim(),
+    key: String(process.env.BRS_API_KEY || '').trim(),
     timeoutMs: envInt('CODAL_TIMEOUT_MS', 30000, 3000, 60000),
     dailyLimit: envInt('CODAL_DAILY_REQUEST_LIMIT', DEFAULT_DAILY_LIMIT, 1, 500),
     maxPages: envInt('CODAL_SNAPSHOT_MAX_PAGES', DEFAULT_MAX_PAGES, 1, DEFAULT_MAX_PAGES)

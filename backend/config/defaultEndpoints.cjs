@@ -6,7 +6,8 @@
  */
 
 const BRS_API_KEY = process.env.BRS_API_KEY || "";
-const BRS_CODAL_API_KEY = process.env.BRS_CODAL_API_KEY || process.env.CODAL_API_KEY || "";
+// Codal announcements use the same shared BRS API key as all other market endpoints.
+const BRS_CODAL_API_KEY = BRS_API_KEY;
 
 function withQuery(baseUrl, query) {
   const url = new URL(baseUrl);

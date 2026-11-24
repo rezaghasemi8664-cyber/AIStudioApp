@@ -10,8 +10,8 @@
 
 function getConfig() {
   return {
-    apiUrl: String(process.env.CODAL_API_URL || process.env.BRS_CODAL_URL || '').trim(),
-    apiKey: String(process.env.BRS_CODAL_API_KEY || process.env.CODAL_API_KEY || '').trim(),
+    apiUrl: String(process.env.BRS_CODAL_URL || process.env.CODAL_API_URL || '').trim(),
+    apiKey: String(process.env.BRS_API_KEY || '').trim(),
     category: String(process.env.CODAL_CATEGORY || '').trim(),
     audited: String(process.env.CODAL_AUDITED || 'true').trim(),
     unaudited: String(process.env.CODAL_UNAUDITED || 'true').trim(),
