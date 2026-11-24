@@ -339,9 +339,6 @@ async function getCompanyReports(options = {}) {
       stale: false
     };
   }
-  const symbol = options.symbol ? String(options.symbol).trim() : '';
-  const category = options.category == null ? '' : String(options.category).trim();
-  const page = Math.max(1, Number(options.page) || 1);
   const pageSize = 200;
   const state = await prisma.$queryRaw`SELECT ActiveSnapshotId, LastSuccessAt, AnnouncementCount, PageCount FROM dbo.CodalSnapshotState WHERE StateId = 1`;
   const activeId = state[0] && state[0].ActiveSnapshotId ? String(state[0].ActiveSnapshotId) : '';
