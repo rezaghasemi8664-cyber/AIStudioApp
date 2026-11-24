@@ -1034,6 +1034,14 @@ const server = httpServer.listen(PORT, function () {
   console.log('');
 });
 
+server.on('error', function (err) {
+  console.error('[FATAL] HTTP server listen error:', err.message);
+  if (err && err.code === 'EADDRINUSE') {
+    console.error('[FATAL] Port ' + PORT + ' is already in use. This backend instance will exit instead of entering an uncaught-exception shutdown path.');
+  }
+  process.exit(1);
+});
+
 let marketSummaryCronStarted = false;
 try {
   const cronEnabled = String(process.env.MARKET_SUMMARY_CRON_ENABLED || 'true').toLowerCase() !== 'false';
@@ -1081,6 +1089,7 @@ let isShuttingDown = false;
 function gracefulShutdown(signal) {
   if (isShuttingDown) return;
   isShuttingDown = true;
+  const shutdownExitCode = signal === 'uncaughtException' ? 1 : 0;
 
   console.log('');
   console.log('[SERVER] ' + signal + ' received. Starting graceful shutdown...');
@@ -1121,7 +1130,7 @@ function gracefulShutdown(signal) {
         .then(function () {
           console.log('[SERVER] Prisma client disconnected.');
           console.log('[SERVER] ✅ Graceful shutdown complete.');
-          process.exit(0);
+          process.exit(shutdownExitCode);
         })
         .catch(function (err) {
           console.error('[SERVER] Error disconnecting Prisma:', err.message);
@@ -1129,7 +1138,7 @@ function gracefulShutdown(signal) {
         });
     } else {
       console.log('[SERVER] ✅ Graceful shutdown complete.');
-      process.exit(0);
+      process.exit(shutdownExitCode);
     }
   });
 
