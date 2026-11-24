@@ -170,11 +170,38 @@ async function readUsage() {
   return { date: dateKey, count: rows.length ? Number(rows[0].RequestCount || 0) : 0, limit: getApiConfig().dailyLimit };
 }
 
+
+function publishCodalSnapshotCache(snapshot, reason = 'manual') {
+  if (!centralCache.set(CODAL_SNAPSHOT_CACHE_KEY, snapshot)) {
+    const error = new Error('Codal snapshot cache could not be replaced.');
+    error.code = 'CODAL_CACHE_PUBLISH_FAILED';
+    throw error;
+  }
+  const io = global.io;
+  if (io && typeof io.emit === 'function') {
+    try {
+      io.emit('codal-snapshot:updated', {
+        snapshotId: snapshot.snapshotId,
+        fetchedAt: snapshot.fetchedAt,
+        announcementCount: snapshot.announcementCount,
+        pageCount: snapshot.pageCount,
+        updatedAt: snapshot.updatedAt,
+        reason
+      });
+    } catch (emitError) {
+      console.warn('[CODAL SNAPSHOT] cache updated but socket notification failed:', emitError.message || emitError);
+    }
+  }
+  console.log('[CODAL SNAPSHOT] central cache updated reason=' + reason + ' id=' + snapshot.snapshotId + ' records=' + snapshot.announcements.length);
+  return snapshot;
+}
+
 async function refreshSnapshot({ reason = 'scheduled' } = {}) {
   if (refreshRunning) return { success: false, skipped: true, reason: 'ALREADY_RUNNING' };
   refreshRunning = true;
   const snapshotId = crypto.randomUUID();
   const startedAt = new Date();
+  let snapshotActivated = false;
   try {
     const config = getApiConfig();
     const all = [];
@@ -254,15 +281,41 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
       }, { maxWait: 10000, timeout: 30000 });
     }
 
-    // Activate only after every staged row and archive batch has succeeded.
+    // Read and validate the complete staged snapshot BEFORE switching the active pointer.
+    // This guarantees the cache can be replaced from the exact same complete dataset.
+    const stagedRows = await prisma.$queryRaw`SELECT AnnouncementKey, PayloadJson FROM dbo.CodalSnapshotAnnouncement WHERE SnapshotId = ${snapshotId} ORDER BY PublishedAt DESC, AnnouncementKey`;
+    const stagedAnnouncements = stagedRows.map(row => {
+      try { return JSON.parse(row.PayloadJson); } catch (_) { return null; }
+    }).filter(Boolean);
+    if (stagedAnnouncements.length !== unique.size) {
+      const error = new Error('Codal staged snapshot validation failed: expected ' + unique.size + ' records but read ' + stagedAnnouncements.length + '.');
+      error.code = 'CODAL_SNAPSHOT_VALIDATION_FAILED';
+      throw error;
+    }
+    const activationTime = new Date();
+    const nextSnapshotCache = {
+      snapshotId,
+      fetchedAt: activationTime.toISOString(),
+      announcementCount: unique.size,
+      pageCount: totalPages,
+      announcements: stagedAnnouncements,
+      updatedAt: activationTime.toISOString()
+    };
+
+    // Activate only after every staged row, archive batch, and cache payload has succeeded.
     await prisma.$transaction(async tx => {
       const stateRows = await tx.$queryRaw`SELECT StateId FROM dbo.CodalSnapshotState WHERE StateId = 1`;
       if (stateRows.length) {
-        await tx.$executeRaw`UPDATE dbo.CodalSnapshotState SET ActiveSnapshotId = ${snapshotId}, LastAttemptAt = SYSUTCDATETIME(), LastSuccessAt = SYSUTCDATETIME(), LastError = NULL, AnnouncementCount = ${unique.size}, PageCount = ${totalPages} WHERE StateId = 1`;
+        await tx.$executeRaw`UPDATE dbo.CodalSnapshotState SET ActiveSnapshotId = ${snapshotId}, LastAttemptAt = ${activationTime}, LastSuccessAt = ${activationTime}, LastError = NULL, AnnouncementCount = ${unique.size}, PageCount = ${totalPages} WHERE StateId = 1`;
       } else {
-        await tx.$executeRaw`INSERT INTO dbo.CodalSnapshotState (StateId, ActiveSnapshotId, LastAttemptAt, LastSuccessAt, LastError, AnnouncementCount, PageCount) VALUES (1, ${snapshotId}, SYSUTCDATETIME(), SYSUTCDATETIME(), NULL, ${unique.size}, ${totalPages})`;
+        await tx.$executeRaw`INSERT INTO dbo.CodalSnapshotState (StateId, ActiveSnapshotId, LastAttemptAt, LastSuccessAt, LastError, AnnouncementCount, PageCount) VALUES (1, ${snapshotId}, ${activationTime}, ${activationTime}, NULL, ${unique.size}, ${totalPages})`;
       }
     });
+    snapshotActivated = true;
+
+    // Publish the already-validated complete dataset to the process cache immediately
+    // after the database pointer swap. No second database read is needed here.
+    publishCodalSnapshotCache(nextSnapshotCache, 'snapshot-activated');
 
     // Keep only the active physical snapshot; the durable archive above keeps
     // historical announcement records. Delete in small batches to limit log growth.
@@ -275,21 +328,15 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
       console.warn('[CODAL SNAPSHOT] old snapshot cleanup deferred:', cleanupError.message || cleanupError);
     }
 
-    try {
-      await refreshCodalSnapshotCache({ reason: 'snapshot-activated' });
-    } catch (cacheError) {
-      // The database snapshot is already active; keep the successful DB commit
-      // and let the next startup/read-through hydrate the process cache.
-      console.error('[CODAL SNAPSHOT] cache refresh failed after activation:', cacheError.message || cacheError);
-    }
-
     console.log('[CODAL SNAPSHOT] success reason=' + reason + ' id=' + snapshotId + ' records=' + unique.size + ' pages=' + totalPages + ' reported=' + (reportedCount || '-') + '/' + (reportedPages || '-'));
     // Financial-document processing starts only from its dedicated 08:20 daily schedule.
-    return { success: true, snapshotId, announcementCount: unique.size, pageCount: totalPages, reportedCount, reportedPages, startedAt: startedAt.toISOString(), finishedAt: new Date().toISOString() };
+    return { success: true, snapshotId, announcementCount: unique.size, pageCount: totalPages, reportedCount, reportedPages, cacheUpdated: true, startedAt: startedAt.toISOString(), finishedAt: new Date().toISOString() };
   } catch (error) {
-    try {
-      await prisma.$executeRaw`DELETE FROM dbo.CodalSnapshotAnnouncement WHERE SnapshotId = ${snapshotId}`;
-    } catch (_) {}
+    if (!snapshotActivated) {
+      try {
+        await prisma.$executeRaw`DELETE FROM dbo.CodalSnapshotAnnouncement WHERE SnapshotId = ${snapshotId}`;
+      } catch (_) {}
+    }
     try {
       const failureMessage = String(error.message || error).slice(0, 4000);
       const stateRows = await prisma.$queryRaw`SELECT StateId FROM dbo.CodalSnapshotState WHERE StateId = 1`;
@@ -314,11 +361,47 @@ async function getCompanyReports(options = {}) {
   const symbol = options.symbol ? String(options.symbol).trim() : '';
   const category = options.category == null ? '' : String(options.category).trim();
   const page = Math.max(1, Number(options.page) || 1);
+  const pageSize = 200;
 
-  // Symbol-specific fundamental analysis must query BRS CODAL v2 with l18.
-  // The broad daily snapshot is intentionally not used for this path because
-  // it is capped and may not contain the requested issuer's latest filings.
   if (symbol) {
+    // Prefer the same persisted snapshot that feeds the financial-document cache.
+    // Only fall back to the live CODAL listing when this issuer has no financial
+    // filings in the active snapshot (the global snapshot is intentionally capped).
+    const state = await prisma.$queryRaw`SELECT ActiveSnapshotId, LastSuccessAt FROM dbo.CodalSnapshotState WHERE StateId = 1`;
+    const activeId = state[0] && state[0].ActiveSnapshotId ? String(state[0].ActiveSnapshotId) : '';
+    if (activeId) {
+      const rows = await prisma.$queryRaw`SELECT AnnouncementKey, PayloadJson FROM dbo.CodalSnapshotAnnouncement WHERE SnapshotId = ${activeId} AND Symbol = ${symbol} ORDER BY PublishedAt DESC, AnnouncementKey`;
+      const snapshotItems = rows.map(row => {
+        try { return JSON.parse(row.PayloadJson); } catch (_) { return null; }
+      }).filter(Boolean);
+      const hasFinancialFilings = snapshotItems.some(item => {
+        const title = String(first(item, ['title', 'Title']) || '');
+        const categoryName = String(first(item, ['categoryName', 'category_name']) || '');
+        return /صورت|ترازنامه|سود و زیان|فعالیت ماهانه|گزارش مالی|پیش.?بینی سود|financial statement/i.test(title + ' ' + categoryName);
+      });
+      if (hasFinancialFilings) {
+        const filtered = category
+          ? snapshotItems.filter(item => String(first(item, ['category', 'Category', 'category_id', 'categoryId']) || '') === category)
+          : snapshotItems;
+        const start = (page - 1) * pageSize;
+        return {
+          success: true,
+          provider: 'CODAL_DB_SNAPSHOT',
+          symbol,
+          announcements: filtered.slice(start, start + pageSize),
+          countAnnouncement: filtered.length,
+          countPage: Math.ceil(filtered.length / pageSize),
+          page,
+          fetchedAt: state[0].LastSuccessAt ? new Date(state[0].LastSuccessAt).toISOString() : null,
+          snapshotId: activeId,
+          stale: false
+        };
+      }
+    }
+
+    // Snapshot coverage is incomplete for some issuers. In that case only,
+    // retrieve the issuer's filings directly from CODAL; the downstream
+    // document service will persist any successfully extracted metrics.
     const payload = await fetchPage(page, { l18: symbol });
     const items = asArray(payload).map(item => normalizeAnnouncement(item));
     const filtered = category
@@ -328,25 +411,25 @@ async function getCompanyReports(options = {}) {
     const reportedPages = Number(first(payload, ['count_page', 'countPage'])) || Math.ceil(reportedCount / Math.max(1, items.length));
     return {
       success: true,
-      provider: 'BRS_CODAL_V2_SYMBOL',
+      provider: 'BRS_CODAL_V2_SYMBOL_FALLBACK',
       symbol,
       announcements: filtered,
       countAnnouncement: category ? filtered.length : reportedCount,
       countPage: category ? Math.ceil(filtered.length / Math.max(1, items.length)) : reportedPages,
       page,
       fetchedAt: new Date().toISOString(),
-      stale: false
+      stale: false,
+      fallbackReason: 'NO_FINANCIAL_FILINGS_IN_ACTIVE_SNAPSHOT'
     };
   }
-  const pageSize = 200;
+
   const state = await prisma.$queryRaw`SELECT ActiveSnapshotId, LastSuccessAt, AnnouncementCount, PageCount FROM dbo.CodalSnapshotState WHERE StateId = 1`;
   const activeId = state[0] && state[0].ActiveSnapshotId ? String(state[0].ActiveSnapshotId) : '';
   if (!activeId) {
-    return { success: true, provider: 'CODAL_DB_SNAPSHOT', symbol: symbol || null, announcements: [], countAnnouncement: 0, countPage: 0, page, fetchedAt: null, snapshotId: null, stale: true };
+    return { success: true, provider: 'CODAL_DB_SNAPSHOT', symbol: null, announcements: [], countAnnouncement: 0, countPage: 0, page, fetchedAt: null, snapshotId: null, stale: true };
   }
   const conditions = ['SnapshotId = @P1'];
   const params = [activeId];
-  if (symbol) { params.push(symbol); conditions.push('Symbol = @P' + params.length); }
   if (category) { params.push(category); conditions.push('Category = @P' + params.length); }
   const where = ' WHERE ' + conditions.join(' AND ');
   const rows = await prisma.$queryRawUnsafe(
@@ -358,7 +441,7 @@ async function getCompanyReports(options = {}) {
   return {
     success: true,
     provider: 'CODAL_DB_SNAPSHOT',
-    symbol: symbol || null,
+    symbol: null,
     announcements: rows.map(row => { try { return JSON.parse(row.PayloadJson); } catch (_) { return null; } }).filter(Boolean),
     countAnnouncement: total,
     countPage: Math.ceil(total / pageSize),
@@ -368,7 +451,6 @@ async function getCompanyReports(options = {}) {
     stale: false
   };
 }
-
 async function getArchivedReports({ symbol = '', category = '', from = '', to = '', limit = 200 } = {}) {
   const conditions = [];
   const params = [];
@@ -414,21 +496,7 @@ async function refreshCodalSnapshotCache({ reason = 'manual' } = {}) {
     announcements,
     updatedAt: new Date().toISOString()
   };
-  // Replace the whole snapshot in one operation only after all rows are read.
-  centralCache.set(CODAL_SNAPSHOT_CACHE_KEY, snapshot);
-  const io = global.io;
-  if (io && typeof io.emit === 'function') {
-    io.emit('codal-snapshot:updated', {
-      snapshotId: snapshot.snapshotId,
-      fetchedAt: snapshot.fetchedAt,
-      announcementCount: snapshot.announcementCount,
-      pageCount: snapshot.pageCount,
-      updatedAt: snapshot.updatedAt,
-      reason
-    });
-  }
-  console.log('[CODAL SNAPSHOT] central cache updated reason=' + reason + ' id=' + snapshotId + ' records=' + announcements.length);
-  return snapshot;
+  return publishCodalSnapshotCache(snapshot, reason);
 }
 
 async function getCodalSnapshotFromCache() {

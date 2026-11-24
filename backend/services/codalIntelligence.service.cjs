@@ -166,18 +166,43 @@ async function getReports({ symbol = '', from = '', to = '', limit = 50 } = {}) 
   if (symbolKey) sourceItems = sourceItems.filter(item => String(first(item, ['l18', 'symbol', 'Symbol']) || '').trim().toLowerCase() === symbolKey);
   if (fromKey) sourceItems = sourceItems.filter(item => normalizeDate(first(item, ['datePublish', 'date_publish', 'dateSend', 'date_send', 'dateTitle'])) >= fromKey);
   if (toKey) sourceItems = sourceItems.filter(item => normalizeDate(first(item, ['datePublish', 'date_publish', 'dateSend', 'date_send', 'dateTitle'])) <= toKey);
-  const items = sourceItems.map(normalizeItem)
+
+  let items = sourceItems.map(normalizeItem)
     .filter(item => item.title || item.symbol || item.publishDate || item.url)
-    .sort((a, b) => normalizeDate(b.publishDate).localeCompare(normalizeDate(a.publishDate)))
-    .slice(0, boundedLimit);
+    .sort((a, b) => normalizeDate(b.publishDate).localeCompare(normalizeDate(a.publishDate)));
+
+  const hasFinancialReport = items.some(item =>
+    /صورت|ترازنامه|سود و زیان|فعالیت ماهانه|گزارش مالی|پیش.?بینی سود|financial statement/i.test(item.title + ' ' + item.reportType)
+  );
+  let source = 'codal-db-snapshot-central-cache';
+  let fetchedAt = cached?.fetchedAt || null;
+  let stale = !(cached && cached.snapshotId);
+
+  // Valuable Symbols shares the same CODAL document processor as Symbol
+  // Analysis. If the central announcement snapshot has no financial filings
+  // for this issuer, ask the symbol-aware provider for a live CODAL fallback.
+  if (symbolKey && !hasFinancialReport) {
+    const provider = require('./codal.provider.cjs');
+    const live = await provider.getCompanyReports({ symbol: String(symbol).trim(), page: 1 });
+    if (live && Array.isArray(live.announcements) && live.announcements.length) {
+      items = live.announcements.map(normalizeItem)
+        .filter(item => item.title || item.symbol || item.publishDate || item.url)
+        .sort((a, b) => normalizeDate(b.publishDate).localeCompare(normalizeDate(a.publishDate)));
+      source = live.provider || 'codal-live-fallback';
+      fetchedAt = live.fetchedAt || new Date().toISOString();
+      stale = false;
+    }
+  }
+
   return {
-    items,
+    items: items.slice(0, boundedLimit),
     summary: buildSummary(items),
-    fetchedAt: cached?.fetchedAt || null,
-    source: 'codal-db-snapshot-central-cache',
+    fetchedAt,
+    source,
     configured: true,
-    stale: !(cached && cached.snapshotId),
-    snapshotId: cached?.snapshotId || null
+    stale,
+    snapshotId: cached?.snapshotId || null,
+    fallbackUsed: source !== 'codal-db-snapshot-central-cache'
   };
 }
 module.exports = { getReports, normalizeNumber, normalizeDigits, normalizeItem, classifyReport, extractFinancialMetrics, buildPeriodicTrend, buildSensitiveEvents };

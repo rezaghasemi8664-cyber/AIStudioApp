@@ -428,28 +428,85 @@ function announcementKey(announcement) {
   return crypto.createHash('sha256').update(identity).digest('hex');
 }
 
+const financialDocumentFallbacks = new Map();
+
+async function persistFinancialDocumentResult(key, result) {
+  const status = result.available && Object.keys(result.metrics || {}).length ? 'AVAILABLE' : 'UNAVAILABLE';
+  const metricsJson = JSON.stringify(result.metrics || {});
+  const sourceType = result.sourceType || null;
+  const sourceUrl = result.url || null;
+  const byteCount = Number(result.bytes || 0);
+  const lastError = status === 'AVAILABLE' ? null : String(result.reason || 'No usable financial metrics').slice(0, 2000);
+  await prisma.$executeRaw`IF EXISTS (SELECT 1 FROM dbo.CodalFinancialDocumentCache WHERE AnnouncementKey = ${key}) UPDATE dbo.CodalFinancialDocumentCache SET Status = ${status}, SourceType = ${sourceType}, SourceUrl = ${sourceUrl}, MetricsJson = ${metricsJson}, ByteCount = ${byteCount}, ExtractedAt = SYSUTCDATETIME(), LastError = ${lastError} WHERE AnnouncementKey = ${key} ELSE INSERT INTO dbo.CodalFinancialDocumentCache (AnnouncementKey, Status, SourceType, SourceUrl, MetricsJson, ByteCount, ExtractedAt, LastError) VALUES (${key}, ${status}, ${sourceType}, ${sourceUrl}, ${metricsJson}, ${byteCount}, SYSUTCDATETIME(), ${lastError})`;
+}
+
 async function extractFinancialDataFromAnnouncement(announcement) {
   const key = announcementKey(announcement);
   const rows = await prisma.$queryRaw`SELECT Status, SourceType, SourceUrl, MetricsJson, ByteCount, ExtractedAt, LastError FROM dbo.CodalFinancialDocumentCache WHERE AnnouncementKey = ${key}`;
-  if (!rows.length) {
-    return { available: false, cached: false, pending: true, sourceType: null, reason: 'داده عددی این اطلاعیه هنوز در اسنپ‌شات اسناد مالی ذخیره نشده است.', metrics: {} };
-  }
-  const row = rows[0];
+  const row = rows[0] || null;
   let metrics = {};
-  try { metrics = row.MetricsJson ? JSON.parse(row.MetricsJson) : {}; } catch (_) {}
-  return {
-    available: String(row.Status) === 'AVAILABLE' && Object.keys(metrics).length > 0,
-    cached: true,
-    pending: false,
-    sourceType: row.SourceType || null,
-    url: row.SourceUrl || null,
-    bytes: Number(row.ByteCount || 0),
-    extractedAt: row.ExtractedAt ? new Date(row.ExtractedAt).toISOString() : null,
-    reason: row.LastError || (Object.keys(metrics).length ? 'داده مالی از اسنپ‌شات پایگاه داده خوانده شد.' : 'در سند ذخیره‌شده شاخص مالی قابل استفاده پیدا نشد.'),
-    metrics
-  };
-}
+  try { metrics = row && row.MetricsJson ? JSON.parse(row.MetricsJson) : {}; } catch (_) {}
+  const cachedAvailable = row && String(row.Status) === 'AVAILABLE' && Object.keys(metrics).length > 0;
+  if (cachedAvailable) {
+    return {
+      available: true, cached: true, pending: false,
+      sourceType: row.SourceType || null,
+      url: row.SourceUrl || null,
+      bytes: Number(row.ByteCount || 0),
+      extractedAt: row.ExtractedAt ? new Date(row.ExtractedAt).toISOString() : null,
+      reason: 'داده مالی از کش مرکزی اسناد کدال خوانده شد.',
+      metrics
+    };
+  }
 
+  // A missing cache row (or an old UNAVAILABLE row) triggers a live document
+  // fetch. A short retry window prevents every request from repeatedly hitting
+  // CODAL when the same document is temporarily unavailable.
+  const extractedAt = row && row.ExtractedAt ? new Date(row.ExtractedAt).getTime() : 0;
+  const retryAfterMs = Math.max(5, Number(process.env.CODAL_DOCUMENT_FALLBACK_RETRY_MINUTES) || 30) * 60 * 1000;
+  if (row && extractedAt && Date.now() - extractedAt < retryAfterMs) {
+    return {
+      available: false, cached: true, pending: false,
+      sourceType: row.SourceType || null,
+      url: row.SourceUrl || null,
+      bytes: Number(row.ByteCount || 0),
+      extractedAt: new Date(row.ExtractedAt).toISOString(),
+      reason: row.LastError || 'سند مالی اخیراً بررسی شده اما داده عددی قابل استفاده نداشته است.',
+      metrics
+    };
+  }
+
+  if (financialDocumentFallbacks.has(key)) return financialDocumentFallbacks.get(key);
+  const fallbackTask = (async () => {
+    try {
+      const live = await extractFinancialDataFromAnnouncementLive(announcement);
+      await persistFinancialDocumentResult(key, live);
+      return {
+        ...live,
+        cached: false,
+        pending: false,
+        extractedAt: new Date().toISOString(),
+        reason: live.available
+          ? 'داده مالی به دلیل نبود داده معتبر در کش، مستقیماً از سند کدال دریافت و استخراج شد.'
+          : live.reason || 'دریافت مستقیم سند کدال انجام شد اما داده عددی قابل استفاده استخراج نشد.'
+      };
+    } catch (error) {
+      const failure = {
+        available: false, cached: false, pending: false,
+        sourceType: null, metrics: {},
+        reason: 'دریافت مستقیم سند مالی از کدال ناموفق بود: ' + String(error.message || error)
+      };
+      try { await persistFinancialDocumentResult(key, failure); } catch (persistError) {
+        console.error('[CODAL DOC CACHE] fallback result could not be persisted:', persistError.message || persistError);
+      }
+      return failure;
+    } finally {
+      financialDocumentFallbacks.delete(key);
+    }
+  })();
+  financialDocumentFallbacks.set(key, fallbackTask);
+  return fallbackTask;
+}
 let cacheRefreshRunning = false;
 let cacheRefreshTimer = null;
 const CACHE_BATCH_DELAY_MS = 15000;
