@@ -361,11 +361,47 @@ async function getCompanyReports(options = {}) {
   const symbol = options.symbol ? String(options.symbol).trim() : '';
   const category = options.category == null ? '' : String(options.category).trim();
   const page = Math.max(1, Number(options.page) || 1);
+  const pageSize = 200;
 
-  // Symbol-specific fundamental analysis must query BRS CODAL v2 with l18.
-  // The broad daily snapshot is intentionally not used for this path because
-  // it is capped and may not contain the requested issuer's latest filings.
   if (symbol) {
+    // Prefer the same persisted snapshot that feeds the financial-document cache.
+    // Only fall back to the live CODAL listing when this issuer has no financial
+    // filings in the active snapshot (the global snapshot is intentionally capped).
+    const state = await prisma.$queryRaw`SELECT ActiveSnapshotId, LastSuccessAt FROM dbo.CodalSnapshotState WHERE StateId = 1`;
+    const activeId = state[0] && state[0].ActiveSnapshotId ? String(state[0].ActiveSnapshotId) : '';
+    if (activeId) {
+      const rows = await prisma.$queryRaw`SELECT AnnouncementKey, PayloadJson FROM dbo.CodalSnapshotAnnouncement WHERE SnapshotId = ${activeId} AND Symbol = ${symbol} ORDER BY PublishedAt DESC, AnnouncementKey`;
+      const snapshotItems = rows.map(row => {
+        try { return JSON.parse(row.PayloadJson); } catch (_) { return null; }
+      }).filter(Boolean);
+      const hasFinancialFilings = snapshotItems.some(item => {
+        const title = String(first(item, ['title', 'Title']) || '');
+        const categoryName = String(first(item, ['categoryName', 'category_name']) || '');
+        return /صورت|ترازنامه|سود و زیان|فعالیت ماهانه|گزارش مالی|پیش.?بینی سود|financial statement/i.test(title + ' ' + categoryName);
+      });
+      if (hasFinancialFilings) {
+        const filtered = category
+          ? snapshotItems.filter(item => String(first(item, ['category', 'Category', 'category_id', 'categoryId']) || '') === category)
+          : snapshotItems;
+        const start = (page - 1) * pageSize;
+        return {
+          success: true,
+          provider: 'CODAL_DB_SNAPSHOT',
+          symbol,
+          announcements: filtered.slice(start, start + pageSize),
+          countAnnouncement: filtered.length,
+          countPage: Math.ceil(filtered.length / pageSize),
+          page,
+          fetchedAt: state[0].LastSuccessAt ? new Date(state[0].LastSuccessAt).toISOString() : null,
+          snapshotId: activeId,
+          stale: false
+        };
+      }
+    }
+
+    // Snapshot coverage is incomplete for some issuers. In that case only,
+    // retrieve the issuer's filings directly from CODAL; the downstream
+    // document service will persist any successfully extracted metrics.
     const payload = await fetchPage(page, { l18: symbol });
     const items = asArray(payload).map(item => normalizeAnnouncement(item));
     const filtered = category
@@ -375,25 +411,25 @@ async function getCompanyReports(options = {}) {
     const reportedPages = Number(first(payload, ['count_page', 'countPage'])) || Math.ceil(reportedCount / Math.max(1, items.length));
     return {
       success: true,
-      provider: 'BRS_CODAL_V2_SYMBOL',
+      provider: 'BRS_CODAL_V2_SYMBOL_FALLBACK',
       symbol,
       announcements: filtered,
       countAnnouncement: category ? filtered.length : reportedCount,
       countPage: category ? Math.ceil(filtered.length / Math.max(1, items.length)) : reportedPages,
       page,
       fetchedAt: new Date().toISOString(),
-      stale: false
+      stale: false,
+      fallbackReason: 'NO_FINANCIAL_FILINGS_IN_ACTIVE_SNAPSHOT'
     };
   }
-  const pageSize = 200;
+
   const state = await prisma.$queryRaw`SELECT ActiveSnapshotId, LastSuccessAt, AnnouncementCount, PageCount FROM dbo.CodalSnapshotState WHERE StateId = 1`;
   const activeId = state[0] && state[0].ActiveSnapshotId ? String(state[0].ActiveSnapshotId) : '';
   if (!activeId) {
-    return { success: true, provider: 'CODAL_DB_SNAPSHOT', symbol: symbol || null, announcements: [], countAnnouncement: 0, countPage: 0, page, fetchedAt: null, snapshotId: null, stale: true };
+    return { success: true, provider: 'CODAL_DB_SNAPSHOT', symbol: null, announcements: [], countAnnouncement: 0, countPage: 0, page, fetchedAt: null, snapshotId: null, stale: true };
   }
   const conditions = ['SnapshotId = @P1'];
   const params = [activeId];
-  if (symbol) { params.push(symbol); conditions.push('Symbol = @P' + params.length); }
   if (category) { params.push(category); conditions.push('Category = @P' + params.length); }
   const where = ' WHERE ' + conditions.join(' AND ');
   const rows = await prisma.$queryRawUnsafe(
@@ -405,7 +441,7 @@ async function getCompanyReports(options = {}) {
   return {
     success: true,
     provider: 'CODAL_DB_SNAPSHOT',
-    symbol: symbol || null,
+    symbol: null,
     announcements: rows.map(row => { try { return JSON.parse(row.PayloadJson); } catch (_) { return null; } }).filter(Boolean),
     countAnnouncement: total,
     countPage: Math.ceil(total / pageSize),
@@ -415,7 +451,6 @@ async function getCompanyReports(options = {}) {
     stale: false
   };
 }
-
 async function getArchivedReports({ symbol = '', category = '', from = '', to = '', limit = 200 } = {}) {
   const conditions = [];
   const params = [];
