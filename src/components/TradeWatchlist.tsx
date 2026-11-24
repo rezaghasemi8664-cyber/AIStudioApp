@@ -31,6 +31,7 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
   const [stopLossAlertEnabled, setStopLossAlertEnabled] = useState(true);
   const [tradeIntent, setTradeIntent] = useState<'BUY' | 'WATCH'>('WATCH');
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editDraft, setEditDraft] = useState({ quantity: '', entryPrice: '', targetPrice: '', stopLoss: '' });
 
   const load = useCallback(async () => {
@@ -142,6 +143,25 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
     } catch (e) { setError(errorMessage(e)); }
   };
 
+  const toggleSelected = (id: string) => setSelectedIds(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id]);
+
+  const removeSelected = async () => {
+    const targets = items.filter(item => selectedIds.includes(item.id));
+    if (!targets.length) return;
+    if (!window.confirm(`آیا از حذف ${targets.length.toLocaleString('fa-IR')} نماد انتخاب‌شده از ${labels[listType]} اطمینان دارید؟`)) return;
+    setSaving(true); setError(''); setNotice('');
+    try {
+      const results = await Promise.allSettled(targets.map(item => api.delete(`/trade-watchlists/${listType}/${encodeURIComponent(item.id)}`)));
+      const removedIds = targets.filter((_, index) => results[index].status === 'fulfilled').map(item => item.id);
+      setItems(current => current.filter(item => !removedIds.includes(item.id)));
+      setSelectedIds(current => current.filter(id => !removedIds.includes(id)));
+      const failed = targets.length - removedIds.length;
+      if (failed) setError(`${removedIds.length.toLocaleString('fa-IR')} نماد حذف شد؛ حذف ${failed.toLocaleString('fa-IR')} نماد ناموفق بود. دوباره تلاش کنید.`);
+      else setNotice(`${removedIds.length.toLocaleString('fa-IR')} نماد انتخاب‌شده از ${labels[listType]} حذف شد.`);
+    } catch (e) { setError(errorMessage(e)); }
+    finally { setSaving(false); }
+  };
+
   const remove = async (item: WatchItem) => {
     if (!window.confirm(`نماد ${item.symbol} از ${labels[listType]} حذف شود؟`)) return;
     try {
@@ -154,7 +174,7 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
   return (
     <section className="space-y-5" dir="rtl">
       <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-        <h2 className="mb-1 text-lg font-bold">{labels[listType]}</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-bold">{labels[listType]}</h2><button type="button" onClick={() => void removeSelected()} disabled={saving || selectedIds.length === 0} className="rounded-lg border border-red-500/40 px-3 py-2 text-sm font-semibold text-red-600 disabled:cursor-not-allowed disabled:opacity-40">حذف نمادهای انتخابی ({selectedIds.length.toLocaleString('fa-IR')})</button></div>
         <form onSubmit={save} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="text-sm">نماد
             <input required value={symbol} onChange={e => setSymbol(e.target.value)} placeholder="مثلاً خودرو" className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2" />
@@ -197,9 +217,9 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
       {loading ? <p className="py-8 text-center text-sm text-[var(--color-text-secondary)]">در حال دریافت سبد…</p> : items.length === 0 ? <div className="rounded-xl border border-dashed border-[var(--color-border)] p-8 text-center text-sm text-[var(--color-text-secondary)]">هنوز نمادی در این سبد ثبت نشده است.</div> : (
         <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
           <table className="min-w-[1100px] w-full text-sm">
-            <thead className="bg-[var(--color-surface)]"><tr>{['نماد','وضعیت','تاریخ ورود','تعداد','قیمت ورود','هدف قیمتی','حد ضرر','قیمت فعلی','سود/زیان مبلغی','سود/زیان درصدی','هشدارها','عملیات'].map(title => <th key={title} className="whitespace-nowrap p-3 text-right">{title}</th>)}</tr></thead>
+            <thead className="bg-[var(--color-surface)]"><tr>{['انتخاب','نماد','وضعیت','تاریخ ورود','تعداد','قیمت ورود','هدف قیمتی','حد ضرر','قیمت فعلی','سود/زیان مبلغی','سود/زیان درصدی','هشدارها','عملیات'].map(title => <th key={title} className="whitespace-nowrap p-3 text-right">{title}</th>)}</tr></thead>
             <tbody>{sortedItems.map(item => <><tr key={item.id} className={`border-t border-[var(--color-border)] ${item.tradeIntent === 'BUY' ? 'bg-emerald-500/10' : 'bg-amber-500/5'}`}>
-              <td className="p-3 font-bold">{item.symbol}<div className="text-xs font-normal text-[var(--color-text-secondary)]">{item.name}</div></td>
+              <td className="p-3"><input type="checkbox" aria-label={`انتخاب ${item.symbol} برای حذف`} checked={selectedIds.includes(item.id)} onChange={() => toggleSelected(item.id)} disabled={saving} className="h-4 w-4 accent-red-600" /></td><td className="p-3 font-bold">{item.symbol}<div className="text-xs font-normal text-[var(--color-text-secondary)]">{item.name}</div></td>
               <td className="p-3"><span className={`rounded-full px-2 py-1 text-xs font-bold ${item.tradeIntent === 'BUY' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'}`}>{item.tradeIntent === 'BUY' ? 'خرید' : 'پایش'}</span></td>
               <td className="whitespace-nowrap p-3">{item.entryDate}</td><td className="p-3">{money(item.quantity)}</td><td className="p-3"><div>{money(item.entryPrice)}</div>{item.entryPriceTriggered && <div className="mt-1 text-xs font-bold text-emerald-600">تاچ شد</div>}</td>
               <td className="p-3">{money(item.targetPrice)}</td><td className="p-3">{money(item.stopLoss)}</td><td className="p-3">{money(item.currentPrice)}</td>
@@ -207,7 +227,7 @@ const TradeWatchlist: React.FC<{ listType: ListType; isOnline: boolean }> = ({ l
               <td className={`p-3 font-bold ${(item.pnlPercent ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{item.pnlPercent == null ? '—' : `${money(item.pnlPercent)}٪`}</td>
               <td className="p-3"><div className="flex flex-col gap-1 text-xs"><span className={item.targetAlertEnabled ? 'text-emerald-600' : 'text-gray-400'}>{item.targetAlertEnabled ? 'هدف فعال' : 'هدف غیرفعال'}{item.targetAlertTriggered ? ' · صادر شد' : ''}</span><span className={item.stopLossAlertEnabled ? 'text-red-600' : 'text-gray-400'}>{item.stopLossAlertEnabled ? 'حد ضرر فعال' : 'حد ضرر غیرفعال'}{item.stopLossAlertTriggered ? ' · صادر شد' : ''}</span></div></td>
               <td className="p-3"><div className="flex flex-col gap-2"><button type="button" onClick={() => beginEdit(item)} className="whitespace-nowrap rounded-md border border-emerald-500/30 px-3 py-1 text-emerald-600 hover:bg-emerald-500/10">ویرایش</button><button type="button" onClick={() => void editAlerts(item)} className="whitespace-nowrap rounded-md border border-cyan-500/30 px-3 py-1 text-cyan-600 hover:bg-cyan-500/10">تنظیم هشدار</button><button type="button" onClick={() => void remove(item)} className="whitespace-nowrap rounded-md border border-red-500/30 px-3 py-1 text-red-600 hover:bg-red-500/10">حذف</button></div></td>
-            </tr>{editingItemId === item.id && <tr className="border-t border-[var(--color-border)] bg-[var(--color-surface)]"><td colSpan={12} className="p-4"><form onSubmit={event => void saveEdit(event, item)} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5" dir="rtl">
+            </tr>{editingItemId === item.id && <tr className="border-t border-[var(--color-border)] bg-[var(--color-surface)]"><td colSpan={13} className="p-4"><form onSubmit={event => void saveEdit(event, item)} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5" dir="rtl">
                 <div className="min-w-0"><label htmlFor={`edit-quantity-${item.id}`} className="mb-1 block text-xs font-medium">تعداد سهم</label><input id={`edit-quantity-${item.id}`} required type="number" min="0.000001" step="any" value={editDraft.quantity} onChange={e => setEditDraft(current => ({ ...current, quantity: e.target.value }))} className="block w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2 text-sm" /></div>
                 <div className="min-w-0"><label htmlFor={`edit-entry-price-${item.id}`} className="mb-1 block text-xs font-medium">قیمت ورود</label><input id={`edit-entry-price-${item.id}`} required type="number" min="0.01" step="any" value={editDraft.entryPrice} onChange={e => setEditDraft(current => ({ ...current, entryPrice: e.target.value }))} className="block w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2 text-sm" /></div>
                 <div className="min-w-0"><label htmlFor={`edit-target-price-${item.id}`} className="mb-1 block text-xs font-medium">هدف قیمتی</label><input id={`edit-target-price-${item.id}`} type="number" min="0.01" step="any" value={editDraft.targetPrice} onChange={e => setEditDraft(current => ({ ...current, targetPrice: e.target.value }))} placeholder="اختیاری" className="block w-full rounded-lg border border-[var(--color-border)] bg-transparent p-2 text-sm" /></div>
