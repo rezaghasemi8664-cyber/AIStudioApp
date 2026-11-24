@@ -128,6 +128,17 @@ function latestSourceUpdate(items, source) {
   if (!parseable.length) return candidates[0].display;
   return parseable.reduce((latest, item) => item.key > latest.key ? item : latest).display;
 }
+const MAX_COMMODITY_SCHEDULE_GRACE_MINUTES = 10;
+
+function getCommodityScheduleSlot(now, schedule) {
+  const interval = Number(schedule?.intervalMinutes);
+  // Cron ticks once per minute. Keep a missed slot eligible for retry when
+  // the event loop or another scheduled task delays the tick, without
+  // allowing one interval's grace window to overlap the next interval.
+  const graceMinutes = Math.min(MAX_COMMODITY_SCHEDULE_GRACE_MINUTES, Math.max(0, interval - 1));
+  return getDueIntervalSlot(now, schedule?.startTime, interval, graceMinutes);
+}
+
 function freshSnapshot(snapshot, now = new Date()) {
   const fetchedAt = new Date(snapshot?.fetchedAt || '').getTime();
   return Number.isFinite(fetchedAt) && fetchedAt <= now.getTime() + 60_000 && now.getTime() - fetchedAt <= MAX_CACHE_AGE_MS;
@@ -278,7 +289,7 @@ async function publishCommodityPricesIfScheduled(now = new Date(), suppliedSetti
       if (!schedule?.enabled) { outcomes.push({ name: group.key, skipped: true, reason: 'DISABLED_BY_ADMIN' }); continue; }
       if (!isAllowedWeekday(now, schedule.days)) { outcomes.push({ name: group.key, skipped: true, reason: 'WEEKDAY_NOT_ENABLED' }); continue; }
       if (!isBeforeEndTime(now, schedule.endTime)) { outcomes.push({ name: group.key, skipped: true, reason: 'PUBLISHING_END_TIME_REACHED' }); continue; }
-      const slotTime = getDueIntervalSlot(now, schedule.startTime, schedule.intervalMinutes, 2);
+      const slotTime = getCommodityScheduleSlot(now, schedule);
       if (!slotTime) { outcomes.push({ name: group.key, skipped: true, reason: 'NOT_IN_PUBLISH_CYCLE' }); continue; }
       const slot = tehranDateKey(now) + '@' + slotTime;
       if (state.lastCommodityTelegramSlots?.[group.key] === slot) { outcomes.push({ name: group.key, skipped: true, reason: 'ALREADY_PUBLISHED_THIS_SLOT' }); continue; }
@@ -334,4 +345,4 @@ async function publishCommodityGroupNow(groupKey, now = new Date()) {
   } finally { publishingRunning = false; }
 }
 
-module.exports = { GROUPS, renderCommodityCaption, publishCommodityPricesIfScheduled, publishCommodityGroupNow };
+module.exports = { GROUPS, renderCommodityCaption, getCommodityScheduleSlot, publishCommodityPricesIfScheduled, publishCommodityGroupNow };
