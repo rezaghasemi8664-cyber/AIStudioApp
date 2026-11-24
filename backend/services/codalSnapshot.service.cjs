@@ -10,7 +10,6 @@ const CODAL_SNAPSHOT_CACHE_KEY = 'codal:snapshot:active';
 const TEHRAN_TIMEZONE = 'Asia/Tehran';
 const DEFAULT_DAILY_LIMIT = 500;
 const DEFAULT_MAX_PAGES = 180;
-const DEFAULT_FINANCIAL_PAGES = 30;
 let refreshRunning = false;
 let cronTasks = [];
 
@@ -48,12 +47,12 @@ function asArray(payload) {
   return [];
 }
 
-function normalizeAnnouncement(source, requestedCategory) {
+function normalizeAnnouncement(source) {
   const item = source && typeof source === 'object' ? source : {};
   const normalized = {
     l18: first(item, ['l18', 'symbol', 'Symbol']),
     l30: first(item, ['l30', 'companyName', 'company', 'name']),
-    category: first(item, ['category', 'Category', 'category_id', 'categoryId']) || requestedCategory || null,
+    category: first(item, ['category', 'Category', 'category_id', 'categoryId']),
     categoryName: first(item, ['category_name', 'categoryName', 'CategoryName']),
     title: first(item, ['title', 'Title']),
     code: first(item, ['code', 'Code']),
@@ -107,7 +106,7 @@ async function reserveDailyRequest() {
   });
 }
 
-async function fetchPage(page, category = '') {
+async function fetchPage(page) {
   const config = getApiConfig();
   if (!config.url || !config.key) {
     const error = new Error('Codal API URL/key are not configured.');
@@ -117,7 +116,6 @@ async function fetchPage(page, category = '') {
   const url = new URL(config.url);
   url.searchParams.set('key', config.key);
   url.searchParams.set('page', String(page));
-  if (category) url.searchParams.set('category', String(category));
   for (const [envName, paramName, fallback] of [
     ['CODAL_AUDITED', 'audited', 'true'],
     ['CODAL_UNAUDITED', 'unaudited', 'true'],
@@ -154,7 +152,7 @@ async function fetchPage(page, category = '') {
         (normalized.code === 'CODAL_HTTP_ERROR' && normalized.status >= 500);
       if (attempt < 2 && retryable) {
         console.warn('[CODAL SNAPSHOT] transient request failure; retrying page=' + page +
-          ' category=' + (category || 'general') + ' error=' + (normalized.message || normalized));
+          ' page=' + page + ' error=' + (normalized.message || normalized));
         continue;
       }
       throw normalized;
@@ -181,31 +179,11 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
     const all = [];
     let reportedPages = null;
     let reportedCount = null;
-    const financialBudget = Math.min(DEFAULT_FINANCIAL_PAGES, Math.max(1, Math.floor(config.maxPages / 6)));
-    const generalBudget = config.maxPages - financialBudget;
+    const generalBudget = config.maxPages;
     let totalPages = 0;
 
-    // Fetch financial statements separately because BRS may omit category IDs
-    // from individual rows even when category=1 was requested.
-    let financialPage = 1;
-    let financialReportedPages = null;
-    while (financialPage <= financialBudget) {
-      const payload = await fetchPage(financialPage, '1');
-      totalPages += 1;
-      const items = asArray(payload);
-      financialReportedPages = Number(first(payload, ['count_page', 'countPage'])) || financialReportedPages;
-      reportedCount = Number(first(payload, ['count_announcement', 'countAnnouncement'])) || reportedCount;
-      all.push(...items.map(item => normalizeAnnouncement(item, '1')));
-      if (!items.length || (financialReportedPages && financialPage >= financialReportedPages)) break;
-      financialPage += 1;
-    }
-    // The API may report the total number of Codal pages, not the number
-    // available within this category. Treat the configured budget as a
-    // deliberate recent-data window instead of rejecting every snapshot.
-    if (financialReportedPages > financialBudget || financialPage > financialBudget) {
-      console.warn('[CODAL SNAPSHOT] financial page budget reached; continuing with the fetched recent pages (' +
-        financialBudget + ' max, API reported ' + financialReportedPages + ').');
-    }
+    // BRS CODAL v2 does not support the legacy category=1 filter.
+    // Fetch the supported listing and classify financial filings locally.
 
     let generalPage = 1;
     while (generalPage <= generalBudget) {
@@ -214,7 +192,7 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
       const items = asArray(payload);
       reportedPages = Number(first(payload, ['count_page', 'countPage'])) || reportedPages;
       reportedCount = Number(first(payload, ['count_announcement', 'countAnnouncement'])) || reportedCount;
-      all.push(...items.map(item => normalizeAnnouncement(item, null)));
+      all.push(...items.map(item => normalizeAnnouncement(item)));
       if (!items.length || (reportedPages && generalPage >= reportedPages)) break;
       generalPage += 1;
     }
@@ -227,7 +205,7 @@ async function refreshSnapshot({ reason = 'scheduled' } = {}) {
     const unique = new Map();
     for (const item of all) {
       const previous = unique.get(item._archiveKey);
-      // Prefer the category=1 result when the general listing omits category.
+      // Keep an actual category field when the provider supplies one.
       if (!previous || (String(item.category || '') === '1' && String(previous.category || '') !== '1')) unique.set(item._archiveKey, item);
     }
     if (!unique.size) {
