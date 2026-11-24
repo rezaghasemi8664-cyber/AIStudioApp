@@ -6,7 +6,7 @@ const {
   renderSummaryMessage, renderSummaryMessages, renderIndexMessage, getScalpingOpportunityQuery
 } = require('../services/telegramPublisher.service.cjs');
 const { DEFAULT_SETTINGS, normalizeSettings, validateSettings, isAllowedWeekday, isIntervalDue, isBeforeEndTime } = require('../services/telegramPublisherSettings.service.cjs');
-const { GROUPS, renderCommodityCaption } = require('../services/commodityTelegramPublisher.service.cjs');
+const { GROUPS, renderCommodityCaption, getCommodityScheduleSlot } = require('../services/commodityTelegramPublisher.service.cjs');
 
 describe('Telegram publisher helpers', () => {
   test('scalping Telegram query only selects active opportunities from the current Tehran market date', () => {
@@ -166,6 +166,20 @@ describe('Telegram publisher helpers', () => {
     })).toThrow('SUMMARY_PARAGRAPH_EXCEEDS_PART_LIMIT');
   });
 
+
+describe('Commodity Telegram schedule retry window', () => {
+  test('keeps a commodity slot eligible when the once-per-minute cron tick is delayed', () => {
+    const schedule = { startTime: '09:00', intervalMinutes: 60 };
+    expect(getCommodityScheduleSlot(new Date('2026-10-10T05:38:00.000Z'), schedule)).toBe('09:00'); // 09:08 Tehran
+    expect(getCommodityScheduleSlot(new Date('2026-10-10T05:41:00.000Z'), schedule)).toBeNull(); // 09:11 Tehran
+  });
+
+  test('does not let the retry window overlap the next short interval', () => {
+    const schedule = { startTime: '09:00', intervalMinutes: 5 };
+    expect(getCommodityScheduleSlot(new Date('2026-10-10T05:34:00.000Z'), schedule)).toBe('09:00'); // 09:04 Tehran
+    expect(getCommodityScheduleSlot(new Date('2026-10-10T05:35:00.000Z'), schedule)).toBe('09:05'); // 09:05 Tehran
+  });
+});
 
 describe('Commodity Telegram captions', () => {
   test('renders precious metals from the commodity snapshot with the data timestamp', () => {
