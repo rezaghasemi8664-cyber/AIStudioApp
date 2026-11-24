@@ -463,7 +463,7 @@ async function extractFinancialDataFromAnnouncement(announcement) {
   // fetch. A short retry window prevents every request from repeatedly hitting
   // CODAL when the same document is temporarily unavailable.
   const extractedAt = row && row.ExtractedAt ? new Date(row.ExtractedAt).getTime() : 0;
-  const retryAfterMs = Math.max(60, Number(process.env.CODAL_DOCUMENT_FALLBACK_RETRY_MINUTES) || 360) * 60 * 1000;
+  const retryAfterMs = Math.max(5, Number(process.env.CODAL_DOCUMENT_FALLBACK_RETRY_MINUTES) || 30) * 60 * 1000;
   if (row && extractedAt && Date.now() - extractedAt < retryAfterMs) {
     return {
       available: false, cached: true, pending: false,
