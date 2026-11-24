@@ -121,8 +121,7 @@ async function fetchPage(page, filters = {}) {
   for (const [envName, paramName, fallback] of [
     ['CODAL_AUDITED', 'audited', 'true'],
     ['CODAL_UNAUDITED', 'unaudited', 'true'],
-    ['CODAL_ONLY_MAIN_COMPANY', 'only_main_company', 'true'],
-    ['CODAL_ONLY_SUBSIDIARIES', 'only_subsidiaries', 'false']
+    ['CODAL_ONLY_MAIN_COMPANY', 'only_main_company', 'true']
   ]) url.searchParams.set(paramName, String(process.env[envName] || fallback));
 
   // Retry one transient timeout/network/5xx failure. Every attempt is counted
