@@ -234,7 +234,9 @@ function renderCommodityCaption(group, snapshot, now = new Date()) {
   let caption = [...header, ...footer].join('\n');
   for (const row of formatted) {
     const candidate = [...header, ...selected, row, ...footer].join('\n');
-    const maxMessageLength = group.key === 'currencyPrice' ? 4096 : 1024;
+    // This publisher uses sendMessage (limit 4096), not sendPhoto captions (limit 1024).
+    // Keep all coin rows, including SEKE_ROB, in the text message whenever Telegram allows it.
+    const maxMessageLength = 4096;
     if (candidate.length > maxMessageLength) break;
     selected.push(row);
     caption = candidate;
@@ -242,7 +244,7 @@ function renderCommodityCaption(group, snapshot, now = new Date()) {
   if (selected.length < formatted.length) {
     const omitted = '… موارد بیشتر در تب کامودیتی نرم‌افزار رونیا';
     const candidate = [...header, ...selected, omitted, ...footer].join('\n');
-    if (candidate.length <= (group.key === 'currencyPrice' ? 4096 : 1024)) caption = candidate;
+    if (candidate.length <= 4096) caption = candidate;
   }
   return caption;
 }
