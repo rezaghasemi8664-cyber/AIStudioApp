@@ -195,6 +195,25 @@ describe('Commodity Telegram captions', () => {
     expect(caption.length).toBeLessThanOrEqual(1024);
   });
 
+  test('includes the quarter coin in a full coin-price message above the photo-caption limit', () => {
+    const now = new Date('2026-11-23T06:00:00.000Z');
+    const group = GROUPS.find(item => item.key === 'coinPrice');
+    const coins = [
+      { symbol: 'SEKE_1G', name: 'سکه یک گرمی', current: 120000000, change24hPercent: 1.1, min24h: 118000000, max24h: 122000000, update: '10:00' },
+      { symbol: 'SEKE_BAHAR', name: 'سکه بهار آزادی', current: 500000000, change24hPercent: 1.2, min24h: 495000000, max24h: 505000000, update: '10:00' },
+      { symbol: 'SEKE_EMAMI', name: 'سکه امامی', current: 550000000, change24hPercent: 1.3, min24h: 545000000, max24h: 555000000, update: '10:00' },
+      { symbol: 'SEKE_NIM', name: 'نیم‌سکه', current: 300000000, change24hPercent: 1.4, min24h: 295000000, max24h: 305000000, update: '10:00' },
+      { symbol: 'SEKE_ROB', name: 'ربع‌سکه', current: 170000000, change24hPercent: 1.5, min24h: 165000000, max24h: 175000000, update: '10:00' }
+    ];
+    const caption = renderCommodityCaption(group, {
+      fetchedAt: now.toISOString(), groups: { gold: coins }
+    }, now);
+    expect(caption).toContain('SEKE_ROB');
+    expect(caption).toContain('ربع‌سکه');
+    expect(caption.length).toBeGreaterThan(1024);
+    expect(caption.length).toBeLessThanOrEqual(4096);
+  });
+
   test('renders gold prices from Nerkh cache and includes currency conversion context for ounce', () => {
     const now = new Date('2026-11-23T06:00:00.000Z');
     const group = GROUPS.find(item => item.key === 'goldPrice');
